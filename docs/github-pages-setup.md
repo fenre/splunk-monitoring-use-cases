@@ -4,6 +4,26 @@ A step-by-step guide to get the Infrastructure Monitoring Use Case Dashboard run
 
 ---
 
+## Submodule and CI (optional)
+
+This repo may contain a git submodule `_sse_content` (a clone of [splunk/security_content](https://github.com/splunk/security_content)), used locally for import/backfill scripts. For **GitHub Actions** (e.g. deploy to Pages), if you see:
+
+```text
+fatal: No url found for submodule path '_sse_content' in .gitmodules
+```
+
+then ensure **`.gitmodules`** exists at the repo root with:
+
+```ini
+[submodule "_sse_content"]
+	path = _sse_content
+	url = https://github.com/splunk/security_content.git
+```
+
+The workflow **`.github/workflows/pages.yml`** uses `submodules: false` so the Pages deploy does not clone `_sse_content` (the static site only needs `index.html`, `data.js`, and assets). If you use a different workflow, add `submodules: false` to the `actions/checkout` step to avoid the error and speed up the run.
+
+---
+
 ## Prerequisites
 
 - A GitHub account ([github.com](https://github.com))
