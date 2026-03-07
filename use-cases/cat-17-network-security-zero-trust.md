@@ -9,6 +9,7 @@
 ### UC-17.1.1 · NAC Authentication Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Authentication success/failure trends reveal infrastructure issues (certificate problems, RADIUS outages) and security events.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** RADIUS/ISE authentication logs
@@ -35,6 +36,7 @@ index=nac sourcetype="cisco:ise:auth"
 ### UC-17.1.2 · Endpoint Posture Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Non-compliant endpoints accessing the network pose security risks. Posture tracking ensures endpoint hygiene enforcement.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** ISE posture assessment logs
@@ -62,6 +64,7 @@ index=nac sourcetype="cisco:ise:posture"
 ### UC-17.1.3 · VLAN Assignment Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Dynamic VLAN assignments reflect authorization decisions. Anomalous placements may indicate policy misconfiguration or attacks.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** ISE authorization logs (VLAN assignment)
@@ -88,6 +91,7 @@ index=nac sourcetype="cisco:ise:auth"
 ### UC-17.1.4 · Guest Network Usage
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Guest network monitoring ensures acceptable use and identifies capacity needs. Unusual patterns may indicate abuse.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** ISE guest portal logs, RADIUS accounting
@@ -114,6 +118,7 @@ index=nac sourcetype="cisco:ise:guest"
 ### UC-17.1.5 · BYOD Onboarding Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** BYOD onboarding metrics inform mobile device management strategy and user experience optimization.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** ISE BYOD portal logs, certificate provisioning
@@ -140,6 +145,7 @@ index=nac sourcetype="cisco:ise:byod"
 ### UC-17.1.6 · MAC Authentication Bypass (MAB)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** MAB devices bypass 802.1X and rely on MAC address only. Monitoring for unauthorized MACs prevents rogue device access.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** ISE MAB authentication logs
@@ -167,6 +173,7 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB"
 ### UC-17.1.7 · Profiling Accuracy
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Accurate device profiling enables correct authorization policies. Misprofiled devices may get inappropriate access.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** ISE profiler logs, re-profiling events
@@ -194,6 +201,7 @@ index=nac sourcetype="cisco:ise:profiler"
 ### UC-17.1.8 · NAC Policy Change Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** NAC policy changes affect network access for all devices. Unauthorized changes can create security gaps or disrupt access.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Data Sources:** ISE admin audit logs
@@ -226,6 +234,7 @@ index=nac sourcetype="cisco:ise:admin"
 ### UC-17.2.1 · VPN Concurrent Sessions
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** VPN capacity planning prevents remote workers from being locked out. Trending identifies peak usage and growth patterns.
 - **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
 - **Data Sources:** VPN concentrator session logs
@@ -253,6 +262,7 @@ index=vpn sourcetype="cisco:asa"
 ### UC-17.2.2 · VPN Authentication Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Repeated VPN auth failures indicate credential attacks against the remote access perimeter, a primary attack vector.
 - **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
 - **Data Sources:** VPN authentication logs
@@ -281,6 +291,7 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 ### UC-17.2.3 · Geo-Location Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** VPN connections from unexpected countries may indicate compromised credentials being used from attacker infrastructure.
 - **App/TA:** VPN TA + GeoIP lookup
 - **Data Sources:** VPN session logs with source IP
@@ -309,6 +320,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 ### UC-17.2.4 · Split-Tunnel Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Split-tunnel configurations affect security visibility. Ensuring compliance with tunnel policy maintains security posture.
 - **App/TA:** VPN TA
 - **Data Sources:** VPN session attributes (tunnel type, group policy)
@@ -337,6 +349,7 @@ index=vpn sourcetype="cisco:asa"
 ### UC-17.2.5 · VPN Tunnel Stability
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.
 - **App/TA:** VPN TA
 - **Data Sources:** VPN session logs (connect/disconnect events)
@@ -367,6 +380,7 @@ index=vpn sourcetype="cisco:asa"
 ### UC-17.2.6 · Off-Hours VPN Access
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** VPN access at unusual hours may indicate compromised credentials or unauthorized activity. Alerting supports investigation.
 - **App/TA:** VPN TA + user context
 - **Data Sources:** VPN session logs, HR data (department, role)
@@ -397,6 +411,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 ### UC-17.2.7 · VPN Bandwidth Consumption
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Per-user bandwidth tracking identifies heavy users, guides capacity planning, and detects potential data exfiltration.
 - **App/TA:** VPN TA, RADIUS accounting
 - **Data Sources:** VPN session accounting (bytes in/out)
@@ -426,6 +441,7 @@ index=vpn sourcetype="cisco:asa"
 ### UC-17.2.8 · Simultaneous Session Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** A single user with simultaneous VPN sessions from different locations strongly indicates credential compromise.
 - **App/TA:** VPN TA
 - **Data Sources:** VPN session logs
@@ -459,6 +475,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 ### UC-17.3.1 · Conditional Access Enforcement
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Tracks zero-trust policy enforcement decisions, ensuring consistent security without creating user friction.
 - **App/TA:** SASE TA, Entra ID
 - **Data Sources:** SASE/ZT policy decision logs
@@ -485,6 +502,7 @@ index=zt sourcetype="zscaler:zpa"
 ### UC-17.3.2 · Device Trust Scoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Device trust scores drive access decisions in zero-trust architecture. Monitoring ensures devices maintain compliance.
 - **App/TA:** ZT platform TA
 - **Data Sources:** ZT device compliance/trust data
@@ -511,6 +529,7 @@ index=zt sourcetype="zscaler:device_posture"
 ### UC-17.3.3 · Micro-Segmentation Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.
 - **App/TA:** SDN/ZT policy logs
 - **Data Sources:** Micro-segmentation policy logs (allow/deny events)
@@ -538,6 +557,7 @@ index=zt sourcetype="microseg:policy"
 ### UC-17.3.4 · ZTNA Application Access
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Per-application access patterns in ZTNA reveal usage trends, security risks, and application performance issues.
 - **App/TA:** SASE TA
 - **Data Sources:** ZTNA access logs (application, user, device, action)
@@ -564,6 +584,7 @@ index=zt sourcetype="zscaler:zpa"
 ### UC-17.3.5 · Posture Assessment Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.
 - **App/TA:** ZT platform TA
 - **Data Sources:** ZT posture assessment data
@@ -589,6 +610,7 @@ index=zt sourcetype="zt:posture"
 ### UC-17.3.6 · Policy Drift Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Zero-trust policies require continuous validation. Drift from baseline configuration introduces security gaps.
 - **App/TA:** ZT platform audit logs
 - **Data Sources:** ZT policy audit logs, configuration snapshots

@@ -9,6 +9,7 @@
 ### UC-6.1.1 · Volume Capacity Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Prevents application outages caused by full volumes. Enables proactive capacity planning and procurement.
 - **App/TA:** Vendor TA (e.g., `TA-netapp_ontap`) or scripted API input
 - **Data Sources:** Storage array REST API metrics, SNMP hrStorageTable
@@ -27,6 +28,7 @@ index=storage sourcetype="netapp:ontap:volume"
 ### UC-6.1.2 · Storage Latency Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** High storage latency directly impacts application performance. Early detection prevents SLA breaches and user experience degradation.
 - **App/TA:** Vendor TA or SNMP polling
 - **Data Sources:** Array performance metrics (avg_latency, read_latency, write_latency)
@@ -45,6 +47,7 @@ index=storage sourcetype="netapp:ontap:volume_perf"
 ### UC-6.1.3 · IOPS Trending per Volume
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Identifies workload hotspots and enables data placement optimization. Supports capacity planning for storage refreshes.
 - **App/TA:** Vendor TA or SNMP
 - **Data Sources:** Array performance metrics (read_ops, write_ops, other_ops)
@@ -63,6 +66,7 @@ index=storage sourcetype="netapp:ontap:volume_perf"
 ### UC-6.1.4 · Disk Failure Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Immediate awareness of disk failures allows replacement before RAID degradation leads to data loss.
 - **App/TA:** Vendor TA, SNMP traps
 - **Data Sources:** Array event/alert logs, SNMP traps
@@ -81,6 +85,7 @@ index=storage sourcetype="netapp:ontap:ems" severity="EMERGENCY" OR severity="AL
 ### UC-6.1.5 · Replication Lag Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Replication lag directly impacts RPO. Monitoring ensures DR readiness and compliance with data protection SLAs.
 - **App/TA:** Vendor TA, REST API polling
 - **Data Sources:** Array replication status (SnapMirror, RecoverPoint, etc.)
@@ -100,6 +105,7 @@ index=storage sourcetype="netapp:ontap:snapmirror"
 ### UC-6.1.6 · Controller Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Controller failovers indicate hardware problems and may cause transient performance impact. Quick detection ensures rapid root cause analysis.
 - **App/TA:** Vendor TA, syslog
 - **Data Sources:** Array event logs, cluster status
@@ -118,6 +124,7 @@ index=storage sourcetype="netapp:ontap:ems"
 ### UC-6.1.7 · Thin Provisioning Overcommit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Over-committed thin-provisioned storage can cause sudden outages when physical capacity is exhausted. Monitoring prevents surprise failures.
 - **App/TA:** Vendor TA, API polling
 - **Data Sources:** Aggregate/pool capacity metrics (logical vs physical)
@@ -137,6 +144,7 @@ index=storage sourcetype="netapp:ontap:aggregate"
 ### UC-6.1.8 · Snapshot Space Consumption
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Runaway snapshot growth can consume all available space, causing volume and application outages.
 - **App/TA:** Vendor TA, REST API
 - **Data Sources:** Snapshot usage metrics per volume
@@ -157,6 +165,7 @@ index=storage sourcetype="netapp:ontap:volume"
 ### UC-6.1.9 · Fibre Channel Port Errors
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** FC port errors cause storage performance degradation and potential path failovers. Early detection prevents cascading failures.
 - **App/TA:** SNMP TA, FC switch syslog
 - **Data Sources:** FC switch logs (Brocade, Cisco MDS), SNMP IF-MIB
@@ -176,6 +185,7 @@ index=network sourcetype="brocade:syslog" OR sourcetype="cisco:mds"
 ### UC-6.1.10 · Storage Array Firmware Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Outdated firmware exposes arrays to known bugs and security vulnerabilities. Compliance tracking supports patching cadence.
 - **App/TA:** Vendor TA, scripted inventory input
 - **Data Sources:** Array system info (firmware version, model), vendor advisory feeds
@@ -202,6 +212,7 @@ index=storage sourcetype="netapp:ontap:system"
 ### UC-6.2.1 · Bucket Capacity Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Tracks storage growth for cost forecasting and lifecycle policy effectiveness. Prevents unexpected cloud bills.
 - **App/TA:** `Splunk_TA_aws` (CloudWatch), Splunk_TA_microsoft-cloudservices
 - **Data Sources:** CloudWatch S3 metrics (BucketSizeBytes), Azure Blob metrics
@@ -220,6 +231,7 @@ index=aws sourcetype="aws:cloudwatch" metric_name="BucketSizeBytes"
 ### UC-6.2.2 · Access Pattern Anomalies
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Unusual access patterns may indicate data breaches, compromised credentials, or misconfigured applications.
 - **App/TA:** `Splunk_TA_aws` (S3 access logs), Azure Blob diagnostics
 - **Data Sources:** S3 access logs, Azure Blob analytics logs
@@ -239,6 +251,7 @@ index=aws sourcetype="aws:s3:accesslogs"
 ### UC-6.2.3 · Public Bucket Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Public buckets are a top cloud security risk, leading to data breaches. Immediate detection is essential for compliance.
 - **App/TA:** `Splunk_TA_aws` (Config), Azure Policy
 - **Data Sources:** AWS Config rules, S3 ACL/policy evaluations
@@ -258,6 +271,7 @@ index=aws sourcetype="aws:config:rule"
 ### UC-6.2.4 · Lifecycle Policy Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Ensures storage cost optimization policies are working. Objects not transitioning per policy waste money.
 - **App/TA:** Cloud provider TAs
 - **Data Sources:** CloudWatch storage class metrics, lifecycle action logs
@@ -276,6 +290,7 @@ index=aws sourcetype="aws:cloudwatch" metric_name="BucketSizeBytes"
 ### UC-6.2.5 · Cross-Region Replication Lag
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Replication lag affects DR readiness. Monitoring ensures geo-redundant data meets RPO requirements.
 - **App/TA:** Cloud provider TAs
 - **Data Sources:** S3 replication metrics (ReplicationLatency, OperationsPendingReplication)
@@ -300,6 +315,7 @@ index=aws sourcetype="aws:cloudwatch" metric_name="ReplicationLatency"
 ### UC-6.3.1 · Backup Job Success Rate
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** Failed backups leave systems unprotected. Tracking success rate ensures recoverability and compliance with data protection policies.
 - **App/TA:** Veeam App for Splunk, Commvault Splunk App, or scripted API input
 - **Data Sources:** Backup server job logs (job name, status, start/end time, data size)
@@ -320,6 +336,7 @@ index=backup sourcetype="veeam:job"
 ### UC-6.3.2 · Backup Job Duration Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Increasing backup durations signal data growth, network congestion, or storage performance issues. Prevents backup window overruns.
 - **App/TA:** Vendor TA
 - **Data Sources:** Backup job logs (start/end timestamps, data transferred)
@@ -338,6 +355,7 @@ index=backup sourcetype="veeam:job" status="Success"
 ### UC-6.3.3 · Missed Backup Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.
 - **App/TA:** Vendor TA, custom correlation
 - **Data Sources:** Backup scheduler logs, expected schedule lookup
@@ -359,6 +377,7 @@ index=backup sourcetype="veeam:job" status="Success"
 ### UC-6.3.4 · Backup Storage Capacity
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
 - **Value:** Running out of backup repository space causes all backup jobs to fail. Proactive monitoring prevents cascading failures.
 - **App/TA:** Vendor TA, scripted input
 - **Data Sources:** Backup repository/tape library capacity metrics
@@ -378,6 +397,7 @@ index=backup sourcetype="veeam:repository"
 ### UC-6.3.5 · Restore Test Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Backups are worthless if restores fail. Tracking restore tests ensures confidence in recoverability and satisfies audit requirements.
 - **App/TA:** Manual/scripted input, backup TA
 - **Data Sources:** Restore test logs, manual test result entries
@@ -398,6 +418,7 @@ index=backup sourcetype="restore_test"
 ### UC-6.3.6 · Backup SLA Compliance
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** Consolidated view of backup coverage and RPO/RTO compliance. Essential for management reporting and audit evidence.
 - **App/TA:** Combined backup data + CMDB lookup
 - **Data Sources:** Backup job logs, CMDB/asset inventory
@@ -420,6 +441,7 @@ index=backup sourcetype="restore_test"
 ### UC-6.3.7 · Backup Data Volume Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Tracks data growth rate for capacity planning of backup infrastructure. Identifies unexpected data surges early.
 - **App/TA:** Vendor TA
 - **Data Sources:** Backup job statistics (data transferred per job)
@@ -438,6 +460,7 @@ index=backup sourcetype="veeam:job" status="Success"
 ### UC-6.3.8 · Tape Library Health
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Tape media and drive failures can silently corrupt backups. Monitoring ensures long-term archival reliability.
 - **App/TA:** SNMP TA, vendor syslog
 - **Data Sources:** Tape library logs, SNMP traps, drive error counters
@@ -463,6 +486,7 @@ index=backup sourcetype="tape_library"
 ### UC-6.4.1 · File Access Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Provides full audit trail of file access for compliance (SOX, HIPAA, PCI-DSS). Enables investigation of data breaches and unauthorized access.
 - **App/TA:** `Splunk_TA_windows` (Security Event Log)
 - **Data Sources:** Windows Security Event Log (Event ID 4663 — object access), NFS access logs
@@ -482,6 +506,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663
 ### UC-6.4.2 · Ransomware Indicator Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Ransomware causes mass file encryption in minutes. Detecting the pattern early can limit damage by triggering automated isolation.
 - **App/TA:** `Splunk_TA_windows`, custom alert logic
 - **Data Sources:** Windows Security Event Log (4663, 4656, 4659 — file create/modify/delete)
@@ -501,6 +526,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663
 ### UC-6.4.3 · DFS Replication Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** DFS-R backlog and conflicts indicate replication failures that can lead to data inconsistency and user complaints.
 - **App/TA:** `Splunk_TA_windows` (DFS-R event logs)
 - **Data Sources:** DFS Replication event log (Event IDs 4012, 4302, 4304, 5002, 5008)
@@ -520,6 +546,7 @@ index=wineventlog sourcetype="WinEventLog:DFS Replication"
 ### UC-6.4.4 · Share Permission Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Configuration
 - **Value:** Unauthorized permission changes can expose sensitive data. Change detection supports compliance and security posture.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Windows Security Event Log (Event IDs 4670 — permissions changed, 5143 — share modified)
@@ -538,6 +565,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4670 OR EventCode=
 ### UC-6.4.5 · Large File Transfer Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Unusually large file copies may indicate data exfiltration. Detection supports data loss prevention and insider threat programs.
 - **App/TA:** `Splunk_TA_windows`, network flow data
 - **Data Sources:** Windows file audit logs, SMB session logs

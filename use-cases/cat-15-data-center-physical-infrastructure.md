@@ -9,6 +9,7 @@
 ### UC-15.1.1 · UPS Battery Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** UPS battery degradation is the single largest cause of unprotected power events. Proactive replacement prevents data center outages.
 - **App/TA:** SNMP TA (UPS-MIB)
 - **Data Sources:** SNMP UPS-MIB (battery status, charge, runtime, temperature, replace indicator)
@@ -27,6 +28,7 @@ index=power sourcetype="snmp:ups"
 ### UC-15.1.2 · PDU Power per Rack
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Per-rack power monitoring prevents circuit overloads and enables efficient rack placement for new equipment.
 - **App/TA:** SNMP TA (PDU-MIB), vendor API
 - **Data Sources:** Smart PDU per-outlet and per-circuit metrics
@@ -46,6 +48,7 @@ index=power sourcetype="snmp:pdu"
 ### UC-15.1.3 · Power Redundancy Status
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Loss of A/B feed redundancy means a single power failure will cause an outage. Immediate awareness enables emergency response.
 - **App/TA:** SNMP TA, PDU/UPS events
 - **Data Sources:** PDU input status, UPS input voltage, transfer switch events
@@ -64,6 +67,7 @@ index=power sourcetype="snmp:pdu"
 ### UC-15.1.4 · Generator Test Results
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Generators are the last line of defense during extended outages. Failed tests mean they may not start when needed.
 - **App/TA:** BMS integration, manual log input
 - **Data Sources:** Generator controller logs, BMS events
@@ -83,6 +87,7 @@ index=power sourcetype="generator:test"
 ### UC-15.1.5 · PUE Calculation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Power Usage Effectiveness is the primary data center efficiency metric. Trending drives energy optimization and sustainability goals.
 - **App/TA:** Aggregate power metrics from PDU/UPS/BMS
 - **Data Sources:** Total facility power, IT load power
@@ -101,6 +106,7 @@ index=power sourcetype="power:aggregate"
 ### UC-15.1.6 · Circuit Breaker Trips
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Breaker trips cause immediate power loss to affected equipment. Detection enables rapid response and root cause investigation.
 - **App/TA:** PDU/BMS event logs
 - **Data Sources:** PDU events, BMS alerts, UPS transfer events
@@ -125,6 +131,7 @@ index=power sourcetype="pdu:events" OR sourcetype="bms:events"
 ### UC-15.2.1 · Temperature Monitoring per Zone
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Data center temperature exceedances risk equipment damage and unplanned shutdowns. Per-zone monitoring localizes issues.
 - **App/TA:** SNMP environmental sensors
 - **Data Sources:** Environmental sensors (intake, exhaust, ambient temperature)
@@ -144,6 +151,7 @@ index=environment sourcetype="sensor:temperature"
 ### UC-15.2.2 · Humidity Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Low humidity causes ESD risk; high humidity causes condensation. Maintaining 40-60% RH protects equipment.
 - **App/TA:** SNMP environmental sensors
 - **Data Sources:** Humidity sensors
@@ -162,6 +170,7 @@ index=environment sourcetype="sensor:humidity"
 ### UC-15.2.3 · CRAC/CRAH Unit Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Cooling unit failures can cause rapid temperature rise. Monitoring operational status enables immediate response and failover.
 - **App/TA:** BMS/SNMP integration
 - **Data Sources:** CRAC/CRAH unit SNMP metrics, BMS alarms
@@ -180,6 +189,7 @@ index=cooling sourcetype="bms:crac"
 ### UC-15.2.4 · Hot Aisle Temperature Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Hot aisle trends indicate cooling efficiency and capacity margin. Rising trends signal approaching cooling limits.
 - **App/TA:** Environmental sensors
 - **Data Sources:** Hot aisle return air temperature sensors
@@ -198,6 +208,7 @@ index=environment sourcetype="sensor:temperature" position="hot_aisle"
 ### UC-15.2.5 · Water Leak Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Water in a data center causes immediate equipment damage and potential electrical hazards. Seconds matter in detection.
 - **App/TA:** Leak detection sensor inputs
 - **Data Sources:** Water leak detection system (rope sensors, spot detectors)
@@ -216,6 +227,7 @@ index=environment sourcetype="leak_detection"
 ### UC-15.2.6 · Cooling Capacity Planning
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Trending cooling load vs capacity ensures adequate cooling for current and planned equipment deployments.
 - **App/TA:** BMS metrics
 - **Data Sources:** CRAC/CRAH cooling output, IT heat load calculations
@@ -240,6 +252,7 @@ index=cooling sourcetype="bms:cooling_capacity"
 ### UC-15.3.1 · Badge Access Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Complete badge access audit trail is required for compliance (SOC2, PCI-DSS) and supports security investigations.
 - **App/TA:** Access control syslog/API
 - **Data Sources:** Access control system events
@@ -266,6 +279,7 @@ index=physical sourcetype="access_control"
 ### UC-15.3.2 · After-Hours Access Alerts
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Data center access outside business hours requires additional scrutiny. Alerts ensure authorized personnel are verified.
 - **App/TA:** Access control system
 - **Data Sources:** Access events with time-based rules
@@ -293,6 +307,7 @@ index=physical sourcetype="access_control" result="granted"
 ### UC-15.3.3 · Tailgating Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Tailgating bypasses access control, allowing unauthorized entry. Detection supports physical security integrity.
 - **App/TA:** Access control system
 - **Data Sources:** Access events (badge-in vs badge-out patterns)
@@ -312,6 +327,7 @@ index=physical sourcetype="access_control" door="DC_Main_Entry"
 ### UC-15.3.4 · Camera System Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Offline cameras create security blind spots. Monitoring ensures continuous surveillance coverage.
 - **App/TA:** NVR/VMS syslog or API
 - **Data Sources:** Video management system logs (camera status, recording status)
@@ -330,6 +346,7 @@ index=physical sourcetype="vms:camera_status"
 ### UC-15.3.5 · Cabinet Door Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Unauthorized cabinet access could indicate tampering. Door sensors provide granular physical security for critical racks.
 - **App/TA:** Cabinet lock sensor input
 - **Data Sources:** Smart cabinet lock events

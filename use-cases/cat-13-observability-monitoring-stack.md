@@ -9,6 +9,7 @@
 ### UC-13.1.1 · Indexer Queue Fill Ratio
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Backed-up indexing queues cause data loss or delay. Detection enables immediate investigation of ingestion bottlenecks.
 - **App/TA:** Monitoring Console (built-in)
 - **Data Sources:** `_internal` (metrics.log, queue metrics)
@@ -28,6 +29,7 @@ index=_internal sourcetype=splunkd group=queue
 ### UC-13.1.2 · Search Concurrency Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Exceeding search concurrency limits causes search skipping and degraded user experience. Monitoring guides capacity decisions.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (scheduler logs, search dispatch)
@@ -45,6 +47,7 @@ index=_internal sourcetype=splunkd group=search_concurrency
 ### UC-13.1.3 · Forwarder Connectivity
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Silent forwarder failures mean data gaps that may not be noticed until an investigation fails. Detection ensures data completeness.
 - **App/TA:** Monitoring Console, Deployment Monitor app
 - **Data Sources:** `_internal` (metrics.log — tcpin_connections)
@@ -66,6 +69,7 @@ index=_internal sourcetype=splunkd group=tcpin_connections
 ### UC-13.1.4 · License Usage Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** License overages cause enforcement (search blocking). Trending enables proactive management and capacity planning.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (license_usage.log)
@@ -85,6 +89,7 @@ index=_internal sourcetype=splunkd group=license_usage
 ### UC-13.1.5 · Skipped Search Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Skipped searches mean scheduled reports, alerts, and data enrichments aren't running. This creates blind spots in monitoring and compliance.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (scheduler.log)
@@ -103,6 +108,7 @@ index=_internal sourcetype=scheduler status="skipped"
 ### UC-13.1.6 · Index Size Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Index size growth affects storage costs and search performance. Trending enables proactive storage planning.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (indexes.conf, REST API)
@@ -122,6 +128,7 @@ index=_internal sourcetype=scheduler status="skipped"
 ### UC-13.1.7 · KV Store Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** KV Store failures break lookups, app functionality, and ES correlation. Health monitoring prevents cascading application issues.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (kvstore logs)
@@ -141,6 +148,7 @@ index=_internal sourcetype=splunkd component=KVStoreServlet OR component=KvStore
 ### UC-13.1.8 · Deployment Server Status
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Deployment server issues prevent app/config distribution to forwarders, leaving them with stale or incorrect configurations.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (deployment server logs)
@@ -160,6 +168,7 @@ index=_internal sourcetype=splunkd component=DeploymentServer
 ### UC-13.1.9 · Data Ingestion Latency
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** High indexing latency (difference between event time and index time) means stale data for searches. Detection enables root cause analysis.
 - **App/TA:** Monitoring Console
 - **Data Sources:** Any index (sampling `_time` vs `_indextime`)
@@ -180,6 +189,7 @@ index=* earliest=-15m
 ### UC-13.1.10 · Search Head Cluster Status
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** SHC member failures affect user access and search capacity. Captain election issues can cause complete SHC outage.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (SHC logs, REST endpoints)
@@ -199,6 +209,7 @@ index=* earliest=-15m
 ### UC-13.1.11 · Indexer Cluster Bucket Replication
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Under-replicated buckets mean data is at risk of loss. Monitoring ensures the replication factor is maintained.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (CM logs, REST endpoints)
@@ -217,6 +228,7 @@ index=* earliest=-15m
 ### UC-13.1.12 · HEC Endpoint Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** HEC is a primary data ingestion path. Failures silently drop data from applications, containers, and cloud services.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (http_event_collector logs)
@@ -236,6 +248,7 @@ index=_internal sourcetype=splunkd component=HttpEventCollector
 ### UC-13.1.13 · Sourcetype Breakdown Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Understanding data volume per sourcetype enables cost optimization, retention tuning, and unexpected growth detection.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (license_usage.log)
@@ -256,6 +269,7 @@ index=_internal sourcetype=splunkd group=license_usage
 ### UC-13.1.14 · Long-Running Search Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Long-running searches consume shared resources and may indicate poorly written SPL or excessive time ranges.
 - **App/TA:** Monitoring Console
 - **Data Sources:** `_internal` (scheduler, search audit log)
@@ -275,6 +289,7 @@ index=_audit action=search info=completed
 ### UC-13.1.15 · Splunk Certificate Expiration
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Expired Splunk internal certificates break inter-component communication (forwarder→indexer, SHC replication, etc.).
 - **App/TA:** Monitoring Console, scripted input
 - **Data Sources:** `_internal` (splunkd certificate warnings), certificate check script
@@ -298,6 +313,7 @@ index=_internal sourcetype=splunkd "certificate" ("expire" OR "expiration" OR "n
 ### UC-13.2.1 · Service Health Score Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Service health scores provide a single-pane view of business service status. Trending enables SLA reporting and proactive management.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** `itsi_summary` index
@@ -315,6 +331,7 @@ index=itsi_summary is_service_in_maintenance=0
 ### UC-13.2.2 · KPI Degradation Alerting
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** KPI threshold breaches provide early warning of service degradation. Adaptive thresholds reduce false positives vs static thresholds.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** ITSI correlation searches, KPI data
@@ -333,6 +350,7 @@ index=itsi_summary severity_value>3
 ### UC-13.2.3 · Episode Volume and MTTR
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Episode volume and resolution time measure IT operations effectiveness. Trending drives process improvement.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** `itsi_grouped_alerts` index
@@ -351,6 +369,7 @@ index=itsi_grouped_alerts
 ### UC-13.2.4 · Entity Status Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Entity health provides granular visibility into individual infrastructure components feeding services. Unstable entities degrade service health.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** ITSI entity overview, entity health scores
@@ -369,6 +388,7 @@ index=itsi_grouped_alerts
 ### UC-13.2.5 · Base Search Performance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** ITSI base searches feed all KPIs. Slow or skipped base searches cause stale or missing KPI data across multiple services.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** `_internal` (scheduler logs for ITSI searches)
@@ -387,6 +407,7 @@ index=_internal sourcetype=scheduler savedsearch_name="ITSI*Base*"
 ### UC-13.2.6 · Rules Engine Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** The ITSI Rules Engine processes events into episodes. Failure means alerts are not grouped or routed, breaking Event Analytics.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** `_internal` (itsi_internal_log)
@@ -405,6 +426,7 @@ index=_internal sourcetype=itsi_internal_log component=RulesEngine
 ### UC-13.2.7 · Predictive Service Degradation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** Predicting service health degradation before it happens enables proactive remediation, reducing incident impact.
 - **App/TA:** Splunk ITSI + MLTK
 - **Data Sources:** `itsi_summary` + ML models
@@ -424,6 +446,7 @@ index=itsi_summary service_name="Production Web"
 ### UC-13.2.8 · Glass Table NOC Display
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Real-time service visualization for operations centers provides at-a-glance awareness of infrastructure and service health.
 - **App/TA:** Splunk ITSI Glass Tables
 - **Data Sources:** ITSI service/KPI data
@@ -446,6 +469,7 @@ N/A — Glass Tables are configured via ITSI UI, not SPL
 ### UC-13.3.1 · Nagios/Zabbix Alert Ingestion
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Consolidating legacy monitoring alerts into Splunk enables cross-tool correlation and single-pane-of-glass operations.
 - **App/TA:** Custom webhook input, syslog
 - **Data Sources:** Nagios/Zabbix webhook exports, syslog notifications
@@ -464,6 +488,7 @@ index=monitoring sourcetype="nagios:notification" OR sourcetype="zabbix:webhook"
 ### UC-13.3.2 · Prometheus Metric Ingestion
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Ingesting Prometheus metrics into Splunk enables long-term storage, cross-domain correlation, and unified dashboarding.
 - **App/TA:** OpenTelemetry Collector, Prometheus remote write
 - **Data Sources:** Prometheus remote write endpoint, OpenTelemetry metrics
@@ -480,6 +505,7 @@ index=monitoring sourcetype="nagios:notification" OR sourcetype="zabbix:webhook"
 ### UC-13.3.3 · PagerDuty/Opsgenie Integration
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Tracking alert lifecycle and on-call response metrics ensures incident response SLAs are met and identifies process improvements.
 - **App/TA:** PagerDuty API input
 - **Data Sources:** PagerDuty incidents API, Opsgenie alerts API
@@ -498,6 +524,7 @@ index=pagerduty sourcetype="pagerduty:incident"
 ### UC-13.3.4 · Monitoring Coverage Gap Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Compliance
 - **Value:** Hosts not covered by any monitoring tool are blind spots. Detection ensures comprehensive infrastructure visibility.
 - **App/TA:** Cross-tool asset correlation
 - **Data Sources:** CMDB + all monitoring tool inventories
@@ -518,6 +545,7 @@ index=pagerduty sourcetype="pagerduty:incident"
 ### UC-13.3.5 · Alert Storm Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
 - **Value:** Correlated alert storms across monitoring tools indicate major incidents. Detection enables rapid escalation and noise reduction.
 - **App/TA:** Multi-source alert correlation
 - **Data Sources:** All monitoring tool alerts ingested into Splunk

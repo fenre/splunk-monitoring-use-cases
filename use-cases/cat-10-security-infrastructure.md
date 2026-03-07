@@ -9,6 +9,7 @@
 ### UC-10.1.1 · Threat Prevention Event Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Trending threat detections reveals attack campaigns, persistent threats, and the effectiveness of security controls.
 - **App/TA:** `Splunk_TA_paloalto`, Splunk_TA_cisco-firepower
 - **Data Sources:** Threat logs (IPS, AV, anti-spyware detections)
@@ -33,6 +34,7 @@ index=pan sourcetype="pan:threat" severity IN ("critical","high")
 ### UC-10.1.2 · Wildfire / Sandbox Verdicts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Tracks zero-day and unknown malware detection effectiveness. Malicious verdicts require immediate investigation of affected hosts.
 - **App/TA:** `Splunk_TA_paloalto`
 - **Data Sources:** Wildfire submission logs, sandbox analysis results
@@ -58,6 +60,7 @@ index=pan sourcetype="pan:wildfire"
 ### UC-10.1.3 · C2 Communication Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Command-and-control communication indicates active compromise. Detection enables containment before data exfiltration or lateral movement.
 - **App/TA:** `Splunk_TA_paloalto`, threat intel feeds
 - **Data Sources:** Threat logs (C2 signatures), URL filtering (malware/C2 categories), DNS logs
@@ -83,6 +86,7 @@ index=pan sourcetype="pan:threat" category="command-and-control"
 ### UC-10.1.4 · DNS Sinkhole Hits
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** DNS sinkhole hits confirm infected endpoints attempting to reach malicious domains. Each hit is a confirmed compromise indicator.
 - **App/TA:** `Splunk_TA_paloalto`
 - **Data Sources:** DNS proxy logs (sinkhole action), threat logs
@@ -108,6 +112,7 @@ index=pan sourcetype="pan:threat" action="sinkhole"
 ### UC-10.1.5 · SSL Decryption Coverage
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Encrypted traffic that isn't inspected creates a blind spot. Measuring decryption coverage ensures security visibility.
 - **App/TA:** `Splunk_TA_paloalto`
 - **Data Sources:** Decryption statistics, traffic logs (encrypted vs decrypted flags)
@@ -140,6 +145,7 @@ index=pan sourcetype="pan:traffic"
 ### UC-10.2.1 · Alert Severity Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Trending IDS alerts reveals attack patterns, campaign surges, and tuning opportunities. Supports SOC workload planning.
 - **App/TA:** TA-suricata, Splunk_TA_cisco-firepower
 - **Data Sources:** IDS/IPS alert logs
@@ -164,6 +170,7 @@ index=ids sourcetype="snort:alert"
 ### UC-10.2.2 · Top Targeted Hosts
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Identifies the most-attacked internal hosts, prioritizing vulnerability remediation and incident investigation.
 - **App/TA:** IDS/IPS TA
 - **Data Sources:** IDS/IPS alert logs (destination host)
@@ -190,6 +197,7 @@ index=ids sourcetype="snort:alert" priority<=2
 ### UC-10.2.3 · Signature Coverage Gaps
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Identifying network segments without IDS coverage ensures comprehensive threat detection across the infrastructure.
 - **App/TA:** IDS sensor health monitoring
 - **Data Sources:** Sensor health reports, network segment inventory
@@ -218,6 +226,7 @@ index=ids sourcetype="snort:alert" priority<=2
 ### UC-10.2.4 · False Positive Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** High false positive rates waste analyst time and cause alert fatigue. Systematic tracking drives tuning improvements.
 - **App/TA:** IDS TA + analyst workflow
 - **Data Sources:** IDS alerts + analyst disposition data (true/false positive)
@@ -246,6 +255,7 @@ index=ids sourcetype="snort:alert"
 ### UC-10.2.5 · Lateral Movement Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** IDS detections on internal network segments indicate an attacker has breached the perimeter and is moving laterally.
 - **App/TA:** IDS TA (internal sensors)
 - **Data Sources:** IDS alerts from internal/east-west sensors
@@ -278,6 +288,7 @@ index=ids sourcetype="snort:alert" sensor_zone="internal"
 ### UC-10.3.1 · Malware Detection Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Detection trends reveal campaign targeting, endpoint hygiene, and control effectiveness. Spikes indicate active incidents.
 - **App/TA:** TA-crowdstrike-falcon-event-streams, TA-microsoft-defender
 - **Data Sources:** EDR detection events
@@ -302,6 +313,7 @@ index=edr sourcetype="crowdstrike:detection"
 ### UC-10.3.2 · Quarantine Action Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Failed quarantine means malware remains active on the endpoint. Monitoring ensures automated remediation is working.
 - **App/TA:** EDR TA
 - **Data Sources:** EDR remediation/action logs
@@ -327,6 +339,7 @@ index=edr sourcetype="crowdstrike:detection"
 ### UC-10.3.3 · Agent Health Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Endpoints without healthy EDR agents are blind spots. Gap detection ensures comprehensive coverage.
 - **App/TA:** EDR TA, scripted input
 - **Data Sources:** EDR agent status API, last check-in timestamps
@@ -353,6 +366,7 @@ index=edr sourcetype="crowdstrike:sensor_health"
 ### UC-10.3.4 · Behavioral Detection Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Behavioral detections catch attacks that bypass signatures (fileless malware, LOLBins, living-off-the-land). These are high-fidelity signals.
 - **App/TA:** EDR TA
 - **Data Sources:** EDR behavioral/heuristic alerts
@@ -378,6 +392,7 @@ index=edr sourcetype="crowdstrike:detection" technique_id="T*"
 ### UC-10.3.5 · Endpoint Isolation Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Isolation events indicate active incident response. Tracking ensures isolation is maintained and properly lifted when resolved.
 - **App/TA:** EDR TA
 - **Data Sources:** EDR containment/isolation logs
@@ -403,6 +418,7 @@ index=edr sourcetype="crowdstrike:containment"
 ### UC-10.3.6 · Threat Hunting Indicators
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Proactive threat hunting using EDR telemetry detects stealthy threats that evade automated detection.
 - **App/TA:** EDR TA (telemetry data)
 - **Data Sources:** EDR process telemetry, file events, network connections
@@ -430,6 +446,7 @@ index=edr sourcetype="crowdstrike:events"
 ### UC-10.3.7 · EDR Coverage Gaps
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** Identifies endpoints without EDR protection, closing blind spots that attackers exploit.
 - **App/TA:** EDR API + CMDB lookup
 - **Data Sources:** EDR agent inventory, CMDB/asset inventory
@@ -456,6 +473,7 @@ index=edr sourcetype="crowdstrike:events"
 ### UC-10.3.8 · Ransomware Canary Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** EDR-detected mass file encryption patterns provide earliest possible ransomware detection, enabling automated containment.
 - **App/TA:** EDR TA
 - **Data Sources:** EDR behavioral detection (mass file modification patterns)
@@ -487,6 +505,7 @@ index=edr sourcetype="crowdstrike:detection"
 ### UC-10.4.1 · Phishing Detection Rate
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Measures email security effectiveness. Increasing phishing volumes or declining detection rates indicate evolving threats.
 - **App/TA:** Splunk_TA_MS_O365, TA-proofpoint
 - **Data Sources:** Email security gateway logs, EOP message trace
@@ -514,6 +533,7 @@ index=email sourcetype="ms:o365:messageTrace"
 ### UC-10.4.2 · Malicious Attachment Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Attachment-based threats bypass URL filtering. Tracking by file type reveals attack vectors and informs policy decisions.
 - **App/TA:** Email security TA
 - **Data Sources:** Email gateway attachment scanning logs, safe attachments logs
@@ -541,6 +561,7 @@ index=email sourcetype="ms:o365:messageTrace"
 ### UC-10.4.3 · URL Click Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Tracks which users click malicious URLs in emails — the moment a phishing email becomes an active incident.
 - **App/TA:** Splunk_TA_MS_O365 (Safe Links), Proofpoint URL Defense
 - **Data Sources:** URL rewrite/protection logs, click tracking events
@@ -566,6 +587,7 @@ index=email sourcetype="ms:o365:dlp" OR sourcetype="proofpoint:click"
 ### UC-10.4.4 · DLP Policy Violations
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Email DLP violations indicate potential data exfiltration or policy non-compliance. Monitoring supports regulatory compliance.
 - **App/TA:** Splunk_TA_MS_O365
 - **Data Sources:** M365 DLP logs, email gateway DLP events
@@ -591,6 +613,7 @@ index=email sourcetype="ms:o365:dlp"
 ### UC-10.4.5 · Spoofed Email Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** DMARC/SPF/DKIM failures indicate email spoofing attempts. Monitoring validates email authentication configuration.
 - **App/TA:** Email security TA
 - **Data Sources:** DMARC aggregate reports, email authentication logs
@@ -617,6 +640,7 @@ index=email sourcetype="dmarc:aggregate"
 ### UC-10.4.6 · Email Volume Anomalies
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Unusual outbound email volumes may indicate compromised accounts used for spam/phishing or mass data exfiltration via email.
 - **App/TA:** Splunk_TA_MS_O365, Splunk_TA_microsoft-exchange
 - **Data Sources:** Email message tracking logs (outbound)
@@ -644,6 +668,7 @@ index=email sourcetype="ms:o365:messageTrace" Direction="Outbound"
 ### UC-10.4.7 · Quarantine Management
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Tracks quarantine effectiveness and user release requests to balance security with user productivity.
 - **App/TA:** Splunk_TA_MS_O365, email gateway TA
 - **Data Sources:** Email quarantine logs, release request logs
@@ -677,6 +702,7 @@ index=email sourcetype="ms:o365:messageTrace"
 ### UC-10.5.1 · Blocked Category Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Trending blocked categories reveals user behavior patterns and informs acceptable use policy. Spikes may indicate infections.
 - **App/TA:** Splunk Add-on for Cisco Umbrella, TA-zscaler
 - **Data Sources:** SWG/proxy logs (URL category, action)
@@ -702,6 +728,7 @@ index=proxy sourcetype="cisco:umbrella" action="Blocked"
 ### UC-10.5.2 · Shadow IT Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Unapproved SaaS usage creates data security risks and compliance gaps. Discovery enables governance and risk assessment.
 - **App/TA:** SWG/CASB TA
 - **Data Sources:** SWG logs (application identification), CASB logs
@@ -729,6 +756,7 @@ index=proxy sourcetype="cisco:umbrella"
 ### UC-10.5.3 · Malware Download Blocks
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Each blocked malware download represents a prevented infection. Tracking reveals targeted users and attack vectors.
 - **App/TA:** SWG TA
 - **Data Sources:** SWG threat logs (malware blocks)
@@ -755,6 +783,7 @@ index=proxy sourcetype="zscaler:web" action="Blocked" threat_category="Malware"
 ### UC-10.5.4 · DLP over Web Traffic
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Web DLP events indicate sensitive data being uploaded to unauthorized destinations. Critical for compliance.
 - **App/TA:** SWG/CASB TA
 - **Data Sources:** SWG DLP logs (file uploads, paste detection)
@@ -780,6 +809,7 @@ index=proxy sourcetype="netskope:events" alert_type="DLP"
 ### UC-10.5.5 · DNS Security Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Blocked DNS queries to malicious domains indicate infection attempts or active compromise. Each block is a security win.
 - **App/TA:** Splunk Add-on for Cisco Umbrella
 - **Data Sources:** Umbrella/DNS security logs
@@ -806,6 +836,7 @@ index=dns_security sourcetype="cisco:umbrella" action="Blocked"
 ### UC-10.5.6 · Bandwidth Abuse Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Excessive bandwidth on non-business sites impacts network performance and productivity. Detection supports acceptable use enforcement.
 - **App/TA:** SWG TA
 - **Data Sources:** SWG traffic logs (bytes transferred, URL category)
@@ -833,6 +864,7 @@ index=proxy sourcetype="cisco:umbrella"
 ### UC-10.5.7 · Unencrypted Traffic Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Sensitive data transmitted over HTTP is vulnerable to interception. Detection ensures encryption compliance.
 - **App/TA:** SWG TA
 - **Data Sources:** SWG traffic logs (protocol, URL)
@@ -865,6 +897,7 @@ index=proxy sourcetype="cisco:umbrella" protocol="HTTP"
 ### UC-10.6.1 · Critical Vulnerability Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Tracking critical vulnerabilities over time measures security posture improvement and identifies remediation stalls.
 - **App/TA:** TA-tenable, TA-QualysCloudPlatform
 - **Data Sources:** Vulnerability scan results (severity, CVE, affected asset)
@@ -891,6 +924,7 @@ index=vulnerability sourcetype="tenable:vuln"
 ### UC-10.6.2 · Mean Time to Remediation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** MTTR measures remediation efficiency. Long MTTR indicates process bottlenecks or resource constraints requiring management attention.
 - **App/TA:** Vuln management TA
 - **Data Sources:** Scan results with first_seen and last_seen dates
@@ -917,6 +951,7 @@ index=vulnerability sourcetype="tenable:vuln" state="Fixed"
 ### UC-10.6.3 · Scan Coverage Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** Assets not scanned are unknown risks. Coverage monitoring ensures comprehensive vulnerability assessment.
 - **App/TA:** Vuln management TA + CMDB
 - **Data Sources:** Scan activity, asset inventory
@@ -945,6 +980,7 @@ index=vulnerability sourcetype="tenable:vuln" state="Fixed"
 ### UC-10.6.4 · Patch Compliance by Team/BU
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Per-team compliance views drive accountability and enable targeted remediation efforts where they're most needed.
 - **App/TA:** Vuln management TA + CMDB
 - **Data Sources:** Scan results enriched with CMDB ownership data
@@ -972,6 +1008,7 @@ index=vulnerability sourcetype="tenable:vuln" severity IN ("Critical","High")
 ### UC-10.6.5 · Exploitable Vulnerability Prioritization
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Not all vulnerabilities are equal — those with known exploits pose immediate risk. Prioritization focuses remediation on the highest-risk items.
 - **App/TA:** Vuln management TA + threat intel
 - **Data Sources:** Scan results + CISA KEV catalog + EPSS scores
@@ -1001,6 +1038,7 @@ index=vulnerability sourcetype="tenable:vuln" severity="Critical"
 ### UC-10.6.6 · Vulnerability SLA Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** SLA tracking ensures vulnerabilities are remediated within policy timeframes. Non-compliance creates audit findings.
 - **App/TA:** Vuln management TA
 - **Data Sources:** Scan results with detection timestamps, SLA policy lookup
@@ -1029,6 +1067,7 @@ index=vulnerability sourcetype="tenable:vuln" state="Active"
 ### UC-10.6.7 · New Vulnerability Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Newly discovered critical vulnerabilities require immediate triage. Alerting ensures rapid response to emerging risks.
 - **App/TA:** Vuln management TA
 - **Data Sources:** Scan results (first_seen within last scan window)
@@ -1062,6 +1101,7 @@ index=vulnerability sourcetype="tenable:vuln" severity="Critical"
 ### UC-10.7.1 · Alert Volume Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Alert volume trends reveal SOC workload, detection rule effectiveness, and potential alert fatigue risks.
 - **App/TA:** Splunk Enterprise Security
 - **Data Sources:** ES notable events (`notable` index)
@@ -1080,6 +1120,7 @@ index=notable
 ### UC-10.7.2 · Analyst Workload Distribution
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Uneven workload distribution leads to analyst burnout and inconsistent response times. Monitoring enables fair distribution.
 - **App/TA:** Splunk ES
 - **Data Sources:** ES investigation/ownership logs, notable event audit
@@ -1098,6 +1139,7 @@ index=notable
 ### UC-10.7.3 · MTTD and MTTR Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** MTTD and MTTR are the primary metrics for SOC effectiveness. Tracking drives process improvement and justifies investment.
 - **App/TA:** Splunk ES
 - **Data Sources:** ES notable events (detection time, response time, closure time)
@@ -1117,6 +1159,7 @@ index=notable status="Closed"
 ### UC-10.7.4 · Playbook Execution Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** SOAR playbook failures leave incidents unhandled. Monitoring ensures automation reliability and identifies integration issues.
 - **App/TA:** Splunk SOAR
 - **Data Sources:** SOAR execution logs, playbook run results
@@ -1136,6 +1179,7 @@ index=soar sourcetype="phantom:playbook_run"
 ### UC-10.7.5 · Correlation Search Performance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Slow or resource-intensive correlation searches degrade ES performance and may miss detections if they timeout.
 - **App/TA:** Splunk internal metrics
 - **Data Sources:** `_internal` scheduler logs
@@ -1155,6 +1199,7 @@ index=_internal sourcetype=scheduler savedsearch_name="*Correlation*"
 ### UC-10.7.6 · False Positive Rate Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High false positive rates cause alert fatigue, leading analysts to miss real threats. Tracking drives detection rule optimization.
 - **App/TA:** Splunk ES
 - **Data Sources:** ES notable events with analyst disposition
@@ -1181,6 +1226,7 @@ index=notable status="Closed"
 ### UC-10.8.1 · Certificate Expiry Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Expired certificates cause service outages, authentication failures, and security warnings. Proactive monitoring is the simplest prevention.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Certificate inventory scans (openssl, certutil, CT logs)
@@ -1201,6 +1247,7 @@ index=certificates sourcetype="cert_inventory"
 ### UC-10.8.2 · Certificate Issuance Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Unauthorized certificate issuance from internal CAs can enable man-in-the-middle attacks. Audit trail supports compliance.
 - **App/TA:** CA server log forwarding
 - **Data Sources:** CA audit logs (Microsoft AD CS, EJBCA, HashiCorp Vault PKI)
@@ -1220,6 +1267,7 @@ index=pki sourcetype="adcs:audit"
 ### UC-10.8.3 · Weak Cipher / Key Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Certificates using weak algorithms (SHA-1, RSA <2048-bit) are vulnerable to attack. Detection ensures cryptographic standards compliance.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Certificate scan results
@@ -1238,6 +1286,7 @@ index=certificates sourcetype="cert_inventory"
 ### UC-10.8.4 · Certificate Revocation Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Revocation activity indicates compromised or misused certificates. Tracking ensures revocations are processed and CRLs distributed.
 - **App/TA:** CA server logs
 - **Data Sources:** CA audit logs (revocation events), CRL distribution point monitoring
@@ -1256,6 +1305,7 @@ index=pki sourcetype="adcs:audit" EventCode=4889
 ### UC-10.8.5 · CT Log Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Certificate Transparency logs reveal all publicly-issued certificates for your domains. Detects unauthorized issuance by rogue or compromised CAs.
 - **App/TA:** Custom API input (crt.sh, CT log APIs)
 - **Data Sources:** Certificate Transparency log API

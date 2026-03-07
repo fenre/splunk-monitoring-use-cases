@@ -9,6 +9,7 @@
 ### UC-9.1.1 · Brute-Force Login Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Brute-force attacks are a primary credential compromise vector. Early detection prevents account takeover.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Windows Security Event Log (Event ID 4625 — failed logon)
@@ -36,6 +37,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
 ### UC-9.1.2 · Account Lockout Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Lockouts cause user productivity loss and help desk load. Source identification enables rapid resolution.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (Event ID 4740 — account locked out)
@@ -62,6 +64,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 ### UC-9.1.3 · Privileged Group Membership Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Unauthorized privilege escalation is a primary attack technique. Immediate detection is essential for security.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4728 — member added to security-enabled global group, 4732 — local group, 4756 — universal group)
@@ -88,6 +91,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4728,4732,4756
 ### UC-9.1.4 · Service Account Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Service accounts used interactively or from unexpected hosts indicate compromise. Detection prevents lateral movement.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4624 — successful logon, Logon Type field)
@@ -115,6 +119,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624
 ### UC-9.1.5 · Kerberos Ticket Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Detects Kerberoasting and Golden Ticket attacks, which are advanced AD compromise techniques. Essential for security monitoring.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4768 — TGT request, 4769 — TGS request)
@@ -142,6 +147,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769 Ticket_Encryp
 ### UC-9.1.6 · Password Policy Violations
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Failed password changes indicate users struggling with policy or potential social engineering. Monitoring supports security awareness.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4723 — password change attempt, 4724 — password reset attempt)
@@ -168,6 +174,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4723, 4724)
 ### UC-9.1.7 · GPO Modification Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** GPO changes affect all domain-joined machines. Unauthorized modifications can disable security controls across the organization.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (5136 — directory service object modified)
@@ -194,6 +201,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 ### UC-9.1.8 · AD Replication Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Replication failures cause authentication issues, stale group memberships, and inconsistent policy application across sites.
 - **App/TA:** `Splunk_TA_windows`, `repadmin` scripted input
 - **Data Sources:** Directory Service event log, `repadmin /showrepl` output
@@ -220,6 +228,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode IN (1864,
 ### UC-9.1.9 · LDAP Query Performance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Expensive LDAP queries degrade DC performance affecting authentication for all users. Detection enables query optimization.
 - **App/TA:** `Splunk_TA_windows`, Directory Service diagnostics
 - **Data Sources:** Directory Service event log (Event ID 1644 — expensive search), Field Engineering diagnostics
@@ -247,6 +256,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=1644
 ### UC-9.1.10 · Stale Account Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Stale accounts are an attack surface — unused accounts may be compromised without detection. Regular cleanup reduces risk.
 - **App/TA:** Scripted input (PowerShell AD query)
 - **Data Sources:** AD attributes (lastLogonTimestamp, pwdLastSet) via scripted input
@@ -275,6 +285,7 @@ index=ad sourcetype="ad:accounts"
 ### UC-9.1.11 · Entra ID Risky Sign-Ins
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Entra ID Identity Protection detects risky sign-ins using Microsoft's threat intelligence. Ingesting into Splunk enables correlation with on-prem events.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra ID sign-in logs, risk detection events (via Graph API)
@@ -302,6 +313,7 @@ index=azure sourcetype="azure:aad:signin"
 ### UC-9.1.12 · Conditional Access Policy Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Conditional Access blocks indicate non-compliant devices or policy misconfigurations. Monitoring ensures security policies work without excessive user friction.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra ID sign-in logs (conditionalAccessStatus field)
@@ -334,6 +346,7 @@ index=azure sourcetype="azure:aad:signin" conditionalAccessStatus="failure"
 ### UC-9.2.1 · Bind Failure Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** LDAP bind failures indicate authentication issues, misconfigured applications, or brute-force attempts against directory services.
 - **App/TA:** Syslog, LDAP server logs
 - **Data Sources:** OpenLDAP syslog, 389 Directory access log
@@ -361,6 +374,7 @@ index=ldap sourcetype="syslog" "BIND" "err=49"
 ### UC-9.2.2 · Search Performance Degradation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Slow LDAP searches impact all applications relying on directory services for authentication and authorization.
 - **App/TA:** LDAP access log parsing
 - **Data Sources:** OpenLDAP access log (search duration), 389 Directory access log
@@ -388,6 +402,7 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 ### UC-9.2.3 · Schema Modification Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Schema changes to directory services can break applications and are rarely expected. Detection ensures change control compliance.
 - **App/TA:** LDAP audit log
 - **Data Sources:** LDAP server audit log (schema modification events)
@@ -414,6 +429,7 @@ index=ldap sourcetype="openldap:audit"
 ### UC-9.2.4 · Replication Health Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** LDAP replication failures cause authentication inconsistencies and stale directory data across sites.
 - **App/TA:** Scripted input, LDAP server logs
 - **Data Sources:** LDAP replication logs, `ldapsearch` monitoring attributes (contextCSN)
@@ -447,6 +463,7 @@ index=ldap sourcetype="openldap:syncrepl"
 ### UC-9.3.1 · MFA Challenge Failure Rate
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** High MFA failure rates indicate user friction, potential phishing, or MFA fatigue attacks. Monitoring supports both security and user experience.
 - **App/TA:** `Splunk_TA_okta`, Splunk_TA_duo
 - **Data Sources:** Okta system log, Duo authentication log
@@ -474,6 +491,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
 ### UC-9.3.2 · Impossible Travel Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Authentication from two geographically distant locations within an impossibly short timeframe strongly indicates credential compromise.
 - **App/TA:** `Splunk_TA_okta`, custom correlation
 - **Data Sources:** IdP sign-in logs with IP geolocation
@@ -503,6 +521,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.session.start"
 ### UC-9.3.3 · Token Anomaly Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Token replay attacks bypass authentication entirely. Detection prevents persistent unauthorized access.
 - **App/TA:** `Splunk_TA_okta`, IdP audit logs
 - **Data Sources:** IdP token issuance logs, application token validation logs
@@ -529,6 +548,7 @@ index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
 ### UC-9.3.4 · Application Access Patterns
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Monitors which applications users access for license optimization and detects anomalous access indicating potential compromise.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** IdP application access logs
@@ -555,6 +575,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
 ### UC-9.3.5 · IdP Availability Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** IdP outage blocks all SSO authentication across the organization. Rapid detection enables failover and communication.
 - **App/TA:** Scripted input (HTTP check), `Splunk_TA_okta`
 - **Data Sources:** IdP status API, synthetic monitoring, Okta system health
@@ -581,6 +602,7 @@ index=synthetic sourcetype="http_check" target="*.okta.com"
 ### UC-9.3.6 · Phishing-Resistant MFA Adoption
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Tracks migration from phishable factors (SMS, phone) to phishing-resistant factors (FIDO2, WebAuthn). Supports zero-trust maturity goals.
 - **App/TA:** `Splunk_TA_okta`, IdP MFA enrollment data
 - **Data Sources:** IdP MFA enrollment logs, factor type metadata
@@ -608,6 +630,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
 ### UC-9.3.7 · Session Hijacking Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Sessions used from multiple locations simultaneously indicate session token theft. Detection prevents ongoing unauthorized access.
 - **App/TA:** `Splunk_TA_okta`, IdP session logs
 - **Data Sources:** IdP session activity logs, application session logs
@@ -641,6 +664,7 @@ index=okta sourcetype="OktaIM2:log"
 ### UC-9.4.1 · Privileged Session Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Complete audit trail of privileged sessions is required for compliance (SOX, PCI, HIPAA) and security investigation.
 - **App/TA:** Splunk_TA_cyberark, BeyondTrust TA for Splunk
 - **Data Sources:** PAM session logs (session start/end, target system, user, protocol)
@@ -667,6 +691,7 @@ index=pam sourcetype="cyberark:session"
 ### UC-9.4.2 · Password Checkout Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Unusual checkout patterns may indicate misuse. Tracking ensures accountability and supports investigations.
 - **App/TA:** Splunk_TA_cyberark
 - **Data Sources:** PAM vault logs (password retrieve/checkin events)
@@ -696,6 +721,7 @@ index=pam sourcetype="cyberark:vault"
 ### UC-9.4.3 · Break-Glass Account Usage
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Break-glass accounts provide emergency access and should rarely be used. Any usage requires immediate investigation and documentation.
 - **App/TA:** Splunk_TA_cyberark, custom alert
 - **Data Sources:** PAM vault events for break-glass accounts
@@ -723,6 +749,7 @@ index=pam sourcetype="cyberark:vault"
 ### UC-9.4.4 · Credential Rotation Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Overdue password rotations increase exposure window if credentials are compromised. Compliance tracking ensures policy adherence.
 - **App/TA:** PAM TA, scripted input
 - **Data Sources:** PAM vault credential metadata (last rotation date, policy)
@@ -752,6 +779,7 @@ index=pam sourcetype="cyberark:account_inventory"
 ### UC-9.4.5 · Suspicious Session Commands
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Detecting dangerous commands during privileged sessions enables real-time intervention before damage occurs.
 - **App/TA:** CyberArk PSM, BeyondTrust session monitoring
 - **Data Sources:** PAM session recordings/keystroke logs
@@ -778,6 +806,7 @@ index=pam sourcetype="cyberark:psm_transcript"
 ### UC-9.4.6 · Vault Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** PAM vault downtime prevents all privileged access, blocking critical operations. Health monitoring ensures continuous availability.
 - **App/TA:** PAM infrastructure monitoring, SNMP
 - **Data Sources:** PAM vault system logs, component health APIs

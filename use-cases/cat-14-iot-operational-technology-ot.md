@@ -9,6 +9,7 @@
 ### UC-14.1.1 · HVAC Performance Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** HVAC issues in data centers risk equipment damage; in buildings they affect occupant comfort and energy costs.
 - **App/TA:** Modbus TA, MQTT input, BMS API
 - **Data Sources:** BACnet/Modbus sensors (temperature setpoint, actual, supply/return air)
@@ -28,6 +29,7 @@ index=bms sourcetype="modbus:hvac"
 ### UC-14.1.2 · UPS Battery Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** UPS battery failure during power loss causes complete outage. Proactive monitoring prevents unprotected power events.
 - **App/TA:** SNMP TA (UPS-MIB)
 - **Data Sources:** SNMP UPS-MIB (upsEstimatedMinutesRemaining, upsBatteryStatus, upsBatteryTemperature)
@@ -46,6 +48,7 @@ index=power sourcetype="snmp:ups"
 ### UC-14.1.3 · Power Consumption Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Power consumption trending supports capacity planning, cost management, and sustainability reporting. Anomalies indicate equipment issues.
 - **App/TA:** SNMP TA, smart PDU API
 - **Data Sources:** Smart PDU metrics (per-outlet, per-circuit power)
@@ -64,6 +67,7 @@ index=power sourcetype="snmp:pdu"
 ### UC-14.1.4 · Access Control Event Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Physical access logs correlate with logical access events for security investigation. Audit trail required for compliance.
 - **App/TA:** Access control syslog, API input
 - **Data Sources:** Access control system logs (badge events, door status)
@@ -82,6 +86,7 @@ index=physical sourcetype="access_control"
 ### UC-14.1.5 · Elevator/Equipment Health
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Equipment fault codes enable predictive maintenance, reducing downtime and extending equipment life.
 - **App/TA:** BMS integration, MQTT
 - **Data Sources:** BMS event logs, equipment fault codes
@@ -100,6 +105,7 @@ index=bms sourcetype="bms:faults"
 ### UC-14.1.6 · Environmental Compliance
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Temperature/humidity exceedances in data centers risk equipment damage; in labs they invalidate experiments. Compliance monitoring is mandatory.
 - **App/TA:** Environmental sensor inputs (SNMP, MQTT)
 - **Data Sources:** Environmental sensors (temperature, humidity, differential pressure)
@@ -124,6 +130,7 @@ index=environment sourcetype="sensor:environmental"
 ### UC-14.2.1 · PLC/RTU Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Controller failures halt industrial processes. Monitoring CPU, memory, and communication status prevents unplanned downtime.
 - **App/TA:** OPC-UA input, Modbus TA
 - **Data Sources:** OPC-UA metrics (CPU, memory, I/O status), Modbus register data
@@ -142,6 +149,7 @@ index=ot sourcetype="opcua:metrics"
 ### UC-14.2.2 · Process Variable Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Process variables (pressure, flow, temperature) outside normal ranges indicate equipment failure or process upset. Early detection prevents safety incidents.
 - **App/TA:** OPC-UA input, Edge Hub anomaly detection
 - **Data Sources:** OPC-UA/Modbus process data (analog values)
@@ -160,6 +168,7 @@ index=ot sourcetype="opcua:process"
 ### UC-14.2.3 · Safety System Activation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Safety system activations (ESD, interlocks) indicate dangerous conditions. Each activation requires investigation and documentation.
 - **App/TA:** Safety PLC logs, OPC-UA events
 - **Data Sources:** Safety PLC event logs, emergency shutdown events
@@ -178,6 +187,7 @@ index=ot sourcetype="safety_plc"
 ### UC-14.2.4 · Network Segmentation Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** IT/OT network boundary violations create cybersecurity risk to critical infrastructure. Continuous monitoring validates segmentation.
 - **App/TA:** Firewall TAs, network flow data
 - **Data Sources:** Industrial firewall logs, network flow data at IT/OT boundary
@@ -197,6 +207,7 @@ index=network sourcetype="pan:traffic" zone_pair="IT-to-OT"
 ### UC-14.2.5 · Firmware Version Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** OT devices with outdated firmware are vulnerable to exploitation. Inventory tracking supports patching during maintenance windows.
 - **App/TA:** Scripted inventory input, OPC-UA
 - **Data Sources:** Asset inventory scans, OPC-UA system attributes
@@ -217,6 +228,7 @@ index=ot sourcetype="ics_inventory"
 ### UC-14.2.6 · Unauthorized Access Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Unauthorized access to ICS systems could lead to physical damage or safety incidents. Detection is critical for industrial cybersecurity.
 - **App/TA:** Firewall TAs, ICS network monitoring
 - **Data Sources:** ICS network logs, industrial firewalls, IDS alerts
@@ -242,6 +254,7 @@ index=ot sourcetype="ics_firewall"
 ### UC-14.3.1 · Temperature Anomaly Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Edge-based kNN anomaly detection provides faster response than cloud-based processing for critical temperature monitoring in data centers and industrial environments.
 - **App/TA:** Splunk Edge Hub (built-in kNN model), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` (metrics index), `index=edge-hub-anomalies` (anomaly metrics), `sourcetype=edge_hub`
@@ -266,6 +279,7 @@ index=ot sourcetype="ics_firewall"
 ### UC-14.3.2 · Vibration & Motion Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Equipment vibration changes indicate bearing wear, misalignment, or imbalance. Edge Hub's built-in 3-axis accelerometer and gyroscope enable predictive maintenance without external sensors.
 - **App/TA:** Splunk Edge Hub (built-in sensors), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in 3-axis accelerometer + 6-axis gyroscope
@@ -290,6 +304,7 @@ index=ot sourcetype="ics_firewall"
 ### UC-14.3.3 · Air Quality & VOC Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Indoor air quality affects occupant health and productivity. Edge Hub's optional VOC sensor provides IAQ scoring for workplace wellness monitoring.
 - **App/TA:** Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in VOC sensor (optional, <1s response, IAQ score)
@@ -314,6 +329,7 @@ index=ot sourcetype="ics_firewall"
 ### UC-14.3.4 · Sound Level Anomalies
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Unusual sound patterns near equipment indicate mechanical issues. Edge Hub's stereo microphone enables acoustic monitoring without external sensors.
 - **App/TA:** Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in stereo microphone
@@ -338,6 +354,7 @@ index=ot sourcetype="ics_firewall"
 ### UC-14.3.5 · MQTT Device Integration Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Edge Hub's built-in MQTT broker aggregates IoT sensor data from external devices. Monitoring broker health ensures data pipeline reliability.
 - **App/TA:** Splunk Edge Hub (built-in MQTT broker), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` (metrics from MQTT topics), `index=edge-hub-logs sourcetype=splunk_edge_hub_log` (broker logs)
@@ -361,6 +378,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" OR "broker"
 ### UC-14.3.6 · SNMP Device Polling from Edge
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Edge Hub bridges OT/IT network segmentation by polling SNMP-enabled devices on isolated networks and forwarding data to Splunk Cloud.
 - **App/TA:** Splunk Edge Hub (SNMP integration), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-snmp sourcetype=edge_hub` — SNMP polls via Edge Hub to local devices
@@ -383,6 +401,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "snmp" ("timeout" OR "unreach
 ### UC-14.3.7 · Edge-to-Cloud Data Pipeline Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Edge Hub pipeline health ensures IoT/OT data reaches Splunk. A disconnected Edge Hub creates blind spots — the device backlogs up to 3M sensor data points locally in SQLite.
 - **App/TA:** Splunk Edge Hub (system health), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-health sourcetype=edge_hub` (device health metrics), `index=edge-hub-logs sourcetype=splunk_edge_hub_log` (system logs)
@@ -411,6 +430,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 ### UC-14.3.8 · Data Center Humidity & Condensation Risk
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Prevents equipment failure by detecting dew point conditions before condensation forms on servers and network infrastructure.
 - **App/TA:** Splunk Edge Hub (humidity + temperature sensors), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` tag=humidity tag=temperature, `sourcetype=edge_hub`
@@ -432,6 +452,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 ### UC-14.3.9 · Cold Storage Room Temperature Excursion Alert
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Ensures pharmaceutical, food, or vaccine storage integrity by alerting within minutes of unplanned temperature rise.
 - **App/TA:** Splunk Edge Hub (temperature sensor ±0.2°C), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=temperature, `sourcetype=edge_hub`
@@ -455,6 +476,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 ### UC-14.3.10 · Museum & Archive Climate Control Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Documents preservation requirements (typically 18-21°C, 35-45% RH) for regulatory compliance and insurance.
 - **App/TA:** Splunk Edge Hub (temperature + humidity dual sensor), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=temperature OR metric_name=humidity, `sourcetype=edge_hub`
@@ -477,6 +499,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 ### UC-14.3.11 · Greenhouse Humidity & Growth Optimization
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Optimizes plant growth rates by maintaining ideal VPD (vapor pressure deficit) and reducing fungal disease risk.
 - **App/TA:** Splunk Edge Hub (humidity + temperature + optional light sensor), custom edge.json container
 - **Data Sources:** `index=edge-hub-data` metric_name=humidity OR metric_name=temperature OR metric_name=light, `sourcetype=edge_hub`
@@ -500,6 +523,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 ### UC-14.3.12 · Security Camera Motion Detection with Light Level Correlation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Security
 - **Value:** Reduces false motion alerts by correlating camera motion events with ambient light levels and eliminating day/night false positives.
 - **App/TA:** Splunk Edge Hub (light sensor + USB camera container with NPU), v2.1+
 - **Data Sources:** `index=edge-hub-data` metric_name=light, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log, camera motion event
@@ -521,6 +545,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 ### UC-14.3.13 · Energy Management & HVAC Occupancy-Based Control
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
 - **Value:** Reduces HVAC energy consumption 15-30% by correlating occupancy detection with temperature setpoints.
 - **App/TA:** Splunk Edge Hub (light + USB camera + custom container), Modbus TCP actuator control
 - **Data Sources:** `index=edge-hub-data` metric_name=light, `index=edge-hub-logs` camera_occupancy_count, `index=edge-hub-logs` sourcetype=edge_hub modbus_register
@@ -542,6 +567,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 ### UC-14.3.14 · Warehouse Inventory Light-Based Shelf Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
 - **Value:** Detects empty or partially depleted shelves in real-time by monitoring light pattern changes in high-bay storage.
 - **App/TA:** Splunk Edge Hub (light sensor array), custom container for pattern recognition
 - **Data Sources:** `index=edge-hub-data` metric_name=light, `sourcetype=edge_hub`
@@ -565,6 +591,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 ### UC-14.3.15 · Structural Health Monitoring via Vibration Baseline Drift
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Fault
 - **Value:** Detects early-stage structural degradation (loose bolts, bearing wear) before catastrophic failure by monitoring vibration signature drift.
 - **App/TA:** Splunk Edge Hub (3-axis accelerometer + 6-axis gyroscope), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=acceleration_x OR acceleration_y OR acceleration_z, `sourcetype=edge_hub`
@@ -588,6 +615,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 ### UC-14.3.16 · Door Open/Close Detection via Accelerometer Tilt
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Monitors facility access by detecting door swing events without motion sensors or contact switches.
 - **App/TA:** Splunk Edge Hub (3-axis accelerometer with gravity component), custom edge.json container
 - **Data Sources:** `index=edge-hub-data` metric_name=acceleration_x OR acceleration_y OR acceleration_z, `sourcetype=edge_hub`
@@ -611,6 +639,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 ### UC-14.3.17 · Equipment Alignment & Vibration Analysis via Gyroscope
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Monitors rotational alignment of rotating equipment to predict misalignment-induced failures.
 - **App/TA:** Splunk Edge Hub (6-axis gyroscope), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=gyro_x OR gyro_y OR gyro_z, `sourcetype=edge_hub`
@@ -633,6 +662,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 ### UC-14.3.18 · Sound Frequency Analysis for Equipment Signatures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Identifies equipment degradation by detecting shifts in characteristic sound frequencies (bearing wear, compressor blade damage).
 - **App/TA:** Splunk Edge Hub (stereo microphone + custom NPU container), v2.1+
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log audio_frequency_analysis, `index=edge-hub-data` metric_name=sound_level
@@ -656,6 +686,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_signature_extracted=tru
 ### UC-14.3.19 · Multi-Sensor Environmental Baseline & Drift Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Configuration
 - **Value:** Detects sensor failures, calibration drift, or environmental changes by correlating expected relationships between temperature, humidity, pressure, and light.
 - **App/TA:** Splunk Edge Hub (multi-sensor fusion), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=temperature OR metric_name=humidity OR metric_name=pressure OR metric_name=light, `sourcetype=edge_hub`
@@ -683,6 +714,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_signature_extracted=tru
 ### UC-14.3.20 · Pressure Monitoring for Cleanroom Compliance
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Ensures pharmaceutical and semiconductor cleanroom integrity by verifying positive pressure differentials between zones.
 - **App/TA:** Splunk Edge Hub (optional pressure sensor ±0.12 hPa), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=pressure, `sourcetype=edge_hub`
@@ -707,6 +739,7 @@ index=edge-hub-data metric_name=pressure
 ### UC-14.3.21 · HVAC Duct Pressure & Velocity Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Monitors HVAC filter clogging and airflow efficiency by tracking duct static pressure trends.
 - **App/TA:** Splunk Edge Hub (optional pressure sensor), Modbus TCP integration
 - **Data Sources:** `index=edge-hub-data` metric_name=pressure, `index=edge-hub-logs` sourcetype=edge_hub modbus_register
@@ -729,6 +762,7 @@ index=edge-hub-data metric_name=pressure
 ### UC-14.3.22 · Weather Station Data Integration & Altitude Compensation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Provides pressure-altitude data for facility environmental baselines and corrects sensor readings for elevation changes.
 - **App/TA:** Splunk Edge Hub (optional pressure sensor), MQTT integration
 - **Data Sources:** `index=edge-hub-data` metric_name=pressure, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log external_weather_device
@@ -751,6 +785,7 @@ index=edge-hub-data metric_name=pressure
 ### UC-14.3.23 · Custom Python Container for Data Transformation & Enrichment
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** Pre-processes edge sensor data locally before forwarding to Splunk, reducing bandwidth and enabling offline analytics.
 - **App/TA:** Splunk Edge Hub (custom container), gRPC SDK
 - **Data Sources:** `index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log
@@ -771,6 +806,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=transform_enri
 ### UC-14.3.24 · BACnet-to-MQTT Protocol Gateway Container
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Bridges legacy BACnet-based building control systems with modern MQTT/Splunk pipeline without expensive protocol gateway hardware.
 - **App/TA:** Splunk Edge Hub (custom container), MQTT broker
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log bacnet_translation_event, MQTT subscribed topics
@@ -792,6 +828,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log bacnet_translation_event
 ### UC-14.3.25 · Local Alerting & GPIO Relay Control Container
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Enables immediate equipment shutdown or alarm triggering at the edge without cloud latency, critical for safety-critical systems.
 - **App/TA:** Splunk Edge Hub (custom container), gRPC SDK, GPIO control
 - **Data Sources:** `index=edge-hub-data` all sensor metrics, `index=edge-hub-logs` container_alert_log
@@ -812,6 +849,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=local_alerting
 ### UC-14.3.26 · Edge Analytics Container for Rolling Statistics & Threshold Logic
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Computes advanced analytics (moving averages, percentiles, trend detection) locally, reducing cloud computation burden.
 - **App/TA:** Splunk Edge Hub (custom container), gRPC SDK
 - **Data Sources:** `index=edge-hub-data` computed_statistics, `index=edge-hub-logs` container_analytics_event
@@ -834,6 +872,7 @@ index=edge-hub-data metric_name=temperature
 ### UC-14.3.27 · BLE Beacon Asset Tracking & Presence Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Tracks valuable equipment or personnel location within facility using low-cost BLE tags without requiring dedicated asset management infrastructure.
 - **App/TA:** Splunk Edge Hub (Bluetooth connectivity), custom container
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log bluetooth_beacon_event, `index=edge-hub-data` metric_name=rssi_strength
@@ -855,6 +894,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log bluetooth_beacon_event beacon
 ### UC-14.3.28 · USB Camera Barcode & QR Code Scanning Container
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Automates material tracking and inventory verification by scanning barcodes/QR codes at the edge without manual entry.
 - **App/TA:** Splunk Edge Hub (USB camera + custom container), v2.1+ (USB passthrough)
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log barcode_scan_event, `index=edge-hub-data` scan_metadata
@@ -877,6 +917,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log barcode_scan_event
 ### UC-14.3.29 · Audio Classification for Anomalous Sound Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
 - **Value:** Detects equipment distress (compressor cavitation, bearing squeal, motor whine) by classifying sound types without FFT spectral analysis.
 - **App/TA:** Splunk Edge Hub (stereo microphone + NPU container), v2.1+
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log audio_classification_event, `index=edge-hub-data` audio_class_confidence
@@ -898,6 +939,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_classification_event
 ### UC-14.3.30 · Predictive Maintenance via NPU-Based Model Inference
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Predicts equipment failures (bearing degradation, motor insulation breakdown) 7-30 days in advance using on-device ML inference.
 - **App/TA:** Splunk Edge Hub (NPU + custom container), v2.1+, OT Intelligence
 - **Data Sources:** `index=edge-hub-data` raw sensor metrics, `index=edge-hub-logs` predictive_maintenance_inference
@@ -918,6 +960,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log predictive_model_inference fa
 ### UC-14.3.31 · OPC-UA Tag Browsing & Change Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
 - **Value:** Monitors PLC tag changes in real-time and alerts on unexpected data type or value changes indicating program modification or malfunction.
 - **App/TA:** Splunk Edge Hub (OPC-UA client), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua, `index=edge-hub-health` sourcetype=edge_hub
@@ -940,6 +983,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua opcua_tag=* opcua_value=*
 ### UC-14.3.32 · Modbus TCP Register Monitoring for Industrial Equipment
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Monitors equipment operational parameters via Modbus registers without requiring specialized data collection agents.
 - **App/TA:** Splunk Edge Hub (Modbus TCP client), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=edge_hub modbus_register, `index=edge-hub-data` modbus_metric
@@ -966,6 +1010,7 @@ index=edge-hub-logs sourcetype=edge_hub modbus_register
 ### UC-14.3.33 · Multi-Protocol Sensor Fusion (OPC-UA + MQTT + Built-in)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Correlates data from heterogeneous sources (PLC via OPC-UA, IoT devices via MQTT, internal sensors) to identify root causes of anomalies.
 - **App/TA:** Splunk Edge Hub (multi-protocol aggregation), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua OR splunk_edge_hub_log (MQTT), `index=edge-hub-data` all metric types
@@ -993,6 +1038,7 @@ OR index=edge-hub-data metric_name=temperature
 ### UC-14.3.34 · Protocol Gateway Health & Connectivity Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Tracks OPC-UA/Modbus/MQTT gateway uptime and connection quality to prevent silent data loss.
 - **App/TA:** Splunk Edge Hub (health monitoring), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-health` sourcetype=edge_hub, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log connection_event
@@ -1018,6 +1064,7 @@ index=edge-hub-health sourcetype=edge_hub gateway_name=*
 ### UC-14.3.35 · Industrial Alarm Management via OPC-UA
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Centralizes alarm processing from multiple PLCs via OPC-UA Alarms & Events service, preventing missed critical alerts.
 - **App/TA:** Splunk Edge Hub (OPC-UA A&E client), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua alarm_event, `index=edge-hub-health` sourcetype=edge_hub
@@ -1040,6 +1087,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua alarm_event=true
 ### UC-14.3.36 · Energy Meter Integration via Modbus TCP
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Monitors power consumption and demand charges in real-time to identify energy waste and optimize utility costs.
 - **App/TA:** Splunk Edge Hub (Modbus TCP client), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=edge_hub modbus_register meter_type=energy, `index=edge-hub-data` metric_name=power
@@ -1063,6 +1111,7 @@ index=edge-hub-logs sourcetype=edge_hub modbus_register meter_type=energy modbus
 ### UC-14.3.37 · PLC Program Change Detection via OPC-UA Timestamp Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Security
 - **Value:** Detects unauthorized or accidental PLC program modifications by tracking program last-edit timestamp changes.
 - **App/TA:** Splunk Edge Hub (OPC-UA client), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua program_timestamp_event
@@ -1086,6 +1135,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua program_timestamp_event
 ### UC-14.3.38 · SCADA HMI Event Capture & Operator Action Logging
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Audits all HMI operator actions (setpoint changes, equipment starts/stops) for compliance and root cause analysis.
 - **App/TA:** Splunk Edge Hub (OPC-UA tag subscription), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_opcua hmi_event, `index=edge-hub-health` sourcetype=edge_hub
@@ -1109,6 +1159,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua hmi_event=true
 ### UC-14.3.39 · Multi-Device Fleet Firmware Version Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Compliance
 - **Value:** Ensures all Edge Hubs in a fleet run current firmware versions to maintain security and feature parity.
 - **App/TA:** Splunk Edge Hub (multiple devices), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-health` sourcetype=edge_hub firmware_version, `index=edge-hub-logs` firmware_update_event
@@ -1133,6 +1184,7 @@ index=edge-hub-health sourcetype=edge_hub
 ### UC-14.3.40 · Device Location Tracking via GNSS
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Monitors Edge Hub physical location for mobile/outdoor deployments to verify proper coverage and detect theft/unauthorized movement.
 - **App/TA:** Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat
@@ -1156,6 +1208,7 @@ index=edge-hub-logs sourcetype=edge_hub gnss_position=true
 ### UC-14.3.41 · Cellular Connectivity Quality & Signal Strength Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Tracks LTE/4G signal strength and network latency to predict connectivity issues and plan network upgrades.
 - **App/TA:** Splunk Edge Hub (cellular module), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-health` sourcetype=edge_hub cellular_signal, `index=edge-hub-logs` cellular_connect_event
@@ -1182,6 +1235,7 @@ index=edge-hub-health sourcetype=edge_hub
 ### UC-14.3.42 · Edge Hub Resource Capacity Planning & CPU/Memory Utilization
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Prevents Edge Hub performance degradation and data loss by tracking resource utilization and planning for container resource allocation.
 - **App/TA:** Splunk Edge Hub (system monitoring), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-health` sourcetype=edge_hub cpu_percent, memory_percent, disk_used_mb
@@ -1206,6 +1260,7 @@ index=edge-hub-health sourcetype=edge_hub
 ### UC-14.3.43 · Configuration Drift Detection Across Fleet
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Configuration
 - **Value:** Ensures all Edge Hubs in a fleet maintain consistent configuration (MQTT topics, OPC-UA endpoints, polling intervals) to prevent data inconsistencies.
 - **App/TA:** Splunk Edge Hub (fleet management), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=edge_hub config_hash, `index=edge-hub-health` configuration_snapshot
@@ -1230,6 +1285,7 @@ index=edge-hub-health sourcetype=edge_hub configuration_snapshot=true
 ### UC-14.3.44 · Local Backlog Monitoring & Data Loss Prevention
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Prevents silent data loss by monitoring local SQLite backlog capacity and alerting before data is discarded.
 - **App/TA:** Splunk Edge Hub (local storage), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-health` sourcetype=edge_hub backlog_status, `index=edge-hub-logs` backlog_overflow_event
@@ -1257,6 +1313,7 @@ index=edge-hub-health sourcetype=edge_hub
 ### UC-14.3.45 · USB Camera People Counting for Occupancy & Capacity Management
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Capacity
 - **Value:** Enables real-time facility occupancy tracking and automatic alerts when spaces exceed safe capacity thresholds.
 - **App/TA:** Splunk Edge Hub (USB camera + NPU container), v2.1+
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log people_count_event, `index=edge-hub-data` metric_name=occupancy_count
@@ -1282,6 +1339,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log people_count_event
 ### UC-14.3.46 · USB Camera Visual Inspection for Manufacturing Defects
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Automates defect detection on assembly lines by running visual inspection models on captured images without human intervention.
 - **App/TA:** Splunk Edge Hub (USB camera + NPU container), v2.1+, OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log visual_inspection_event, `index=edge-hub-data` inspection_metadata
@@ -1304,6 +1362,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log visual_inspection_event defec
 ### UC-14.3.47 · Custom Python Container for API Integration & Data Enrichment
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
 - **Value:** Integrates Edge Hub data with external APIs (weather, commodity prices, inventory systems) to enrich sensor context without cloud latency.
 - **App/TA:** Splunk Edge Hub (custom container), gRPC SDK, HTTP client
 - **Data Sources:** `index=edge-hub-data` enriched_sensor_metrics, `index=edge-hub-logs` enrichment_event
@@ -1327,6 +1386,7 @@ index=edge-hub-data metric_name=temperature
 ### UC-14.3.48 · Pressure & Humidity Sensor Correlation for Leakage Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Fault
 - **Value:** Detects water leaks or condensation damage early by correlating pressure drop with humidity rise in sealed enclosures.
 - **App/TA:** Splunk Edge Hub (pressure + humidity sensors), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=pressure OR metric_name=humidity, `sourcetype=edge_hub`
@@ -1352,6 +1412,7 @@ index=edge-hub-data metric_name=temperature
 ### UC-14.3.49 · Sound Level & Frequency Band Monitoring for Regulatory Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** Monitors workplace noise levels to ensure OSHA compliance (90 dB over 8 hours) and tracks frequency bands for hearing loss risk.
 - **App/TA:** Splunk Edge Hub (stereo microphone + custom container), gRPC SDK
 - **Data Sources:** `index=edge-hub-data` metric_name=sound_level_db OR metric_name=frequency_band_power, `sourcetype=edge_hub`
@@ -1376,6 +1437,7 @@ index=edge-hub-data metric_name=temperature
 ### UC-14.3.50 · Accelerometer-Based Fall Detection & Impact Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Detects equipment falls or impacts (e.g., dropped sensors, dropped parts on conveyor) to trigger automatic alerts and prevent asset loss.
 - **App/TA:** Splunk Edge Hub (3-axis accelerometer + custom container)
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log impact_event, `index=edge-hub-data` metric_name=acceleration_magnitude
@@ -1401,6 +1463,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log impact_event=true
 ### UC-14.3.51 · Temperature & Humidity Sensor Calibration Drift Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Detects when sensors exceed acceptable calibration drift to trigger preventive recalibration and ensure measurement accuracy.
 - **App/TA:** Splunk Edge Hub (temperature + humidity sensors), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-health` sourcetype=edge_hub sensor_calibration_status, `index=edge-hub-data` sensor_drift_metric
@@ -1426,6 +1489,7 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 ### UC-14.3.52 · Light Sensor Ambient Light Level Anomaly Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Detects sudden lighting failures or unauthorized facility access by monitoring ambient light level anomalies.
 - **App/TA:** Splunk Edge Hub (light sensor), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=light_level, `sourcetype=edge_hub`
@@ -1451,6 +1515,7 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 ### UC-14.3.53 · Vibration Magnitude Threshold Monitoring for Equipment Protection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
 - **Value:** Protects precision equipment from damage by triggering automatic shutdowns when vibration exceeds safe operating thresholds.
 - **App/TA:** Splunk Edge Hub (3-axis accelerometer + custom container), gRPC SDK
 - **Data Sources:** `index=edge-hub-data` metric_name=vibration_magnitude, `index=edge-hub-logs` vibration_threshold_event
@@ -1474,6 +1539,7 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 ### UC-14.3.54 · Multi-Zone Temperature Gradient Monitoring for Optimal Environment
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Monitors temperature gradients across facility zones to optimize HVAC distribution and detect unequal cooling/heating.
 - **App/TA:** Splunk Edge Hub (multiple temperature sensors via MQTT or external probes), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-data` metric_name=temperature, `sourcetype=edge_hub` zone=*
@@ -1498,6 +1564,7 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 ### UC-14.3.55 · Acoustic Anomaly Detection for Equipment Health Assessment
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Availability
 - **Value:** Identifies subtle equipment changes (bearing looseness, gearbox wear) by detecting acoustic signature shifts without manual FFT analysis.
 - **App/TA:** Splunk Edge Hub (stereo microphone + ML container), v2.1+
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log acoustic_anomaly_event, `index=edge-hub-data` acoustic_baseline_deviation
@@ -1521,6 +1588,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log acoustic_classification_event
 ### UC-14.3.56 · MQTT Topic Latency & Message Loss Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Ensures MQTT message delivery reliability by tracking topic latency and detecting lost or delayed messages.
 - **App/TA:** Splunk Edge Hub (MQTT broker + client), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log mqtt_latency_event, `index=edge-hub-health` sourcetype=edge_hub mqtt_broker_health
@@ -1546,6 +1614,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log mqtt_latency_event
 ### UC-14.3.57 · Temperature Sensor Response Time Validation & Lag Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Validates temperature sensor response time to ensure rapid detection of thermal events (e.g., fire detection latency < 30 seconds).
 - **App/TA:** Splunk Edge Hub (temperature sensor), Splunk OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=edge_hub temperature_response_test, `index=edge-hub-data` sensor_response_metrics
@@ -1587,6 +1656,7 @@ All 50 new use cases (UC-14.3.8 through UC-14.3.57) are documented with:
 ### UC-14.4.1 · Smart Sensor Fleet Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** IoT sensors with low batteries or offline status create monitoring gaps. Fleet management ensures comprehensive coverage.
 - **App/TA:** IoT platform API input
 - **Data Sources:** IoT platform device management API
@@ -1605,6 +1675,7 @@ index=iot sourcetype="iot_platform:devices"
 ### UC-14.4.2 · Environmental Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Distributed environmental sensors provide early warning of conditions that could damage equipment or inventory.
 - **App/TA:** MQTT input, IoT platform API
 - **Data Sources:** Environmental sensor data (temperature, humidity, water leak, smoke)
@@ -1623,6 +1694,7 @@ index=iot sourcetype="sensor:environmental"
 ### UC-14.4.3 · Asset Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Real-time asset location reduces search time, prevents loss, and enables utilization optimization.
 - **App/TA:** Custom API input, BLE/GPS data
 - **Data Sources:** GPS/BLE beacon data, RFID events
@@ -1642,6 +1714,7 @@ index=iot sourcetype="asset_tracking"
 ### UC-14.4.4 · Home Automation Monitoring
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Smart home monitoring provides energy usage insights, security awareness, and automation troubleshooting.
 - **App/TA:** Custom API input (Homey, Home Assistant)
 - **Data Sources:** Homey/Home Assistant API (device events, energy data)
@@ -1660,6 +1733,7 @@ index=smarthome sourcetype="homey:events"
 ### UC-14.4.5 · IoT Device Firmware Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** IoT devices are frequently targeted for botnets. Outdated firmware creates network security risks.
 - **App/TA:** IoT platform API
 - **Data Sources:** Device inventory with firmware versions

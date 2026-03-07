@@ -9,6 +9,7 @@
 ### UC-3.1.1 · Container Crash Loops
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Containers restarting repeatedly indicate application bugs, misconfiguration, or dependency failures. Crash loops consume resources and never reach healthy state.
 - **App/TA:** Splunk Connect for Docker, Docker events via syslog
 - **Data Sources:** `sourcetype=docker:events`, Docker daemon logs
@@ -30,6 +31,7 @@ index=containers sourcetype="docker:events" action="die"
 ### UC-3.1.2 · Container OOM Kills
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** OOM kills mean the container exceeded its memory limit. The application is either leaking memory or undersized. Data loss is likely.
 - **App/TA:** Splunk Connect for Docker, host syslog
 - **Data Sources:** `sourcetype=docker:events`, host `dmesg`/syslog
@@ -53,6 +55,7 @@ index=os sourcetype=syslog "Memory cgroup out of memory" OR "oom-kill"
 ### UC-3.1.3 · Container CPU Throttling
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** CPU throttling means the container is hitting its CPU limit and being artificially slowed. Causes latency spikes invisible to standard CPU utilization metrics.
 - **App/TA:** Custom scripted input (cgroup stats), Splunk OpenTelemetry Collector
 - **Data Sources:** `sourcetype=docker:stats`, cgroup `cpu.stat`
@@ -73,6 +76,7 @@ index=containers sourcetype="docker:stats"
 ### UC-3.1.4 · Container Memory Utilization
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Tracking memory usage relative to limits catches containers approaching OOM before they're killed. Enables proactive limit adjustments.
 - **App/TA:** Splunk Connect for Docker, custom scripted input
 - **Data Sources:** `sourcetype=docker:stats`
@@ -93,6 +97,7 @@ index=containers sourcetype="docker:stats"
 ### UC-3.1.5 · Image Vulnerability Scanning
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Container images with known CVEs are deployed directly into production. Scanning and tracking vulnerabilities prevents running exploitable workloads.
 - **App/TA:** Custom input (Trivy, Snyk, Grype JSON output)
 - **Data Sources:** JSON scan results from vulnerability scanners
@@ -112,6 +117,7 @@ index=containers sourcetype="trivy:scan"
 ### UC-3.1.6 · Privileged Container Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Privileged containers have full host access — a container escape gives root on the host. Should be flagged and justified in production.
 - **App/TA:** Docker events, custom audit input
 - **Data Sources:** `docker inspect` output, Kubernetes pod security
@@ -130,6 +136,7 @@ index=containers sourcetype="docker:inspect"
 ### UC-3.1.7 · Container Sprawl
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
 - **Value:** Stopped containers and dangling images waste disk space. In development environments, sprawl can consume all available storage.
 - **App/TA:** Custom scripted input
 - **Data Sources:** `docker ps -a`, `docker images`
@@ -150,6 +157,7 @@ index=containers sourcetype="docker:ps"
 ### UC-3.1.8 · Docker Daemon Errors
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Docker daemon errors affect all containers on the host. Network, storage driver, and containerd errors can cause widespread container failures.
 - **App/TA:** Syslog, Docker daemon log forwarding
 - **Data Sources:** `/var/log/docker.log` or `journalctl -u docker`
@@ -174,6 +182,7 @@ index=containers sourcetype="docker:daemon" level="error" OR level="fatal"
 ### UC-3.2.1 · Pod Restart Rate
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High restart counts indicate application instability. Pods may appear "Running" but are constantly crashing and restarting, degrading service quality.
 - **App/TA:** Splunk OpenTelemetry Collector for K8s
 - **Data Sources:** `sourcetype=kube:container:meta`, kube-state-metrics
@@ -193,6 +202,7 @@ index=k8s sourcetype="kube:container:meta"
 ### UC-3.2.2 · Pod Scheduling Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Pods stuck in Pending can't serve traffic. Usually caused by insufficient CPU/memory, node affinity rules, or persistent volume claim issues.
 - **App/TA:** Splunk OTel Collector, Kubernetes event forwarding
 - **Data Sources:** `sourcetype=kube:events`
@@ -211,6 +221,7 @@ index=k8s sourcetype="kube:events" reason="FailedScheduling"
 ### UC-3.2.3 · Node NotReady Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** A NotReady node can't run pods. Existing pods are evicted after the toleration timeout (default 5 min). Causes service disruption if no replacement capacity.
 - **App/TA:** Splunk OTel Collector, kube-state-metrics
 - **Data Sources:** `sourcetype=kube:node:meta`, Kubernetes events
@@ -234,6 +245,7 @@ index=k8s sourcetype="kube:node:meta"
 ### UC-3.2.4 · Resource Quota Exhaustion
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** When namespace quotas are exhausted, new pods can't be created. Impacts deployments, autoscaling, and job scheduling within the namespace.
 - **App/TA:** Splunk OTel Collector, kube-state-metrics
 - **Data Sources:** `sourcetype=kube:resourcequota:meta`
@@ -254,6 +266,7 @@ index=k8s sourcetype="kube:resourcequota:meta"
 ### UC-3.2.5 · Persistent Volume Claims
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Unbound PVCs prevent stateful workloads (databases, message queues) from starting. Often caused by storage class misconfiguration or capacity.
 - **App/TA:** Splunk OTel Collector, Kubernetes events
 - **Data Sources:** `sourcetype=kube:events`, `sourcetype=kube:pvc:meta`
@@ -272,6 +285,7 @@ index=k8s sourcetype="kube:events" reason="ProvisioningFailed" OR reason="Failed
 ### UC-3.2.6 · Deployment Rollout Failures
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** A failed rollout means new code isn't deploying successfully. Pods may be crash-looping, image pulls failing, or health checks not passing.
 - **App/TA:** Splunk OTel Collector, Kubernetes events
 - **Data Sources:** `sourcetype=kube:events`
@@ -290,6 +304,7 @@ index=k8s sourcetype="kube:events" involvedObject.kind="Deployment" (reason="Pro
 ### UC-3.2.7 · Control Plane Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** The control plane (API server, etcd, scheduler, controller-manager) is the brain of Kubernetes. Degradation affects all cluster operations.
 - **App/TA:** Splunk OTel Collector, control plane component metrics
 - **Data Sources:** API server metrics, etcd metrics, scheduler/controller-manager logs
@@ -308,6 +323,7 @@ index=k8s sourcetype="kube:apiserver"
 ### UC-3.2.8 · etcd Cluster Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** etcd stores all Kubernetes state. etcd problems (leader elections, compaction failures, high latency) cascade into cluster-wide failures.
 - **App/TA:** Splunk OTel Collector, etcd metrics
 - **Data Sources:** etcd Prometheus metrics (scraped by OTel)
@@ -326,6 +342,7 @@ index=k8s sourcetype="kube:etcd"
 ### UC-3.2.9 · Ingress Error Rates
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Ingress controllers are the front door to your services. High error rates mean users are getting errors. Catches backend failures and misconfigurations.
 - **App/TA:** Ingress controller log forwarding (NGINX, Traefik, etc.)
 - **Data Sources:** `sourcetype=kube:ingress:nginx` or similar
@@ -346,6 +363,7 @@ index=k8s sourcetype="kube:ingress:nginx"
 ### UC-3.2.10 · CrashLoopBackOff Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** CrashLoopBackOff is the most common Kubernetes failure mode. The pod is crashing, restarting, and crashing again with exponential backoff. Service is down.
 - **App/TA:** Splunk OTel Collector, kube-state-metrics
 - **Data Sources:** `sourcetype=kube:container:meta`, Kubernetes events
@@ -365,6 +383,7 @@ index=k8s sourcetype="kube:events" reason="BackOff"
 ### UC-3.2.11 · HPA Scaling Events
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** HPA scaling events show when applications are hitting capacity. Repeated max-scale events indicate undersized limits or unexpected traffic.
 - **App/TA:** Splunk OTel Collector, Kubernetes events
 - **Data Sources:** `sourcetype=kube:events`
@@ -383,6 +402,7 @@ index=k8s sourcetype="kube:events" involvedObject.kind="HorizontalPodAutoscaler"
 ### UC-3.2.12 · RBAC Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
 - **Value:** RBAC misconfigurations grant excessive permissions. Unauthorized access attempts indicate potential compromise or misconfigured service accounts.
 - **App/TA:** Kubernetes audit log forwarding
 - **Data Sources:** `sourcetype=kube:audit`
@@ -401,6 +421,7 @@ index=k8s sourcetype="kube:audit" responseStatus.code>=403
 ### UC-3.2.13 · Certificate Expiration
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** Kubernetes uses TLS certificates extensively (API server, kubelet, etcd). Expired certs cause cluster communication failures and outages.
 - **App/TA:** cert-manager metrics, custom scripted input
 - **Data Sources:** cert-manager events, `kubeadm certs check-expiration` output
@@ -424,6 +445,7 @@ index=k8s sourcetype="certmanager:metrics"
 ### UC-3.2.14 · Container Image Pull Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** ImagePullBackOff prevents pods from starting. Caused by wrong image tags, registry auth failures, or network issues. Blocks deployments.
 - **App/TA:** Splunk OTel Collector, Kubernetes events
 - **Data Sources:** `sourcetype=kube:events`
@@ -442,6 +464,7 @@ index=k8s sourcetype="kube:events" (reason="ErrImagePull" OR reason="ImagePullBa
 ### UC-3.2.15 · DaemonSet Completeness
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** DaemonSets (monitoring agents, log forwarders, network plugins) must run on every eligible node. Missing instances create monitoring or networking gaps.
 - **App/TA:** Splunk OTel Collector, kube-state-metrics
 - **Data Sources:** `sourcetype=kube:daemonset:meta`
@@ -467,6 +490,7 @@ index=k8s sourcetype="kube:daemonset:meta"
 ### UC-3.3.1 · Cluster Version & Upgrade Status
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** OpenShift upgrades can stall. Tracking upgrade progress and version across clusters ensures consistency and support compliance.
 - **App/TA:** Custom API input (ClusterVersion API)
 - **Data Sources:** ClusterVersion resource, OpenShift events
@@ -485,6 +509,7 @@ index=openshift sourcetype="openshift:clusterversion"
 ### UC-3.3.2 · Operator Degraded Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Cluster operators manage core OpenShift components (networking, ingress, monitoring, authentication). Degraded operators mean partial cluster functionality loss.
 - **App/TA:** Custom API input
 - **Data Sources:** ClusterOperator resources
@@ -504,6 +529,7 @@ index=openshift sourcetype="openshift:clusteroperator"
 ### UC-3.3.3 · Build Failure Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** OpenShift Source-to-Image (S2I) build failures block application deployments. Trend analysis reveals systemic build infrastructure issues.
 - **App/TA:** OpenShift event forwarding
 - **Data Sources:** `sourcetype=kube:events` (Build events)
@@ -522,6 +548,7 @@ index=openshift sourcetype="kube:events" involvedObject.kind="Build" reason="Bui
 ### UC-3.3.4 · SCC Violation Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Security Context Constraint violations mean pods are attempting to run with permissions beyond their allowed scope. Could indicate misconfiguration or an attack.
 - **App/TA:** OpenShift audit log forwarding
 - **Data Sources:** `sourcetype=openshift:audit`
@@ -547,6 +574,7 @@ index=openshift sourcetype="openshift:audit" responseStatus.code=403 objectRef.r
 ### UC-3.4.1 · Image Push/Pull Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Audit trail for who pushed or pulled what images. Detects unauthorized access, supply chain concerns, and usage patterns.
 - **App/TA:** Registry webhook to Splunk HEC, API polling
 - **Data Sources:** Registry audit/webhook events
@@ -565,6 +593,7 @@ index=containers sourcetype="registry:audit"
 ### UC-3.4.2 · Vulnerability Scan Results
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Registry-level scanning catches vulnerabilities before images are deployed. Trending shows whether security posture is improving or degrading.
 - **App/TA:** Custom input (Harbor, ACR, ECR scan APIs)
 - **Data Sources:** Scan result JSON from registry API
@@ -584,6 +613,7 @@ index=containers sourcetype="registry:scan"
 ### UC-3.4.3 · Storage Quota Monitoring
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Registry storage exhaustion prevents image pushes, blocking CI/CD pipelines. Monitoring enables proactive cleanup policy tuning.
 - **App/TA:** Custom API input
 - **Data Sources:** Registry storage API metrics

@@ -9,6 +9,7 @@
 ### UC-7.1.1 · Slow Query Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Slow queries degrade application performance and user experience. Identifying them enables targeted optimization.
 - **App/TA:** DB Connect, Splunk_TA_microsoft-sqlserver, MySQL slow query log
 - **Data Sources:** Slow query logs, SQL Server DMVs (`sys.dm_exec_query_stats`), PostgreSQL `pg_stat_statements`
@@ -29,6 +30,7 @@ index=database sourcetype="mysql:slowquery"
 ### UC-7.1.2 · Deadlock Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Deadlocks cause transaction failures and application errors. Rapid detection and root cause analysis minimizes impact.
 - **App/TA:** Splunk_TA_microsoft-sqlserver, database error logs
 - **Data Sources:** SQL Server error log (deadlock graph), PostgreSQL `log_lock_waits`, Oracle alert log
@@ -48,6 +50,7 @@ index=database sourcetype="mssql:errorlog"
 ### UC-7.1.3 · Connection Pool Exhaustion
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Exhausted connection pools cause application failures. Monitoring prevents outages and guides pool sizing decisions.
 - **App/TA:** DB Connect, performance counters
 - **Data Sources:** SQL Server DMVs (`sys.dm_exec_connections`), PostgreSQL `pg_stat_activity`, app server connection pool metrics
@@ -67,6 +70,7 @@ index=database sourcetype="dbconnect:mssql_connections"
 ### UC-7.1.4 · Replication Lag Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Replication lag affects data consistency and failover readiness. Monitoring ensures HA/DR objectives are met.
 - **App/TA:** DB Connect, vendor-specific monitoring
 - **Data Sources:** SQL Server AG DMVs (`sys.dm_hadr_database_replica_states`), MySQL `SHOW SLAVE STATUS`, PostgreSQL replication slots
@@ -86,6 +90,7 @@ index=database sourcetype="dbconnect:replication_status"
 ### UC-7.1.5 · Tablespace / Data File Growth
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Uncontrolled database growth leads to disk space exhaustion and outages. Trending enables proactive storage provisioning.
 - **App/TA:** DB Connect
 - **Data Sources:** `sys.database_files` (SQL Server), `dba_tablespaces` (Oracle), `pg_database_size()` (PostgreSQL)
@@ -104,6 +109,7 @@ index=database sourcetype="dbconnect:db_size"
 ### UC-7.1.6 · Backup Success Verification
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Database backups are the last line of defense. Verifying success prevents discovering backup failures during a crisis.
 - **App/TA:** DB Connect, Splunk_TA_microsoft-sqlserver
 - **Data Sources:** `msdb.dbo.backupset` (SQL Server), `v$rman_backup_job_details` (Oracle), PostgreSQL `pg_basebackup` logs
@@ -124,6 +130,7 @@ index=database sourcetype="dbconnect:backup_history"
 ### UC-7.1.7 · Login Failure Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Repeated login failures may indicate brute-force attacks or misconfigured applications. Detection supports security posture.
 - **App/TA:** Splunk_TA_microsoft-sqlserver, database error logs
 - **Data Sources:** SQL Server error log (login failed events), PostgreSQL `log_connections`, Oracle audit trail
@@ -145,6 +152,7 @@ index=database sourcetype="mssql:errorlog"
 ### UC-7.1.8 · Long-Running Transaction Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Long transactions hold locks, causing blocking chains that degrade application performance for many users.
 - **App/TA:** DB Connect
 - **Data Sources:** `sys.dm_exec_requests` (SQL Server), `pg_stat_activity` (PostgreSQL), Oracle `v$transaction`
@@ -164,6 +172,7 @@ index=database sourcetype="dbconnect:active_transactions"
 ### UC-7.1.9 · Index Fragmentation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Highly fragmented indexes cause excessive I/O and slow query performance. Monitoring guides maintenance scheduling.
 - **App/TA:** DB Connect
 - **Data Sources:** `sys.dm_db_index_physical_stats` (SQL Server), `pg_stat_user_indexes` (PostgreSQL)
@@ -183,6 +192,7 @@ index=database sourcetype="dbconnect:index_stats"
 ### UC-7.1.10 · TempDB Contention (SQL Server)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** TempDB contention is a common SQL Server bottleneck. Detection enables configuration tuning (multiple data files, trace flags).
 - **App/TA:** DB Connect, Splunk_TA_microsoft-sqlserver
 - **Data Sources:** `sys.dm_os_wait_stats` (PAGELATCH waits), `sys.dm_exec_query_stats`
@@ -201,6 +211,7 @@ index=database sourcetype="dbconnect:wait_stats"
 ### UC-7.1.11 · Buffer Cache Hit Ratio
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Low buffer cache hit ratio means excessive disk I/O. Monitoring guides memory allocation decisions.
 - **App/TA:** DB Connect, performance counters
 - **Data Sources:** SQL Server performance counters, PostgreSQL `pg_stat_bgwriter`
@@ -220,6 +231,7 @@ index=database sourcetype="dbconnect:perf_counters"
 ### UC-7.1.12 · Database Availability Group Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** AG/RAC cluster health is essential for HA. Detecting unhealthy replicas prevents unplanned failover failures.
 - **App/TA:** DB Connect, Splunk_TA_microsoft-sqlserver
 - **Data Sources:** `sys.dm_hadr_availability_replica_states` (SQL Server), Oracle CRS logs
@@ -238,6 +250,7 @@ index=database sourcetype="dbconnect:ag_status"
 ### UC-7.1.13 · Schema Change Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Unauthorized DDL changes to production databases can break applications. Detection ensures change control compliance.
 - **App/TA:** DB Connect, SQL Server audit
 - **Data Sources:** SQL Server DDL triggers, audit logs, PostgreSQL `log_statement='ddl'`
@@ -256,6 +269,7 @@ index=database sourcetype="mssql:audit" action_id IN ("CR","AL","DR")
 ### UC-7.1.14 · Query Plan Regression
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Query plan changes can cause sudden performance degradation. Detection enables rapid intervention (plan forcing, hint application).
 - **App/TA:** DB Connect
 - **Data Sources:** SQL Server Query Store, `sys.dm_exec_query_plan`, PostgreSQL `pg_stat_statements`
@@ -276,6 +290,7 @@ index=database sourcetype="dbconnect:query_store"
 ### UC-7.1.15 · Privilege Escalation Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
 - **Value:** Unauthorized privilege changes can enable data theft or sabotage. Audit trail is required for compliance.
 - **App/TA:** DB Connect, SQL Server audit
 - **Data Sources:** Database audit logs (GRANT/REVOKE events), security event logs
@@ -300,6 +315,7 @@ index=database sourcetype="mssql:audit"
 ### UC-7.2.1 · Cluster Membership Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Node additions/removals affect data distribution and availability. Unexpected membership changes may indicate failures.
 - **App/TA:** Custom scripted input, database event logs
 - **Data Sources:** MongoDB replica set events, Cassandra `system.log`, Elasticsearch cluster state
@@ -319,6 +335,7 @@ index=database sourcetype="mongodb:log"
 ### UC-7.2.2 · Replication Lag / Consistency
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Replication lag causes stale reads and eventual consistency violations. Monitoring ensures data freshness SLAs are met.
 - **App/TA:** Custom scripted input (rs.status(), nodetool)
 - **Data Sources:** MongoDB `rs.status()`, Cassandra `nodetool status`, Redis `INFO replication`
@@ -338,6 +355,7 @@ index=database sourcetype="mongodb:rs_status"
 ### UC-7.2.3 · Read/Write Latency Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Latency trending detects performance degradation before it impacts users. Enables proactive tuning and scaling decisions.
 - **App/TA:** Custom metrics input, database stats API
 - **Data Sources:** MongoDB `serverStatus()`, Cassandra JMX, Elasticsearch `_nodes/stats`
@@ -355,6 +373,7 @@ index=database sourcetype="mongodb:server_status"
 ### UC-7.2.4 · Shard Imbalance Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Uneven shard distribution causes hot spots and performance inconsistency. Rebalancing prevents overloaded nodes.
 - **App/TA:** Custom scripted input
 - **Data Sources:** MongoDB `sh.status()`, Elasticsearch `_cat/shards`
@@ -375,6 +394,7 @@ index=database sourcetype="mongodb:shard_status"
 ### UC-7.2.5 · Compaction Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Pending compactions consume I/O and can cause write amplification. Monitoring ensures compaction keeps pace with writes.
 - **App/TA:** JMX input (Cassandra), database logs
 - **Data Sources:** Cassandra `nodetool compactionstats`, MongoDB WiredTiger stats, Elasticsearch merge stats
@@ -393,6 +413,7 @@ index=database sourcetype="cassandra:compaction"
 ### UC-7.2.6 · GC Pause Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Long GC pauses in Java-based databases (Cassandra, Elasticsearch) cause request timeouts and can trigger node eviction from the cluster.
 - **App/TA:** GC log parsing, JMX
 - **Data Sources:** JVM GC logs (`gc.log`), JMX GC metrics
@@ -412,6 +433,7 @@ index=database sourcetype="jvm:gc"
 ### UC-7.2.7 · Connection Count Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Approaching connection limits causes client rejections. Monitoring enables proactive limit adjustment or connection pooling.
 - **App/TA:** Custom scripted input
 - **Data Sources:** MongoDB `serverStatus().connections`, Redis `INFO clients`, Elasticsearch `_nodes/stats/transport`
@@ -431,6 +453,7 @@ index=database sourcetype="mongodb:server_status"
 ### UC-7.2.8 · Index Build Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Index builds consume significant resources and can impact production performance. Tracking ensures builds complete within maintenance windows.
 - **App/TA:** Database log parsing
 - **Data Sources:** MongoDB log (`INDEX` messages), Elasticsearch `_tasks` API
@@ -450,6 +473,7 @@ index=database sourcetype="mongodb:log"
 ### UC-7.2.9 · Memory Utilization
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** NoSQL databases are memory-intensive. Evictions indicate undersized cache, causing disk reads and performance degradation.
 - **App/TA:** Custom scripted input, JMX
 - **Data Sources:** Redis `INFO memory`, MongoDB WiredTiger cache stats, Cassandra JMX heap metrics
@@ -469,6 +493,7 @@ index=database sourcetype="redis:info"
 ### UC-7.2.10 · Elasticsearch Cluster Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Elasticsearch cluster status directly indicates data availability. Yellow/red status requires immediate attention to prevent data loss.
 - **App/TA:** Custom REST API input
 - **Data Sources:** Elasticsearch `_cluster/health` API
@@ -494,6 +519,7 @@ index=database sourcetype="elasticsearch:cluster_health"
 ### UC-7.3.1 · RDS/Aurora Performance Insights
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Performance Insights identifies top SQL and wait events without agent installation. Enables rapid diagnosis of managed database bottlenecks.
 - **App/TA:** `Splunk_TA_aws` (CloudWatch)
 - **Data Sources:** RDS Performance Insights API, CloudWatch Enhanced Monitoring
@@ -512,6 +538,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS"
 ### UC-7.3.2 · Automated Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Managed database failovers cause brief outages. Detection enables impact analysis and root cause investigation.
 - **App/TA:** `Splunk_TA_aws` (CloudTrail/EventBridge), Azure Activity Log
 - **Data Sources:** RDS events, Azure SQL activity log, Cloud SQL admin activity
@@ -530,6 +557,7 @@ index=aws sourcetype="aws:cloudwatch:events"
 ### UC-7.3.3 · Read Replica Lag
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Replica lag affects read consistency for applications using read replicas. Monitoring prevents stale data serving.
 - **App/TA:** Cloud provider TAs (CloudWatch, Azure Monitor)
 - **Data Sources:** CloudWatch `ReplicaLag` metric, Azure SQL `replication_lag`
@@ -548,6 +576,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="ReplicaLa
 ### UC-7.3.4 · Storage Auto-Scaling Events
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Tracks storage auto-scaling events for cost awareness and identifies databases with rapid growth needing attention.
 - **App/TA:** Cloud provider TAs
 - **Data Sources:** CloudTrail (ModifyDBInstance), Azure Activity Log
@@ -567,6 +596,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="ModifyDBInstance"
 ### UC-7.3.5 · Maintenance Window Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Awareness of upcoming and completed maintenance ensures teams are prepared for potential service impact.
 - **App/TA:** Cloud provider TAs
 - **Data Sources:** RDS event subscriptions, Azure Service Health, GCP maintenance notifications
@@ -592,6 +622,7 @@ index=aws sourcetype="aws:cloudwatch:events"
 ### UC-7.4.1 · Query Performance Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Identifies expensive and slow queries impacting warehouse performance and cost. Enables query optimization and cost reduction.
 - **App/TA:** Custom API input (Snowflake ACCOUNT_USAGE), DB Connect
 - **Data Sources:** Snowflake `QUERY_HISTORY`, BigQuery `INFORMATION_SCHEMA.JOBS`, Redshift `STL_QUERY`
@@ -611,6 +642,7 @@ index=datawarehouse sourcetype="snowflake:query_history"
 ### UC-7.4.2 · Cluster Scaling Events
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Tracks auto-scaling decisions for cost optimization. Identifies whether current scaling policies match workload patterns.
 - **App/TA:** Custom API input, cloud provider TAs
 - **Data Sources:** Snowflake `WAREHOUSE_EVENTS_HISTORY`, Redshift resize events, BigQuery slot utilization
@@ -629,6 +661,7 @@ index=datawarehouse sourcetype="snowflake:warehouse_events"
 ### UC-7.4.3 · Data Pipeline Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Failed or delayed ETL/ELT pipelines cause stale data for reporting and analytics. Early detection prevents downstream impact.
 - **App/TA:** Custom API input, orchestrator integration (Airflow, dbt)
 - **Data Sources:** Airflow task logs, dbt run results, Snowflake TASK_HISTORY, pipeline orchestrator APIs
@@ -649,6 +682,7 @@ index=datawarehouse sourcetype="airflow:task_instance"
 ### UC-7.4.4 · Credit / Cost per Query
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Directly ties compute cost to individual queries, enabling chargeback and cost optimization. Identifies runaway queries consuming excessive resources.
 - **App/TA:** Custom API input (Snowflake ACCOUNT_USAGE)
 - **Data Sources:** Snowflake `QUERY_HISTORY` (CREDITS_USED), BigQuery `INFORMATION_SCHEMA.JOBS` (total_bytes_billed)
@@ -669,6 +703,7 @@ index=datawarehouse sourcetype="snowflake:query_history"
 ### UC-7.4.5 · Warehouse Utilization
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Right-sizing warehouses reduces cost while maintaining performance. Utilization data drives scaling policy decisions.
 - **App/TA:** Custom API input
 - **Data Sources:** Snowflake `WAREHOUSE_LOAD_HISTORY`, Redshift `WLM_QUEUE_STATE`, BigQuery reservation utilization
@@ -688,6 +723,7 @@ index=datawarehouse sourcetype="snowflake:warehouse_load"
 ### UC-7.1.16 · Open Cursor Leak Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Open cursors that are never closed accumulate in the database session context and eventually exhaust the cursor limit (Oracle ORA-01000, SQL Server max open cursors), causing application errors and forcing emergency restarts. Nagios detects this via threshold checks on V$OPEN_CURSOR; Splunk enables trending, per-session attribution, and correlation with application deployments.
 - **App/TA:** `splunk-db-connect` or `Splunk_TA_oracle`
 - **Data Sources:** Oracle `V$OPEN_CURSOR`, `V$SESSION`; SQL Server `sys.dm_exec_cursors`; PostgreSQL `pg_cursors`

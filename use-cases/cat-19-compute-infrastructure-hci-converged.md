@@ -8,6 +8,7 @@
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** UCS blade and rack servers host critical workloads. Monitoring component health (CPU, memory, PSU, fans) enables proactive hardware replacement before failures cause VM outages and unplanned downtime.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager syslog
 - **Data Sources:** UCS Manager faults, UCS Manager equipment API
@@ -33,6 +34,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** UCS service profiles define the identity of compute resources. Non-compliant associations indicate configuration drift, failed hardware migrations, or policy violations that can impact workload performance and security.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager events
 - **Data Sources:** UCS Manager service profile API, configuration events
@@ -56,6 +58,7 @@ index=cisco_ucs sourcetype="cisco:ucs:config"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Running inconsistent firmware across UCS creates compatibility issues and security vulnerabilities. Tracking firmware versions enables compliance reporting, patch planning, and ensures consistency across the compute fleet.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager inventory
 - **Data Sources:** UCS Manager firmware inventory, UCS firmware policy
@@ -77,6 +80,7 @@ index=cisco_ucs sourcetype="cisco:ucs:inventory"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** UCS fault trends reveal systemic hardware issues, environmental problems, or configuration problems across the compute fleet. Rising fault counts indicate deteriorating conditions requiring proactive attention.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager faults
 - **Data Sources:** UCS Manager fault log, syslog
@@ -94,6 +98,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Fabric Interconnects are the network gateway for all UCS compute. Port-channel failures reduce bandwidth or cause complete loss of connectivity, impacting every workload in the UCS domain.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager stats
 - **Data Sources:** UCS Manager FI port-channel statistics, FI syslog
@@ -114,6 +119,7 @@ index=cisco_ucs sourcetype="cisco:ucs:fi_stats"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** UCS power and thermal data helps optimize data center capacity planning, detect cooling failures before overheating causes server throttling, and track energy efficiency metrics for sustainability reporting.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager environmental
 - **Data Sources:** UCS Manager environmental statistics, power supply metrics
@@ -141,6 +147,7 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** HCI cluster health directly determines workload availability. Monitoring overall cluster state, node availability, and service health enables rapid response to degradation before it impacts VMs and applications running on the cluster.
 - **App/TA:** `TA-nutanix` or vendor-specific TA, HCI management API
 - **Data Sources:** HCI management API (Prism, vSAN Health), cluster status events
@@ -160,6 +167,7 @@ index=hci sourcetype="hci:cluster_health"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** HCI storage pools are shared across all workloads. Running out of storage capacity causes VM provisioning failures, snapshot failures, and ultimately VM crashes. Proactive monitoring and forecasting prevents capacity emergencies.
 - **App/TA:** `TA-nutanix` or vendor-specific TA
 - **Data Sources:** HCI storage metrics, capacity API
@@ -181,6 +189,7 @@ index=hci sourcetype="hci:storage_metrics"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Storage latency directly impacts application performance on HCI. Elevated latency affects all VMs on the cluster. Early detection of latency spikes enables workload rebalancing or troubleshooting before user impact escalates.
 - **App/TA:** `TA-nutanix` or vendor-specific TA
 - **Data Sources:** HCI performance metrics, per-VM I/O statistics
@@ -200,6 +209,7 @@ index=hci sourcetype="hci:io_metrics"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** HCI relies on balanced workload distribution across nodes. Imbalanced nodes lead to hotspots where some nodes are overloaded while others are underutilized, reducing overall cluster efficiency and increasing failure risk.
 - **App/TA:** `TA-nutanix` or vendor-specific TA
 - **Data Sources:** HCI node-level performance metrics
@@ -221,6 +231,7 @@ index=hci sourcetype="hci:node_metrics"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Disk failures in HCI trigger data rebuild operations that consume cluster resources and temporarily reduce resilience. Tracking failures enables rapid replacement, monitoring rebuild progress, and assessing the cluster's ability to tolerate additional failures.
 - **App/TA:** `TA-nutanix` or vendor-specific TA
 - **Data Sources:** HCI disk events, SMART data, rebuild status
@@ -245,6 +256,7 @@ index=hci sourcetype="hci:disk_events"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** HCI data resilience depends on maintaining the configured replication factor (RF2/RF3). Non-compliant replication means data loss risk if additional failures occur. Monitoring RF compliance is essential for data protection assurance.
 - **App/TA:** `TA-nutanix` or vendor-specific TA
 - **Data Sources:** HCI replication status, data protection metrics
@@ -265,6 +277,7 @@ index=hci sourcetype="hci:replication"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Nutanix Controller VMs manage all storage I/O on each node. CVM failures cause I/O to redirect to other nodes, impacting performance. Monitoring CVM health ensures the HCI control plane remains operational across all nodes.
 - **App/TA:** `TA-nutanix`, Nutanix CVM logs
 - **Data Sources:** Nutanix CVM resource metrics, CVM service status logs

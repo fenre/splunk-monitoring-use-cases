@@ -9,6 +9,7 @@
 ### UC-4.1.1 · Unauthorized API Calls
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** AccessDenied errors reveal reconnaissance activity, compromised credentials with insufficient permissions, or misconfigurations. Early indicator of attack or drift.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`, CloudTrail logs
@@ -35,6 +36,7 @@ index=aws sourcetype="aws:cloudtrail" errorCode="AccessDenied" OR errorCode="Una
 ### UC-4.1.2 · Root Account Usage
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** The AWS root account has unrestricted access and should never be used for daily operations. Any root activity is a critical security event.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -60,6 +62,7 @@ index=aws sourcetype="aws:cloudtrail" userIdentity.type="Root"
 ### UC-4.1.3 · Security Group Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -86,6 +89,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="AuthorizeSecurityGroupIngress" 
 ### UC-4.1.4 · IAM Policy Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** IAM policy changes affect who can do what across the entire AWS account. Unauthorized policy attachments can grant admin access.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -111,6 +115,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="CreatePolicy" OR eventName="At
 ### UC-4.1.5 · Console Login Without MFA
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Console access without MFA is a security risk — compromised passwords alone can grant full account access. Most compliance frameworks require MFA.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -138,6 +143,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="ConsoleLogin" responseElements.
 ### UC-4.1.6 · EC2 Instance State Changes
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Tracks instance lifecycle for audit and change management. Unexpected terminations indicate accidents, auto-scaling issues, or attacks.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -163,6 +169,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="RunInstances" OR eventName="Te
 ### UC-4.1.7 · S3 Bucket Policy Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** S3 bucket policy changes can expose sensitive data to the public internet. One of the most common cloud security incidents.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -188,6 +195,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="PutBucketPolicy" OR eventName=
 ### UC-4.1.8 · GuardDuty Finding Ingestion
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** GuardDuty provides ML-powered threat detection for AWS accounts. Centralizing findings in Splunk enables correlation with other security data.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatch:guardduty`
@@ -209,6 +217,7 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 ### UC-4.1.9 · VPC Flow Log Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** VPC Flow Logs provide network-level visibility into all traffic. Detects rejected traffic, data exfiltration, lateral movement, and network anomalies.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatchlogs:vpcflow`
@@ -228,6 +237,7 @@ index=aws sourcetype="aws:cloudwatchlogs:vpcflow" action="REJECT"
 ### UC-4.1.10 · EC2 Performance Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** CloudWatch metrics provide host-level performance data without agents. Baseline trending for capacity planning and anomaly detection.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatch` (EC2 namespace)
@@ -246,6 +256,7 @@ index=aws sourcetype="aws:cloudwatch" metric_name="CPUUtilization" namespace="AW
 ### UC-4.1.11 · RDS Performance Insights
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Database performance issues directly impact application experience. Monitoring connections, CPU, IOPS, and replica lag catches problems before users notice.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatch` (RDS namespace), RDS logs
@@ -263,6 +274,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" (metric_name="CPUUtili
 ### UC-4.1.12 · Lambda Error Rate Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Lambda errors affect serverless application reliability. Timeouts indicate functions need more memory/time. Throttling means concurrency limits are hit.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatch` (Lambda namespace), Lambda logs
@@ -280,6 +292,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" (metric_name="Error
 ### UC-4.1.13 · EKS/ECS Cluster Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Managed container orchestration health ensures application workloads are running correctly across the AWS compute fabric.
 - **App/TA:** `Splunk_TA_aws`, Splunk OTel Collector
 - **Data Sources:** CloudWatch EKS/ECS metrics, container insights
@@ -297,6 +310,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/ECS" metric_name="CPUUtiliz
 ### UC-4.1.14 · Cost Anomaly Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Anomaly
 - **Value:** Unexpected spend spikes indicate runaway resources, cryptomining attacks, or misconfigured services. Catching anomalies early saves money.
 - **App/TA:** `Splunk_TA_aws`, AWS Cost and Usage Report (CUR)
 - **Data Sources:** `sourcetype=aws:billing` or CUR data
@@ -317,6 +331,7 @@ index=aws sourcetype="aws:billing"
 ### UC-4.1.15 · Config Compliance Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** AWS Config rules continuously evaluate resource compliance against security best practices. Non-compliant resources are attack surface.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:config:notification`
@@ -335,6 +350,7 @@ index=aws sourcetype="aws:config:notification" configRuleList{}.complianceType="
 ### UC-4.1.16 · KMS Key Usage Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Encryption key usage audit ensures data protection compliance. Unusual key access patterns may indicate unauthorized data decryption.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -360,6 +376,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="Decrypt" OR eventName="Encrypt
 ### UC-4.1.17 · Elastic IP Association
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Unassociated Elastic IPs cost money. Tracking associations supports inventory accuracy and cost management.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -385,6 +402,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="AllocateAddress" OR eventName=
 ### UC-4.1.18 · CloudFormation Stack Drift
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Drift means infrastructure no longer matches its declared template — manual changes have been made. This breaks IaC and causes inconsistencies.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail` (DetectStackDrift events)
@@ -411,6 +429,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="DetectStackDrift" OR eventName=
 ### UC-4.1.19 · WAF Blocked Request Analysis
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** WAF blocks reveal attack patterns targeting your applications. Analysis helps tune rules and understand the threat landscape.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:waf` (WAF logs via S3 or Kinesis)
@@ -430,6 +449,7 @@ index=aws sourcetype="aws:waf" action="BLOCK"
 ### UC-4.1.20 · Reserved Instance Utilization
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Underutilized RIs waste money. Tracking RI coverage and utilization helps optimize commit spending vs. on-demand costs.
 - **App/TA:** `Splunk_TA_aws`, CUR data
 - **Data Sources:** `sourcetype=aws:billing` (CUR)
@@ -454,6 +474,7 @@ index=aws sourcetype="aws:billing" lineItem_LineItemType="DiscountedUsage" OR li
 ### UC-4.2.1 · Azure Activity Log Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Activity Log captures all control plane operations across Azure subscriptions. Essential audit trail for resource management and compliance.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:audit`, Azure Activity Log via Event Hub
@@ -479,6 +500,7 @@ index=azure sourcetype="mscs:azure:audit" operationName.value="*delete*" OR oper
 ### UC-4.2.2 · Entra ID Sign-In Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Risky sign-ins include impossible travel, unfamiliar locations, and anonymous IP usage. Primary detection layer for account compromise.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:signinlog`, Entra ID sign-in logs
@@ -497,6 +519,7 @@ index=azure sourcetype="mscs:azure:signinlog" riskLevelDuringSignIn!="none"
 ### UC-4.2.3 · Entra ID Privilege Escalation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power. Unauthorized assignments mean full tenant compromise.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:auditlog`, Entra ID audit logs
@@ -523,6 +546,7 @@ index=azure sourcetype="mscs:azure:auditlog" activityDisplayName="Add member to 
 ### UC-4.2.4 · NSG Flow Log Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** NSG Flow Logs provide Azure network-level visibility. Detects blocked traffic, anomalous patterns, and lateral movement within VNets.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:nsgflowlog`
@@ -541,6 +565,7 @@ index=azure sourcetype="mscs:azure:nsgflowlog" flowState="D"
 ### UC-4.2.5 · Azure VM Performance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Azure Monitor metrics provide VM performance data without agents. Essential for capacity planning and correlating with application issues.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:metrics`
@@ -559,6 +584,7 @@ index=azure sourcetype="mscs:azure:metrics" metricName="Percentage CPU"
 ### UC-4.2.6 · Azure SQL Performance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** DTU/vCore exhaustion causes query throttling. Deadlocks and long-running queries impact application performance directly.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:diagnostics` (SQL diagnostics)
@@ -577,6 +603,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="SQLInsights" OR Catego
 ### UC-4.2.7 · AKS Cluster Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** AKS cluster health monitoring ensures Kubernetes workloads are running reliably on Azure's managed platform.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Splunk OTel Collector
 - **Data Sources:** AKS diagnostics, kube-state-metrics
@@ -595,6 +622,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="kube-apiserver" level=
 ### UC-4.2.8 · Azure Key Vault Access Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Key Vault stores secrets, keys, and certificates. Unauthorized or anomalous access could indicate credential theft or data breach preparation.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:diagnostics` (Key Vault diagnostics)
@@ -614,6 +642,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="AuditEvent" ResourceTy
 ### UC-4.2.9 · Defender for Cloud Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Microsoft Defender provides threat detection across Azure resources. Centralizing in Splunk enables cross-platform security correlation.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Defender alerts via Event Hub
@@ -632,6 +661,7 @@ index=azure sourcetype="mscs:azure:defender" severity="High" OR severity="Critic
 ### UC-4.2.10 · Storage Account Access Anomalies
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Unusual storage access patterns may indicate data exfiltration or compromised service principals accessing sensitive data.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Storage analytics logs via Event Hub
@@ -651,6 +681,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="StorageRead" OR Catego
 ### UC-4.2.11 · Resource Health Events
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Azure service health impacts your resources directly. Knowing when Azure itself is having problems prevents wasted troubleshooting time.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Azure Resource Health via Activity Log
@@ -669,6 +700,7 @@ index=azure sourcetype="mscs:azure:audit" category.value="ResourceHealth"
 ### UC-4.2.12 · Cost Management Alerts
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Azure cost monitoring prevents budget overruns. Tracking spend by resource group/team enables chargeback and anomaly detection.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Azure Cost Management export
 - **Data Sources:** Azure Cost Management data (exported to storage)
@@ -694,6 +726,7 @@ index=azure sourcetype="azure:costmanagement"
 ### UC-4.3.1 · Audit Log Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** GCP audit logs capture all admin activity and data access. Foundational for security monitoring and compliance in GCP environments.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=google:gcp:pubsub:message` (via Pub/Sub)
@@ -721,6 +754,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" logName="*activity"
 ### UC-4.3.2 · IAM Policy Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** IAM binding changes control who can access what in GCP. Unauthorized changes to bindings on projects, folders, or organizations are critical security events.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=google:gcp:pubsub:message`
@@ -748,6 +782,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.methodName="SetIam
 ### UC-4.3.3 · VPC Flow Log Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** GCP VPC Flow Logs provide network traffic visibility. Same use case as AWS/Azure — detect rejected traffic, anomalies, exfiltration.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** VPC Flow Logs via Pub/Sub
@@ -767,6 +802,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" logName="*vpc_flows"
 ### UC-4.3.4 · GKE Cluster Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** GKE cluster health monitoring for managed Kubernetes in GCP. Node pools, upgrade status, and workload health.
 - **App/TA:** `Splunk_TA_google-cloudplatform`, Splunk OTel Collector
 - **Data Sources:** GKE logs via Pub/Sub, Cloud Monitoring metrics
@@ -787,6 +823,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="k8s_cluster"
 ### UC-4.3.5 · Security Command Center
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** SCC provides vulnerability findings and threat detections across GCP. Centralizing in Splunk enables multi-cloud security correlation.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** SCC findings via Pub/Sub notification
@@ -808,6 +845,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="scc_finding"
 ### UC-4.3.6 · GCE Instance Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Compute Engine VM performance monitoring for capacity planning and baseline trending without guest-level agents.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Cloud Monitoring metrics via API
@@ -825,6 +863,7 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="compute.googleapis.com
 ### UC-4.3.7 · BigQuery Audit and Cost
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** BigQuery can generate massive costs from poorly optimized queries. Audit and cost tracking prevents bill shock and identifies optimization opportunities.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** BigQuery audit logs via Pub/Sub
@@ -846,6 +885,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="bigqu
 ### UC-4.3.8 · Cloud Run/Functions Errors
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Serverless function errors and cold starts impact application reliability and user experience.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Cloud Run/Functions logs via Cloud Logging
@@ -869,6 +909,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="cloud_function" 
 ### UC-4.4.1 · Terraform Drift Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Infrastructure drift from declared IaC state means manual changes broke the single source of truth. Causes unpredictable behavior and deployment failures.
 - **App/TA:** Custom input (Terraform CLI output, CI/CD integration)
 - **Data Sources:** `terraform plan` output, CI/CD pipeline logs
@@ -888,6 +929,7 @@ index=devops sourcetype="terraform:plan"
 ### UC-4.4.2 · Cross-Cloud Identity Correlation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Users often have identities across AWS/Azure/GCP. Correlating activity provides unified view for security investigation and insider threat detection.
 - **App/TA:** Combined cloud TAs + lookup tables
 - **Data Sources:** All cloud audit logs
@@ -910,6 +952,7 @@ index=aws OR index=azure OR index=gcp
 ### UC-4.4.3 · Multi-Cloud Cost Dashboard
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Unified cost visibility across cloud providers enables budgeting, chargeback, and optimization decisions from a single pane of glass.
 - **App/TA:** Combined cloud TAs, billing data
 - **Data Sources:** AWS CUR, Azure Cost Management, GCP Billing export
@@ -929,6 +972,7 @@ index=aws sourcetype="aws:billing" OR index=azure sourcetype="azure:costmanageme
 ### UC-4.4.4 · Cloud Resource Tagging Compliance
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Untagged resources can't be tracked for cost allocation, compliance, or ownership. Tagging compliance is foundational for cloud governance.
 - **App/TA:** Cloud provider TAs, Config rules
 - **Data Sources:** Cloud resource inventories, Config/Policy compliance

@@ -170,6 +170,11 @@ def parse_category_file(filepath):
                     models = [m.strip() for m in field_value.split(",") if m.strip()]
                     if models:
                         current_uc["a"] = models
+                elif field_name == "monitoring type":
+                    # Network use cases: comma-separated types (e.g. Availability, Performance, Capacity)
+                    mtypes = [m.strip() for m in field_value.split(",") if m.strip()]
+                    if mtypes:
+                        current_uc["mtype"] = mtypes
                 elif field_name == "cim spl":
                     # CIM SPL: value might be inline or in next code block
                     if field_value and not field_value.startswith("```"):

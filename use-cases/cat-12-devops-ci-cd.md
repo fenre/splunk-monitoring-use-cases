@@ -9,6 +9,7 @@
 ### UC-12.1.1 · Commit Activity Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Commit velocity indicates team productivity and project health. Drops may signal blockers; spikes may precede release issues.
 - **App/TA:** GitHub webhook, custom API input
 - **Data Sources:** Git webhook events (push), GitHub/GitLab API
@@ -26,6 +27,7 @@ index=devops sourcetype="github:webhook" event="push"
 ### UC-12.1.2 · Branch Protection Bypasses
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
 - **Value:** Direct pushes to protected branches bypass code review, introducing unreviewed code to production. Detection ensures process compliance.
 - **App/TA:** GitHub audit log, GitLab API
 - **Data Sources:** GitHub/GitLab audit log, push events to protected branches
@@ -43,6 +45,7 @@ index=devops sourcetype="github:audit" action="protected_branch.policy_override"
 ### UC-12.1.3 · Pull Request Metrics
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** PR cycle time affects development velocity. Long review times indicate bottlenecks; abandoned PRs indicate scope or alignment issues.
 - **App/TA:** GitHub API input
 - **Data Sources:** PR events (opened, reviewed, merged, closed)
@@ -62,6 +65,7 @@ index=devops sourcetype="github:pull_request" action="closed" merged="true"
 ### UC-12.1.4 · Secret Exposure Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Secrets committed to source control are immediately compromised. Detection within minutes enables rapid rotation before exploitation.
 - **App/TA:** GitGuardian webhook, GitHub secret scanning
 - **Data Sources:** Pre-commit hook results, GitGuardian/GitHub secret scanning alerts
@@ -80,6 +84,7 @@ index=devops sourcetype="github:secret_scanning" OR sourcetype="gitguardian:aler
 ### UC-12.1.5 · Repository Access Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Repository permission changes can expose source code to unauthorized users. Audit trail supports IP protection and compliance.
 - **App/TA:** GitHub audit log
 - **Data Sources:** GitHub/GitLab audit log (permission events)
@@ -97,6 +102,7 @@ index=devops sourcetype="github:audit" action IN ("repo.add_member","repo.remove
 ### UC-12.1.6 · Force Push Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Force pushes overwrite git history, potentially destroying code and audit trails. Detection ensures accountability.
 - **App/TA:** GitHub webhook
 - **Data Sources:** Git push events (forced flag)
@@ -120,6 +126,7 @@ index=devops sourcetype="github:webhook" event="push" forced="true"
 ### UC-12.2.1 · Build Success Rate Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Declining build success rates indicate code quality issues, flaky tests, or infrastructure problems. Trending drives improvement.
 - **App/TA:** Splunk App for Jenkins, webhook input
 - **Data Sources:** CI/CD build results (Jenkins, GitHub Actions, GitLab CI)
@@ -139,6 +146,7 @@ index=cicd sourcetype="jenkins:build"
 ### UC-12.2.2 · Build Duration Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Increasing build times slow development velocity. Detection enables build optimization and infrastructure right-sizing.
 - **App/TA:** Splunk App for Jenkins, CI/CD metrics
 - **Data Sources:** Build start/end timestamps
@@ -157,6 +165,7 @@ index=cicd sourcetype="jenkins:build" result="SUCCESS"
 ### UC-12.2.3 · Deployment Frequency (DORA)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Deployment frequency is a key DORA metric indicating engineering capability maturity. Higher frequency correlates with better outcomes.
 - **App/TA:** Deployment event webhook
 - **Data Sources:** Deployment events from CI/CD pipelines
@@ -174,6 +183,7 @@ index=cicd sourcetype="deployment_event" environment="production"
 ### UC-12.2.4 · Lead Time for Changes (DORA)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Lead time measures the commit-to-production pipeline efficiency. Shorter lead times enable faster value delivery and incident response.
 - **App/TA:** Git + deployment correlation
 - **Data Sources:** Git commit timestamps + production deployment timestamps
@@ -192,6 +202,7 @@ index=cicd sourcetype="deployment_event" environment="production"
 ### UC-12.2.5 · Failed Deployment Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Failed deployments cause service disruption. Rapid detection enables rollback decisions. Change failure rate is a DORA metric.
 - **App/TA:** Deployment event webhook
 - **Data Sources:** Deployment events with status, rollback events
@@ -210,6 +221,7 @@ index=cicd sourcetype="deployment_event" status="failed"
 ### UC-12.2.6 · Pipeline Queue Time
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Long queue times indicate insufficient CI/CD runner capacity, slowing developer feedback loops and delivery velocity.
 - **App/TA:** Splunk App for Jenkins, CI/CD system metrics
 - **Data Sources:** CI/CD queue metrics (time in queue, pending jobs)
@@ -228,6 +240,7 @@ index=cicd sourcetype="jenkins:queue"
 ### UC-12.2.7 · Test Coverage Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Declining test coverage increases risk of undetected bugs. Trending ensures quality standards are maintained.
 - **App/TA:** Custom test report input
 - **Data Sources:** Test result reports (JUnit XML, coverage reports)
@@ -246,6 +259,7 @@ index=cicd sourcetype="test_coverage"
 ### UC-12.2.8 · Security Scan Results in Pipeline
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** SAST/DAST/SCA findings in CI/CD pipelines catch vulnerabilities before they reach production. Tracking ensures security gates work.
 - **App/TA:** Custom scan result input
 - **Data Sources:** SAST (SonarQube, Checkmarx), DAST (ZAP, Burp), SCA (Snyk, Dependabot) results
@@ -271,6 +285,7 @@ index=cicd sourcetype="security_scan"
 ### UC-12.3.1 · Artifact Repository Health
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Full artifact repositories prevent builds from publishing. Storage monitoring and cleanup policy verification ensures CI/CD continuity.
 - **App/TA:** Custom API input (Artifactory/Nexus)
 - **Data Sources:** Repository storage metrics, cleanup policy logs
@@ -290,6 +305,7 @@ index=devops sourcetype="artifactory:storage"
 ### UC-12.3.2 · Dependency Vulnerability Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Vulnerable dependencies in the software supply chain are a primary attack vector. Tracking ensures timely patching.
 - **App/TA:** Snyk/Dependabot webhook
 - **Data Sources:** SCA tool output (Snyk, Dependabot, GitHub Advisory)
@@ -309,6 +325,7 @@ index=devops sourcetype="snyk:vulnerability"
 ### UC-12.3.3 · Package Download Anomalies
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Unusual package download patterns may indicate dependency confusion attacks or compromised internal packages.
 - **App/TA:** Artifactory/Nexus access logs
 - **Data Sources:** Repository access logs (download events)
@@ -328,6 +345,7 @@ index=devops sourcetype="artifactory:access"
 ### UC-12.3.4 · License Compliance Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Open-source license violations create legal risk. Automated tracking ensures compliance before code reaches production.
 - **App/TA:** SCA tool output
 - **Data Sources:** SCA license scan results (Snyk, FOSSA, WhiteSource)
@@ -353,6 +371,7 @@ index=devops sourcetype="sca:license"
 ### UC-12.4.1 · Terraform Plan/Apply Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Every Terraform apply changes infrastructure. Full audit trail enables change management, impact analysis, and rollback decisions.
 - **App/TA:** Terraform Cloud API, CI/CD output parsing
 - **Data Sources:** Terraform CLI output (plan/apply), Terraform Cloud run events
@@ -371,6 +390,7 @@ index=iac sourcetype="terraform:run"
 ### UC-12.4.2 · Configuration Drift Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Drift from declared IaC state indicates manual changes that bypass change control, creating inconsistency and security risks.
 - **App/TA:** Terraform plan output, cloud config monitoring
 - **Data Sources:** Terraform plan output (no-change runs showing drift), AWS Config
@@ -390,6 +410,7 @@ index=iac sourcetype="terraform:plan"
 ### UC-12.4.3 · Ansible Playbook Outcomes
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Tracking Ansible run results ensures configuration management is working. Failed tasks indicate systems in unknown state.
 - **App/TA:** Ansible callback plugin (Splunk HEC callback)
 - **Data Sources:** Ansible callback output (play results, task results)
@@ -408,6 +429,7 @@ index=iac sourcetype="ansible:result"
 ### UC-12.4.4 · Puppet/Chef Compliance Reports
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Configuration management compliance ensures systems match desired state. Non-compliance indicates security or operational risk.
 - **App/TA:** Puppet/Chef report forwarding
 - **Data Sources:** Puppet agent reports, Chef client run reports
@@ -426,6 +448,7 @@ index=iac sourcetype="puppet:report"
 ### UC-12.4.5 · IaC Policy Violations
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Policy-as-code (OPA/Sentinel) prevents non-compliant infrastructure from being provisioned. Tracking blocked deployments validates governance.
 - **App/TA:** Policy engine output (CI/CD integration)
 - **Data Sources:** OPA/Sentinel policy check results, CI/CD pipeline logs

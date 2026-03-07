@@ -9,6 +9,7 @@
 ### UC-16.1.1 · Incident Volume Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Incident trends reveal infrastructure stability, staffing needs, and the effectiveness of problem management.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** ServiceNow incident table
@@ -26,6 +27,7 @@ index=itsm sourcetype="snow:incident"
 ### UC-16.1.2 · SLA Compliance Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** SLA breaches affect customer satisfaction and contractual obligations. Real-time monitoring enables intervention before breaches occur.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** ServiceNow SLA records (response, resolution)
@@ -46,6 +48,7 @@ index=itsm sourcetype="snow:incident"
 ### UC-16.1.3 · MTTR by Category
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** MTTR per category identifies where process improvements or automation would have the greatest impact.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Incident lifecycle data (open, assigned, resolved timestamps)
@@ -65,6 +68,7 @@ index=itsm sourcetype="snow:incident" state="resolved"
 ### UC-16.1.4 · Change Success Rate
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Failed changes are the leading cause of incidents. Tracking success rate drives improvement in change management practices.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** ServiceNow change records
@@ -83,6 +87,7 @@ index=itsm sourcetype="snow:change_request"
 ### UC-16.1.5 · Change Collision Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Overlapping changes on related systems increase outage risk. Detection enables coordination and conflict resolution.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Change calendar, CI relationships
@@ -102,6 +107,7 @@ index=itsm sourcetype="snow:change_request" state="scheduled"
 ### UC-16.1.6 · Problem Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Identifying recurring incident patterns that should become problems drives root cause resolution and reduces incident volume.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Incident categorization data, problem records
@@ -122,6 +128,7 @@ index=itsm sourcetype="snow:incident"
 ### UC-16.1.7 · Ticket Reassignment Rate
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** High reassignment rates indicate poor routing or skills gaps. Reduction improves MTTR and customer satisfaction.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Incident audit trail (assignment changes)
@@ -141,6 +148,7 @@ index=itsm sourcetype="snow:incident"
 ### UC-16.1.8 · Aging Ticket Alerts
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Aging tickets indicate stuck processes or forgotten issues. Alerts ensure nothing falls through the cracks.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Open incident data
@@ -162,6 +170,7 @@ index=itsm sourcetype="snow:incident" state IN ("new","in_progress","on_hold")
 ### UC-16.1.9 · Change-Incident Correlation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Correlating incidents with recent changes is the fastest path to root cause. Automated correlation accelerates MTTR.
 - **App/TA:** `Splunk_TA_snow` + monitoring data
 - **Data Sources:** Change records + incident records + monitoring events
@@ -183,6 +192,7 @@ index=itsm sourcetype="snow:incident" priority IN (1,2)
 ### UC-16.1.10 · Service Request Fulfillment Time
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Fulfillment time metrics drive service catalog optimization and customer satisfaction. Slow fulfillment reduces adoption.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Service request data
@@ -208,6 +218,7 @@ index=itsm sourcetype="snow:sc_request"
 ### UC-16.2.1 · CMDB Data Quality Score
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Poor CMDB data quality undermines all ITSM processes. Scoring and trending drives data quality improvement initiatives.
 - **App/TA:** `Splunk_TA_snow`, custom metrics
 - **Data Sources:** CMDB CI data (completeness, accuracy, freshness)
@@ -228,6 +239,7 @@ index=itsm sourcetype="snow:cmdb_ci"
 ### UC-16.2.2 · CI Discovery Reconciliation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** CIs in the network but not in the CMDB are unmanaged risks. Reconciliation ensures CMDB completeness.
 - **App/TA:** Discovery tools + CMDB
 - **Data Sources:** Discovery scan results, CMDB CI records
@@ -247,6 +259,7 @@ index=itsm sourcetype="snow:cmdb_ci"
 ### UC-16.2.3 · Orphaned CI Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** CIs without owners or service mappings aren't managed during incidents, creating accountability gaps and shadow infrastructure.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** CMDB CI attributes
@@ -265,6 +278,7 @@ index=itsm sourcetype="snow:cmdb_ci" operational_status="operational"
 ### UC-16.2.4 · Relationship Integrity Check
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Accurate CI relationships enable impact analysis during incidents. Incomplete relationships undermine service mapping.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** CMDB relationship data
@@ -284,6 +298,7 @@ index=itsm sourcetype="snow:cmdb_ci" ci_class IN ("cmdb_ci_server","cmdb_ci_app_
 ### UC-16.2.5 · CMDB Change Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Tracking all CI attribute changes supports compliance auditing and helps detect unauthorized configuration changes.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** CMDB audit trail (sys_audit)
@@ -309,6 +324,7 @@ Covers Nagios Business Process Intelligence (BPI)-style monitoring: aggregating 
 ### UC-16.3.1 · Cross-Service Business Process Health Score
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** Individual component alerts do not communicate business impact. A BPI model aggregates the health of all components that together constitute a business capability (e.g., "Order Processing = web tier + database + payment gateway + message queue"). When any essential member fails, the business process is immediately flagged as degraded or down — mirroring Nagios BPI groups with essential member logic. Operations teams see business impact, not raw host counts.
 - **App/TA:** Splunk IT Service Intelligence (ITSI), or custom KV Store + scheduled searches
 - **Data Sources:** All existing monitoring indexes (`index=os`, `index=network`, `index=app`, `index=db`), ITSI entity/service model
@@ -341,6 +357,7 @@ index=monitoring sourcetype IN (server_health, app_health, db_health, network_he
 ### UC-16.3.2 · Infrastructure Service Availability Heatmap
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Provides a Nagios-style tactical overview — at a glance, which hosts and services have been available vs down, when, and for how long. Operations teams use this for SLA evidence, post-incident review, and capacity risk communication. Unlike individual alerts, the heatmap reveals systemic patterns: recurring daily outage windows, hosts with chronic flapping, services that always fail together.
 - **App/TA:** `Splunk_TA_nix`, `Splunk_TA_windows`, all existing monitoring TAs
 - **Data Sources:** Consolidated availability events from all infrastructure monitoring indexes

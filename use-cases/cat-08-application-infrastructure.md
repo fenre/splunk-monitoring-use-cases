@@ -9,6 +9,7 @@
 ### UC-8.1.1 · HTTP Error Rate Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Rising error rates signal application issues, backend failures, or attacks. Rapid detection reduces user impact and MTTR.
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`, IIS via Windows TA
 - **Data Sources:** Web server access logs (Apache combined, NGINX combined, IIS W3C)
@@ -37,6 +38,7 @@ index=web sourcetype="access_combined"
 ### UC-8.1.2 · Response Time Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Increasing response times degrade user experience before complete failures occur. Trending enables proactive optimization.
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`
 - **Data Sources:** Access logs with `%D` (Apache) or `$request_time` (NGINX)
@@ -62,6 +64,7 @@ index=web sourcetype="access_combined"
 ### UC-8.1.3 · Request Rate Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Traffic trending supports capacity planning and identifies unexpected traffic patterns (bot attacks, viral events, traffic drops).
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`
 - **Data Sources:** Access logs
@@ -87,6 +90,7 @@ index=web sourcetype="access_combined"
 ### UC-8.1.4 · Top Error URIs
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Identifies the most problematic endpoints for targeted developer attention. Reduces noise by focusing on high-impact errors.
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`
 - **Data Sources:** Access logs
@@ -114,6 +118,7 @@ index=web sourcetype="access_combined" status>=400
 ### UC-8.1.5 · SSL Certificate Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Expired SSL certificates cause complete service outage and browser security warnings. Proactive monitoring prevents this entirely avoidable failure.
 - **App/TA:** Scripted input (openssl s_client), custom certificate check
 - **Data Sources:** Certificate check scripted input, web server config parsing
@@ -141,6 +146,7 @@ index=certificates sourcetype="cert_check"
 ### UC-8.1.6 · Upstream Backend Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Backend server failures behind reverse proxies cause partial service degradation. Detection enables rapid failover response.
 - **App/TA:** `TA-nginx` (error logs), HAProxy stats
 - **Data Sources:** NGINX error logs (upstream errors), HAProxy stats socket, F5 pool member logs
@@ -167,6 +173,7 @@ index=web sourcetype="nginx:error"
 ### UC-8.1.7 · Bot and Crawler Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Bot traffic inflates metrics and consumes resources. Identification enables accurate capacity planning and bot management policies.
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`
 - **Data Sources:** Access logs (User-Agent field)
@@ -194,6 +201,7 @@ index=web sourcetype="access_combined"
 ### UC-8.1.8 · Connection Pool Saturation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Saturated worker threads/processes cause request queuing and timeouts. Monitoring enables proactive scaling.
 - **App/TA:** Scripted input (Apache `server-status`, NGINX `stub_status`)
 - **Data Sources:** Apache mod_status, NGINX stub_status, IIS performance counters
@@ -220,6 +228,7 @@ index=web sourcetype="apache:server_status"
 ### UC-8.1.9 · Slow POST Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Slow POST requests often indicate application-level performance issues (large form submissions, file uploads, database writes) distinct from slow GETs.
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`
 - **Data Sources:** Access logs with response time
@@ -246,6 +255,7 @@ index=web sourcetype="access_combined" method=POST
 ### UC-8.1.10 · Configuration Reload Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Configuration changes are a common cause of outages. Tracking reloads enables rapid correlation with incidents.
 - **App/TA:** `Splunk_TA_apache`, `TA-nginx`, process monitoring
 - **Data Sources:** Web server error/event logs
@@ -277,6 +287,7 @@ index=web sourcetype="nginx:error" OR sourcetype="apache:error"
 ### UC-8.2.1 · JVM Heap Utilization
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** JVM heap exhaustion causes OutOfMemoryError, crashing the application. Monitoring enables tuning before failures occur.
 - **App/TA:** `TA-jmx`, OpenTelemetry
 - **Data Sources:** JMX MBeans (`java.lang:type=Memory`), Prometheus JMX exporter
@@ -296,6 +307,7 @@ index=jmx sourcetype="jmx:memory"
 ### UC-8.2.2 · Garbage Collection Impact
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Frequent or long GC pauses cause application latency spikes and request timeouts. Monitoring guides JVM tuning.
 - **App/TA:** GC log parsing, `TA-jmx`
 - **Data Sources:** JVM GC logs, JMX GarbageCollector MBeans
@@ -315,6 +327,7 @@ index=jvm sourcetype="jvm:gc"
 ### UC-8.2.3 · Thread Pool Exhaustion
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Exhausted thread pools cause request rejection and application unresponsiveness. Detection prevents complete service failure.
 - **App/TA:** `TA-jmx`, application metrics
 - **Data Sources:** JMX thread MBeans, Tomcat Connector metrics, application metrics endpoints
@@ -334,6 +347,7 @@ index=jmx sourcetype="jmx:threading"
 ### UC-8.2.4 · Application Error Rate
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Application exceptions indicate bugs, integration failures, or environmental issues. Tracking error rate by type guides debugging priority.
 - **App/TA:** Custom log input, application framework logging
 - **Data Sources:** Application log files (log4j, logback, NLog, Serilog)
@@ -352,6 +366,7 @@ index=application sourcetype="log4j" log_level=ERROR
 ### UC-8.2.5 · Deployment Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Correlating deployments with performance changes is the fastest way to identify deployment-caused regressions. Essential for change management.
 - **App/TA:** Webhook input, CI/CD integration
 - **Data Sources:** Deployment tool webhooks (Jenkins, GitHub Actions, ArgoCD), application version endpoints
@@ -370,6 +385,7 @@ index=deployments sourcetype="deployment_event"
 ### UC-8.2.6 · Connection Pool Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Exhausted JDBC/database connection pools cause application errors and cascading failures. Monitoring prevents connection starvation.
 - **App/TA:** `TA-jmx`, application metrics
 - **Data Sources:** JMX DataSource MBeans, HikariCP metrics, application framework metrics
@@ -389,6 +405,7 @@ index=jmx sourcetype="jmx:datasource"
 ### UC-8.2.7 · Session Count Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Active session counts indicate concurrent user load. Trending supports capacity planning and license management.
 - **App/TA:** `TA-jmx`, application metrics
 - **Data Sources:** JMX session MBeans, application metrics endpoints
@@ -407,6 +424,7 @@ index=jmx sourcetype="jmx:manager"
 ### UC-8.2.8 · .NET CLR Performance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** CLR performance issues (high GC, exceptions, thread starvation) directly impact .NET application performance. Monitoring guides runtime tuning.
 - **App/TA:** `Splunk_TA_windows` (Perfmon), custom .NET metrics
 - **Data Sources:** Windows Performance Counters (.NET CLR Memory, Exceptions, Threading)
@@ -425,6 +443,7 @@ index=perfmon sourcetype="Perfmon:CLR_Memory"
 ### UC-8.2.9 · Node.js Event Loop Lag
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Event loop lag indicates blocking operations that prevent Node.js from handling requests. Detection enables code-level investigation.
 - **App/TA:** Custom metrics input, OpenTelemetry
 - **Data Sources:** Node.js process metrics (event loop lag, heap usage), Prometheus client metrics
@@ -443,6 +462,7 @@ index=application sourcetype="nodejs:metrics"
 ### UC-8.2.10 · Class Loading Issues
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** ClassNotFoundException and NoClassDefFoundError indicate deployment or dependency issues that may cause intermittent failures.
 - **App/TA:** Application log parsing
 - **Data Sources:** Application error logs (Java stack traces)
@@ -468,6 +488,7 @@ index=application sourcetype="log4j" log_level=ERROR
 ### UC-8.3.1 · Consumer Lag Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Growing consumer lag means messages aren't being processed fast enough, leading to data staleness and eventual message loss if retention is exceeded.
 - **App/TA:** `TA-kafka`, Burrow integration, JMX
 - **Data Sources:** Kafka consumer group offsets (JMX, Burrow, `kafka-consumer-groups.sh`)
@@ -486,6 +507,7 @@ index=kafka sourcetype="kafka:consumer_lag"
 ### UC-8.3.2 · Queue Depth Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
 - **Value:** Growing queue depths indicate consumers can't keep up or are down. Trending prevents message loss and processing delays.
 - **App/TA:** RabbitMQ management API, ActiveMQ JMX
 - **Data Sources:** RabbitMQ management API (`/api/queues`), ActiveMQ JMX
@@ -504,6 +526,7 @@ index=messaging sourcetype="rabbitmq:queue"
 ### UC-8.3.3 · Broker Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Broker failures cause message loss and application disruption. Health monitoring ensures cluster stability.
 - **App/TA:** JMX, broker metrics
 - **Data Sources:** Kafka JMX (broker metrics), RabbitMQ management API (`/api/nodes`)
@@ -522,6 +545,7 @@ index=kafka sourcetype="kafka:broker"
 ### UC-8.3.4 · Under-Replicated Partitions
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Under-replicated partitions mean data is at risk of loss if additional brokers fail. Immediate remediation is required.
 - **App/TA:** `TA-kafka`, JMX
 - **Data Sources:** Kafka JMX (`UnderReplicatedPartitions`, `UnderMinIsrPartitionCount`)
@@ -541,6 +565,7 @@ index=kafka sourcetype="kafka:broker"
 ### UC-8.3.5 · Dead Letter Queue Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Messages in DLQ represent processing failures that need investigation. They may indicate bugs, schema changes, or downstream failures.
 - **App/TA:** Queue management API, custom input
 - **Data Sources:** RabbitMQ DLQ queues, AWS SQS DLQ, Kafka DLT topics
@@ -560,6 +585,7 @@ index=messaging sourcetype="rabbitmq:queue"
 ### UC-8.3.6 · Message Throughput Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Throughput trending identifies capacity limits and validates scaling decisions. Unexpected drops indicate producer or broker issues.
 - **App/TA:** JMX, broker management APIs
 - **Data Sources:** Kafka broker metrics (MessagesInPerSec), RabbitMQ message rates
@@ -577,6 +603,7 @@ index=kafka sourcetype="kafka:broker"
 ### UC-8.3.7 · Topic/Queue Creation Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Uncontrolled topic/queue creation can lead to resource sprawl. Audit trail supports governance and cleanup.
 - **App/TA:** Broker audit logs, Kafka authorizer logs
 - **Data Sources:** Kafka authorizer logs, RabbitMQ audit log, broker event logs
@@ -595,6 +622,7 @@ index=kafka sourcetype="kafka:authorizer"
 ### UC-8.3.8 · Consumer Group Rebalancing
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Frequent rebalances cause processing pauses and duplicate message delivery. Detection identifies unstable consumers.
 - **App/TA:** Kafka broker logs, JMX
 - **Data Sources:** Kafka GroupCoordinator logs, consumer group state
@@ -615,6 +643,7 @@ index=kafka sourcetype="kafka:server"
 ### UC-8.3.9 · Partition Leader Elections
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Frequent leader elections indicate broker instability, causing temporary unavailability for affected partitions.
 - **App/TA:** JMX, Kafka controller logs
 - **Data Sources:** Kafka JMX (`LeaderElectionRateAndTimeMs`), controller logs
@@ -634,6 +663,7 @@ index=kafka sourcetype="kafka:controller"
 ### UC-8.3.10 · Message Age Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Old messages in queues indicate processing delays that may violate SLAs. Age tracking provides a business-relevant metric beyond raw queue depth.
 - **App/TA:** Queue management API
 - **Data Sources:** RabbitMQ management API (message age), custom consumer timestamp comparison
@@ -660,6 +690,7 @@ index=messaging sourcetype="rabbitmq:queue"
 ### UC-8.4.1 · API Error Rate by Endpoint
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Per-endpoint error rates pinpoint failing services, enabling targeted debugging rather than broad investigation.
 - **App/TA:** Custom log input, gateway access logs
 - **Data Sources:** API gateway access logs (Kong, Apigee, AWS API Gateway)
@@ -689,6 +720,7 @@ index=api sourcetype="kong:access"
 ### UC-8.4.2 · API Latency Percentiles
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** P95/P99 latency reveals the experience of the slowest users. Averages hide tail latency problems.
 - **App/TA:** Custom log input, gateway metrics
 - **Data Sources:** API gateway access logs with latency fields
@@ -715,6 +747,7 @@ index=api sourcetype="kong:access"
 ### UC-8.4.3 · Rate Limiting Events
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Rate limiting indicates consumers exceeding their quotas. May signal API abuse, misconfigured clients, or quota adjustments needed.
 - **App/TA:** Gateway logs
 - **Data Sources:** API gateway rate limit logs (429 responses)
@@ -733,6 +766,7 @@ index=api sourcetype="kong:access" status=429
 ### UC-8.4.4 · Authentication Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Authentication failures may indicate credential compromise, API key rotation issues, or brute-force attacks.
 - **App/TA:** Gateway auth logs
 - **Data Sources:** API gateway authentication logs (401/403 responses), OAuth error logs
@@ -752,6 +786,7 @@ index=api sourcetype="kong:access" status IN (401, 403)
 ### UC-8.4.5 · Service-to-Service Call Failures
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Inter-service communication failures in microservices architectures cascade quickly. Detection enables rapid isolation of failing services.
 - **App/TA:** Istio/Envoy access logs, Linkerd tap
 - **Data Sources:** Envoy access logs (upstream_cluster, response_code), Istio telemetry
@@ -771,6 +806,7 @@ index=mesh sourcetype="envoy:access"
 ### UC-8.4.6 · Circuit Breaker Activations
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Circuit breaker trips indicate a downstream service is failing. Quick detection enables proactive communication and remediation.
 - **App/TA:** Service mesh metrics, Envoy stats
 - **Data Sources:** Envoy cluster stats (circuit breaker metrics), Istio DestinationRule events
@@ -790,6 +826,7 @@ index=mesh sourcetype="envoy:stats"
 ### UC-8.4.7 · API Consumer Usage Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Usage tracking per API consumer enables billing, quota management, and partner relationship management.
 - **App/TA:** Gateway access logs
 - **Data Sources:** API gateway logs with consumer identification (API key, OAuth client ID)
@@ -808,6 +845,7 @@ index=api sourcetype="kong:access"
 ### UC-8.4.8 · mTLS Certificate Expiration
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Expired mTLS certificates break service-to-service communication, causing complete mesh failures. Proactive monitoring is essential.
 - **App/TA:** Service mesh metrics, scripted input
 - **Data Sources:** Istio/Linkerd certificate metadata, `istioctl proxy-config` output
@@ -834,6 +872,7 @@ index=mesh sourcetype="istio:cert_status"
 ### UC-8.5.1 · Cache Hit/Miss Ratio
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Cache hit ratio directly measures cache effectiveness. Declining ratio means more backend load and higher latency.
 - **App/TA:** Custom scripted input (`redis-cli INFO`)
 - **Data Sources:** Redis INFO stats, Memcached stats, Varnish stats
@@ -853,6 +892,7 @@ index=cache sourcetype="redis:info"
 ### UC-8.5.2 · Memory Utilization
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Cache memory exhaustion triggers evictions, degrading performance. Monitoring enables timely scaling.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Redis INFO memory, Memcached stats
@@ -872,6 +912,7 @@ index=cache sourcetype="redis:info"
 ### UC-8.5.3 · Eviction Rate Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** High eviction rates mean the cache is too small, causing frequent backend roundtrips. Tracking guides capacity decisions.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Redis INFO stats (evicted_keys), Memcached stats (evictions)
@@ -890,6 +931,7 @@ index=cache sourcetype="redis:info"
 ### UC-8.5.4 · Connection Count Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Approaching connection limits causes client rejections. Monitoring enables proactive limit adjustment.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Redis INFO clients, Memcached stats
@@ -909,6 +951,7 @@ index=cache sourcetype="redis:info"
 ### UC-8.5.5 · Replication Lag (Redis)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Redis replication lag affects read consistency for apps reading from replicas. Monitoring ensures data freshness.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Redis INFO replication (`master_repl_offset`, `slave_repl_offset`)
@@ -928,6 +971,7 @@ index=cache sourcetype="redis:info" role="slave"
 ### UC-8.5.6 · Slow Command Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Slow Redis commands block the single-threaded event loop, impacting all clients. Detection enables command optimization.
 - **App/TA:** Custom scripted input (`SLOWLOG GET`)
 - **Data Sources:** Redis SLOWLOG
@@ -947,6 +991,7 @@ index=cache sourcetype="redis:slowlog"
 ### UC-8.5.7 · Key Expiration Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Monitoring TTL patterns ensures cache freshness strategy is working. Unusual patterns may indicate application bugs.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Redis INFO keyspace (expires, expired_keys)
@@ -972,6 +1017,7 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 ### UC-8.6.1 · SSH Service Availability Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** SSH is the primary remote administration channel for Linux and Unix servers. An unresponsive SSH daemon locks out operators and often signals broader system distress (OOM, hung kernel, storage full). Nagios `check_ssh` is one of the most universally deployed checks; Splunk replicates it through absence-of-event detection and syslog-based availability trending.
 - **App/TA:** `Splunk_TA_nix`, `Splunk_TA_syslog`
 - **Data Sources:** `sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe
@@ -995,6 +1041,7 @@ index=os sourcetype=syslog process=sshd
 ### UC-8.6.2 · FTP / SFTP Service Availability Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** FTP and SFTP services support automated file transfer workflows between systems, partners, and legacy integrations. Silent service failures cause missed file deliveries that may not surface until business processes fail downstream. Nagios `check_ftp` provides port-level verification; Splunk replicates this through daemon log monitoring and scripted probes.
 - **App/TA:** `Splunk_TA_syslog`, custom scripted input
 - **Data Sources:** `vsftpd`, `proftpd`, or `openssh-sftp-server` logs; scripted TCP port probe output
@@ -1018,6 +1065,7 @@ index=os (sourcetype=vsftpd OR sourcetype=syslog process=sftp-server)
 ### UC-8.6.3 · SMTP Service Availability
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Distinct from mail queue depth monitoring — this checks whether the SMTP daemon is accepting TCP connections and responding to EHLO. A crashed postfix or sendmail process stops inbound/outbound mail entirely without generating queue entries. Nagios `check_smtp` verifies this at the connection layer; Splunk replicates it via daemon-level log monitoring.
 - **App/TA:** `Splunk_TA_syslog`, `Splunk_TA_postfix` (community)
 - **Data Sources:** `sourcetype=syslog` (postfix, sendmail, exim logs), `sourcetype=postfix:syslog`
@@ -1039,6 +1087,7 @@ index=mail (sourcetype=syslog process=postfix* OR sourcetype="postfix:syslog")
 ### UC-8.6.4 · POP3 / IMAP Mail Retrieval Service Availability
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** POP3 and IMAP services allow mail clients to retrieve messages. Even when delivery works correctly, a crashed Dovecot or Cyrus daemon prevents users from reading email, appearing as a total mail outage. Nagios `check_pop` and `check_imap` monitor these ports directly; Splunk replicates availability detection through daemon log analysis.
 - **App/TA:** `Splunk_TA_syslog`
 - **Data Sources:** `sourcetype=syslog` (dovecot, cyrus-imapd logs), Dovecot authentication log

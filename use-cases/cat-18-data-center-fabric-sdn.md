@@ -8,6 +8,7 @@
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** ACI fabric health scores provide a single-pane view of overall data center network health. Monitoring these scores lets you catch degradation before it impacts workloads, correlate health drops with specific faults, and maintain SLA compliance across your data center fabric.
 - **App/TA:** `TA_cisco-ACI`, APIC REST API via scripted input
 - **Data Sources:** APIC REST API (`/api/node/mo/topology/health.json`), APIC syslog
@@ -27,6 +28,7 @@ index=cisco_aci sourcetype="cisco:aci:health"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** ACI faults are the primary operational signal from the fabric. Trending faults by severity helps identify worsening conditions, recurring hardware issues, and configuration problems before they cascade into outages.
 - **App/TA:** `TA_cisco-ACI`, APIC syslog
 - **Data Sources:** APIC faults API (`/api/node/class/faultInst.json`), APIC syslog
@@ -45,6 +47,7 @@ index=cisco_aci sourcetype="cisco:aci:faults"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Endpoint mobility in ACI tracks workload movement across leaf switches. Anomalous mobility (rapid moves, unexpected locations) can indicate misconfigurations, loops, or security issues like MAC spoofing.
 - **App/TA:** `TA_cisco-ACI`, APIC endpoint tracker
 - **Data Sources:** APIC endpoint tracker, ACI endpoint move events
@@ -65,6 +68,7 @@ index=cisco_aci sourcetype="cisco:aci:endpoint"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** ACI contracts control EPG-to-EPG communication. Analyzing contract hits reveals traffic patterns, identifies overly permissive or unused contracts, and helps validate micro-segmentation policies are working as designed.
 - **App/TA:** `TA_cisco-ACI`, APIC flow logs
 - **Data Sources:** APIC contract hit counters, ACI flow telemetry
@@ -85,6 +89,7 @@ index=cisco_aci sourcetype="cisco:aci:contracts"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Configuration changes in ACI tenants (BDs, EPGs, contracts) are a leading cause of outages. Auditing all changes provides accountability, supports compliance, and enables rapid rollback identification when issues occur.
 - **App/TA:** `TA_cisco-ACI`, APIC audit log
 - **Data Sources:** APIC audit log (`/api/node/class/aaaModLR.json`)
@@ -105,6 +110,7 @@ index=cisco_aci sourcetype="cisco:aci:audit"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Fabric link saturation causes packet drops and application latency. Monitoring leaf/spine interface utilization identifies hotspots, validates ECMP distribution, and supports capacity planning for fabric expansion.
 - **App/TA:** `TA_cisco-ACI`, APIC interface metrics
 - **Data Sources:** APIC interface statistics API, fabric port counters
@@ -125,6 +131,7 @@ index=cisco_aci sourcetype="cisco:aci:interface_stats"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** APIC controllers manage the entire ACI fabric. Cluster health issues (split-brain, leader election, convergence problems) can cause fabric-wide configuration and policy failures. Monitoring APIC cluster state is essential for fabric reliability.
 - **App/TA:** `TA_cisco-ACI`, APIC system logs
 - **Data Sources:** APIC cluster health API, APIC system logs/syslog
@@ -152,6 +159,7 @@ index=cisco_aci sourcetype="cisco:aci:system"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** NSX Distributed Firewall (DFW) runs on every hypervisor, providing east-west traffic control. Monitoring rule hits validates security policy effectiveness, identifies unused rules for cleanup, and detects policy violations in real time.
 - **App/TA:** `vmware_nsx_addon`, NSX DFW syslog
 - **Data Sources:** NSX DFW firewall logs (syslog), NSX Manager API
@@ -171,6 +179,7 @@ index=vmware sourcetype="vmware:nsx:dfw"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** NSX micro-segmentation is a key Zero Trust control. Monitoring enforcement validates that workloads are properly isolated, detects lateral movement attempts, and proves compliance with segmentation policies during audits.
 - **App/TA:** `vmware_nsx_addon`, NSX DFW logs
 - **Data Sources:** NSX DFW logs, NSX security group membership
@@ -190,6 +199,7 @@ index=vmware sourcetype="vmware:nsx:dfw"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** NSX logical switches and routers form the virtual network fabric. Monitoring their operational status ensures VM connectivity and helps identify overlay network issues before they impact applications.
 - **App/TA:** `vmware_nsx_addon`, NSX Manager events
 - **Data Sources:** NSX Manager API, NSX system events/syslog
@@ -209,6 +219,7 @@ index=vmware sourcetype="vmware:nsx:events"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** NSX Edge nodes handle north-south traffic, load balancing, and NAT. Performance bottlenecks on Edge nodes directly impact application availability and throughput for any workload communicating outside the NSX fabric.
 - **App/TA:** `vmware_nsx_addon`, NSX Edge metrics
 - **Data Sources:** NSX Edge node metrics (CPU, memory, datapath), NSX Manager API
@@ -228,6 +239,7 @@ index=vmware sourcetype="vmware:nsx:edge_metrics"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Transport nodes are the hypervisors participating in the NSX overlay. Tunnel failures between transport nodes cause VM-to-VM communication loss across hosts, directly impacting application availability.
 - **App/TA:** `vmware_nsx_addon`, NSX transport node logs
 - **Data Sources:** NSX transport node status API, TEP tunnel events
@@ -251,6 +263,7 @@ index=vmware sourcetype="vmware:nsx:transport_node"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Kubernetes CNI network policies enforce pod-to-pod communication rules. Monitoring policy enforcement validates that micro-segmentation is working in containerized environments, critical for multi-tenant clusters and compliance.
 - **App/TA:** Custom scripted inputs, Kubernetes logging pipeline
 - **Data Sources:** Cilium/Calico policy logs, Kubernetes audit logs
@@ -270,6 +283,7 @@ index=kubernetes sourcetype="kube:cni:policy"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Neutron manages virtual networking in OpenStack. Tracking network operations (creation, modification, deletion) provides change audit, helps troubleshoot connectivity issues, and identifies unauthorized network modifications.
 - **App/TA:** Custom scripted input (OpenStack API), OpenStack syslog
 - **Data Sources:** Neutron API logs, OpenStack syslog
@@ -289,6 +303,7 @@ index=openstack sourcetype="openstack:neutron"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** SDN controllers are the brain of software-defined networks. Controller outages or cluster consensus failures can cause network-wide disruption. Monitoring controller health ensures the control plane remains available and consistent.
 - **App/TA:** Custom scripted input, SDN controller syslog
 - **Data Sources:** SDN controller system logs, cluster status API

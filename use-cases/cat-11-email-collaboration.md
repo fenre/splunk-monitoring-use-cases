@@ -9,6 +9,7 @@
 ### UC-11.1.1 · Mail Flow Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Email is business-critical. Mail flow issues (queuing, NDRs) directly impact productivity and customer communication.
 - **App/TA:** `Splunk_TA_MS_O365`, Exchange message tracking
 - **Data Sources:** Exchange message tracking logs, O365 message trace
@@ -33,6 +34,7 @@ index=o365 sourcetype="ms:o365:messageTrace"
 ### UC-11.1.2 · Mailbox Audit Logging
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Tracks who accesses what mailboxes, including delegate and admin access. Essential for insider threat detection and compliance.
 - **App/TA:** `Splunk_TA_MS_O365`
 - **Data Sources:** O365 unified audit log (ExchangeItem events)
@@ -51,6 +53,7 @@ index=o365 sourcetype="ms:o365:management" Workload="Exchange" Operation IN ("Ma
 ### UC-11.1.3 · Exchange Online Protection Events
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** EOP filtering metrics show email threat landscape and security control effectiveness.
 - **App/TA:** `Splunk_TA_MS_O365`
 - **Data Sources:** EOP message trace, threat protection status
@@ -69,6 +72,7 @@ index=o365 sourcetype="ms:o365:messageTrace"
 ### UC-11.1.4 · Teams Usage Analytics
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Teams adoption and quality metrics inform collaboration strategy and help identify user experience issues.
 - **App/TA:** `Splunk_TA_MS_O365`
 - **Data Sources:** M365 Teams activity reports, Teams call quality data
@@ -87,6 +91,7 @@ index=o365 sourcetype="ms:o365:management" Workload="MicrosoftTeams"
 ### UC-11.1.5 · SharePoint/OneDrive Sharing Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** External sharing can expose sensitive data. Audit trail ensures data protection and compliance.
 - **App/TA:** `Splunk_TA_MS_O365`
 - **Data Sources:** O365 audit log (SharingSet, AnonymousLinkCreated)
@@ -105,6 +110,7 @@ index=o365 sourcetype="ms:o365:management" Workload="SharePoint" Operation IN ("
 ### UC-11.1.6 · DLP Policy Events
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** M365 DLP policy matches across email, Teams, SharePoint identify sensitive data exposure. Centralized tracking supports compliance.
 - **App/TA:** `Splunk_TA_MS_O365`
 - **Data Sources:** O365 DLP logs
@@ -123,6 +129,7 @@ index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 ### UC-11.1.7 · Admin Activity Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** M365 admin actions (user creation, license changes, policy modifications) need audit trails for compliance and security.
 - **App/TA:** `Splunk_TA_MS_O365`
 - **Data Sources:** O365 audit log (admin operations)
@@ -141,6 +148,7 @@ index=o365 sourcetype="ms:o365:management" RecordType=1
 ### UC-11.1.8 · Inbox Rule Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Malicious inbox rules (auto-forward to external, auto-delete) are a key post-compromise technique for data exfiltration.
 - **App/TA:** `Splunk_TA_MS_O365`
 - **Data Sources:** O365 audit log (New-InboxRule, Set-InboxRule)
@@ -160,6 +168,7 @@ index=o365 sourcetype="ms:o365:management" Operation IN ("New-InboxRule","Set-In
 ### UC-11.1.9 · Service Health Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** M365 service incidents affect all users. Early awareness from API enables proactive communication and workaround planning.
 - **App/TA:** Custom API input (M365 Service Health API)
 - **Data Sources:** M365 Service Health API
@@ -178,6 +187,7 @@ index=m365 sourcetype="m365:servicehealth"
 ### UC-11.1.10 · License Utilization
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** M365 license costs are significant. Tracking utilization identifies unused licenses for reallocation and cost savings.
 - **App/TA:** Custom API input (M365 Reports API)
 - **Data Sources:** M365 license assignment and usage reports
@@ -203,6 +213,7 @@ index=m365 sourcetype="m365:licenses"
 ### UC-11.2.1 · Admin Console Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Admin actions in Google Workspace affect all users. Audit trail supports compliance and detects unauthorized changes.
 - **App/TA:** `Splunk_TA_GoogleWorkspace`
 - **Data Sources:** Google Workspace Admin audit log
@@ -220,6 +231,7 @@ index=gws sourcetype="gws:admin" event_name IN ("CREATE_USER","DELETE_USER","CHA
 ### UC-11.2.2 · Gmail Message Flow
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Email delivery monitoring and DLP enforcement protects sensitive data and ensures business communication reliability.
 - **App/TA:** `Splunk_TA_GoogleWorkspace`
 - **Data Sources:** Gmail logs via BigQuery export or Reports API
@@ -245,6 +257,7 @@ index=gws sourcetype="gws:gmail"
 ### UC-11.2.3 · Drive Sharing Anomalies
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Unusual file sharing patterns may indicate data exfiltration or accidental exposure of sensitive documents.
 - **App/TA:** `Splunk_TA_GoogleWorkspace`
 - **Data Sources:** Google Drive audit log
@@ -263,6 +276,7 @@ index=gws sourcetype="gws:drive" event_name="change_user_access"
 ### UC-11.2.4 · Login Anomaly Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Suspicious login activity (new device, unusual location, failed MFA) indicates potential account compromise.
 - **App/TA:** `Splunk_TA_GoogleWorkspace`
 - **Data Sources:** Google Workspace login audit log
@@ -281,6 +295,7 @@ index=gws sourcetype="gws:login" event_name="login_failure"
 ### UC-11.2.5 · Meet Quality Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Poor meeting quality impacts productivity and user satisfaction. Monitoring enables network/infrastructure optimization.
 - **App/TA:** `Splunk_TA_GoogleWorkspace`
 - **Data Sources:** Google Meet quality logs
@@ -299,6 +314,7 @@ index=gws sourcetype="gws:meet"
 ### UC-11.2.6 · Third-Party App Access
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** OAuth app grants to third-party applications create data access risks. Monitoring enables governance and risk assessment.
 - **App/TA:** `Splunk_TA_GoogleWorkspace`
 - **Data Sources:** Google Workspace token audit log
@@ -323,6 +339,7 @@ index=gws sourcetype="gws:token" event_name="authorize"
 ### UC-11.3.1 · Call Quality Monitoring (MOS)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** MOS scores directly measure voice quality experience. Degradation impacts business communication and customer service.
 - **App/TA:** Cisco UCM CDR/CMR, Webex API
 - **Data Sources:** Call Detail Records (CDR), Call Management Records (CMR)
@@ -342,6 +359,7 @@ index=voip sourcetype="cisco:ucm:cmr"
 ### UC-11.3.2 · Call Volume Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Call volume patterns support capacity planning and detect anomalies (toll fraud, system issues).
 - **App/TA:** UCM CDR input
 - **Data Sources:** CDR records
@@ -360,6 +378,7 @@ index=voip sourcetype="cisco:ucm:cdr"
 ### UC-11.3.3 · VoIP Jitter/Latency/Packet Loss
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Transport quality metrics identify network issues affecting voice quality before users report problems.
 - **App/TA:** UCM CMR, RTCP data
 - **Data Sources:** CMR records (jitter, latency, packet loss), RTCP reports
@@ -378,6 +397,7 @@ index=voip sourcetype="cisco:ucm:cmr"
 ### UC-11.3.4 · Trunk Utilization
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Trunk capacity limits cause busy signals and missed calls. Monitoring prevents capacity-related service degradation.
 - **App/TA:** UCM CDR, gateway logs
 - **Data Sources:** CDR records, gateway/trunk metrics
@@ -396,6 +416,7 @@ index=voip sourcetype="cisco:ucm:cdr"
 ### UC-11.3.5 · Conference Bridge Capacity
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
 - **Value:** Conference bridge resource exhaustion prevents users from joining meetings. Monitoring ensures adequate capacity.
 - **App/TA:** Webex API, UCM conference bridge metrics
 - **Data Sources:** Conference bridge utilization, Webex meeting data
@@ -414,6 +435,7 @@ index=voip sourcetype="webex:meetings"
 ### UC-11.3.6 · Toll Fraud Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Toll fraud causes significant financial loss. International premium-rate calls from compromised systems can cost thousands per hour.
 - **App/TA:** UCM CDR analysis
 - **Data Sources:** CDR records (called party number, duration, time of day)
@@ -434,6 +456,7 @@ index=voip sourcetype="cisco:ucm:cdr"
 ### UC-11.3.7 · Phone Registration Status
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Mass phone de-registration indicates network or UCM issues affecting the entire communications infrastructure.
 - **App/TA:** UCM syslog, RISPORT API
 - **Data Sources:** UCM device status, RISPORT real-time data
@@ -453,6 +476,7 @@ index=voip sourcetype="cisco:ucm:syslog"
 ### UC-11.3.8 · Webex Meeting Analytics
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Meeting analytics support collaboration optimization, license management, and quality improvement initiatives.
 - **App/TA:** Webex API input
 - **Data Sources:** Webex meeting/participant data via API

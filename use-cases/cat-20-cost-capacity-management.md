@@ -8,6 +8,7 @@
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Cloud costs can spiral without visibility. Daily spend trending by service, account, and tag provides the financial governance foundation — enabling teams to understand where money goes, spot trends early, and make informed optimization decisions.
 - **App/TA:** `Splunk Add-on for AWS` (CUR ingestion), `Splunk Add-on for Microsoft Cloud Services`, `Splunk Add-on for Google Cloud Platform`
 - **Data Sources:** AWS Cost and Usage Report (CUR), Azure Cost Management export, GCP Billing export
@@ -27,6 +28,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Anomaly
 - **Value:** Unexpected cost spikes from runaway instances, misconfigured autoscaling, or crypto-mining attacks can generate thousands in charges within hours. Automated anomaly detection catches these events before they become budget disasters.
 - **App/TA:** `Splunk Add-on for AWS`, cloud billing TAs
 - **Data Sources:** Billing data with historical trending
@@ -49,6 +51,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Reserved Instances and Savings Plans represent upfront commitments. Monitoring utilization ensures you're getting value from these purchases. Low utilization means wasted money; gaps in coverage mean missed savings opportunities.
 - **App/TA:** `Splunk Add-on for AWS`, billing TAs
 - **Data Sources:** AWS CUR (reservation fields), Azure reservation utilization
@@ -69,6 +72,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Idle resources (running but unused instances, unattached volumes, unused load balancers) are pure waste. Identifying and eliminating them is the quickest path to cloud cost savings, often yielding 20-30% reduction.
 - **App/TA:** `Splunk Add-on for AWS`, cloud monitoring TAs
 - **Data Sources:** CloudWatch/Azure Monitor metrics + billing data
@@ -91,6 +95,7 @@ index=cloud_metrics sourcetype="aws:cloudwatch"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Budget alerts prevent overspend by notifying stakeholders at defined thresholds (50%, 75%, 90%, 100%). Combined with forecast-based alerts, teams can take corrective action before exceeding approved budgets.
 - **App/TA:** `Splunk Add-on for AWS`, cloud billing TAs
 - **Data Sources:** Billing data, budget definitions (lookup)
@@ -113,6 +118,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Breaking down cloud costs by team/department via tagging creates accountability and enables chargeback/showback. Teams that see their own costs make better optimization decisions, driving organization-wide cost efficiency.
 - **App/TA:** `Splunk Add-on for AWS`, cloud billing TAs
 - **Data Sources:** CUR with tag data, organizational mapping
@@ -135,6 +141,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Spot instances offer significant savings (60-90%) but can be interrupted. Tracking interruptions, savings achieved, and workload placement ensures teams maximize savings while maintaining application resilience.
 - **App/TA:** `Splunk Add-on for AWS`, EC2 event logs
 - **Data Sources:** EC2 spot instance events, billing data
@@ -156,6 +163,7 @@ index=aws sourcetype="aws:cloudtrail"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Data transfer costs are often the most surprising cloud bill item. Inter-region, cross-AZ, and internet egress charges add up quickly. Identifying the biggest transfer flows enables architectural optimization to reduce costs significantly.
 - **App/TA:** `Splunk Add-on for AWS`, cloud billing TAs
 - **Data Sources:** CUR data transfer line items, VPC flow logs
@@ -185,6 +193,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Running out of compute capacity causes provisioning failures and performance degradation. Forecasting when CPU and memory will be exhausted enables proactive procurement or scaling, avoiding emergency purchases at premium cost.
 - **App/TA:** Infrastructure monitoring TAs (various), Splunk `predict` command
 - **Data Sources:** Host performance metrics (CPU, memory utilization)
@@ -203,6 +212,7 @@ index=infrastructure sourcetype="Perfmon:Processor" OR sourcetype="cpu"
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Storage procurement has lead times. Forecasting growth trends enables timely ordering of additional capacity, preventing the emergency of running out of storage space that causes application outages and data loss.
 - **App/TA:** Storage TAs (various), Splunk `predict` command
 - **Data Sources:** Storage capacity metrics from SAN/NAS/HCI/cloud
@@ -222,6 +232,7 @@ index=storage sourcetype="storage:capacity"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Network bandwidth constraints cause application latency and packet loss. Trending WAN/LAN utilization enables planned upgrades during maintenance windows rather than emergency bandwidth additions during business-impacting congestion.
 - **App/TA:** Network monitoring TAs, SNMP
 - **Data Sources:** Interface utilization metrics (SNMP, streaming telemetry)
@@ -240,6 +251,7 @@ index=network sourcetype="snmp:interface"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Software licenses represent significant IT spend. Tracking usage vs entitlements identifies under-licensed risks (compliance violations) and over-licensed waste (unnecessary spend). Right-sizing licenses can save 15-30% of software costs.
 - **App/TA:** Custom scripted inputs, vendor license APIs
 - **Data Sources:** License server logs, vendor API data, entitlement records
@@ -260,6 +272,7 @@ index=licenses sourcetype="license:usage"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Over-provisioned VMs and instances waste compute and money. Right-sizing analysis compares actual resource usage against allocated resources, identifying instances that can be downsized without impacting performance — typically saving 20-40%.
 - **App/TA:** Cloud and virtualization TAs, performance metrics
 - **Data Sources:** Performance metrics vs resource allocation data
@@ -281,6 +294,7 @@ index=infrastructure (sourcetype="vmware:perf:cpu" OR sourcetype="vmware:perf:me
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Databases that run out of space cause application outages. Forecasting database growth enables proactive storage expansion, archive planning, and helps DBAs plan maintenance windows for data lifecycle operations.
 - **App/TA:** Database monitoring TAs, `Splunk DB Connect`
 - **Data Sources:** Database size metrics, tablespace utilization
@@ -300,6 +314,7 @@ index=database sourcetype="db:capacity"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Capacity
 - **Value:** Many businesses have predictable seasonal patterns (retail holidays, fiscal year-end, enrollment periods). Building seasonal capacity models ensures infrastructure scales proactively for peak periods rather than reactively during customer-impacting events.
 - **App/TA:** Infrastructure TAs, Splunk MLTK (Machine Learning Toolkit)
 - **Data Sources:** Historical performance data (12+ months)
@@ -321,6 +336,7 @@ index=infrastructure sourcetype="perf:summary"
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** IP address exhaustion causes provisioning failures for new VMs, containers, and services. Monitoring IP pool utilization across subnets and VLANs enables proactive network planning and avoids emergency re-addressing projects.
 - **App/TA:** IPAM/DHCP TAs, custom scripted inputs
 - **Data Sources:** DHCP/IPAM data, subnet allocation records

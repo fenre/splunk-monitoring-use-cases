@@ -9,6 +9,7 @@
 ### UC-1.1.1 · CPU Utilization Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
 - **Value:** Detects overloaded hosts before they cause application degradation. Enables capacity planning and right-sizing.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=cpu` (from `cpu.sh` scripted input)
@@ -35,6 +36,7 @@ index=os sourcetype=cpu host=*
 ### UC-1.1.2 · Memory Pressure Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Prevents OOM kills, application crashes, and unresponsive systems by detecting memory exhaustion early.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=vmstat`
@@ -60,6 +62,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.3 · Disk Capacity Forecasting
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
 - **Value:** Prevents outages caused by full filesystems. A full /var or / can bring down services, databases, and logging. Enables proactive storage procurement.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=df`
@@ -91,6 +94,7 @@ index=os sourcetype=df host=myserver Filesystem="/dev/sda1"
 ### UC-1.1.4 · Disk I/O Saturation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High I/O wait degrades application performance even when CPU and memory look healthy. Catches storage bottlenecks before users complain.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=iostat`
@@ -116,6 +120,7 @@ index=os sourcetype=iostat host=*
 ### UC-1.1.5 · System Load Anomalies
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Load average exceeding CPU core count indicates process queuing. Useful as an early warning for runaway processes or unexpected workloads.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=vmstat` (includes `loadAvg1mi`) or custom `uptime` scripted input
@@ -145,6 +150,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.6 · Process Crash Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Immediate awareness of unexpected process terminations. Critical for services that don't auto-restart or have no watchdog.
 - **App/TA:** `Splunk_TA_nix`, Splunk Add-on for Syslog
 - **Data Sources:** `sourcetype=syslog`, `/var/log/messages`, `/var/log/syslog`
@@ -171,6 +177,7 @@ index=os sourcetype=syslog ("segfault" OR "killed process" OR "core dumped" OR "
 ### UC-1.1.7 · OOM Killer Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** OOM killer invocations mean the system ran out of memory and Linux chose to kill a process to survive. This often takes out critical services silently.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=syslog`, `dmesg`
@@ -191,6 +198,7 @@ index=os sourcetype=syslog "Out of memory" OR "oom-killer" OR "Killed process"
 ### UC-1.1.8 · SSH Brute-Force Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Detects active password-guessing attacks against SSH services. Can be early indicator of compromised credentials or targeted intrusion attempts.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=linux_secure` (`/var/log/auth.log` or `/var/log/secure`)
@@ -220,6 +228,7 @@ index=os sourcetype=linux_secure "Failed password"
 ### UC-1.1.9 · Unauthorized Sudo Usage
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Monitors privilege escalation attempts. Failed sudo attempts may indicate an attacker exploring what a compromised account can do.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=linux_secure`
@@ -248,6 +257,7 @@ index=os sourcetype=linux_secure "sudo:" ("NOT in sudoers" OR "authentication fa
 ### UC-1.1.10 · Cron Job Failure Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Failed cron jobs can silently break batch processing, backups, log rotation, and maintenance tasks. Catching failures early prevents cascading issues.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=cron` or `sourcetype=syslog` source="/var/log/cron"
@@ -268,6 +278,7 @@ index=os (sourcetype=cron OR source="/var/log/cron") ("error" OR "failed" OR "EX
 ### UC-1.1.11 · Kernel Panic Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Kernel panics cause immediate system crashes and potential data corruption. Often indicates hardware failure, driver issues, or memory corruption.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=syslog`, `dmesg`
@@ -286,6 +297,7 @@ index=os sourcetype=syslog ("kernel panic" OR "Kernel panic" OR "BUG:" OR "Oops:
 ### UC-1.1.12 · NTP Time Sync Drift
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Clock drift causes authentication failures (Kerberos), log correlation issues, transaction ordering problems, and certificate validation failures.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=ntp` (scripted input via `ntpq -p` or `chronyc tracking`)
@@ -306,6 +318,7 @@ index=os sourcetype=ntp host=*
 ### UC-1.1.13 · Zombie Process Accumulation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Zombie processes indicate parent processes not properly reaping children. Accumulation can exhaust PID space and indicates application bugs.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=ps` (process listing from Splunk_TA_nix)
@@ -327,6 +340,7 @@ index=os sourcetype=ps host=*
 ### UC-1.1.14 · File Descriptor Exhaustion
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** File descriptor exhaustion causes "too many open files" errors, breaking network connections, log writing, and inter-process communication. Common in Java apps and databases.
 - **App/TA:** `Splunk_TA_nix`, custom scripted input
 - **Data Sources:** `sourcetype=openfiles` (custom) or `/proc/sys/fs/file-nr`
@@ -347,6 +361,7 @@ index=os sourcetype=openfiles host=*
 ### UC-1.1.15 · Network Interface Errors
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Interface errors (CRC, drops, overruns) indicate bad cables, failing NICs, or duplex mismatches. Catching early prevents intermittent application failures.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=interfaces`
@@ -373,6 +388,7 @@ index=os sourcetype=interfaces host=*
 ### UC-1.1.16 · Package Vulnerability Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Compliance
 - **Value:** Maintains visibility into known vulnerable packages across the fleet, supporting vulnerability management and compliance programs.
 - **App/TA:** `Splunk_TA_nix`, custom scripted input
 - **Data Sources:** `sourcetype=package` (Splunk_TA_nix), vulnerability scanner output
@@ -393,6 +409,7 @@ index=os sourcetype=package host=*
 ### UC-1.1.17 · Service Availability Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Detects stopped services before users notice. Essential for any SLA-bound service where uptime matters.
 - **App/TA:** `Splunk_TA_nix`, custom scripted input
 - **Data Sources:** Custom scripted input (`systemctl is-active <service>`)
@@ -412,6 +429,7 @@ index=os sourcetype=service_status host=*
 ### UC-1.1.18 · User Account Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration, Compliance
 - **Value:** Detects unauthorized user creation or modification. Key for security auditing and compliance (SOX, PCI, HIPAA).
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=linux_secure`, `sourcetype=linux_audit`
@@ -439,6 +457,7 @@ index=os sourcetype=linux_secure ("useradd" OR "userdel" OR "usermod" OR "groupa
 ### UC-1.1.19 · Filesystem Read-Only Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** A filesystem remounting as read-only indicates disk failure, corruption, or mount issues. Applications will fail silently when they can't write.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=syslog`, `dmesg`
@@ -457,6 +476,7 @@ index=os sourcetype=syslog ("Remounting filesystem read-only" OR "EXT4-fs error"
 ### UC-1.1.20 · Reboot Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
 - **Value:** Unexpected reboots may indicate kernel panics, hardware failure, or unauthorized changes. Distinguishing planned vs. unplanned reboots is key.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=syslog`, `sourcetype=who` (wtmp)
@@ -482,6 +502,7 @@ index=os sourcetype=syslog ("Initializing cgroup subsys" OR "Linux version" OR "
 ### UC-1.1.21 · Kernel Module Loading Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Detects unauthorized kernel module insertions which can indicate rootkits or malware persistence.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit, auditctl syscall logs`
@@ -500,6 +521,7 @@ index=os sourcetype=linux_audit action=* syscall=init_module OR syscall=finit_mo
 ### UC-1.1.22 · Sysctl Parameter Changes Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Identifies modifications to kernel parameters that affect system behavior, security posture, or performance tuning.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit, /proc/sys monitoring`
@@ -518,6 +540,7 @@ index=os sourcetype=linux_audit action=modified path=/proc/sys/*
 ### UC-1.1.23 · Kernel Core Dump Generation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Core dumps indicate process crashes at kernel level, enabling root cause analysis of system stability issues.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, /var/log/kern.log`
@@ -536,6 +559,7 @@ index=os sourcetype=syslog "segfault at" OR "general protection fault" OR "doubl
 ### UC-1.1.24 · Kernel Ring Buffer Error Rate
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Ring buffer errors signal kernel-level problems including driver issues, hardware failures, or module conflicts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, dmesg output`
@@ -554,6 +578,7 @@ index=os sourcetype=syslog "kernel:" "error" OR "warning" OR "BUG"
 ### UC-1.1.25 · NUMA Imbalance Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** NUMA imbalance causes memory locality issues and performance degradation on multi-socket systems.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:numa_stats`
@@ -573,6 +598,7 @@ index=os sourcetype=custom:numa_stats
 ### UC-1.1.26 · CPU Frequency Scaling Events
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Frequency scaling changes indicate thermal throttling or power management adjustments affecting workload performance.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit OR custom:cpufreq`
@@ -591,6 +617,7 @@ index=os sourcetype=linux_audit path="/sys/devices/system/cpu/cpu*/cpufreq/*" ac
 ### UC-1.1.27 · CPU Steal Time Elevation (Virtual Machines)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High steal time indicates VM is contending with host resources, affecting application performance.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=vmstat`
@@ -617,6 +644,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.28 · IRQ Imbalance Across CPU Cores
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Imbalanced IRQ handling causes uneven CPU utilization and can bottleneck network or storage throughput.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:irq_stats, /proc/interrupts`
@@ -636,6 +664,7 @@ index=os sourcetype=custom:irq_stats
 ### UC-1.1.29 · Context Switch Rate Anomaly Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
 - **Value:** Excessive context switching reduces CPU cache effectiveness and indicates scheduler overload or contention.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=vmstat`
@@ -664,6 +693,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.30 · Scheduler Latency and Run Queue Depth
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High run queue depth with elevated scheduling latency causes visible application performance degradation.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=vmstat, top, custom:sched_latency`
@@ -691,6 +721,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.31 · Hugepage Allocation and Usage
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Hugepage contention or allocation failures impact database and large memory workload performance.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:hugepages, /proc/meminfo`
@@ -710,6 +741,7 @@ index=os sourcetype=custom:hugepages host=*
 ### UC-1.1.32 · Transparent Hugepage Compaction Stalls
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** THP compaction stalls indicate severe memory fragmentation affecting latency-sensitive workloads.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, /sys/kernel/debug/thp_collapse_alloc`
@@ -728,6 +760,7 @@ index=os sourcetype=syslog "compact_stall" OR "collapses_alloc_failed"
 ### UC-1.1.33 · Inode Exhaustion Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Inode exhaustion causes file creation failures even when disk space remains available, stopping applications.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=df`
@@ -753,6 +786,7 @@ index=os sourcetype=df host=*
 ### UC-1.1.34 · RAID Array Degradation Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Degraded RAID arrays mean data loss risk and potential performance impact during rebuild.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:raid, /proc/mdstat`
@@ -772,6 +806,7 @@ index=os sourcetype=custom:raid host=*
 ### UC-1.1.35 · LVM Thin Pool Capacity Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Thin pool exhaustion causes I/O errors on all logical volumes in the pool, causing application failures.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:lvm_thin, lvs output`
@@ -790,6 +825,7 @@ index=os sourcetype=custom:lvm_thin host=*
 ### UC-1.1.36 · Multipath I/O Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Multipath failovers indicate storage path degradation requiring immediate investigation to prevent I/O loss.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, multipathd logs`
@@ -808,6 +844,7 @@ index=os sourcetype=syslog "multipathd" "failover" OR "path failed" OR "path rec
 ### UC-1.1.37 · NFS Mount Stale Handle Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Stale NFS handles cause application hangs and I/O failures that severely impact users.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, kernel NFS logs`
@@ -826,6 +863,7 @@ index=os sourcetype=syslog "nfs" ("stale" OR "stale NFS file handle" OR "Stale N
 ### UC-1.1.38 · Filesystem Journal Errors
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Filesystem journal errors indicate potential corruption risk and can lead to data loss or recovery timeouts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, kernel logs`
@@ -844,6 +882,7 @@ index=os sourcetype=syslog ("ext4" OR "xfs" OR "jbd2") ("error" OR "EIO" OR "met
 ### UC-1.1.39 · Ext4 Filesystem Errors and Recovery
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Ext4 errors may indicate filesystem corruption or hardware issues requiring immediate diagnostic action.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, dmesg`
@@ -862,6 +901,7 @@ index=os sourcetype=syslog host=* ("ext4" AND ("error" OR "abort" OR "FS-error")
 ### UC-1.1.40 · XFS Filesystem Errors and Recovery
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** XFS errors indicate potential corruption in high-performance storage systems commonly used in enterprise environments.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, kernel logs`
@@ -880,6 +920,7 @@ index=os sourcetype=syslog host=* ("XFS" OR "xfs_*" AND ("error" OR "IO Error" O
 ### UC-1.1.41 · Disk SMART Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** SMART errors predict disk failure, enabling proactive replacement before data loss occurs.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:smartctl, smartmontools output`
@@ -898,6 +939,7 @@ index=os sourcetype=custom:smartctl host=*
 ### UC-1.1.42 · SSD Wear Leveling and Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** SSD wear metrics indicate remaining lifespan, enabling proactive replacement planning.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:nvme, nvme-cli output`
@@ -916,6 +958,7 @@ index=os sourcetype=custom:nvme host=*
 ### UC-1.1.43 · Fstrim and TRIM Command Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Fstrim failures indicate potential SSD performance degradation from lack of proper space reclamation.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, custom:fstrim_status`
@@ -934,6 +977,7 @@ index=os sourcetype=custom:fstrim_status host=*
 ### UC-1.1.44 · Memory Leak Detection Per Process
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Process memory leaks cause gradual performance degradation and eventual OOM situations.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=top, custom:proc_rss_tracking`
@@ -954,6 +998,7 @@ index=os sourcetype=top host=*
 ### UC-1.1.45 · Swap Thrashing Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Swap thrashing causes severe performance degradation and can make systems unresponsive.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=vmstat`
@@ -982,6 +1027,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.46 · Slab Cache Growth Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Unbounded slab cache growth consumes memory that could be used for page cache or application memory.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:slabinfo, /proc/slabinfo`
@@ -1002,6 +1048,7 @@ index=os sourcetype=custom:slabinfo host=*
 ### UC-1.1.47 · Page Cache Pressure and Reclaim Activity
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High page cache reclaim activity indicates memory pressure affecting application performance.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:meminfo_delta, /proc/vmstat`
@@ -1021,6 +1068,7 @@ index=os sourcetype=custom:meminfo_delta host=*
 ### UC-1.1.48 · NUMA Memory Imbalance Per Node
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** NUMA memory imbalance causes remote memory access latency affecting NUMA-aware applications.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:numa_meminfo`
@@ -1041,6 +1089,7 @@ index=os sourcetype=custom:numa_meminfo host=*
 ### UC-1.1.49 · Memory Cgroup Limit Enforcement
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Cgroup limits prevent runaway processes but enforcement indicates containers at memory limits need scaling.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, custom:cgroup_memory`
@@ -1059,6 +1108,7 @@ index=os sourcetype=syslog "memory.max_usage_in_bytes" OR "Out of memory" AND cg
 ### UC-1.1.50 · Transparent Hugepage Defragmentation Stalls
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** THP defrag stalls cause application latency spikes affecting real-time and interactive workloads.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, THP metrics`
@@ -1077,6 +1127,7 @@ index=os sourcetype=syslog ("thp_defrags" OR "khugepaged" OR "thp_collapse")
 ### UC-1.1.51 · TCP Retransmission Rate Elevation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** High retransmission rates indicate network congestion, packet loss, or application issues affecting throughput.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:tcp_stats, /proc/net/tcp`
@@ -1097,6 +1148,7 @@ index=os sourcetype=custom:tcp_stats host=*
 ### UC-1.1.52 · Connection Tracking Table Exhaustion
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Conntrack table full prevents new network connections, causing application failures.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:conntrack, /proc/net/nf_conntrack`
@@ -1116,6 +1168,7 @@ index=os sourcetype=custom:conntrack host=*
 ### UC-1.1.53 · Socket Buffer Overflow Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Socket buffer overflows cause packet drops and connection resets, indicating network saturation or misconfiguration.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:socket_stats, /proc/net/sockstat`
@@ -1134,6 +1187,7 @@ index=os sourcetype=custom:socket_stats host=*
 ### UC-1.1.54 · Network Namespace Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Network namespace monitoring detects container escape attempts and validates network isolation in containerized environments.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:netns, /var/run/netns/`
@@ -1159,6 +1213,7 @@ index=os sourcetype=custom:netns host=*
 ### UC-1.1.55 · DNS Resolution Failure Rate
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** DNS failures impact application availability and user experience, requiring immediate investigation.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, systemd-resolved logs`
@@ -1178,6 +1233,7 @@ index=os sourcetype=syslog "systemd-resolved" ("SERVFAIL" OR "NXDOMAIN" OR "TIME
 ### UC-1.1.56 · Firewall Rule Hit Tracking (iptables/nftables)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Firewall rule tracking identifies blocked traffic patterns, helping optimize rules and detect attack attempts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, kernel ufw/firewall logs`
@@ -1196,6 +1252,7 @@ index=os sourcetype=syslog "ufw" ("DENY" OR "REJECT" OR "DROP")
 ### UC-1.1.57 · ARP Table Overflow Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** ARP table overflow causes network connectivity issues and may indicate ARP spoofing attacks or network misconfiguration.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:arp, /proc/net/arp`
@@ -1215,6 +1272,7 @@ index=os sourcetype=custom:arp host=*
 ### UC-1.1.58 · Network Bond Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Network bond failovers indicate NIC or port failures requiring immediate remediation to prevent connectivity loss.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, bonding driver logs`
@@ -1240,6 +1298,7 @@ index=os sourcetype=syslog "bonding:" ("slave" OR "primary") ("failed" OR "recov
 ### UC-1.1.59 · Network Team Failover Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Teamed interface failovers indicate critical network path failures affecting server connectivity.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, teamd logs`
@@ -1265,6 +1324,7 @@ index=os sourcetype=syslog "teamd" ("port" OR "link") ("down" OR "up" OR "enable
 ### UC-1.1.60 · MTU Mismatch Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** MTU mismatches cause fragmentation and performance issues, especially with jumbo frame configurations.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:mtu, ip link show output`
@@ -1284,6 +1344,7 @@ index=os sourcetype=custom:mtu host=*
 ### UC-1.1.61 · TCP TIME_WAIT Accumulation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Excessive TIME_WAIT sockets can exhaust ephemeral port space, causing connection failures under load.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:netstat, netstat output`
@@ -1303,6 +1364,7 @@ index=os sourcetype=custom:netstat host=*
 ### UC-1.1.62 · Network Bandwidth Utilization by Interface
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High bandwidth utilization indicates potential capacity constraints or unexpected traffic patterns.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=interfaces`
@@ -1330,6 +1392,7 @@ index=os sourcetype=interfaces host=*
 ### UC-1.1.63 · Dropped Packets by Network Interface
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Dropped packets indicate network issues, buffer overflow, or driver problems affecting reliability.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=interfaces`
@@ -1357,6 +1420,7 @@ index=os sourcetype=interfaces host=*
 ### UC-1.1.64 · Network Latency Monitoring (Ping RTT)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Elevated latency to critical services impacts application performance and user experience.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:ping_rtt`
@@ -1383,6 +1447,7 @@ index=os sourcetype=custom:ping_rtt host=*
 ### UC-1.1.65 · Auditd Rule Violation Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Auditd violations provide forensic evidence of security incidents and unauthorized system access.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1401,6 +1466,7 @@ index=os sourcetype=linux_audit type=AVC
 ### UC-1.1.66 · SELinux Denial Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** SELinux denials indicate policy violations that may require tuning or signal legitimate attack attempts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, /var/log/audit/audit.log`
@@ -1419,6 +1485,7 @@ index=os sourcetype=syslog "SELinux" "denied"
 ### UC-1.1.67 · AppArmor Profile Violation Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** AppArmor violations indicate policy breaches that may reflect policy misconfigurations or attack attempts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, AppArmor audit logs`
@@ -1437,6 +1504,7 @@ index=os sourcetype=syslog "apparmor" ("DENIED" OR "ALLOWED" AND "mode=enforce")
 ### UC-1.1.68 · Rootkit Detection via File Integrity
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** File integrity changes indicate potential rootkit installation or unauthorized system modification.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:aide, AIDE database changes`
@@ -1455,6 +1523,7 @@ index=os sourcetype=custom:aide host=*
 ### UC-1.1.69 · SUID/SGID Binary Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Unauthorized SUID/SGID binary modifications enable privilege escalation attacks.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1473,6 +1542,7 @@ index=os sourcetype=linux_audit type=EXECVE "suid" OR "sgid"
 ### UC-1.1.70 · /etc/passwd Modifications
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** /etc/passwd changes indicate user account creation/modification requiring immediate investigation for unauthorized access.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1491,6 +1561,7 @@ index=os sourcetype=linux_audit path="/etc/passwd" action=modified
 ### UC-1.1.71 · /etc/shadow Modifications
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** /etc/shadow changes indicate password hash tampering or unauthorized privilege escalation attempts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1509,6 +1580,7 @@ index=os sourcetype=linux_audit path="/etc/shadow" action=modified
 ### UC-1.1.72 · SSH Public Key Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** SSH key modifications enable persistent unauthorized access, indicating potential account compromise.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1535,6 +1607,7 @@ index=os sourcetype=linux_audit path~="\.ssh/authorized_keys" action=modified
 ### UC-1.1.73 · PAM Authentication Failure Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** PAM failures indicate authentication issues or brute-force attack attempts against user accounts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_secure`
@@ -1561,6 +1634,7 @@ index=os sourcetype=linux_secure pam "authentication failure"
 ### UC-1.1.74 · Login from Unusual Source IPs
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Logins from unusual source IPs may indicate account compromise or unauthorized access.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_secure`
@@ -1588,6 +1662,7 @@ index=os sourcetype=linux_secure "Accepted publickey" OR "Accepted password"
 ### UC-1.1.75 · Failed su Attempts
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Failed su attempts indicate potential privilege escalation attempts or credential compromise.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_secure`
@@ -1614,6 +1689,7 @@ index=os sourcetype=linux_secure "su:" "FAILED" OR "su:" "authentication failure
 ### UC-1.1.76 · Privilege Escalation Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Privilege escalation indicates successful security breach enabling attacker to gain administrative access.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_secure`
@@ -1640,6 +1716,7 @@ index=os sourcetype=linux_secure "sudo:" AND "command="
 ### UC-1.1.77 · Unauthorized Cron Job Additions
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Unauthorized cron jobs enable persistent malware execution and data exfiltration.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1658,6 +1735,7 @@ index=os sourcetype=linux_audit path~="/var/spool/cron/crontabs/*" action=modifi
 ### UC-1.1.78 · Open Port Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** New listening ports indicate service configuration changes or malware opening backdoors.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=openPorts`
@@ -1677,6 +1755,7 @@ index=os sourcetype=openPorts host=*
 ### UC-1.1.79 · Setcap Binary Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Setcap binary modifications enable privilege escalation bypassing traditional privilege boundary enforcement.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1695,6 +1774,7 @@ index=os sourcetype=linux_audit type=CAPABILITY_CHANGE
 ### UC-1.1.80 · Systemd Unit Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Service unit failures indicate application issues or configuration problems requiring immediate remediation.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog`
@@ -1713,6 +1793,7 @@ index=os sourcetype=syslog "systemd" AND ("Failed" OR "ERROR" OR "not-found")
 ### UC-1.1.81 · Systemd Timer Missed Triggers
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Missed systemd timers indicate scheduling issues or system overload preventing scheduled tasks.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog`
@@ -1731,6 +1812,7 @@ index=os sourcetype=syslog "systemd" "timer" ("cannot run" OR "Skipping")
 ### UC-1.1.82 · D-State (Uninterruptible Sleep) Process Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** D-state processes indicate hanging I/O operations or kernel deadlocks requiring immediate investigation.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=ps`
@@ -1749,6 +1831,7 @@ index=os sourcetype=ps host=* state="D"
 ### UC-1.1.83 · Process CPU Affinity Changes
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** CPU affinity changes can indicate attempted performance optimization or malicious CPU isolation attempts.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1767,6 +1850,7 @@ index=os sourcetype=linux_audit type=SCHED_SETAFFINITY
 ### UC-1.1.84 · Runaway Process Detection (CPU Hog)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Runaway processes consuming excessive CPU degrade performance for all workloads on the host.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=top`
@@ -1785,6 +1869,7 @@ index=os sourcetype=top host=*
 ### UC-1.1.85 · Memory Hog Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Memory-consuming processes can cause OOM conditions affecting all applications on the host.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=top`
@@ -1803,6 +1888,7 @@ index=os sourcetype=top host=*
 ### UC-1.1.86 · Fork Bomb Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Fork bombs exhaust PID space and system resources, making systems unusable.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:process_count`
@@ -1821,6 +1907,7 @@ index=os sourcetype=custom:process_count host=*
 ### UC-1.1.87 · Process Namespace Breakout Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Process namespace breakout indicates container escape or privilege escalation enabling access to host.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -1839,6 +1926,7 @@ index=os sourcetype=linux_audit type=CONTAINER_ESCAPE OR syscall=setns
 ### UC-1.1.88 · Container Escape Attempt Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Container escape attempts are critical security events indicating sophisticated attack against containerized infrastructure.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, AppArmor/SELinux denials`
@@ -1857,6 +1945,7 @@ index=os sourcetype=syslog (AppArmor OR SELinux) "container" "denied"
 ### UC-1.1.89 · Syslog Flood Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
 - **Value:** Syslog floods can overwhelm log infrastructure and mask real security events in log noise.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=syslog`
@@ -1875,6 +1964,7 @@ index=os sourcetype=syslog host=*
 ### UC-1.1.90 · Journal Disk Usage Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Journal disk usage growth can consume valuable storage space, potentially filling disks.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:journalctl_usage`
@@ -1893,6 +1983,7 @@ index=os sourcetype=custom:journalctl_usage host=*
 ### UC-1.1.91 · Log Rotation Failures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Log rotation failures can cause log files to grow unbounded, consuming disk space and impacting log analysis.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, logrotate output`
@@ -1911,6 +2002,7 @@ index=os sourcetype=syslog "logrotate" ("error" OR "failed" OR "ERROR")
 ### UC-1.1.92 · Auditd Daemon Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Auditd daemon failure results in loss of security audit trail, creating compliance and forensic gaps.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, linux_audit`
@@ -1936,6 +2028,7 @@ index=os sourcetype=linux_audit host=*
 ### UC-1.1.93 · Rsyslog Queue Backlog Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Rsyslog queue backlog indicates log forwarding issues or overload of remote syslog infrastructure.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:rsyslog_stats`
@@ -1954,6 +2047,7 @@ index=os sourcetype=custom:rsyslog_stats host=*
 ### UC-1.1.94 · Failed Log Forwarding
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Failed log forwarding creates data loss in centralized logging infrastructure, creating gaps in monitoring and compliance.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, rsyslog/syslog-ng error logs`
@@ -1972,6 +2066,7 @@ index=os sourcetype=syslog ("rsyslog" OR "syslog-ng") ("error" OR "connection re
 ### UC-1.1.95 · TCP Connection Establishment Rate
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** High connection establishment rate may indicate application behavior changes or DDoS attack preparation.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:netstat_stats, /proc/net/snmp`
@@ -1991,6 +2086,7 @@ index=os sourcetype=custom:netstat_stats host=*
 ### UC-1.1.96 · NUMA Hit/Miss Ratio Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Tracking NUMA hit/miss ratio identifies opportunities for workload optimization on NUMA systems.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:numa_zone`
@@ -2010,6 +2106,7 @@ index=os sourcetype=custom:numa_zone host=*
 ### UC-1.1.97 · CPU C-State Residency Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** CPU C-state residency tracking optimizes power consumption and identifies power management issues.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:cpuidle, /sys/devices/system/cpu/cpu*/cpuidle/state*/`
@@ -2028,6 +2125,7 @@ index=os sourcetype=custom:cpuidle host=*
 ### UC-1.1.98 · TLB Shootdown Rate Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** High TLB shootdown rates indicate excessive cross-CPU cache invalidations affecting performance on multi-CPU systems.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:tlb_stats, /proc/interrupts`
@@ -2046,6 +2144,7 @@ index=os sourcetype=custom:tlb_stats host=*
 ### UC-1.1.99 · Kernel Lock Contention Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Kernel lock contention degrades multi-core scalability and application throughput.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:lock_stats, /proc/lock_stat`
@@ -2064,6 +2163,7 @@ index=os sourcetype=custom:lock_stats host=*
 ### UC-1.1.100 · Softirq Rate Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** High softirq rates indicate kernel workload distribution issues or network stack pressure.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=vmstat`
@@ -2090,6 +2190,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.101 · Context Switch Anomalies Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Context switch anomalies indicate scheduler issues or unexpected process workload changes.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=vmstat`
@@ -2117,6 +2218,7 @@ index=os sourcetype=vmstat host=*
 ### UC-1.1.102 · EDAC Memory Error Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** EDAC memory errors indicate hardware failures predicting imminent memory or system failure.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, EDAC kernel driver logs`
@@ -2135,6 +2237,7 @@ index=os sourcetype=syslog "EDAC" OR "MCE" ("error" OR "correctable" OR "uncorre
 ### UC-1.1.103 · IPMI Sensor Threshold Violations
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** IPMI sensor violations indicate hardware conditions (thermal, voltage, power) requiring immediate remediation.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:ipmi, ipmitool sensor output`
@@ -2153,6 +2256,7 @@ index=os sourcetype=custom:ipmi host=*
 ### UC-1.1.104 · Thermal Throttling Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Thermal throttling reduces CPU performance to prevent overheating, indicating cooling system issues.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, kernel thermal logs`
@@ -2171,6 +2275,7 @@ index=os sourcetype=syslog "thermal" OR "CPU" AND "throttling"
 ### UC-1.1.105 · Fan Speed Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Fan speed anomalies indicate cooling system degradation potentially leading to thermal overload.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:ipmi, ipmitool reading`
@@ -2189,6 +2294,7 @@ index=os sourcetype=custom:ipmi host=* sensor_type=fan
 ### UC-1.1.106 · Power Supply State Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Power supply state changes indicate hardware failures requiring immediate physical intervention.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog, IPMI power events`
@@ -2207,6 +2313,7 @@ index=os sourcetype=syslog ("PSU" OR "power supply") ("failed" OR "degraded" OR 
 ### UC-1.1.107 · Hardware Clock Drift Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Hardware clock drift affects system time accuracy impacting application consistency and audit trails.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=time`
@@ -2225,6 +2332,7 @@ index=os sourcetype=time host=*
 ### UC-1.1.108 · Password Policy Violation Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Password policy violations indicate accounts with weak credentials vulnerable to compromise.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit, /etc/shadow audit`
@@ -2243,6 +2351,7 @@ index=os sourcetype=linux_audit path="/etc/shadow"
 ### UC-1.1.109 · Account Expiry Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Account expiry tracking ensures user accounts remain valid and prevents access with expired credentials.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:account_expiry`
@@ -2261,6 +2370,7 @@ index=os sourcetype=custom:account_expiry host=*
 ### UC-1.1.110 · Inactive User Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Inactive users with enabled accounts represent security risk and should be disabled to reduce attack surface.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_secure`
@@ -2288,6 +2398,7 @@ index=os sourcetype=linux_secure "Accepted"
 ### UC-1.1.111 · World-Writable File Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** World-writable files can be modified by any user enabling privilege escalation or system compromise.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:file_perms`
@@ -2307,6 +2418,7 @@ index=os sourcetype=custom:file_perms host=*
 ### UC-1.1.112 · Unowned File Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
 - **Value:** Unowned files indicate potential file system corruption or security issue requiring investigation.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:unowned_files`
@@ -2325,6 +2437,7 @@ index=os sourcetype=custom:unowned_files host=*
 ### UC-1.1.113 · SETUID Audit and Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** SETUID binary execution enables privilege escalation requiring tracking for security monitoring.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -2343,6 +2456,7 @@ index=os sourcetype=linux_audit type=EXECVE exe="*" AND suid
 ### UC-1.1.114 · Open File Handle Per-Process Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** High open file handle counts per process can exhaust system limits causing application failures.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=lsof`
@@ -2361,6 +2475,7 @@ index=os sourcetype=lsof host=*
 ### UC-1.1.115 · Listening Port Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Port compliance ensures only authorized services are listening, reducing attack surface.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=openPorts, netstat`
@@ -2387,6 +2502,7 @@ index=os sourcetype=openPorts host=*
 ### UC-1.1.116 · Installed Package Drift Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Package drift indicates unauthorized software installation or configuration management failures.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=package`
@@ -2406,6 +2522,7 @@ index=os sourcetype=package host=*
 ### UC-1.1.117 · Configuration File Change Tracking (/etc)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Configuration file changes can indicate system compromise or unauthorized configuration modifications.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -2424,6 +2541,7 @@ index=os sourcetype=linux_audit path="/etc/*" action=modified
 ### UC-1.1.118 · System Reboot Frequency Anomaly
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
 - **Value:** Unexpected reboot frequency indicates system instability, crashes, or possible security incident response.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=syslog`
@@ -2442,6 +2560,7 @@ index=os sourcetype=syslog "Kernel panic" OR "reboot" OR "system shutdown"
 ### UC-1.1.119 · Defunct (Zombie) Process Accumulation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Accumulating zombie processes indicate application resource leaks causing process table exhaustion risk.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=ps`
@@ -2460,6 +2579,7 @@ index=os sourcetype=ps host=* state="Z"
 ### UC-1.1.120 · Symbolic Link Chain Depth Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Excessive symbolic link chains can cause performance issues and may indicate directory traversal vulnerabilities.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=custom:symlink_scan`
@@ -2478,6 +2598,7 @@ index=os sourcetype=custom:symlink_scan host=*
 ### UC-1.1.121 · Bootloader Configuration Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Bootloader changes can enable persistence mechanisms or bypass security controls at boot time.
 - **App/TA:** `Splunk_TA_nix, custom scripted input`
 - **Data Sources:** `sourcetype=linux_audit`
@@ -2513,6 +2634,7 @@ index=os sourcetype=linux_audit path~="/boot/(grub|efi)" action=modified
 ### UC-1.2.1 · CPU Utilization Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
 - **Value:** Sustained high CPU causes application timeouts and service degradation. Trending enables capacity planning and helps identify runaway processes.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:CPU` (Perfmon input: `Processor`)
@@ -2538,6 +2660,7 @@ index=perfmon sourcetype="Perfmon:CPU" counter="% Processor Time" instance="_Tot
 ### UC-1.2.2 · Memory Utilization & Paging
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** High memory and excessive paging degrade performance. Page file usage indicates the system is under memory pressure.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:Memory`
@@ -2563,6 +2686,7 @@ index=perfmon sourcetype="Perfmon:Memory" (counter="% Committed Bytes In Use" OR
 ### UC-1.2.3 · Disk Space Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Full disks crash applications, stop logging, and corrupt databases. Windows can become unbootable if the system drive fills.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:LogicalDisk`
@@ -2590,6 +2714,7 @@ index=perfmon sourcetype="Perfmon:LogicalDisk" counter="% Free Space" instance!=
 ### UC-1.2.4 · Windows Service Failures
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Stopped critical services directly impact application availability. Auto-restart doesn't always work, and some services can't auto-restart.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System`, Event IDs 7034 (crash), 7036 (state change), 7031 (unexpected termination)
@@ -2616,6 +2741,7 @@ index=wineventlog sourcetype="WinEventLog:System" (EventCode=7034 OR EventCode=7
 ### UC-1.2.5 · Event Log Flood Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Abnormal event log volumes often indicate error loops, misconfiguration, or an active attack. Also protects Splunk license from unexpected spikes.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:*`
@@ -2636,6 +2762,7 @@ index=wineventlog sourcetype="WinEventLog:*"
 ### UC-1.2.6 · Failed Login Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Detects credential stuffing, brute-force attacks, and compromised account usage. Key for security monitoring and compliance.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security`, EventCode=4625
@@ -2665,6 +2792,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
 ### UC-1.2.7 · Account Lockout Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Lockouts frustrate users and can indicate active attacks. Identifying the source computer of the lockout dramatically speeds resolution.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security`, EventCode=4740
@@ -2691,6 +2819,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 ### UC-1.2.8 · Privileged Group Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Additions to Domain Admins, Enterprise Admins, or Schema Admins grant extreme privilege. Unauthorized changes could mean full domain compromise.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security`, EventCodes 4728, 4732, 4756 (member added); 4729, 4733, 4757 (member removed)
@@ -2718,6 +2847,7 @@ index=wineventlog sourcetype="WinEventLog:Security" (EventCode=4728 OR EventCode
 ### UC-1.2.9 · Windows Update Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** Unpatched systems are primary attack vectors. Tracking patch compliance across the fleet supports vulnerability management and regulatory requirements.
 - **App/TA:** `Splunk_TA_windows`, custom scripted input
 - **Data Sources:** `sourcetype=WinEventLog:System` (Event ID 19/20/43), WSUS logs, or scripted input
@@ -2739,6 +2869,7 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=19
 ### UC-1.2.10 · Scheduled Task Failures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Failed scheduled tasks break batch jobs, cleanup scripts, and automated processes. Often goes unnoticed until downstream effects appear.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational`, EventCode=201
@@ -2758,6 +2889,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-TaskScheduler/Operat
 ### UC-1.2.11 · Blue Screen of Death (BSOD)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** BSODs indicate severe system instability — driver bugs, hardware failure, or memory corruption. Repeated BSODs on the same host demand immediate attention.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System`, EventCode=1001 (BugCheck)
@@ -2777,6 +2909,7 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=1001 SourceName="Bug
 ### UC-1.2.12 · RDP Session Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Tracks who connected via Remote Desktop, from where, and when. Essential for compliance auditing and detecting lateral movement.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4624, LogonType=10), `sourcetype=WinEventLog:Microsoft-Windows-TerminalServices-LocalSessionManager/Operational`
@@ -2799,6 +2932,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSe
 ### UC-1.2.13 · PowerShell Script Execution
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** PowerShell is the most common tool in modern Windows attacks (Cobalt Strike, Empire, fileless malware). Script block logging captures the actual code executed.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-PowerShell/Operational`, EventCode=4104
@@ -2818,6 +2952,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 ### UC-1.2.14 · IIS Web Server Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** IIS access logs provide visibility into web application health — error rates, response times, and request volumes. Critical for web-facing services.
 - **App/TA:** `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS
 - **Data Sources:** `sourcetype=ms:iis:auto` or `sourcetype=iis`
@@ -2836,6 +2971,7 @@ index=web sourcetype="ms:iis:auto"
 ### UC-1.2.15 · DNS Server Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** DNS is foundational infrastructure — when DNS is slow or failing, everything fails. Monitoring query rates and failures ensures resolution reliability.
 - **App/TA:** `Splunk_TA_windows`, Microsoft DNS Analytical logs
 - **Data Sources:** `sourcetype=WinEventLog:DNS Server`, DNS debug/analytical logs
@@ -2858,6 +2994,7 @@ index=dns sourcetype="MSAD:NT6:DNS"
 ### UC-1.2.16 · DHCP Scope Exhaustion
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** When DHCP scopes run out of addresses, new devices can't get network access. Often manifests as "network down" complaints.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=DhcpSrvLog`, DHCP audit logs
@@ -2876,6 +3013,7 @@ index=dhcp sourcetype="DhcpSrvLog"
 ### UC-1.2.17 · Certificate Expiration
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** Expired certificates cause TLS failures, broken websites, authentication failures, and service outages. Among the most preventable outage causes.
 - **App/TA:** `Splunk_TA_windows`, custom scripted input
 - **Data Sources:** Custom scripted input (`certutil` or PowerShell `Get-ChildItem Cert:\`)
@@ -2896,6 +3034,7 @@ index=os sourcetype=certificate_inventory host=*
 ### UC-1.2.18 · Active Directory Replication
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** AD replication failures cause authentication inconsistencies — users locked out in one site but not another, stale GPOs, and split-brain scenarios.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Directory Service`, custom scripted input (`repadmin /replsummary`)
@@ -2919,6 +3058,7 @@ index=ad sourcetype=repadmin_replsummary
 ### UC-1.2.19 · Group Policy Processing Failures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** GPO failures mean security policies, drive mappings, software deployments, and configurations aren't being applied. Systems may be running with stale or missing policies.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-GroupPolicy/Operational`, EventCodes 1085, 1096
@@ -2944,6 +3084,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-GroupPolicy/Operatio
 ### UC-1.2.20 · Print Spooler Issues
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Print spooler crashes affect print services and have historically been attack vectors (PrintNightmare). Monitoring catches both operational and security issues.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-PrintService/Operational`
@@ -2962,6 +3103,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-PrintService/Operational
 ### UC-1.2.21 · Disk I/O Queue Length
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Sustained high disk queue lengths indicate storage bottlenecks invisible to CPU/memory monitoring. Causes application hangs and timeout errors.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:LogicalDisk` (counter: Current Disk Queue Length)
@@ -2987,6 +3129,7 @@ index=perfmon sourcetype="Perfmon:LogicalDisk" counter="Current Disk Queue Lengt
 ### UC-1.2.22 · Process Handle Leak Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Handle leaks cause resource exhaustion and eventual application crashes or system instability. Detecting the leak early prevents unplanned outages.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:Process` (counter: Handle Count)
@@ -3014,6 +3157,7 @@ index=perfmon sourcetype="Perfmon:Process" counter="Handle Count" instance!="_To
 ### UC-1.2.23 · Non-Paged Pool Exhaustion
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Non-paged pool memory is limited kernel memory. Exhaustion causes BSOD (DRIVER_IRQL_NOT_LESS_OR_EQUAL). Often caused by driver leaks.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:Memory` (counter: Pool Nonpaged Bytes)
@@ -3041,6 +3185,7 @@ index=perfmon sourcetype="Perfmon:Memory" counter="Pool Nonpaged Bytes"
 ### UC-1.2.24 · Network Interface Utilization
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Saturated network interfaces cause packet drops, retransmissions, and application timeouts. Often missed when only CPU/memory are monitored.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:Network_Interface`
@@ -3067,6 +3212,7 @@ index=perfmon sourcetype="Perfmon:Network_Interface" counter="Bytes Total/sec"
 ### UC-1.2.25 · Processor Queue Length
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Processor queue length >2 per core indicates threads waiting for CPU time. Detects CPU contention even when average utilization looks normal due to burst patterns.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:System` (counter: Processor Queue Length)
@@ -3092,6 +3238,7 @@ index=perfmon sourcetype="Perfmon:System" counter="Processor Queue Length"
 ### UC-1.2.26 · Security Log Cleared
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Clearing the Security event log is a classic attacker technique to cover tracks. Legitimate clears are rare and should always be investigated.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 1102), `sourcetype=WinEventLog:System` (EventCode 104)
@@ -3110,6 +3257,7 @@ index=wineventlog (sourcetype="WinEventLog:Security" EventCode=1102) OR (sourcet
 ### UC-1.2.27 · New Service Installation
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Attackers install malicious services for persistence. Unexpected service installations outside change windows indicate compromise or unauthorized software.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (EventCode 7045)
@@ -3136,6 +3284,7 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=7045
 ### UC-1.2.28 · Windows Firewall Rule Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Unauthorized firewall rule changes can open attack vectors. Malware often disables the firewall or adds allow rules for C2 communication.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall` (EventCode 2004, 2005, 2006, 2033)
@@ -3163,6 +3312,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Firewall With Ad
 ### UC-1.2.29 · Registry Run Key Modification (Persistence)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Run/RunOnce registry keys are the most common malware persistence mechanism. Monitoring these keys catches many threats early.
 - **App/TA:** `Splunk_TA_windows`, Sysmon recommended
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 13) or `sourcetype=WinEventLog:Security` (EventCode 4657)
@@ -3189,6 +3339,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 ### UC-1.2.30 · LSASS Memory Access (Credential Dumping)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Accessing LSASS process memory is the primary technique for credential theft (Mimikatz, ProcDump). Detection is critical to stopping lateral movement.
 - **App/TA:** `Splunk_TA_windows`, Sysmon required
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 10)
@@ -3218,6 +3369,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 ### UC-1.2.31 · Kerberos Authentication Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
 - **Value:** Kerberos failures (EventCode 4771) reveal password spraying, expired accounts, clock skew, and misconfigured SPNs. Distinct from NTLM failures and requires separate monitoring.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4771)
@@ -3246,6 +3398,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4771
 ### UC-1.2.32 · WMI Event Subscription Persistence
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** WMI event subscriptions are a stealthy persistence mechanism that survives reboots. Used by APT groups and fileless malware.
 - **App/TA:** `Splunk_TA_windows`, Sysmon required
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 19, 20, 21)
@@ -3266,6 +3419,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 ### UC-1.2.33 · Audit Policy Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Attackers modify audit policies to disable logging and hide their activities. Any unauthorized audit policy change must be investigated immediately.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4719)
@@ -3291,6 +3445,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4719
 ### UC-1.2.34 · AppLocker / WDAC Policy Violations
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** AppLocker/WDAC blocks track unauthorized application execution attempts. High violation rates indicate persistent threats or misconfigured policies.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/EXE and DLL` (EventCode 8004, 8007)
@@ -3317,6 +3472,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-AppLocker*" EventCode IN
 ### UC-1.2.35 · Windows Defender Threat Detections
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Real-time visibility into endpoint AV detections across the fleet. Delayed response to malware detections increases blast radius.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventCode 1006, 1007, 1116, 1117)
@@ -3337,6 +3493,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 ### UC-1.2.36 · DCSync Attack Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** DCSync uses Directory Replication Service permissions to extract password hashes remotely. Detecting non-DC replication requests catches this attack before credential theft completes.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4662)
@@ -3358,6 +3515,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4662
 ### UC-1.2.37 · Kerberoasting Detection (SPN Ticket Requests)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Kerberoasting requests TGS tickets for service accounts with SPNs, then cracks them offline. Detecting anomalous TGS requests catches this before passwords are compromised.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4769)
@@ -3379,6 +3537,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769
 ### UC-1.2.38 · AD Object Deletion Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Accidental or malicious deletion of AD objects (OUs, users, groups, computer accounts) can cause widespread service disruption. AD Recycle Bin has a limited window.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4726, 4730, 4743, 5141)
@@ -3399,6 +3558,7 @@ index=wineventlog sourcetype="WinEventLog:Security"
 ### UC-1.2.39 · Domain Trust Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Unauthorized trust relationships can grant external domains access to internal resources. Trust modifications are rare and high-impact.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4706, 4707, 4716)
@@ -3425,6 +3585,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706, 4707, 47
 ### UC-1.2.40 · WHEA Hardware Error Reporting
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Windows Hardware Error Architecture (WHEA) reports CPU, memory, and PCIe hardware errors before they cause crashes. Enables proactive hardware replacement.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (Source=Microsoft-Windows-WHEA-Logger, EventCode 17, 18, 19, 20, 47)
@@ -3444,6 +3605,7 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Microsoft-Windows-WHEA
 ### UC-1.2.41 · Volume Shadow Copy Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** VSS failures break backup chains, System Restore, and SQL/Exchange application-consistent snapshots. Often silent until a restore is attempted.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Application` (Source=VSS, EventCode 12289, 12298, 8193, 8194)
@@ -3470,6 +3632,7 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="VSS" EventCode IN
 ### UC-1.2.42 · .NET CLR Performance Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** .NET garbage collection pauses and high exception rates cause application latency and instability. CLR monitoring reveals issues invisible to external health checks.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:dotNET_CLR_Memory` (counters: % Time in GC, Gen 2 Collections)
@@ -3495,6 +3658,7 @@ index=perfmon sourcetype="Perfmon:dotNET_CLR_Memory" counter="% Time in GC" inst
 ### UC-1.2.43 · Failover Cluster Event Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Cluster failovers indicate node failures or network partitions affecting high-availability services. Each failover risks brief downtime and potential data loss.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-FailoverClustering/Operational` (EventCode 1069, 1177, 1205, 1254)
@@ -3515,6 +3679,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-FailoverClustering/Opera
 ### UC-1.2.44 · SMB Share Access Anomalies
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Anomalous SMB share access patterns indicate lateral movement, data exfiltration, or ransomware file encryption across network shares.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 5140, 5145)
@@ -3534,6 +3699,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5140
 ### UC-1.2.45 · Windows Time Service (W32Time) Issues
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** Time synchronization failures break Kerberos authentication (5-minute tolerance), cause log correlation issues, and invalidate audit trails.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (Source=Microsoft-Windows-Time-Service, EventCode 129, 134, 142, 36)
@@ -3561,6 +3727,7 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Microsoft-Windows-Time
 ### UC-1.2.46 · DFS-R Replication Backlog
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** DFS-R replication backlogs mean file servers are out of sync. Users may access stale data, and a prolonged backlog can trigger an initial sync (full re-replication).
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:DFS Replication` (EventCode 4012, 4302, 4304, 5002, 5008)
@@ -3580,6 +3747,7 @@ index=wineventlog source="WinEventLog:DFS Replication" EventCode IN (4012, 4302,
 ### UC-1.2.47 · Application Crash (WER) Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Windows Error Reporting captures crash details for all applications. Trending reveals systemic instability, bad patches, or problematic application versions.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Application` (EventCode 1000, 1001, 1002)
@@ -3607,6 +3775,7 @@ index=wineventlog sourcetype="WinEventLog:Application" EventCode IN (1000, 1002)
 ### UC-1.2.48 · PowerShell Script Block Logging
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Script Block Logging captures the full text of every PowerShell script executed, including deobfuscated code. Essential for detecting fileless attacks and encoded commands.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-PowerShell/Operational` (EventCode 4104)
@@ -3626,6 +3795,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 ### UC-1.2.49 · Lateral Movement via Explicit Credentials
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Logon type 9 (NewCredentials / RunAs /netonly) and type 10 (RDP) from unexpected sources reveal credential abuse and lateral movement between systems.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4624, Logon Type 3, 9, 10)
@@ -3655,6 +3825,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType IN 
 ### UC-1.2.50 · DNS Debug Query Logging
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** DNS query logging reveals C2 communication via DNS tunneling, DGA domains, and unauthorized DNS resolution. Essential for security visibility.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-DNS-Server/Analytical` or DNS debug log file
@@ -3674,6 +3845,7 @@ index=dns sourcetype="MSAD:NT6:DNS" query_type IN (TXT, NULL, CNAME)
 ### UC-1.2.51 · Process Creation with Command Line Auditing
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Full command-line visibility on process creation is the foundation of threat detection. Reveals encoded PowerShell, LOLBin abuse, and suspicious child processes.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4688)
@@ -3700,6 +3872,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4688
 ### UC-1.2.52 · NIC Teaming / LBFO Failover
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** NIC team member failures reduce redundancy silently. A second failure causes full network loss. Detecting the first failure enables proactive repair.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-NlbFo/Operational` (EventCode 101, 105, 106, 115)
@@ -3720,6 +3893,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-NlbFo/Operational"
 ### UC-1.2.53 · BitLocker Recovery Events
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** BitLocker recovery mode triggers indicate TPM issues, boot configuration changes, or potential tampering with the boot chain. Each event requires investigation.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-BitLocker/BitLocker Management` (EventCode 768, 770, 775, 846)
@@ -3740,6 +3914,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-BitLocker*"
 ### UC-1.2.54 · Windows Event Forwarding (WEF) Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111)
@@ -3761,6 +3936,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Forwarding/Operational"
 ### UC-1.2.55 · Suspicious Token Manipulation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Token impersonation and privilege escalation via token manipulation (SeImpersonatePrivilege abuse) is a common post-exploitation technique.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4673, 4674)
@@ -3789,6 +3965,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4673, 4674)
 ### UC-1.2.56 · Sysmon Network Connection Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Sysmon EventCode 3 logs every outbound TCP/UDP connection with the originating process. Reveals C2 callbacks, data exfiltration, and unauthorized network access.
 - **App/TA:** `Splunk_TA_windows`, Sysmon required
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 3)
@@ -3810,6 +3987,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 ### UC-1.2.57 · Thread Count Exhaustion
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Thread leaks or excessive thread creation cause pool exhaustion and application hangs. Windows has a system-wide limit of ~65K threads that affects all processes.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:Process` (counter: Thread Count), `sourcetype=Perfmon:System` (counter: Threads)
@@ -3836,6 +4014,7 @@ index=perfmon sourcetype="Perfmon:Process" counter="Thread Count" instance!="_To
 ### UC-1.2.58 · Storage Spaces Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** Storage Spaces pools degrade silently when physical disks fail. Detection before a second disk fails prevents data loss in mirrored/parity configurations.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-StorageSpaces-Driver/Operational` (EventCode 1, 2, 3, 207)
@@ -3855,6 +4034,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-StorageSpaces*" EventCod
 ### UC-1.2.59 · DCOM / COM+ Application Errors
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** DCOM errors affect distributed applications, WMI remote management, and MMC snap-ins. Persistent errors indicate permission issues or component registration corruption.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (EventCode 10016, 10028, 10010)
@@ -3874,6 +4054,7 @@ index=wineventlog sourcetype="WinEventLog:System" Source="DCOM" EventCode IN (10
 ### UC-1.2.60 · Code Integrity / Driver Signing Violations
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Unsigned or tampered drivers loading into the kernel are a rootkit indicator. Code Integrity violations detect bypass attempts and driver-level threats.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-CodeIntegrity/Operational` (EventCode 3001, 3002, 3003, 3004, 3033)
@@ -3894,6 +4075,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-CodeIntegrity/Operationa
 ### UC-1.2.61 · Data Deduplication Health
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Windows Data Deduplication saves significant storage on file servers. Job failures or savings degradation indicate volume corruption or configuration issues.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Deduplication/Operational` (EventCode 6153, 6155, 12800, 12802)
@@ -3914,6 +4096,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Deduplication*"
 ### UC-1.2.62 · TCP Connection State Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Excessive TIME_WAIT, CLOSE_WAIT, or ESTABLISHED connections indicate connection leaks, exhausted ephemeral ports, or application hanging. Causes service unavailability.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:TCPv4` (counters: Connections Established, Connection Failures)
@@ -3939,6 +4122,7 @@ index=perfmon sourcetype="Perfmon:TCPv4" counter IN ("Connections Established","
 ### UC-1.2.63 · Windows Installer Failures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** MSI installation failures affect patching, software deployment, and SCCM/Intune compliance. Repeated failures indicate corrupted Windows Installer service or disk issues.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Application` (Source=MsiInstaller, EventCode 11708, 11724)
@@ -3966,6 +4150,7 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="MsiInstaller" Eve
 ### UC-1.2.64 · Event Log Channel Size / Overflow
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** When event logs reach maximum size with overwrite-oldest policy, critical security events are lost. With do-not-overwrite policy, the log stops recording entirely.
 - **App/TA:** `Splunk_TA_windows`, custom scripted input
 - **Data Sources:** `sourcetype=WinEventLog:System` (EventCode 6005) + custom scripted input (`wevtutil gl Security`)
@@ -3990,6 +4175,7 @@ index=os sourcetype=windows:eventlog:size
 ### UC-1.2.65 · Pass-the-Hash / NTLM Relay Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Pass-the-hash attacks use stolen NTLM hashes to authenticate without knowing the password. Detecting NTLM logons from unusual sources catches this common lateral movement technique.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4624, LogonType 3, AuthenticationPackageName=NTLM)
@@ -4018,6 +4204,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType=3
 ### UC-1.2.66 · Sysmon File Creation in Suspicious Paths
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Files created in temp directories, startup folders, and system paths by unexpected processes indicate malware dropping payloads or establishing persistence.
 - **App/TA:** `Splunk_TA_windows`, Sysmon required
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 11)
@@ -4037,6 +4224,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 ### UC-1.2.67 · Golden Ticket Detection (TGT Anomalies)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Golden tickets are forged Kerberos TGTs that grant domain-wide access. Detecting anomalous TGT properties catches this catastrophic compromise.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4768, 4769)
@@ -4061,6 +4249,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4768 TicketEncrypt
 ### UC-1.2.68 · NTFS Corruption and Self-Healing
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** NTFS corruption can cause data loss, application failures, and boot issues. Self-healing events indicate disk degradation that will worsen.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (Source=Ntfs, EventCode 55, 98, 137, 140)
@@ -4080,6 +4269,7 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Ntfs" EventCode IN (55
 ### UC-1.2.69 · Page File Usage & Exhaustion
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Page file exhaustion prevents new process creation and causes "out of virtual memory" errors. System-managed page files can grow to fill the disk.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:Paging_File` (counter: % Usage, % Usage Peak)
@@ -4106,6 +4296,7 @@ index=perfmon sourcetype="Perfmon:Paging_File" counter="% Usage" instance="_Tota
 ### UC-1.2.70 · Context Switch Rate Anomalies
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Abnormally high context switch rates indicate excessive threading, poor application design, or kernel-mode driver issues. Degrades overall system performance.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:System` (counter: Context Switches/sec)
@@ -4133,6 +4324,7 @@ index=perfmon sourcetype="Perfmon:System" counter="Context Switches/sec"
 ### UC-1.2.71 · Scheduled Task Creation (Persistence)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Security
 - **Value:** Scheduled tasks are a common persistence mechanism for malware. New tasks created outside change management warrant investigation.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4698), `sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 106)
@@ -4161,6 +4353,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4698
 ### UC-1.2.72 · WinRM / Remote PowerShell Connections
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** WinRM enables remote command execution via PowerShell Remoting. Monitoring inbound WinRM sessions detects lateral movement and unauthorized remote management.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-WinRM/Operational` (EventCode 6, 91, 161)
@@ -4181,6 +4374,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-WinRM/Operational"
 ### UC-1.2.73 · LDAP Query Performance (DC Health)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Slow LDAP queries on domain controllers degrade authentication, group policy processing, and application lookups across the entire domain.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:NTDS` (counters: LDAP Searches/sec, LDAP Successful Binds/sec, LDAP Search Time)
@@ -4205,6 +4399,7 @@ index=perfmon sourcetype="Perfmon:NTDS" counter IN ("LDAP Searches/sec","LDAP Su
 ### UC-1.2.74 · Hyper-V VM State Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Unexpected VM power state changes (shutdowns, paused, critical saves) indicate host issues, resource contention, or unauthorized administrative actions.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` (EventCode 12320, 12322, 12324, 18304)
@@ -4232,6 +4427,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Hyper-V-VMMS*"
 ### UC-1.2.75 · AD Certificate Services (ADCS) Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** ADCS misconfigurations enable privilege escalation (ESC1-ESC8 attacks). Monitoring certificate requests catches unauthorized certificate enrollment for domain admin impersonation.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888)
@@ -4252,6 +4448,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4886, 4887, 48
 ### UC-1.2.76 · AdminSDHolder Modification
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
 - **Value:** The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 5136)
@@ -4279,6 +4476,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 ### UC-1.2.77 · SPN Modification (Targeted Kerberoasting)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Attackers add SPNs to admin accounts to make them Kerberoastable. Monitoring SPN changes on sensitive accounts catches this setup before the actual attack.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 5136, attribute servicePrincipalName)
@@ -4306,6 +4504,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 ### UC-1.2.78 · DSRM Account Usage
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** The Directory Services Restore Mode (DSRM) account is a local admin on every DC with a rarely-changed password. Its use outside restores indicates compromise.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4794, 4624 with DSRM)
@@ -4326,6 +4525,7 @@ index=wineventlog sourcetype="WinEventLog:Security"
 ### UC-1.2.79 · Sysmon DNS Query Logging
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Per-process DNS query logging reveals which applications communicate with which domains. Detects DGA, C2 callbacks, and data exfiltration at the endpoint level.
 - **App/TA:** `Splunk_TA_windows`, Sysmon required
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 22)
@@ -4346,6 +4546,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 ### UC-1.2.80 · Windows Backup Job Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
 - **Value:** Windows Server Backup failures mean the server has no recovery point. Silent failures create a false sense of protection.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Backup` (EventCode 4, 5, 8, 9, 14, 17, 22)
@@ -4366,6 +4567,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Backup"
 ### UC-1.2.81 · SMBv1 Usage Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** SMBv1 is vulnerable to EternalBlue and WannaCry. Detecting remaining SMBv1 traffic identifies systems that need upgrading or have SMBv1 re-enabled.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-SMBServer/Audit` (EventCode 3000)
@@ -4384,6 +4586,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-SMBServer/Audit" EventCo
 ### UC-1.2.82 · Credential Guard Status Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Credential Guard protects NTLM hashes and Kerberos tickets in an isolated container. Monitoring ensures it remains enabled and isn't bypassed.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-DeviceGuard/Operational` (EventCode 13, 14, 15)
@@ -4412,6 +4615,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-DeviceGuard*"
 ### UC-1.2.83 · Boot Configuration Changes (BCDEdit)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Boot configuration changes can disable Secure Boot, enable test signing (rootkit loading), or modify boot chain integrity. Used by advanced threats.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4688, CommandLine containing bcdedit)
@@ -4439,6 +4643,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4688
 ### UC-1.2.84 · Sysmon Named Pipe Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Named pipes are used for inter-process communication and by tools like Cobalt Strike, Mimikatz, and PsExec. Detecting unusual named pipes reveals C2 and lateral movement.
 - **App/TA:** `Splunk_TA_windows`, Sysmon required
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18)
@@ -4459,6 +4664,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 ### UC-1.2.85 · IIS Application Pool Crashes & Recycling
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Application pool crashes cause HTTP 503 errors and service outages. Frequent recycling indicates memory leaks or configuration issues in web applications.
 - **App/TA:** `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS
 - **Data Sources:** `sourcetype=WinEventLog:System` (Source=WAS, EventCode 5002, 5010, 5011, 5012, 5013)
@@ -4486,6 +4692,7 @@ index=wineventlog sourcetype="WinEventLog:System" Source="WAS"
 ### UC-1.2.86 · NTLM Audit and Restriction Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** NTLM is a legacy authentication protocol vulnerable to relay attacks. Auditing NTLM usage identifies applications and systems that need migration to Kerberos.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4776), `sourcetype=WinEventLog:Microsoft-Windows-NTLM/Operational` (EventCode 8001, 8003, 8004)
@@ -4513,6 +4720,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-NTLM/Operational"
 ### UC-1.2.87 · DPAPI Credential Backup (DC)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Data Protection API master key backup to domain controllers enables credential theft. Abnormal DPAPI backup activity from unexpected accounts indicates compromise.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4692, 4693)
@@ -4540,6 +4748,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4692, 4693)
 ### UC-1.2.88 · Windows Search Indexer Issues
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** Search Indexer crashes and high resource usage affect file server performance and SharePoint crawling. Index corruption requires full rebuild.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Application` (Source=Windows Search Service, EventCode 3028, 3036, 7010, 7040, 7042)
@@ -4560,6 +4769,7 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="Windows Search Se
 ### UC-1.2.89 · System Uptime & Unexpected Restarts
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
 - **Value:** Unexpected restarts indicate BSOD, power loss, forced reboots, or patch installations. Tracking uptime reveals instability patterns and unauthorized maintenance.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (EventCode 6005, 6006, 6008, 6009, 1074)
@@ -4579,6 +4789,7 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode IN (6005, 6006, 6008
 ### UC-1.2.90 · Shadow Copy Deletion (Ransomware Indicator)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Ransomware deletes volume shadow copies to prevent file recovery. Detecting vssadmin/wmic shadow deletion commands is a high-confidence ransomware indicator.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4688), `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 1)
@@ -4598,6 +4809,7 @@ index=wineventlog EventCode IN (4688, 1)
 ### UC-1.2.91 · USB / Removable Device Auditing
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Removable storage devices are a data exfiltration vector. Auditing device connections enables DLP and compliance enforcement.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 6416), `sourcetype=WinEventLog:Microsoft-Windows-DriverFrameworks-UserMode/Operational`
@@ -4618,6 +4830,7 @@ index=wineventlog EventCode=6416
 ### UC-1.2.92 · Remote Desktop Gateway Session Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** RD Gateway is the entry point for remote workers. Monitoring session lifecycle detects unauthorized access, session hijacking, and resource abuse.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`
@@ -4637,6 +4850,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-Gateway
 ### UC-1.2.93 · Group Policy Object (GPO) Modification Auditing
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** GPO changes affect all domain-joined systems. Unauthorized GPO modifications can deploy malware, weaken security, or exfiltrate credentials at scale.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 5136, 5137)
@@ -4663,6 +4877,7 @@ index=wineventlog EventCode IN (5136, 5137) ObjectClass="groupPolicyContainer"
 ### UC-1.2.94 · Windows Subsystem for Linux (WSL) Activity
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** WSL can be abused to run Linux-based attack tools while evading Windows-focused security tooling. Monitoring WSL activity closes this visibility gap.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 1), `sourcetype=WinEventLog:Security` (EventCode 4688)
@@ -4682,6 +4897,7 @@ index=wineventlog (EventCode=1 OR EventCode=4688)
 ### UC-1.2.95 · Windows Container Health Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Availability
 - **Value:** Windows containers running on Server 2019+ need monitoring for resource limits, failures, and networking issues to ensure application availability.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-Compute-Operational`, `sourcetype=Perfmon:Container`
@@ -4709,6 +4925,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Hyper-V-Compute-Operatio
 ### UC-1.2.96 · DNS Server Zone Transfer Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Zone transfers expose the entire DNS namespace to attackers. Unauthorized zone transfers enable reconnaissance and must be detected immediately.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:DNS Server` (EventID 6001, 6002), `sourcetype=MSAD:NT6:DNS`
@@ -4729,6 +4946,7 @@ index=wineventlog source="WinEventLog:DNS Server" EventCode IN (6001, 6002)
 ### UC-1.2.97 · Print Spooler Vulnerability Monitoring (PrintNightmare)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Print Spooler vulnerabilities (CVE-2021-34527, CVE-2021-1675) enable remote code execution and privilege escalation. Continuous monitoring ensures patches hold and exploitation attempts are caught.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-PrintService/Operational`, `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational`
@@ -4749,6 +4967,7 @@ index=wineventlog ((source="WinEventLog:Microsoft-Windows-PrintService/Operation
 ### UC-1.2.98 · NPS / RADIUS Authentication Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Network Policy Server handles VPN, Wi-Fi, and 802.1X authentication. Monitoring NPS detects brute-force attacks, misconfigured policies, and unauthorized network access.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 6272, 6273, 6274, 6278)
@@ -4777,6 +4996,7 @@ index=wineventlog EventCode IN (6272, 6273, 6274)
 ### UC-1.2.99 · MSMQ Queue Depth Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Message queue buildup indicates application processing failures. Monitoring queue depth prevents message loss and detects downstream system outages.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:MSMQ`
@@ -4802,6 +5022,7 @@ index=perfmon source="Perfmon:MSMQ Service" counter="Total Messages in all Queue
 ### UC-1.2.100 · PKI / Certificate Authority Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** An enterprise CA issues certificates for authentication, encryption, and code signing. CA failures break SSO, VPN, Wi-Fi, and TLS across the organization.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888), `sourcetype=WinEventLog:Application`
@@ -4829,6 +5050,7 @@ index=wineventlog EventCode IN (4886, 4887, 4888, 4890, 4891, 4893)
 ### UC-1.2.101 · File Share Access Auditing (SMB)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** File share access auditing detects unauthorized data access, lateral movement via mapped drives, and ransomware encrypting network shares.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 5140, 5145)
@@ -4849,6 +5071,7 @@ index=wineventlog EventCode IN (5140, 5145)
 ### UC-1.2.102 · Software Restriction / AppLocker Bypass Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Application whitelisting is a primary defense against malware. Detecting bypass attempts reveals both sophisticated attackers and policy gaps.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/EXE and DLL`, `sourcetype=WinEventLog:Microsoft-Windows-AppLocker/MSI and Script`
@@ -4868,6 +5091,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-AppLocker*" EventCode IN
 ### UC-1.2.103 · Terminal Services / RDP Session Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** RDP is a primary lateral movement vector. Complete session tracking from logon to logoff enables detection of compromised credentials and unauthorized access.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-TerminalServices-LocalSessionManager/Operational`, `sourcetype=WinEventLog:Security`
@@ -4888,6 +5112,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSe
 ### UC-1.2.104 · Disk Latency and I/O Performance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** High disk latency directly impacts application performance and user experience. Proactive monitoring prevents performance degradation and identifies failing storage.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=Perfmon:LogicalDisk`
@@ -4915,6 +5140,7 @@ index=perfmon source="Perfmon:LogicalDisk" counter IN ("Avg. Disk sec/Read", "Av
 ### UC-1.2.105 · Windows Defender Exclusion Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Attackers add Defender exclusions to hide malware. Monitoring exclusion changes detects evasion techniques and ensures antivirus coverage remains complete.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventID 5007)
@@ -4935,6 +5161,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 ### UC-1.2.106 · Local Administrator Group Membership Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Local admin privileges enable credential theft, persistence, and lateral movement. Monitoring local admin group changes detects privilege escalation attacks.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4732, 4733)
@@ -4962,6 +5189,7 @@ index=wineventlog EventCode IN (4732, 4733) TargetUserName="Administrators"
 ### UC-1.2.107 · DFS Replication Health Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
 - **Value:** DFS-R synchronizes SYSVOL and shared folders across domain controllers and file servers. Replication failures cause inconsistent GPOs and stale data.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:DFS Replication`
@@ -4981,6 +5209,7 @@ index=wineventlog source="WinEventLog:DFS Replication" EventCode IN (4012, 4302,
 ### UC-1.2.108 · Kerberos Constrained Delegation Abuse
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Kerberos delegation allows services to impersonate users. Misconfigured or compromised delegation targets enable privilege escalation to domain admin.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4769, 5136)
@@ -5009,6 +5238,7 @@ index=wineventlog EventCode=4769 TransitionedServices!=""
 ### UC-1.2.109 · Windows Time Service (W32Time) Drift
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
 - **Value:** Kerberos authentication fails when clock skew exceeds 5 minutes. Time drift breaks authentication, log correlation, and forensic timelines.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (Source=Microsoft-Windows-Time-Service)
@@ -5035,6 +5265,7 @@ index=wineventlog source="WinEventLog:System" SourceName="Microsoft-Windows-Time
 ### UC-1.2.110 · PowerShell Constrained Language Mode Bypass
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Constrained Language Mode limits PowerShell attack surface. Detecting bypasses reveals attackers escalating from restricted to full-language mode for malware execution.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-PowerShell/Operational` (EventCode 4104), `sourcetype=WinEventLog:Windows PowerShell`
@@ -5054,6 +5285,7 @@ index=wineventlog EventCode=4104
 ### UC-1.2.111 · Windows Firewall Rule Tampering
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Attackers disable or modify firewall rules to enable lateral movement, C2 communication, and data exfiltration. Rule changes outside maintenance windows indicate compromise.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Windows Firewall With Advanced Security/Firewall` (EventCode 2004, 2005, 2006, 2033)
@@ -5073,6 +5305,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Firewall With Ad
 ### UC-1.2.112 · BITS Transfer Abuse Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Background Intelligent Transfer Service (BITS) is abused by malware for stealthy downloads and persistence. Monitoring BITS jobs detects LOLBin-based attacks.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Bits-Client/Operational`
@@ -5093,6 +5326,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Bits-Client/Operational"
 ### UC-1.2.113 · COM Object Hijacking Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** COM hijacking replaces legitimate COM objects with malicious ones for persistence and privilege escalation. It's a stealthy technique that survives reboots.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 13)
@@ -5113,6 +5347,7 @@ index=wineventlog EventCode=13 TargetObject="*\\Classes\\CLSID\\*\\InprocServer3
 ### UC-1.2.114 · LSASS Memory Protection Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** LSASS contains credentials in memory. Monitoring LSASS access attempts and protection status detects credential dumping tools like Mimikatz.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 10), `sourcetype=WinEventLog:Security`
@@ -5134,6 +5369,7 @@ index=wineventlog EventCode=10 TargetImage="*\\lsass.exe"
 ### UC-1.2.115 · Logon Session Anomalies (Type 3 / Network Logon)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Network logons (Type 3) from unexpected sources indicate lateral movement with stolen credentials. Baselining normal patterns reveals compromised accounts.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4624)
@@ -5162,6 +5398,7 @@ index=wineventlog EventCode=4624 Logon_Type=3
 ### UC-1.2.116 · WMI Persistence Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** WMI event subscriptions provide fileless persistence that survives reboots. Detecting WMI persistence reveals advanced persistent threats.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 19, 20, 21)
@@ -5182,6 +5419,7 @@ index=wineventlog EventCode IN (19, 20, 21)
 ### UC-1.2.117 · NIC Teaming & Network Adapter Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** NIC teaming provides network redundancy for servers. Adapter failures reduce redundancy and can cause outages if the remaining NIC also fails.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-NlbMgr/Operational`, `sourcetype=WinEventLog:System`
@@ -5208,6 +5446,7 @@ index=wineventlog source="WinEventLog:System" SourceName IN ("Microsoft-Windows-
 ### UC-1.2.118 · ASR (Attack Surface Reduction) Rule Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** ASR rules block common attack techniques (Office macro code, credential theft, ransomware). Monitoring ASR ensures rules are enforced and detects blocked attacks.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventID 1121, 1122)
@@ -5228,6 +5467,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 ### UC-1.2.119 · Registry Run Key Persistence Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
 - **Value:** Registry Run keys are the most common persistence mechanism for malware. Monitoring autostart registry locations detects new malware installations.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 13)
@@ -5255,6 +5495,7 @@ index=wineventlog EventCode=13
 ### UC-1.2.120 · BitLocker Recovery & Compliance Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
 - **Value:** BitLocker protects data at rest. Monitoring recovery events detects unauthorized hardware changes, and compliance tracking ensures all endpoints are encrypted.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-BitLocker/BitLocker Management` (EventCode 770, 771, 773, 774, 775)
@@ -5274,6 +5515,7 @@ index=wineventlog source="*BitLocker*" EventCode IN (770, 771, 773, 774, 775, 77
 ### UC-1.2.121 · DNS Client Query Anomalies
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Monitoring DNS queries from Windows clients reveals C2 beacons, DNS tunneling, and DGA-based malware communicating with attacker infrastructure.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 22), `sourcetype=WinEventLog:Microsoft-Windows-DNS-Client/Operational`
@@ -5297,6 +5539,7 @@ index=wineventlog EventCode=22
 ### UC-1.2.122 · Local Account Creation & Modification
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Creating local accounts is a persistence technique. On domain-joined systems, local account creation is rare and suspicious.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4720, 4722, 4724, 4738)
@@ -5323,6 +5566,7 @@ index=wineventlog EventCode IN (4720, 4722, 4724, 4738) NOT TargetDomainName IN 
 ### UC-1.2.123 · Token Manipulation / Privilege Escalation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Token manipulation (impersonation, token duplication) allows attackers to escalate privileges. Detecting abuse of SeImpersonatePrivilege catches potato-style attacks.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4673, 4674)
@@ -5350,6 +5594,7 @@ index=wineventlog EventCode IN (4673, 4674) PrivilegeList IN ("SeImpersonatePriv
 ### UC-1.2.124 · Process Injection Detection (Sysmon)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
+- **Monitoring type:** Security
 - **Value:** Process injection hides malicious code inside legitimate processes. Detecting injection techniques (CreateRemoteThread, APC, process hollowing) catches advanced malware.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 8, 10)
@@ -5371,6 +5616,7 @@ index=wineventlog EventCode=8
 ### UC-1.2.125 · Cluster Shared Volume (CSV) Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Cluster Shared Volumes underpin Hyper-V and SQL Server failover clusters. CSV failures cause VM/database unavailability across the cluster.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-FailoverClustering/Operational`
@@ -5391,6 +5637,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-FailoverClustering/Opera
 ### UC-1.2.126 · DCOM Activation Failures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** DCOM failures break distributed applications, WMI remote management, and SCCM client operations. Monitoring identifies misconfigured permissions and network issues.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:System` (EventCode 10016)
@@ -5418,6 +5665,7 @@ index=wineventlog source="WinEventLog:System" EventCode=10016
 ### UC-1.2.127 · Automatic Windows Update Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** Unpatched systems are the primary attack surface. Tracking Windows Update status across all systems ensures timely patching and compliance reporting.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-WindowsUpdateClient/Operational`
@@ -5439,6 +5687,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-WindowsUpdateClient/Oper
 ### UC-1.2.128 · Service Account Logon Anomalies
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Compromised service accounts grant persistent access and often have elevated privileges. Detecting anomalous service account behavior catches credential theft early.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4624, 4625)
@@ -5469,6 +5718,7 @@ index=wineventlog EventCode=4624 Logon_Type IN (2, 10, 11)
 ### UC-1.2.129 · Sysmon Driver/Image Load Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Monitoring driver and DLL loads catches rootkits, vulnerable drivers, and DLL side-loading attacks that evade process-level monitoring.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 6, 7)
@@ -5488,6 +5738,7 @@ index=wineventlog EventCode=6 Signed="false"
 ### UC-1.2.130 · Scheduled Task Modification for Persistence
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
 - **Value:** Modifying existing scheduled tasks is stealthier than creating new ones. Attackers replace legitimate task actions to achieve persistence without new artifacts.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 140, 141, 142)
@@ -5521,6 +5772,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operationa
 ### UC-1.3.1 · System Resource Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Endpoint performance visibility helps IT support triage user complaints and identify machines needing replacement or upgrades.
 - **App/TA:** Splunk UF for macOS, custom scripted inputs
 - **Data Sources:** Custom scripted inputs (`top -l 1`, `vm_stat`, `df`)
@@ -5539,6 +5791,7 @@ index=os sourcetype=macos_top host=*
 ### UC-1.3.2 · FileVault Encryption Status
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Unencrypted endpoints are a data breach risk if lost or stolen. Compliance requirement for most security frameworks (SOC2, ISO27001, PCI).
 - **App/TA:** Splunk UF, custom scripted input
 - **Data Sources:** Custom scripted input (`fdesetup status`)
@@ -5557,6 +5810,7 @@ index=os sourcetype=macos_filevault host=*
 ### UC-1.3.3 · Gatekeeper and SIP Status
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
 - **Value:** Disabled Gatekeeper or System Integrity Protection weakens macOS security posture. May indicate developer override or tampering.
 - **App/TA:** Splunk UF, custom scripted input
 - **Data Sources:** Custom scripted inputs (`spctl --status`, `csrutil status`)
@@ -5575,6 +5829,7 @@ index=os sourcetype=macos_security host=*
 ### UC-1.3.4 · Software Update Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Unpatched macOS endpoints are vulnerable. Tracking update levels across the fleet supports vulnerability management.
 - **App/TA:** Splunk UF, custom scripted input
 - **Data Sources:** Custom scripted input (`softwareupdate -l`, `sw_vers`)
@@ -5594,6 +5849,7 @@ index=os sourcetype=macos_sw_vers host=*
 ### UC-1.3.5 · Application Crash Monitoring
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Frequent application crashes degrade user experience and may indicate malware, resource issues, or incompatible software.
 - **App/TA:** Splunk UF
 - **Data Sources:** `/Library/Logs/DiagnosticReports/*.crash`
@@ -5619,6 +5875,7 @@ index=os sourcetype=macos_crash host=*
 ### UC-1.4.1 · Hardware Sensor Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplanned downtime.
 - **App/TA:** Custom scripted input (`ipmitool`), SNMP
 - **Data Sources:** IPMI sensor data via scripted input, `sourcetype=ipmi:sensor` (custom)
@@ -5639,6 +5896,7 @@ index=hardware sourcetype=ipmi:sensor
 ### UC-1.4.2 · RAID Degradation Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** A degraded RAID has lost redundancy — another disk failure means data loss. Requires immediate attention.
 - **App/TA:** Custom scripted input (`megacli`, `storcli`, `ssacli`)
 - **Data Sources:** Custom sourcetype (RAID controller output)
@@ -5658,6 +5916,7 @@ index=hardware sourcetype=raid_status
 ### UC-1.4.3 · Power Supply Failure
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** Lost power supply redundancy means a single PSU failure away from an unplanned outage. Replacement needs to happen before the remaining PSU fails.
 - **App/TA:** Custom scripted input (`ipmitool`), SNMP, vendor management syslog (iLO/iDRAC)
 - **Data Sources:** IPMI SEL (System Event Log) via scripted input, syslog from BMC
@@ -5676,6 +5935,7 @@ index=hardware sourcetype=ipmi:sel ("Power Supply" OR "PS" OR "power_supply") ("
 ### UC-1.4.4 · Predictive Disk Failure
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** SMART attributes can predict disk failure days or weeks in advance, enabling proactive replacement during maintenance windows.
 - **App/TA:** Custom scripted input (`smartctl`)
 - **Data Sources:** Custom sourcetype (SMART data)
@@ -5695,6 +5955,7 @@ index=hardware sourcetype=smart_data
 ### UC-1.4.5 · Firmware Version Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
 - **Value:** Outdated firmware may have security vulnerabilities or known bugs. Fleet-wide firmware tracking supports patch management.
 - **App/TA:** Custom scripted input (`ipmitool`, `dmidecode`), vendor APIs
 - **Data Sources:** BMC/BIOS version data via scripted input
@@ -5715,6 +5976,7 @@ index=hardware sourcetype=firmware_inventory
 ### UC-1.4.6 · Memory ECC Error Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Correctable ECC errors that increase over time strongly predict impending DIMM failure. Proactive replacement avoids unrecoverable memory errors and system crashes.
 - **App/TA:** Custom scripted input (`edac-util`, IPMI SEL)
 - **Data Sources:** `edac-util`, `/sys/devices/system/edac/mc/`, IPMI SEL

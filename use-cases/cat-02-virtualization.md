@@ -9,6 +9,7 @@
 ### UC-2.1.1 · ESXi Host CPU Contention
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** CPU ready time measures how long a VM waits for physical CPU. High values (>5%) mean the host is overcommitted and VMs are starved for compute.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:perf:cpu`, vCenter performance metrics
@@ -36,6 +37,7 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
 ### UC-2.1.2 · ESXi Host Memory Ballooning
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** Memory ballooning means the hypervisor is reclaiming memory from VMs. Swapping at the hypervisor level is worse — causes severe VM performance degradation invisible to the guest OS.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:perf:mem`, vCenter performance metrics
@@ -64,6 +66,7 @@ index=vmware sourcetype="vmware:perf:mem" (counter="mem.vmmemctl.average" OR cou
 ### UC-2.1.3 · Datastore Capacity Trending
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
 - **Value:** A full datastore prevents VM disk writes, causing crashes and corruption. Datastores fill gradually from VM growth, snapshots, and log accumulation.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:perf:datastore` or `sourcetype=vmware:inv:datastore`
@@ -92,6 +95,7 @@ index=vmware sourcetype="vmware:inv:datastore"
 ### UC-2.1.4 · Datastore Latency Spikes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Storage latency >20ms significantly impacts VM performance. Detects SAN issues, datastore contention, or storage path problems before applications are affected.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:perf:datastore`
@@ -119,6 +123,7 @@ index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.totalReadLat
 ### UC-2.1.5 · VM Snapshot Sprawl
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Old snapshots consume datastore space exponentially, degrade VM I/O performance, and complicate backups. Snapshots >72 hours old are generally a problem.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:inv:vm` (inventory data)
@@ -140,6 +145,7 @@ index=vmware sourcetype="vmware:inv:vm" snapshot_name=*
 ### UC-2.1.6 · vMotion Tracking
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Tracks VM migrations for troubleshooting and change management. Excessive vMotion can indicate DRS instability or resource contention.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:events`, vCenter event data
@@ -158,6 +164,7 @@ index=vmware sourcetype="vmware:events" event_type="VmMigratedEvent" OR event_ty
 ### UC-2.1.7 · HA Failover Events
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
 - **Value:** HA failover means a host failed and VMs were restarted on surviving hosts. Indicates hardware failure and potential capacity risk on remaining hosts.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:events`
@@ -176,6 +183,7 @@ index=vmware sourcetype="vmware:events" (event_type="DasVmPoweredOnEvent" OR eve
 ### UC-2.1.8 · DRS Imbalance Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** DRS should keep clusters balanced. Frequent or failed DRS recommendations indicate resource constraints, affinity rule conflicts, or misconfiguration.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:events`
@@ -194,6 +202,7 @@ index=vmware sourcetype="vmware:events" event_type="DrsVmMigratedEvent"
 ### UC-2.1.9 · VM Sprawl Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
 - **Value:** Orphaned, powered-off, or idle VMs waste storage, IP addresses, backup capacity, and licenses. Regular cleanup frees significant resources.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:inv:vm`
@@ -215,6 +224,7 @@ index=vmware sourcetype="vmware:inv:vm"
 ### UC-2.1.10 · vSAN Health Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** vSAN is the storage fabric for many VMware clusters. Degraded vSAN health can cause VM data loss and cluster-wide outages.
 - **App/TA:** `TA-vmware`, vSAN health service
 - **Data Sources:** `sourcetype=vmware:perf:vsan`, vSAN health checks
@@ -234,6 +244,7 @@ index=vmware sourcetype="vmware:perf:vsan"
 ### UC-2.1.11 · ESXi Host Hardware Alerts
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** CIM-based hardware health detects physical component failures (fans, PSU, temperature) at the hypervisor level before they cause host failure.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:events` (vCenter alarms)
@@ -253,6 +264,7 @@ index=vmware sourcetype="vmware:events" (event_type="AlarmStatusChangedEvent") a
 ### UC-2.1.12 · VM Resource Over-Allocation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
 - **Value:** VMs consistently using <20% of allocated CPU/memory waste resources that other VMs could use. Right-sizing saves money and improves cluster capacity.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:perf:cpu`, `sourcetype=vmware:perf:mem`, `sourcetype=vmware:inv:vm`
@@ -281,6 +293,7 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.usage.average"
 ### UC-2.1.13 · vCenter Alarm Correlation
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Anomaly
 - **Value:** Centralizing all vCenter alarms in Splunk enables correlation with other infrastructure data, historical trending, and unified alerting.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:events`
@@ -299,6 +312,7 @@ index=vmware sourcetype="vmware:events" event_type="AlarmStatusChangedEvent"
 ### UC-2.1.14 · ESXi Patch Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Unpatched ESXi hosts have known vulnerabilities. Fleet-wide version tracking ensures consistent patching and audit compliance.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:inv:hostsystem`
@@ -319,6 +333,7 @@ index=vmware sourcetype="vmware:inv:hostsystem"
 ### UC-2.1.15 · VM Creation/Deletion Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Configuration
 - **Value:** Tracks VM lifecycle for change management compliance and resource governance. Detects unauthorized VM creation or suspicious deletions.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:events`
@@ -344,6 +359,7 @@ index=vmware sourcetype="vmware:events" (event_type="VmCreatedEvent" OR event_ty
 ### UC-2.2.1 · VM Performance Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Per-VM CPU, memory, and disk metrics identify resource contention and performance bottlenecks within the Hyper-V environment.
 - **App/TA:** `Splunk_TA_windows` (Perfmon inputs for Hyper-V counters)
 - **Data Sources:** `sourcetype=Perfmon:HyperV` (Hyper-V Virtual Machine Health Summary, Hyper-V Hypervisor Logical Processor)
@@ -369,6 +385,7 @@ index=perfmon sourcetype="Perfmon:HyperV" object="Hyper-V Hypervisor Virtual Pro
 ### UC-2.2.2 · Hyper-V Replication Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
 - **Value:** Replication lag means your DR site is behind. If replication breaks, you lose your recovery point objective (RPO).
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`
@@ -387,6 +404,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin" 
 ### UC-2.2.3 · Cluster Shared Volume Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
 - **Value:** CSV issues can cause VM storage access failures across the entire cluster. Redirected I/O mode significantly degrades performance.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-FailoverClustering/Operational`
@@ -405,6 +423,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-FailoverClustering/O
 ### UC-2.2.4 · Live Migration Tracking
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Audit trail for VM mobility. Excessive live migrations may indicate cluster imbalance or storage issues.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`
@@ -424,6 +443,7 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin" 
 ### UC-2.2.5 · Integration Services Version
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
 - **Value:** Outdated integration services cause performance issues and prevent features like time sync, heartbeat, and data exchange from working correctly.
 - **App/TA:** `Splunk_TA_windows`, custom scripted input
 - **Data Sources:** PowerShell scripted input (`Get-VMIntegrationService`)
@@ -448,6 +468,7 @@ index=hyperv sourcetype=integration_services
 ### UC-2.3.1 · Guest VM Resource Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
 - **Value:** Per-VM resource tracking for capacity planning and performance troubleshooting in KVM environments.
 - **App/TA:** Custom scripted input (`virsh domstats`)
 - **Data Sources:** Custom sourcetype from `virsh domstats` or `virt-top`
@@ -466,6 +487,7 @@ index=virtualization sourcetype=virsh_stats
 ### UC-2.3.2 · Host Overcommit Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
 - **Value:** Overcommitted KVM hosts cause all VMs to compete for resources. Unlike VMware, KVM doesn't have sophisticated DRS — manual balancing is needed.
 - **App/TA:** Custom scripted input
 - **Data Sources:** Custom sourcetype (`virsh nodeinfo` + `virsh list --all`)
@@ -486,6 +508,7 @@ index=virtualization sourcetype=kvm_capacity
 ### UC-2.3.3 · VM Lifecycle Events
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
 - **Value:** Audit trail for VM start, stop, migrate, and crash events. Essential for troubleshooting and change management in open-source virtualization.
 - **App/TA:** Syslog, libvirt logs
 - **Data Sources:** `/var/log/libvirt/`, syslog

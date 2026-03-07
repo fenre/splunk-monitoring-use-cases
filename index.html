@@ -331,6 +331,38 @@ header {
   font-family: 'JetBrains Mono', monospace;
   white-space: nowrap;
 }
+.uc-mtype-tag {
+  font-size: 10px; padding: 3px 8px; border-radius: 6px;
+  background: rgba(120,150,220,0.12); color: #7B9CD4;
+  border: 1px solid rgba(120,150,220,0.25);
+  white-space: nowrap;
+}
+
+/* Monitoring type filter row (Network category) */
+.mtype-filter-wrap {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 16px; padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.mtype-filter-wrap .mtype-label {
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  flex-shrink: 0;
+}
+.mtype-filter-chip {
+  font-size: 12px; padding: 6px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-dim); cursor: pointer;
+  transition: all 0.2s ease;
+}
+.mtype-filter-chip:hover {
+  background: rgba(255,255,255,0.08); color: var(--text);
+}
+.mtype-filter-chip.active {
+  background: rgba(120,150,220,0.15);
+  border-color: rgba(120,150,220,0.35);
+  color: #7B9CD4;
+}
 
 /* Detail modal */
 .modal-overlay {
@@ -757,6 +789,7 @@ DATA.forEach(cat => {
 let currentCat = null;
 let currentFilter = 'all';
 let currentDiffFilter = 'all';
+let currentMtypeFilter = 'all';
 let currentSearch = '';
 let currentUCIdx = -1;
 
@@ -986,6 +1019,42 @@ function filterBtns() {
   return html;
 }
 
+function getMtypeFilterBtns(catId, resultsForTypes) {
+  const types = new Set();
+  if (resultsForTypes && resultsForTypes.length) {
+    resultsForTypes.forEach(e => {
+      const uc = e.uc || e;
+      if (Array.isArray(uc.mtype)) uc.mtype.forEach(t => types.add(t));
+    });
+  } else if (catId != null) {
+    const cat = DATA.find(c => c.i === catId);
+    if (cat) cat.s.forEach(sc => sc.u.forEach(uc => {
+      if (Array.isArray(uc.mtype)) uc.mtype.forEach(t => types.add(t));
+    }));
+  }
+  if (types.size === 0) return '';
+  const order = ['Availability','Performance','Security','Configuration','Capacity','Fault','Anomaly','Compliance'];
+  const sorted = [...types].sort((a,b) => {
+    const ia = order.indexOf(a); const ib = order.indexOf(b);
+    if (ia >= 0 && ib >= 0) return ia - ib;
+    if (ia >= 0) return -1; if (ib >= 0) return 1;
+    return a.localeCompare(b);
+  });
+  let html = '<div class="mtype-filter-wrap"><span class="mtype-label">Monitoring type:</span>';
+  html += '<button class="mtype-filter-chip' + (currentMtypeFilter==='all'?' active':'') + '" data-mtype="all" onclick="setMtypeFilter(this.dataset.mtype)">All</button>';
+  sorted.forEach(t => {
+    html += '<button class="mtype-filter-chip' + (currentMtypeFilter===t?' active':'') + '" data-mtype="' + escHtml(t) + '" onclick="setMtypeFilter(this.dataset.mtype)">' + escHtml(t) + '</button>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function setMtypeFilter(mtype) {
+  currentMtypeFilter = mtype;
+  if (currentSearch) renderSearchResults();
+  else if (currentCat !== null) renderCategory(currentCat);
+}
+
 // Render category
 function renderCategory(catId) {
   const cat = DATA.find(c => c.i === catId);
@@ -998,11 +1067,13 @@ function renderCategory(catId) {
   html += '<span>' + count + ' use cases</span></div></div>';
 
   html += '<div class="filter-bar">' + filterBtns() + '</div>';
+  html += getMtypeFilterBtns(catId);
 
   cat.s.forEach(sc => {
     let ucs = sc.u;
     if (currentFilter !== 'all') ucs = ucs.filter(u => u.c === currentFilter);
     if (currentDiffFilter !== 'all') ucs = ucs.filter(u => u.f === currentDiffFilter);
+    if (currentMtypeFilter !== 'all') ucs = ucs.filter(u => Array.isArray(u.mtype) && u.mtype.includes(currentMtypeFilter));
     if (currentSearch) {
       const q = currentSearch.toLowerCase();
       ucs = ucs.filter(u =>
@@ -1039,10 +1110,12 @@ function renderUCCard(uc) {
   html += '</div>';
   html += '<div class="uc-value">' + escHtml(uc.v) + '</div>';
   const cimModels = Array.isArray(uc.a) ? uc.a : null;
-  if (ta || cimModels) {
+  const mtypes = Array.isArray(uc.mtype) ? uc.mtype : null;
+  if (ta || cimModels || mtypes) {
     html += '<div class="uc-tags">';
     if (ta) html += '<span class="uc-tag">' + escHtml(ta.substring(0,40)) + '</span>';
     if (cimModels) html += '<span class="uc-cim-tag">⚡ ' + cimModels.join(', ') + '</span>';
+    if (mtypes) mtypes.forEach(t => { html += '<span class="uc-mtype-tag">' + escHtml(t) + '</span>'; });
     html += '</div>';
   }
   html += '</div>';
@@ -1059,14 +1132,18 @@ function renderSearchResults() {
       u.t.toLowerCase().includes(q) || u.d.toLowerCase().includes(q) ||
       u.m.toLowerCase().includes(q) || e.cat.n.toLowerCase().includes(q) ||
       e.sc.n.toLowerCase().includes(q) ||
-      (Array.isArray(u.a) && u.a.join(' ').toLowerCase().includes(q));
+      (Array.isArray(u.a) && u.a.join(' ').toLowerCase().includes(q)) ||
+      (Array.isArray(u.mtype) && u.mtype.join(' ').toLowerCase().includes(q));
   });
   if (currentFilter !== 'all') results = results.filter(e => e.uc.c === currentFilter);
   if (currentDiffFilter !== 'all') results = results.filter(e => e.uc.f === currentDiffFilter);
+  const resultsBeforeMtype = results.slice();
+  if (currentMtypeFilter !== 'all') results = results.filter(e => Array.isArray(e.uc.mtype) && e.uc.mtype.includes(currentMtypeFilter));
 
   let html = '<div class="cat-header glass"><h2>Search: "' + escHtml(currentSearch) + '"</h2>';
   html += '<div class="cat-meta"><span>' + results.length + ' results</span></div></div>';
   html += '<div class="filter-bar">' + filterBtns() + '</div>';
+  html += getMtypeFilterBtns(null, resultsBeforeMtype);
 
   if (results.length === 0) {
     html += '<div class="no-results"><div class="big">&#128270;</div><p>No use cases match your search</p></div>';
@@ -1132,6 +1209,9 @@ function renderModal(entry) {
   html += '<div class="meta-item"><h4>Data Sources</h4><p>' + escHtml(uc.d||'—') + '</p></div>';
   const cimVal = Array.isArray(uc.a) ? uc.a.join(', ') : (uc.a || 'N/A');
   html += '<div class="meta-item"><h4>CIM Data Model</h4><p>' + (cimVal === 'N/A' ? '<span style="color:var(--text-dim)">N/A</span>' : '<span style="color:var(--accent);font-family:JetBrains Mono,monospace;font-size:12px">⚡ ' + escHtml(cimVal) + '</span>') + '</p></div>';
+  if (Array.isArray(uc.mtype) && uc.mtype.length) {
+    html += '<div class="meta-item"><h4>Monitoring type</h4><p>' + uc.mtype.map(t => '<span class="uc-mtype-tag" style="margin-right:4px">' + escHtml(t) + '</span>').join('') + '</p></div>';
+  }
   html += '</div>';
 
   if (uc.q) {
@@ -1185,6 +1265,7 @@ function selectCat(id) {
   currentCat = id;
   currentSubcat = null;
   currentSearch = '';
+  currentMtypeFilter = 'all';
   document.getElementById('search').value = '';
   buildSidebar();
   if (id === null) renderOverview();
