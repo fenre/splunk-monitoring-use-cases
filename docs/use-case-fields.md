@@ -12,10 +12,14 @@ Use cases in this repo support the following optional fields. All are optional u
 | App/TA | **App/TA:** | Splunk Add-ons or apps. |
 | Data Sources | **Data Sources:** | Log/metric sources. |
 | SPL | **SPL:** | Splunk search (in a ```spl block). |
-| Implementation | **Implementation:** | How to deploy and operate. |
+| Implementation | **Implementation:** | How to deploy and operate (short summary). |
+| Detailed implementation | **Detailed implementation:** | Optional. Multi-line step-by-step instructions; shown in the dashboard as “View more detailed instructions”. If omitted, build.py generates a standard set from the other fields. |
+| Script example | **Script example:** | Optional. For scripted-input use cases: add a code block after this line with the script. Shown in the modal and in detailed instructions. See [Implementation guide](implementation-guide.md). |
 | Visualization | **Visualization:** | Suggested dashboards/charts. |
-| CIM Models | **CIM Models:** | Data model names (comma-separated). |
-| CIM SPL | **CIM SPL:** | tstats/accelerated query (optional). |
+| CIM Models | **CIM Models:** | Splunk CIM data model names the use case relies on (comma-separated, e.g. `Performance`, `Network_Traffic`, `Change`). See [CIM and data models](cim-and-data-models.md). |
+| Data model acceleration | **Data model acceleration:** | Optional. Short note for implementers (e.g. "Enable for Performance, Network_Traffic" or "Required for tstats; summary range ≥30d"). Shown with CIM in the dashboard; [DMA docs](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels). |
+| Schema | **Schema:** or **OCSF:** | Optional. Schema context: `CIM`, `OCSF`, or e.g. `OCSF: authentication` when the use case aligns with [OCSF](https://schema.ocsf.io/). |
+| CIM SPL | **CIM SPL:** | tstats/accelerated query (optional). Requires the listed CIM models to be populated and accelerated. |
 | Monitoring type | **Monitoring type:** | Availability, Performance, Security, etc. (comma-separated). |
 
 ## SSE-aligned fields (optional)
@@ -44,8 +48,8 @@ These match [Splunk Security Essentials](https://github.com/splunk/security_cont
 
 ### Where to add them
 
-- **Security (cat-10):** All of these are relevant; add where you have the information (especially for 10.1–10.8 and any hand-written 10.9 UCs).
-- **Other categories:** Use when applicable (e.g. References, Known false positives for any detection-style use case; MITRE/Detection type/Security domain only for security-focused UCs).
+- **Security (cat-10):** All of these are relevant; add where you have the information (10.1–10.9, including ESCU).
+- **Other categories:** Use when applicable. **References** (vendor/Splunk docs) and **Known false positives** (tuning context) are recommended for any use case where they add value. Detection type and Security domain are most relevant to security-focused UCs but can be used in others (e.g. cloud, IAM). Enrich non-security use cases with these fields where relevant so the repo stays consistent.
 
 ### Backfilling 10.9.x from security_content
 

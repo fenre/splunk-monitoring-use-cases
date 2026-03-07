@@ -23,6 +23,7 @@ index=os sourcetype=cpu host=*
 - **Implementation:** Install Splunk_TA_nix on Universal Forwarders. Enable the `cpu` scripted input in `inputs.conf` (`[script://./bin/cpu.sh]`, interval=60). The cpu sourcetype provides fields: `pctUser`, `pctSystem`, `pctIowait`, `pctIdle`, etc. Create an alert for sustained >90% over 15 minutes using a rolling window.
 - **Visualization:** Line chart (timechart by host), Single value panels for current/peak CPU, Table of hosts exceeding threshold.
 - **CIM Models:** Performance
+- **Data model acceleration:** Enable acceleration for the Performance data model; set summary range to cover your alert window (e.g. 30 days).
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
@@ -30,6 +31,8 @@ index=os sourcetype=cpu host=*
   by Performance.host span=1h
 | where avg_cpu > 90
 ```
+- **References:** [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833), [inputs.conf](https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf)
+- **Known false positives:** Sustained high CPU during backups, batch jobs, or maintenance; correlate with change windows.
 
 ---
 
@@ -73,7 +76,7 @@ index=os sourcetype=df host=*
 | where current_pct > 85
 | sort -current_pct
 
-| `` Forecasting version: ``
+| comment "Forecasting version (optional)"
 index=os sourcetype=df host=myserver Filesystem="/dev/sda1"
 | timechart span=1d avg(UsePct) as disk_pct
 | predict disk_pct as predicted future_timespan=30
@@ -487,7 +490,7 @@ index=os sourcetype=syslog ("Initializing cgroup subsys" OR "Linux version" OR "
 | eval hours_since_boot = round((now() - last_boot) / 3600, 1)
 | sort hours_since_boot
 
-| `` Cross-reference with maintenance windows: ``
+| comment "Cross-reference with maintenance windows"
 | join host [| inputlookup maintenance_windows.csv | where status="approved"]
 ```
 - **Implementation:** Forward syslog. Detect boot-up log patterns. Cross-reference boot times with maintenance window lookups to flag unplanned reboots. Alert on any reboot outside approved windows.
@@ -2919,7 +2922,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType=10
 | table _time TargetUserName IpAddress host
 | sort -_time
 
-| `` Also check TerminalServices for session duration: ``
+| comment "Also check TerminalServices for session duration"
 index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSessionManager/Operational" (EventCode=21 OR EventCode=23 OR EventCode=24 OR EventCode=25)
 | table _time host User EventCode
 ```
@@ -2981,7 +2984,7 @@ index=wineventlog sourcetype="WinEventLog:DNS Server"
 | stats count by EventCode
 | sort -count
 
-| `` Query volume trending: ``
+| comment "Query volume trending"
 index=dns sourcetype="MSAD:NT6:DNS"
 | timechart span=5m count as query_count by QTYPE
 ```
@@ -3044,7 +3047,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" (EventCode=1864 OR 
 | table _time host EventCode Message
 | sort -_time
 
-| `` Replication health from scripted input: ``
+| comment "Replication health from scripted input"
 index=ad sourcetype=repadmin_replsummary
 | where failures > 0
 | table source_dc dest_dc failures last_failure last_success
@@ -4161,7 +4164,7 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=1101
 | stats count by host, Channel
 | sort -count
 
-| `` Alternatively via scripted input: ``
+| comment "Alternatively via scripted input"
 index=os sourcetype=windows:eventlog:size
 | where used_pct > 90
 | table _time, host, log_name, current_size_MB, max_size_MB, used_pct
@@ -4236,7 +4239,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769
 | table _time, host, TargetUserName, ServiceName, IpAddress, TicketEncryptionType
 | sort -_time
 
-| `` Also detect TGT requests with RC4 from non-standard IPs: ``
+| comment "Also detect TGT requests with RC4 from non-standard IPs"
 index=wineventlog sourcetype="WinEventLog:Security" EventCode=4768 TicketEncryptionType=0x17
 | stats count by TargetUserName, IpAddress
 ```

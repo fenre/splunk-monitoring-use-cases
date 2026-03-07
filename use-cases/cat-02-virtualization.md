@@ -21,6 +21,9 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
 | where avg_ready > 5
 | sort -avg_ready
 ```
+- **References:** [Splunk Add-on for VMware](https://splunkbase.splunk.com/app/2913), [vSphere API](https://developer.vmware.com/)
+- **Known false positives:** Short CPU ready spikes during boot or cloning; tune threshold or use rolling average.
+
 - **Implementation:** Install TA-vmware on a heavy forwarder or search head. Configure a vCenter service account with read-only permissions. Set up the VMware data collection in the TA (vCenter IP, credentials, collection interval). The TA pulls performance data via the vSphere API. Alert when CPU ready exceeds 5% per VM.
 - **Visualization:** Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).
 - **CIM Models:** Performance

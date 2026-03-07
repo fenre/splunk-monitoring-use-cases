@@ -20,6 +20,11 @@ index=aws sourcetype="aws:cloudtrail" errorCode="AccessDenied" OR errorCode="Una
 | where count > 5
 | sort -count
 ```
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876), [AWS CloudTrail](https://docs.aws.amazon.com/awscloudtrail/)
+- **Known false positives:** Legitimate access denied for least-privilege testing or new IAM policies; verify with change management.
+- **Detection type:** TTP
+- **Security domain:** cloud
+
 - **Implementation:** Configure CloudTrail to send logs to an S3 bucket. Set up the Splunk_TA_aws with an SQS-based S3 input for CloudTrail. Alert when a single principal gets >5 access denied errors in 10 minutes.
 - **Visualization:** Table (principal, API call, source IP, count), Bar chart by principal, Map (source IP GeoIP).
 - **CIM Models:** Change

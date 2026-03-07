@@ -52231,7 +52231,3 @@ index=certificates sourcetype="ct_log"
 - **References:** https://www.mnemonic.io/resources/blog/introducing-snicat/, https://github.com/mnemonic-no/SNIcat, https://attack.mitre.org/techniques/T1041/
 - **MITRE ATT&CK:** T1041, Splunk Enterprise, Splunk Enterprise Security, Splunk Cloud
 - **Detection type:** system
-
----
-
----

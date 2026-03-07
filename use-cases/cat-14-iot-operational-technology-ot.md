@@ -265,7 +265,7 @@ index=ot sourcetype="ics_firewall"
   span=5m by extracted_host
 | where avg_temp > 35 OR avg_temp < 10
 
-`` Anomaly query: ``
+| comment "Anomaly query"
 | mstats count where index=edge-hub-anomalies AND metric_name=temperature AND type="anomaly-detector"
   span=1h by extracted_host
 | where count > 0
@@ -290,7 +290,7 @@ index=ot sourcetype="ics_firewall"
   span=5m by metric_name, extracted_host
 | eval rms = sqrt(pow(avg_accel, 2))
 
-`` Anomaly-based approach: ``
+| comment "Anomaly-based approach"
 | mstats count where index=edge-hub-anomalies AND metric_name="accelerometer*" AND type="anomaly-detector"
   span=1h by extracted_host
 | where count > 0
@@ -315,7 +315,7 @@ index=ot sourcetype="ics_firewall"
   span=15m by metric_name, extracted_host
 | where metric_name="iaq_score" AND avg_iaq > 200
 
-`` Combined with humidity for comfort index: ``
+| comment "Combined with humidity for comfort index"
 | mstats avg(_value) as value
   where index=edge-hub-data AND metric_name IN (voc, humidity, temperature)
   span=15m by metric_name, extracted_host
@@ -340,7 +340,7 @@ index=ot sourcetype="ics_firewall"
   span=5m by extracted_host
 | where avg_db > 85
 
-`` Anomaly detection: ``
+| comment "Anomaly detection"
 | mstats count where index=edge-hub-anomalies AND metric_name=sound_level AND type="anomaly-detector"
   span=1h by extracted_host
 | where count > 0
@@ -360,12 +360,12 @@ index=ot sourcetype="ics_firewall"
 - **Data Sources:** `index=edge-hub-data` (metrics from MQTT topics), `index=edge-hub-logs sourcetype=splunk_edge_hub_log` (broker logs)
 - **SPL:**
 ```spl
-`` Metrics from MQTT-connected sensors: ``
+| comment "Metrics from MQTT-connected sensors"
 | mstats avg(_value) as avg_v
   where index=edge-hub-data AND metric_name=temperature_celsius
   span=1m by extracted_host
 
-`` Broker health via device logs: ``
+| comment "Broker health via device logs"
 index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" OR "broker"
 | stats count by log_level, message
 ```
@@ -388,7 +388,7 @@ index=edge-hub-snmp hub_name="datacenter-eh-01" sourcetype=edge_hub
 | stats latest(value) as current by oid_alias
 | table oid_alias, current
 
-`` Monitor polling health: ``
+| comment "Monitor polling health"
 index=edge-hub-logs sourcetype=splunk_edge_hub_log "snmp" ("timeout" OR "unreachable")
 | stats count by host, message
 ```
@@ -407,13 +407,13 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "snmp" ("timeout" OR "unreach
 - **Data Sources:** `index=edge-hub-health sourcetype=edge_hub` (device health metrics), `index=edge-hub-logs sourcetype=splunk_edge_hub_log` (system logs)
 - **SPL:**
 ```spl
-`` Device resource health: ``
+| comment "Device resource health"
 index=edge-hub-health sourcetype=edge_hub
 | stats latest(cpu_usage) as CPU, latest(memory_usage) as Memory,
         latest(disk_usage) as Disk by host
 | eval Health=if(CPU<80 AND Memory<80 AND Disk<80, "Healthy", "Warning")
 
-`` Connectivity and forwarding issues: ``
+| comment "Connectivity and forwarding issues"
 index=edge-hub-logs sourcetype=splunk_edge_hub_log
   ("connection" OR "unreachable" OR "timeout")
 | timechart count by log_level

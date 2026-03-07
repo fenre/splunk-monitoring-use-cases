@@ -46,6 +46,88 @@ CAT_GROUPS = {
 }
 
 
+# Link to the common implementation guide (apps, inputs.conf, Splunk directory)
+IMPLEMENTATION_GUIDE_LINK = "docs/implementation-guide.md"
+
+
+def generate_detailed_impl(uc):
+    """Generate a thorough step-by-step implementation guide from UC fields (used when no explicit Detailed implementation is in markdown)."""
+    t = (uc.get("t") or "").strip()
+    d = (uc.get("d") or "").strip()
+    m = (uc.get("m") or "").strip()
+    z = (uc.get("z") or "").strip()
+    q = (uc.get("q") or "").strip()
+    script = (uc.get("script") or "").strip()
+    # First 2–3 sentences of implementation for Step 1 (cap length)
+    m_lead = m[:500] + ("…" if len(m) > 500 else "") if m else "Configure inputs and permissions as needed for your environment."
+    lines = [
+        "Prerequisites",
+        "• Install and configure the required add-on or app: " + (t or "see App/TA above") + ".",
+        "• Ensure the following data sources are available: " + (d or "see Data Sources above") + ".",
+        "• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: " + IMPLEMENTATION_GUIDE_LINK,
+        "",
+        "Step 1 — Configure data collection",
+        m_lead,
+        "",
+        "Step 2 — Create the search and alert",
+    ]
+    if q:
+        lines.append("Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):")
+        lines.append("")
+        lines.append("```spl")
+        lines.append(q)
+        lines.append("```")
+        lines.append("")
+        lines.append("If the use case includes a tstats/CIM query, enable Data Model Acceleration for the relevant data model.")
+    else:
+        lines.append("Run the SPL query from the SPL Query section above in Search. Save as a report or alert. Adjust the time range and threshold as needed. If the use case includes a tstats/CIM query, enable Data Model Acceleration for the relevant data model.")
+    lines.extend([
+        "",
+        "Step 3 — Validate",
+        "Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.",
+        "",
+        "Step 4 — Operationalize",
+        "Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. " + (("Consider visualizations: " + z) if z else "Use the Visualization section above for suggested panels."),
+    ])
+    # Scripted input: use explicit script if present; else add generic example when use case mentions scripted input
+    d_m_lower = (d + " " + m).lower()
+    if script:
+        lines.extend([
+            "",
+            "Scripted input example",
+            "Use the script below in a scripted input (see Implementation guide for inputs.conf). Ensure the script is executable and the path in inputs.conf matches your app location:",
+            "",
+            "```bash",
+            script,
+            "```",
+        ])
+    elif "scripted" in d_m_lower:
+        lines.extend([
+            "",
+            "Scripted input (generic example)",
+            "This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:",
+            "",
+            "```ini",
+            "[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]",
+            "interval = 300",
+            "sourcetype = your_sourcetype",
+            "index = main",
+            "disabled = 0",
+            "```",
+            "",
+            "The script should print one event per line (e.g. key=value). Example minimal script (bash):",
+            "",
+            "```bash",
+            "#!/usr/bin/env bash",
+            "# Output metrics or events, one per line",
+            "echo \"metric=value timestamp=$(date +%s)\"",
+            "```",
+            "",
+            "For full details (paths, scheduling, permissions), see the Implementation guide: " + IMPLEMENTATION_GUIDE_LINK,
+        ])
+    return "\n".join(lines)
+
+
 def parse_category_file(filepath):
     """Parse a single cat-*.md file into a category dict."""
     with open(filepath, "r", encoding="utf-8") as f:
@@ -125,6 +207,10 @@ def parse_category_file(filepath):
                 "dtype": "", # detection type: TTP, Anomaly, Baseline, Hunting, Correlation
                 "sdomain": "", # security domain: endpoint, network, threat, identity, etc.
                 "reqf": "",   # required fields for the search
+                "md": "",    # detailed implementation (expandable); parsed or generated
+                "script": "",  # optional script example (scripted input)
+                "dma": "",    # data model acceleration note (e.g. "Enable for Performance, Network_Traffic")
+                "schema": "", # schema context: CIM, OCSF, or e.g. "OCSF: authentication"
             }
             if current_sub is not None:
                 current_sub["u"].append(current_uc)
@@ -138,11 +224,17 @@ def parse_category_file(filepath):
             if stripped.startswith("```spl") or stripped.startswith("```SPL"):
                 in_code_block = True
                 code_lines = []
-                # Determine target based on the last field we saw
                 if last_field == "cim spl":
                     code_target = "qs"
                 else:
-                    code_target = "q"  # default: main SPL
+                    code_target = "q"
+                i += 1
+                continue
+            # Script example: code block after - **Script example:** (any ```)
+            if stripped.startswith("```") and last_field == "script example":
+                in_code_block = True
+                code_lines = []
+                code_target = "script"
                 i += 1
                 continue
 
@@ -169,6 +261,20 @@ def parse_category_file(filepath):
                         current_uc["q"] = field_value
                 elif field_name == "implementation":
                     current_uc["m"] = field_value
+                elif field_name == "script example":
+                    last_field = field_name  # next code block goes to script
+                elif field_name == "detailed implementation":
+                    current_uc["md"] = field_value
+                    i += 1
+                    while i < len(lines):
+                        next_stripped = lines[i].strip()
+                        if (next_stripped.startswith("- **") or next_stripped.startswith("###") or
+                                next_stripped == "---" or next_stripped.startswith("```")):
+                            break
+                        if next_stripped:
+                            current_uc["md"] += "\n" + next_stripped
+                        i += 1
+                    i -= 1
                 elif field_name == "visualization":
                     current_uc["z"] = field_value
                 elif field_name == "cim models":
@@ -176,6 +282,10 @@ def parse_category_file(filepath):
                     models = [m.strip() for m in field_value.split(",") if m.strip()]
                     if models:
                         current_uc["a"] = models
+                elif field_name == "data model acceleration":
+                    current_uc["dma"] = field_value
+                elif field_name in ("schema", "ocsf"):
+                    current_uc["schema"] = field_value
                 elif field_name == "monitoring type":
                     # Network use cases: comma-separated types (e.g. Availability, Performance, Capacity)
                     mtypes = [m.strip() for m in field_value.split(",") if m.strip()]
@@ -205,6 +315,12 @@ def parse_category_file(filepath):
                 continue
 
         i += 1
+
+    # Fill detailed implementation for every UC that doesn't have explicit "Detailed implementation" in markdown
+    for sub in category.get("s", []):
+        for uc in sub.get("u", []):
+            if not (uc.get("md") or "").strip():
+                uc["md"] = generate_detailed_impl(uc)
 
     return category
 

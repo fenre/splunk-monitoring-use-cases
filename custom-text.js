@@ -10,7 +10,7 @@
  */
 window.SITE_CUSTOM = {
   // Hero (Overview top)
-  heroBadge: "> Splunk Solutions Engineering",
+  heroBadge: "> Solving IT Issues Together",
   heroTitle: "Infrastructure Monitoring",
   heroTitleSpan: "Getting Started",
   heroIntro: "A curated path through {useCases} use cases across {categories} infrastructure domains. Start with the highest-impact, easiest-to-implement use cases and expand from there.",
@@ -20,7 +20,7 @@ window.SITE_CUSTOM = {
   statQuickWins: "Quick Wins",
 
   // Implementation Roadmap
-  roadmapTitle: "Implementation Roadmap",
+  roadmapTitle: "How to Implement",
   roadmapSub: "A phased approach to building comprehensive infrastructure monitoring",
   phase1Title: "Phase 1",
   phase1Heading: "Foundation",
@@ -46,5 +46,9 @@ window.SITE_CUSTOM = {
   filterInfra: "Core Infrastructure",
   filterSecurity: "Security",
   filterCloud: "Cloud & Containers",
-  filterApp: "Applications"
+  filterApp: "Applications",
+
+  // Footer
+  siteAuthor: "Fredrik Lima Sudmann",
+  siteRepoUrl: "https://github.com/fsudmann/splunk-monitoring-use-cases"
 };

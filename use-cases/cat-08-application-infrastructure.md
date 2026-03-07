@@ -32,6 +32,8 @@ index=web sourcetype="access_combined"
   by Web.src Web.uri_path Web.status span=5m
 | sort -count
 ```
+- **References:** [Splunk Add-on for Apache](https://splunkbase.splunk.com/app/830), [Splunk Add-on for NGINX](https://splunkbase.splunk.com/app/3178), [Web CIM](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+- **Known false positives:** Client errors (4xx) from bots or invalid requests; consider separate thresholds for 4xx vs 5xx.
 
 ---
 

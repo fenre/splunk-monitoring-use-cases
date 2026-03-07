@@ -41,7 +41,7 @@ index=containers sourcetype="docker:events" action="oom"
 | table _time container_name image host
 | sort -_time
 
-| `` Also check host syslog for cgroup OOM: ``
+| comment "Also check host syslog for cgroup OOM"
 index=os sourcetype=syslog "Memory cgroup out of memory" OR "oom-kill"
 | rex "task (?<process>\S+)"
 | table _time host process _raw
@@ -231,7 +231,7 @@ index=k8s sourcetype="kube:events" reason="NodeNotReady"
 | table _time node message
 | sort -_time
 
-| `` Or from node conditions: ``
+| comment "Or from node conditions"
 index=k8s sourcetype="kube:node:meta"
 | where condition_ready="False"
 | table _time node condition_ready
@@ -431,7 +431,7 @@ index=k8s sourcetype="kube:events" involvedObject.kind="Certificate" reason="Iss
 | table _time namespace involvedObject.name reason message
 | sort -_time
 
-| `` Or from cert-manager metrics: ``
+| comment "Or from cert-manager metrics"
 index=k8s sourcetype="certmanager:metrics"
 | eval days_left = round((certmanager_certificate_expiration_timestamp_seconds - now()) / 86400, 0)
 | where days_left < 30
