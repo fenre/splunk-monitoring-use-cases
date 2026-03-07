@@ -13,6 +13,9 @@ A searchable repository of **1,000+** IT infrastructure monitoring use cases for
    ```  
    This reads `use-cases/*.md` and `use-cases/INDEX.md`, then writes `data.js`. Refresh the dashboard to see changes.
 
+3. **Change dashboard copy without it being overwritten**  
+   Edit **`custom-text.js`** to change hero text, roadmap labels, filter chip names, and other Overview strings. This file is **not** generated or modified by `build.py` or by automated updates, so your edits stay in place.
+
 ## Repository layout
 
 | Path | Purpose |
@@ -21,6 +24,7 @@ A searchable repository of **1,000+** IT infrastructure monitoring use cases for
 | `build.py` | Parses markdown → emits `data.js` (DATA, CAT_META, CAT_STARTERS, CAT_GROUPS) |
 | `data.js` | Generated data consumed by the dashboard |
 | `index.html` | Single-page dashboard UI |
+| `custom-text.js` | User-editable site text (hero, roadmap, labels); not overwritten by build or tooling |
 | `docs/` | Extra docs (GitHub Pages setup, LLM recreation prompt) |
 | `_legacy/` | Archival content; not used by the build (see `_legacy/README.md`) |
 | `CODEBASE-DIAGRAM.md` | Mermaid diagrams of structure and data flow |
