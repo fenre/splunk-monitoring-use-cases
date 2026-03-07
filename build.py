@@ -119,6 +119,12 @@ def parse_category_file(filepath):
                 "q": "",
                 "m": "",
                 "z": "",
+                "kfp": "",   # known false positives (SSE)
+                "refs": "",  # references (URLs, comma-separated)
+                "mitre": [], # MITRE ATT&CK IDs
+                "dtype": "", # detection type: TTP, Anomaly, Baseline, Hunting, Correlation
+                "sdomain": "", # security domain: endpoint, network, threat, identity, etc.
+                "reqf": "",   # required fields for the search
             }
             if current_sub is not None:
                 current_sub["u"].append(current_uc)
@@ -179,6 +185,21 @@ def parse_category_file(filepath):
                     # CIM SPL: value might be inline or in next code block
                     if field_value and not field_value.startswith("```"):
                         current_uc["qs"] = field_value
+                elif field_name == "known false positives":
+                    current_uc["kfp"] = field_value
+                elif field_name == "references":
+                    current_uc["refs"] = field_value
+                elif field_name in ("mitre att&ck", "mitre attack"):
+                    # Comma-separated technique IDs, e.g. T1562.008, T1190
+                    ids = [x.strip() for x in field_value.split(",") if x.strip()]
+                    if ids:
+                        current_uc["mitre"] = ids
+                elif field_name == "detection type":
+                    current_uc["dtype"] = field_value.strip()
+                elif field_name == "security domain":
+                    current_uc["sdomain"] = field_value.strip()
+                elif field_name == "required fields":
+                    current_uc["reqf"] = field_value
 
                 i += 1
                 continue

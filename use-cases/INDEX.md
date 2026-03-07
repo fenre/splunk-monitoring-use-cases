@@ -106,14 +106,15 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
 
 ## 10. Security Infrastructure
 - **Icon:** 🛡️
-- **Description:** Next-gen firewalls, IDS/IPS, endpoint protection, SIEM, and vulnerability scanners — threat detection and SecOps.
-- **Quick Tip:** Forward firewall logs (syslog) and install the vendor TA (Palo Alto, Fortinet, etc.) for CIM-mapped events.
+- **Description:** Next-gen firewalls, IDS/IPS, endpoint protection, email security, web security, vulnerability management, SIEM & SOAR, and certificate/PKI — threat detection and SecOps. ESCU detections are distributed across subcategories 10.1–10.8.
+- **Quick Tip:** Forward firewall logs (syslog) and install the vendor TA (Palo Alto, Fortinet, etc.). Use `import_sse_detections.py` to import ESCU detections, then `redistribute_sse_ucs.py` to place them in the right subcategories.
 - **Quick Start:**
   - UC-10.1.2 · Wildfire / Sandbox Verdicts (critical, Next-Gen Firewalls (Security-Focused))
   - UC-10.1.4 · DNS Sinkhole Hits (critical, Next-Gen Firewalls (Security-Focused))
   - UC-10.3.5 · Endpoint Isolation Events (critical, Endpoint Detection & Response (EDR))
   - UC-10.4.2 · Malicious Attachment Tracking (critical, Email Security)
   - UC-10.4.3 · URL Click Tracking (critical, Email Security)
+  - UC-10.7.1 · Alert Volume Trending (high, SIEM & SOAR)
 
 ## 11. Email & Collaboration
 - **Icon:** 📧

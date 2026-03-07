@@ -203,6 +203,43 @@ index=storage sourcetype="netapp:ontap:system"
 
 ---
 
+### UC-6.1.11 · Isilon Cluster and Node Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** Dell EMC Isilon (OneFS) is a scale-out NAS platform. Monitoring node and cluster health ensures availability and early detection of hardware or software issues before data access is impacted.
+- **App/TA:** Splunk Add-on for Dell EMC Isilon (if available), or REST/API polling of OneFS platform API, syslog from Isilon nodes
+- **Data Sources:** OneFS platform API (cluster/node status, events), Isilon syslog, SNMP (if enabled)
+- **SPL:**
+```spl
+index=storage (sourcetype=isilon:syslog OR sourcetype=isilon:api) (node_down OR cluster_offline OR "degraded" OR "readonly")
+| table _time, node, cluster, severity, message
+```
+- **Implementation:** Configure syslog from Isilon cluster to Splunk; optionally use OneFS REST API or vendor TA for node state, drive status, and cluster events. Alert on node down, pool degradation, or OneFS readonly conditions.
+- **Visualization:** Single value (nodes down), Table (node/cluster status), Timeline (health events). Aligns with use cases in Splunk IT Essentials Learn (Storage – Isilon).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.12 · Isilon Capacity and Performance Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Tracks Isilon cluster capacity and throughput (e.g. ops/sec, throughput MB/s) for capacity planning and performance troubleshooting. Matches IT Essentials Learn procedures for Isilon storage.
+- **App/TA:** OneFS API or vendor add-on for Isilon metrics
+- **Data Sources:** OneFS statistics (capacity by pool/node, read/write ops, network throughput)
+- **SPL:**
+```spl
+index=storage sourcetype=isilon:metrics
+| timechart span=1h avg(capacity_used_pct) as pct_used, avg(ops_per_sec) as iops by node
+| where pct_used > 80
+```
+- **Implementation:** Poll OneFS stats API or use Isilon TA to collect capacity and performance metrics. Set alerts for pool capacity >85% and for sustained high latency or drop in throughput.
+- **Visualization:** Line chart (capacity and IOPS over time by node/pool), Single value (cluster used %), Table (top consumers).
+- **CIM Models:** N/A
+
+---
+
 ### 6.2 Object Storage
 
 **Primary App/TA:** Cloud provider TAs (`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`), MinIO webhook inputs, custom REST API inputs.

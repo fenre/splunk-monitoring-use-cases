@@ -16,16 +16,19 @@ A searchable repository of **1,000+** IT infrastructure monitoring use cases for
 3. **Change dashboard copy without it being overwritten**  
    Edit **`custom-text.js`** to change hero text, roadmap labels, filter chip names, and other Overview strings. This file is **not** generated or modified by `build.py` or by automated updates, so your edits stay in place.
 
+4. **Import Splunk Security Essentials (SSE) use cases**  
+   The [Splunk security_content](https://github.com/splunk/security_content) repo has 1,900+ detections. Import with `use-cases/import_sse_detections.py`, then run `use-cases/redistribute_sse_ucs.py` to place them in the best subcategory (10.1–10.8). See [docs/sse-import.md](docs/sse-import.md).
+
 ## Repository layout
 
 | Path | Purpose |
 |------|---------|
-| `use-cases/` | Source of truth: `cat-00-preamble.md`, `cat-01` … `cat-20` (per-category use cases), `INDEX.md` (category metadata, quick starters) |
+| `use-cases/` | Source of truth: `cat-00-preamble.md`, `cat-01` … `cat-20` (per-category use cases), `INDEX.md` (category metadata, quick starters), `import_sse_detections.py` (SSE/ESCU import script) |
 | `build.py` | Parses markdown → emits `data.js` (DATA, CAT_META, CAT_STARTERS, CAT_GROUPS) |
 | `data.js` | Generated data consumed by the dashboard |
 | `index.html` | Single-page dashboard UI |
 | `custom-text.js` | User-editable site text (hero, roadmap, labels); not overwritten by build or tooling |
-| `docs/` | Extra docs (GitHub Pages setup, LLM recreation prompt) |
+| `docs/` | Extra docs (GitHub Pages setup, LLM recreation prompt, [SSE import](docs/sse-import.md), [use case fields](docs/use-case-fields.md), [Splunk apps use cases comparison](docs/splunk-apps-use-cases-comparison.md)) |
 | `_legacy/` | Archival content; not used by the build (see `_legacy/README.md`) |
 | `CODEBASE-DIAGRAM.md` | Mermaid diagrams of structure and data flow |
 

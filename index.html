@@ -331,6 +331,8 @@ header {
   font-family: 'JetBrains Mono', monospace;
   white-space: nowrap;
 }
+.mitre-link { color: var(--accent); text-decoration: none; }
+.mitre-link:hover { text-decoration: underline; }
 .uc-mtype-tag {
   font-size: 10px; padding: 3px 8px; border-radius: 6px;
   background: rgba(120,150,220,0.12); color: #7B9CD4;
@@ -874,10 +876,11 @@ function scrollToSubcat(scId) {
 // Derive top quick-win starters per category from DATA
 const CRIT_ORDER = {critical:0, high:1, medium:2, low:3};
 const DIFF_ORDER = {beginner:0, intermediate:1, advanced:2, expert:3};
+// Quick win = high impact (critical/high) and low effort (beginner only) — intermediate excluded so the count is realistic
 function getStarters(cat, n) {
   const ucs = [];
   cat.s.forEach(sc => sc.u.forEach(uc => {
-    if ((uc.c==='critical'||uc.c==='high') && (uc.f==='beginner'||uc.f==='intermediate'))
+    if ((uc.c==='critical'||uc.c==='high') && uc.f==='beginner')
       ucs.push({uc, sc: sc.n});
   }));
   ucs.sort((a,b) => (CRIT_ORDER[a.uc.c]||9) - (CRIT_ORDER[b.uc.c]||9)
@@ -890,7 +893,7 @@ let ovGroupFilter = 'all';
 
 function renderOverview() {
   const totalSubs = DATA.reduce((a,c) => a + c.s.length, 0);
-  const quickWins = allUCs.filter(e => (e.uc.f==='beginner'||e.uc.f==='intermediate') && (e.uc.c==='critical'||e.uc.c==='high')).length;
+  const quickWins = allUCs.filter(e => e.uc.f==='beginner' && (e.uc.c==='critical'||e.uc.c==='high')).length;
 
   const intro = (SITE.heroIntro || '').replace('{useCases}', allUCs.length).replace('{categories}', DATA.length);
   let html = '<div class="ov-hero glass">';
@@ -1249,6 +1252,18 @@ function renderModal(entry) {
   if (Array.isArray(uc.mtype) && uc.mtype.length) {
     html += '<div class="meta-item"><h4>Monitoring type</h4><p>' + uc.mtype.map(t => '<span class="uc-mtype-tag" style="margin-right:4px">' + escHtml(t) + '</span>').join('') + '</p></div>';
   }
+  if (uc.dtype) {
+    html += '<div class="meta-item"><h4>Detection type</h4><p><span class="uc-mtype-tag">' + escHtml(uc.dtype) + '</span></p></div>';
+  }
+  if (uc.sdomain) {
+    html += '<div class="meta-item"><h4>Security domain</h4><p>' + escHtml(uc.sdomain) + '</p></div>';
+  }
+  if (Array.isArray(uc.mitre) && uc.mitre.length) {
+    html += '<div class="meta-item"><h4>MITRE ATT&amp;CK</h4><p>' + uc.mitre.map(t => '<a href="https://attack.mitre.org/techniques/' + t.replace(/\./g,'/') + '/" target="_blank" rel="noopener" class="mitre-link">' + escHtml(t) + '</a>').join(', ') + '</p></div>';
+  }
+  if (uc.reqf) {
+    html += '<div class="meta-item"><h4>Required fields</h4><p><code style="font-size:11px">' + escHtml(uc.reqf) + '</code></p></div>';
+  }
   html += '</div>';
 
   if (uc.q) {
@@ -1265,6 +1280,13 @@ function renderModal(entry) {
 
   if (uc.m) {
     html += '<div class="modal-section"><h3>Implementation</h3><p>' + escHtml(uc.m) + '</p></div>';
+  }
+  if (uc.kfp) {
+    html += '<div class="modal-section"><h3>Known false positives</h3><p>' + escHtml(uc.kfp) + '</p></div>';
+  }
+  if (uc.refs) {
+    const refList = uc.refs.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+    html += '<div class="modal-section"><h3>References</h3><p>' + (refList.length ? refList.map(r => r.startsWith('http') ? '<a href="' + escHtml(r) + '" target="_blank" rel="noopener">' + escHtml(r) + '</a>' : escHtml(r)).join(' &nbsp;|&nbsp; ') : escHtml(uc.refs)) + '</p></div>';
   }
   if (uc.z) {
     html += '<div class="modal-section"><h3>Visualization</h3><p>' + escHtml(uc.z) + '</p></div>';
