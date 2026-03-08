@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring — Use Case Repository
 
-A searchable repository of **1,000+** IT infrastructure monitoring use cases for Splunk: criticality, example SPL, implementation notes, CIM mappings, and recommended visualizations.
+A searchable repository of **3,000+** IT infrastructure monitoring use cases for Splunk: criticality, example SPL, implementation notes, CIM mappings, equipment tagging, and recommended visualizations.
 
 ## Quick start
 
@@ -11,44 +11,39 @@ A searchable repository of **1,000+** IT infrastructure monitoring use cases for
    ```bash
    python3 build.py
    ```  
-   This reads `use-cases/*.md` and `use-cases/INDEX.md`, then writes `data.js`. Refresh the dashboard to see changes. To validate markdown structure and UC-ID consistency first, run `python3 use-cases/validate_md.py`.
+   This reads `use-cases/*.md` and `use-cases/INDEX.md`, then writes `data.js` and `catalog.json`. Refresh the dashboard to see changes.
 
-3. **Change dashboard copy without it being overwritten**  
-   Edit **`custom-text.js`** to change hero text, roadmap labels, filter chip names, and other Overview strings. This file is **not** generated or modified by `build.py` or by automated updates, so your edits stay in place.
+3. **Validate markdown structure**  
+   ```bash
+   python3 validate_md.py
+   ```  
+   Checks UC-ID consistency, category numbering, and code block balance.
 
-4. **Import Splunk Security Essentials (SSE) use cases**  
-   The [Splunk security_content](https://github.com/splunk/security_content) repo has 1,900+ detections. Import with `use-cases/import_sse_detections.py`, then run `use-cases/redistribute_sse_ucs.py` to place them in the best subcategory (10.1–10.8). See [docs/sse-import.md](docs/sse-import.md).
+4. **Change dashboard copy without it being overwritten**  
+   Edit **`custom-text.js`** to change hero text, roadmap labels, filter chip names, and other Overview strings. This file is **not** generated or modified by `build.py`.
 
 ## Repository layout
 
 | Path | Purpose |
 |------|---------|
-| `use-cases/` | Source of truth: `cat-00-preamble.md`, `cat-01` … `cat-20`. Only files with a top-level heading `# N.` or `## N.` become categories (20 total). **cat-00** is preamble/legend (skipped). Security (cat-10) holds all use cases in subcategories 10.1–10.8 (including ESCU/SSE content that was previously redistributed there); the separate import file was removed to avoid duplication. See [category files and names](docs/category-files-and-names.md). |
-| `build.py` | Parses markdown → emits `data.js` (DATA, CAT_META, CAT_STARTERS, CAT_GROUPS) |
+| `use-cases/` | Source of truth: `cat-00-preamble.md`, `cat-01` … `cat-20`, and `INDEX.md`. Only files with a top-level heading `# N.` or `## N.` become categories (20 total). `cat-00` is preamble/legend (skipped by the build). See [category files and names](docs/category-files-and-names.md). |
+| `build.py` | Parses markdown → emits `data.js` (DATA, CAT_META, CAT_GROUPS, EQUIPMENT) and `catalog.json` |
+| `validate_md.py` | Validates use case markdown structure and UC-ID consistency |
 | `data.js` | Generated data consumed by the dashboard |
+| `catalog.json` | Generated JSON catalog (same data as `data.js`, for external tooling) |
 | `index.html` | Single-page dashboard UI |
-| `custom-text.js` | User-editable site text (hero, roadmap, labels); not overwritten by build or tooling |
-| `docs/` | Extra docs (GitHub Pages setup, [Implementation guide](docs/implementation-guide.md), [CIM and data models](docs/cim-and-data-models.md) (CIM, DMA, OCSF), [category files and display names](docs/category-files-and-names.md), [SSE import](docs/sse-import.md), [use case fields](docs/use-case-fields.md), [Splunk apps use cases comparison](docs/splunk-apps-use-cases-comparison.md)) |
-| `_legacy/` | Archival content; not used by the build (see `_legacy/README.md`) |
-| `splunk_apps/` | **Deprecated.** Splunk app sources and build scripts; see [splunk_apps/README.md](splunk_apps/README.md). |
+| `custom-text.js` | User-editable site text (hero, roadmap, labels); not overwritten by build |
+| `docs/` | [Use case fields](docs/use-case-fields.md), [Implementation guide](docs/implementation-guide.md), [CIM and data models](docs/cim-and-data-models.md), [Equipment table](docs/equipment-table.md), [Category files](docs/category-files-and-names.md), [GitHub Pages setup](docs/github-pages-setup.md), [Splunk apps comparison](docs/splunk-apps-use-cases-comparison.md) |
 | `CODEBASE-DIAGRAM.md` | Mermaid diagrams of structure and data flow |
 
 ## Requirements
 
-- **Python 3** (for `build.py` only; no extra packages).
+- **Python 3** (for `build.py` and `validate_md.py` only; no extra packages).
 - **Browser** to view `index.html` (no Node/npm).
 
 ## Hosting
 
-To host on **GitHub Pages**: commit `index.html` and `data.js`, enable Pages from the default branch (e.g. `main`), root. See [docs/github-pages-setup.md](docs/github-pages-setup.md) for step-by-step instructions.
-
-## Splunk apps (deprecated)
-
-Splunk app code and build scripts have been moved to **[splunk_apps/](splunk_apps/)** and are deprecated in this repo. They are kept for reference and to be reused in a **new standalone project** later. See [splunk_apps/README.md](splunk_apps/README.md) for contents and how to run the builds from the repo root.
-
-## Improving the resource
-
-For ideas on making this repo even more useful for IT teams (starter paths, prerequisites, time estimates, doc links, checklists), see [docs/improvement-tips.md](docs/improvement-tips.md).
+To host on **GitHub Pages**: commit `index.html`, `data.js`, and `custom-text.js`, enable Pages from the default branch (e.g. `main`), root. See [docs/github-pages-setup.md](docs/github-pages-setup.md) for step-by-step instructions.
 
 ## License
 

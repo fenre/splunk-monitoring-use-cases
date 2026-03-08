@@ -8,27 +8,29 @@ This document visualizes the repository structure, build pipeline, and data flow
 
 ```mermaid
 flowchart LR
-    subgraph sources["📁 Source (Markdown)"]
+    subgraph sources["Source (Markdown)"]
         INDEX["INDEX.md\ncategory metadata\nicons, starters"]
         CAT["cat-01 … cat-20\nuse case content\nSPL, CIM, TAs"]
     end
 
-    subgraph build["⚙️ Build"]
+    subgraph build["Build"]
         PY["build.py\nparse & emit JS"]
     end
 
-    subgraph output["📦 Output"]
-        DATA["data.js\nDATA, CAT_META\nCAT_STARTERS, CAT_GROUPS"]
+    subgraph output["Output"]
+        DATA["data.js\nDATA, CAT_META\nCAT_GROUPS, EQUIPMENT"]
     end
 
-    subgraph app["🖥️ App"]
+    subgraph app["App"]
         HTML["index.html\ndashboard UI"]
+        CUSTOM["custom-text.js\nsite text overrides"]
     end
 
     INDEX --> PY
     CAT --> PY
     PY --> DATA
     DATA --> HTML
+    CUSTOM --> HTML
 ```
 
 ---
@@ -39,8 +41,12 @@ flowchart LR
 flowchart TB
     subgraph root["splunk-monitoring-use-cases/"]
         build["build.py"]
-        data["data.js"]
+        validate["validate_md.py"]
+        data["data.js (generated)"]
+        catalog["catalog.json (generated)"]
         index["index.html"]
+        custom["custom-text.js"]
+        readme["README.md"]
         diagram["CODEBASE-DIAGRAM.md"]
 
         subgraph usecases["use-cases/"]
@@ -51,16 +57,22 @@ flowchart TB
             catN["… cat-03 … cat-20"]
         end
 
-        subgraph legacy["_legacy/"]
-            L1["cim-enrichments.json"]
-            L2["use-case-dashboard.html"]
-            L3["enrich_cim.py, …"]
+        subgraph docs["docs/"]
+            D1["use-case-fields.md"]
+            D2["implementation-guide.md"]
+            D3["cim-and-data-models.md"]
+            D4["equipment-table.md"]
+            D5["category-files-and-names.md"]
+            D6["github-pages-setup.md"]
+            D7["splunk-apps-use-cases-comparison.md"]
         end
     end
 
     usecases --> build
     build --> data
+    build --> catalog
     data --> index
+    custom --> index
 ```
 
 ---
@@ -78,25 +90,27 @@ flowchart LR
         P1["Parse headings\nUC-x.y.z, ## 1.1 …"]
         P2["Parse fields\nCriticality, SPL, CIM…"]
         P3["Parse INDEX.md\nicons, descriptions\nquick starters"]
-        P4["Emit data.js"]
+        P4["Auto-tag equipment\nfrom App/TA patterns"]
+        P5["Emit data.js\n+ catalog.json"]
     end
 
     subgraph js["data.js"]
         D["DATA\ncategories → subs → UCs"]
         M["CAT_META\nicon, description per cat"]
-        S["CAT_STARTERS\nquick-start UC IDs"]
         G["CAT_GROUPS\ninfra, security, cloud, app"]
+        E["EQUIPMENT\nvendor → model mapping"]
     end
 
     A --> P1
     B --> P3
     P1 --> P2
     P2 --> P4
-    P3 --> P4
-    P4 --> D
-    P4 --> M
-    P4 --> S
-    P4 --> G
+    P4 --> P5
+    P3 --> P5
+    P5 --> D
+    P5 --> M
+    P5 --> G
+    P5 --> E
 ```
 
 ---
@@ -111,16 +125,18 @@ flowchart TB
         H1["# N. Category Name"]
         H2["## N.1 Subcategory"]
         UC["### UC-N.1.K · Use Case Title"]
-        F1["**Criticality** 🔴/🟠/🟡/🟢"]
-        F2["**Difficulty** beginner … expert"]
-        F3["**Value** (why it matters)"]
-        F4["**App/TA** (Splunk add-on)"]
-        F5["**Data Sources** (index, sourcetype)"]
-        F6["**SPL** (code block)"]
-        F7["**CIM Models** (or N/A)"]
-        F8["**CIM SPL** (optional code block)"]
-        F9["**Implementation**"]
-        F10["**Visualization**"]
+        F1["**Criticality** critical/high/medium/low"]
+        F2["**Difficulty** beginner/intermediate/advanced/expert"]
+        F3["**Monitoring type** Performance/Availability/…"]
+        F4["**Value** (why it matters)"]
+        F5["**App/TA** (Splunk add-on)"]
+        F6["**Data Sources** (index, sourcetype)"]
+        F7["**SPL** (code block)"]
+        F8["**CIM Models** (or N/A)"]
+        F9["**CIM SPL** (optional code block)"]
+        F10["**Implementation**"]
+        F11["**Visualization**"]
+        F12["**Equipment Models** (optional)"]
     end
 
     H1 --> H2
@@ -135,6 +151,8 @@ flowchart TB
     F7 --> F8
     F8 --> F9
     F9 --> F10
+    F10 --> F11
+    F11 --> F12
 ```
 
 ---
@@ -180,8 +198,8 @@ sequenceDiagram
 
     Author->>MD: Edit use cases & INDEX.md
     Author->>Build: Run python3 build.py
-    Build->>Build: Parse markdown, INDEX
-    Build->>JS: Write DATA, CAT_META, CAT_STARTERS, CAT_GROUPS
+    Build->>Build: Parse markdown, INDEX, auto-tag equipment
+    Build->>JS: Write DATA, CAT_META, CAT_GROUPS, EQUIPMENT
     User->>HTML: Open in browser
     HTML->>JS: Load script
     JS->>HTML: Expose globals
