@@ -41,6 +41,17 @@ A searchable repository of **1,000+** IT infrastructure monitoring use cases for
 
 To host on **GitHub Pages**: commit `index.html` and `data.js`, enable Pages from the default branch (e.g. `main`), root. See [docs/github-pages-setup.md](docs/github-pages-setup.md) for step-by-step instructions.
 
+## Splunk apps (sample v0.0.1)
+
+- **Classic (iframe):** **`imucl/`** — Embeds the static dashboard in an iframe. Run `./build_app.sh --package` and install `imucl-0.0.1.spl`. See [imucl/README.md](imucl/README.md).
+- **UI Toolkit (React):** **`imucl_uitoolkit/`** — React SPA built with Vite; no iframe. Run `./build_uitoolkit_app.sh` and install `imucl-uitoolkit-0.0.1.spl`. See [imucl_uitoolkit/README.md](imucl_uitoolkit/README.md). Use this if the classic app shows an empty dashboard.
+
+The design for a full app (UCC-based layout, catalog lookup, saved searches) is in [docs/splunk-app-design.md](docs/splunk-app-design.md).
+
+## Improving the resource
+
+For ideas on making this repo even more useful for IT teams (starter paths, prerequisites, time estimates, doc links, checklists), see [docs/improvement-tips.md](docs/improvement-tips.md).
+
 ## License
 
 Use and adapt the use cases and code as needed for your environment.

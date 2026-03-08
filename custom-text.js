@@ -20,7 +20,7 @@ window.SITE_CUSTOM = {
   statQuickWins: "Quick Wins",
 
   // Implementation Roadmap
-  roadmapTitle: "How to Implement",
+  roadmapTitle: "How to Start Implementing",
   roadmapSub: "A phased approach to building comprehensive infrastructure monitoring",
   phase1Title: "Phase 1",
   phase1Heading: "Foundation",

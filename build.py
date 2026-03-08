@@ -22,6 +22,7 @@ import sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 UC_DIR = os.path.join(SCRIPT_DIR, "use-cases")
 OUTPUT = os.path.join(SCRIPT_DIR, "data.js")
+OUTPUT_CATALOG_JSON = os.path.join(SCRIPT_DIR, "catalog.json")
 
 # Emoji → value mappings
 CRITICALITY_MAP = {
@@ -45,9 +46,188 @@ CAT_GROUPS = {
     "app":      [7, 8, 11, 12, 13, 14, 16],
 }
 
+# Equipment (IT assets) → TA patterns. Used to filter use cases by "what equipment do you have?"
+# Each entry: id (slug), label (user-facing), tas (substrings; if any appears in UC's App/TA field, UC is relevant).
+EQUIPMENT = [
+    {"id": "linux", "label": "Linux / Unix servers", "tas": ["Splunk_TA_nix"]},
+    {"id": "windows", "label": "Windows servers & workstations", "tas": ["Splunk_TA_windows"]},
+    {"id": "macos", "label": "macOS", "tas": ["macOS", "Splunk UF for macOS"]},
+    {
+        "id": "vmware",
+        "label": "VMware",
+        "tas": ["Splunk_TA_vmware", "TA-vmware", "VMware", "vSphere", "ESXi", "vCenter"],
+        "models": [
+            {"id": "vsphere", "label": "vSphere", "tas": ["vSphere", "vsphere"]},
+            {"id": "esxi", "label": "ESXi", "tas": ["ESXi", "esxi"]},
+            {"id": "vcenter", "label": "vCenter", "tas": ["vCenter", "vcenter"]},
+            {"id": "ta_vmware", "label": "Splunk TA for VMware", "tas": ["Splunk_TA_vmware", "TA-vmware"]},
+        ],
+    },
+    {"id": "hyperv", "label": "Microsoft Hyper-V", "tas": ["Hyper-V", "Splunk_TA_microsoft-cloudservices"]},
+    {"id": "aws", "label": "Amazon Web Services (AWS)", "tas": ["Splunk_TA_aws", "AWS", "CloudTrail", "CloudWatch"]},
+    {"id": "azure", "label": "Microsoft Azure", "tas": ["Splunk_TA_microsoft-cloudservices", "Azure", "Azure Monitor", "Azure Activity"]},
+    {"id": "gcp", "label": "Google Cloud Platform (GCP)", "tas": ["Splunk_TA_google-cloudplatform", "GCP", "Google Cloud"]},
+    {"id": "kubernetes", "label": "Kubernetes / containers", "tas": ["Kubernetes", "Splunk Connect for Kubernetes", "SCK", "OpenTelemetry", "Splunk_TA_otel", "Docker", "containers"]},
+    {
+        "id": "paloalto",
+        "label": "Palo Alto Networks",
+        "tas": ["Splunk_TA_paloalto", "Palo Alto", "GlobalProtect", "Prisma"],
+        "models": [
+            {"id": "pan_firewall", "label": "Palo Alto Firewall / PAN-OS", "tas": ["Splunk_TA_paloalto", "Palo Alto", "PAN-OS", "paloalto"]},
+            {"id": "globalprotect", "label": "GlobalProtect", "tas": ["GlobalProtect", "globalprotect"]},
+            {"id": "prisma", "label": "Prisma Access", "tas": ["Prisma", "prisma"]},
+        ],
+    },
+    {
+        "id": "cisco",
+        "label": "Cisco",
+        "tas": ["Splunk_TA_cisco", "Cisco", "cisco-firepower", "cisco-asa", "cisco-ios", "cisco-ise", "cisco_meraki", "Meraki"],
+        "models": [
+            {"id": "firepower", "label": "Cisco Firepower", "tas": ["Splunk_TA_cisco-firepower", "Cisco Firepower", "cisco-firepower"]},
+            {"id": "asa", "label": "Cisco ASA", "tas": ["Splunk_TA_cisco-asa", "Cisco ASA", "cisco-asa"]},
+            {"id": "ios", "label": "Cisco IOS / network devices", "tas": ["Splunk_TA_cisco-ios", "Cisco IOS", "cisco-ios"]},
+            {"id": "ise", "label": "Cisco ISE", "tas": ["Splunk_TA_cisco-ise", "Cisco ISE", "cisco-ise"]},
+            {"id": "meraki", "label": "Cisco Meraki", "tas": ["Splunk_TA_cisco_meraki", "Cisco Meraki", "Meraki", "cisco_meraki"]},
+        ],
+    },
+    {
+        "id": "fortinet",
+        "label": "Fortinet",
+        "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet"],
+        "models": [
+            {"id": "fortigate", "label": "FortiGate", "tas": ["FortiGate", "fortigate", "Splunk_TA_fortinet"]},
+            {"id": "fortianalyzer", "label": "FortiAnalyzer", "tas": ["FortiAnalyzer", "fortianalyzer"]},
+        ],
+    },
+    {
+        "id": "f5",
+        "label": "F5",
+        "tas": ["Splunk_TA_f5-bigip", "F5", "BIG-IP", "f5-bigip"],
+        "models": [
+            {"id": "bigip", "label": "F5 BIG-IP", "tas": ["Splunk_TA_f5-bigip", "BIG-IP", "f5-bigip", "bigip"]},
+            {"id": "asm", "label": "F5 ASM", "tas": ["ASM", "f5-bigip (ASM)"]},
+        ],
+    },
+    {"id": "syslog", "label": "Syslog (generic)", "tas": ["Splunk_TA_syslog", "Syslog", "syslog"]},
+    {
+        "id": "snmp",
+        "label": "SNMP",
+        "tas": ["SNMP", "snmp"],
+        "models": [
+            {"id": "generic", "label": "SNMP (generic)", "tas": ["SNMP", "snmp"]},
+            {"id": "pdu", "label": "PDU / power", "tas": ["PDU", "PDU-MIB", "pdu"]},
+            {"id": "ups", "label": "UPS", "tas": ["UPS", "UPS-MIB", "ups"]},
+        ],
+    },
+    {"id": "iis", "label": "Microsoft IIS", "tas": ["IIS", "Microsoft IIS", "Splunk Add-on for Microsoft IIS"]},
+    {"id": "mssql", "label": "Microsoft SQL Server", "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver", "SQL Server"]},
+    {"id": "m365", "label": "Microsoft 365 / Entra ID", "tas": ["Splunk_TA_MS_O365", "MS_O365", "Office 365", "Entra", "M365", "microsoft-cloudservices"]},
+    {"id": "exchange", "label": "Microsoft Exchange", "tas": ["Splunk_TA_microsoft-exchange", "microsoft-exchange", "Exchange"]},
+    {
+        "id": "apache",
+        "label": "Apache HTTP Server",
+        "tas": ["Splunk_TA_apache", "apache"],
+        "models": [
+            {"id": "httpd", "label": "Apache httpd", "tas": ["Splunk_TA_apache", "apache", "httpd"]},
+        ],
+    },
+    {
+        "id": "nginx",
+        "label": "NGINX",
+        "tas": ["TA-nginx", "nginx", "NGINX"],
+        "models": [
+            {"id": "open", "label": "NGINX Open Source", "tas": ["TA-nginx", "nginx", "NGINX"]},
+            {"id": "plus", "label": "NGINX Plus", "tas": ["NGINX Plus", "nginx plus"]},
+        ],
+    },
+    {"id": "okta", "label": "Okta", "tas": ["Splunk_TA_okta", "okta"]},
+    {"id": "servicenow", "label": "ServiceNow", "tas": ["Splunk_TA_snow", "snow", "ServiceNow"]},
+    {"id": "jenkins", "label": "Jenkins", "tas": ["Jenkins"]},
+    {"id": "kafka", "label": "Kafka", "tas": ["TA-kafka", "Kafka", "kafka"]},
+    {
+        "id": "db_connect",
+        "label": "Databases",
+        "tas": ["DB Connect", "Splunk_TA_oracle", "splunk_app_db_connect", "Oracle", "MySQL", "PostgreSQL"],
+        "models": [
+            {"id": "dbconnect", "label": "Splunk DB Connect", "tas": ["DB Connect", "splunk_app_db_connect"]},
+            {"id": "oracle", "label": "Oracle", "tas": ["Splunk_TA_oracle", "Oracle", "oracle"]},
+            {"id": "mssql_ta", "label": "Microsoft SQL (TA)", "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver"]},
+        ],
+    },
+    {
+        "id": "hardware_bmc",
+        "label": "Hardware / BMC",
+        "tas": ["ipmitool", "iDRAC", "iLO", "smartctl", "storcli", "megacli", "BMC", "edac-util", "ssacli", "dmidecode"],
+        "models": [
+            {"id": "idrac", "label": "Dell iDRAC", "tas": ["iDRAC", "idrac"]},
+            {"id": "ilo", "label": "HPE iLO", "tas": ["iLO", "ilo"]},
+            {"id": "ipmi", "label": "IPMI (generic)", "tas": ["ipmitool", "IPMI", "ipmi"]},
+            {"id": "smartctl", "label": "Disks (SMART / smartctl)", "tas": ["smartctl"]},
+            {"id": "storcli", "label": "LSI MegaRAID (storcli)", "tas": ["storcli"]},
+            {"id": "megacli", "label": "LSI MegaRAID (megacli)", "tas": ["megacli"]},
+            {"id": "ssacli", "label": "HPE Smart Array (ssacli)", "tas": ["ssacli"]},
+            {"id": "edac", "label": "Memory / EDAC (edac-util)", "tas": ["edac-util", "edac"]},
+            {"id": "dmidecode", "label": "System info (dmidecode)", "tas": ["dmidecode"]},
+        ],
+    },
+    {"id": "security_essentials", "label": "Splunk Security Essentials (ESCU)", "tas": ["Security Essentials", "ESCU"]},
+    {
+        "id": "infoblox",
+        "label": "Infoblox",
+        "tas": ["Splunk_TA_infoblox", "Infoblox", "infoblox"],
+        "models": [
+            {"id": "dns", "label": "Infoblox DNS", "tas": ["Infoblox", "infoblox", "DNS"]},
+            {"id": "dhcp", "label": "Infoblox DHCP", "tas": ["Infoblox", "infoblox", "DHCP"]},
+        ],
+    },
+    {
+        "id": "netflow",
+        "label": "NetFlow",
+        "tas": ["NetFlow", "netflow"],
+        "models": [
+            {"id": "netflow", "label": "NetFlow", "tas": ["NetFlow", "netflow"]},
+            {"id": "sflow", "label": "sFlow", "tas": ["sFlow", "sflow"]},
+        ],
+    },
+    {
+        "id": "citrix",
+        "label": "Citrix",
+        "tas": ["Splunk_TA_citrix-netscaler", "citrix", "NetScaler"],
+        "models": [
+            {"id": "netscaler", "label": "Citrix NetScaler / ADC", "tas": ["Splunk_TA_citrix-netscaler", "citrix", "NetScaler", "netscaler"]},
+        ],
+    },
+    {"id": "cyberark", "label": "CyberArk", "tas": ["Splunk_TA_cyberark", "CyberArk", "cyberark"]},
+    {"id": "itsi", "label": "Splunk ITSI", "tas": ["ITSI", "Splunk ITSI"]},
+    {"id": "stream", "label": "Splunk Stream", "tas": ["Splunk Stream", "Splunk App for Stream"]},
+]
 
 # Link to the common implementation guide (apps, inputs.conf, Splunk directory)
 IMPLEMENTATION_GUIDE_LINK = "docs/implementation-guide.md"
+
+
+def equipment_ids_for_ta_string(ta_str):
+    """Given a use case's App/TA field (t), return (equipment_ids, model_compound_ids).
+    model_compound_ids are "eqId_modelId" for equipment that has models and whose model tas matched."""
+    if not (ta_str or "").strip():
+        return [], []
+    raw = (ta_str or "").replace("`", "").strip().lower()
+    if not raw:
+        return [], []
+    seen = set()
+    model_seen = set()
+    for eq in EQUIPMENT:
+        for pattern in eq["tas"]:
+            if pattern.lower() in raw:
+                seen.add(eq["id"])
+                break
+        models = eq.get("models") or []
+        for mod in models:
+            for pattern in mod["tas"]:
+                if pattern.lower() in raw:
+                    model_seen.add(eq["id"] + "_" + mod["id"])
+                    break
+    return sorted(seen), sorted(model_seen)
 
 
 def generate_detailed_impl(uc):
@@ -316,11 +496,14 @@ def parse_category_file(filepath):
 
         i += 1
 
-    # Fill detailed implementation for every UC that doesn't have explicit "Detailed implementation" in markdown
+    # Fill detailed implementation and equipment tags for every UC
     for sub in category.get("s", []):
         for uc in sub.get("u", []):
             if not (uc.get("md") or "").strip():
                 uc["md"] = generate_detailed_impl(uc)
+            eq_ids, model_ids = equipment_ids_for_ta_string(uc.get("t"))
+            uc["e"] = eq_ids
+            uc["em"] = model_ids
 
     return category
 
@@ -407,16 +590,18 @@ def parse_index_metadata():
 
 
 def write_data_js(data, cat_meta, output_path):
-    """Write data.js with DATA, CAT_META, and CAT_GROUPS."""
+    """Write data.js with DATA, CAT_META, CAT_GROUPS, and EQUIPMENT."""
     data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     meta_json = json.dumps(cat_meta, ensure_ascii=False, separators=(",", ":"))
     groups_json = json.dumps(CAT_GROUPS, separators=(",", ":"))
+    equipment_json = json.dumps(EQUIPMENT, ensure_ascii=False, separators=(",", ":"))
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("// Auto-generated by build.py — do not edit manually\n")
         f.write(f"const DATA = {data_json};\n")
         f.write(f"const CAT_META = {meta_json};\n")
         f.write(f"const CAT_GROUPS = {groups_json};\n")
+        f.write(f"const EQUIPMENT = {equipment_json};\n")
 
     size_kb = os.path.getsize(output_path) / 1024
     return size_kb
@@ -463,6 +648,12 @@ def main():
     # Write output (starters are derived at runtime by the dashboard)
     size_kb = write_data_js(data, cat_meta, OUTPUT)
     print(f"\nWrote {OUTPUT} ({size_kb:.0f} KB)")
+
+    # Write catalog.json for Splunk UI Toolkit / React app (same data as data.js)
+    catalog = {"DATA": data, "CAT_META": cat_meta, "CAT_GROUPS": CAT_GROUPS, "EQUIPMENT": EQUIPMENT}
+    with open(OUTPUT_CATALOG_JSON, "w", encoding="utf-8") as f:
+        json.dump(catalog, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"Wrote {OUTPUT_CATALOG_JSON} ({os.path.getsize(OUTPUT_CATALOG_JSON) / 1024:.0f} KB)")
 
 
 if __name__ == "__main__":
