@@ -63,7 +63,7 @@ EQUIPMENT = [
             {"id": "ta_vmware", "label": "Splunk TA for VMware", "tas": ["Splunk_TA_vmware", "TA-vmware"]},
         ],
     },
-    {"id": "hyperv", "label": "Microsoft Hyper-V", "tas": ["Hyper-V", "Splunk_TA_microsoft-cloudservices"]},
+    {"id": "hyperv", "label": "Microsoft Hyper-V", "tas": ["Hyper-V", "Splunk_TA_microsoft-cloudservices", "hyperv", "HyperV", "Perfmon:HyperV", "Hyper-V"]},
     {"id": "aws", "label": "Amazon Web Services (AWS)", "tas": ["Splunk_TA_aws", "AWS", "CloudTrail", "CloudWatch"]},
     {"id": "azure", "label": "Microsoft Azure", "tas": ["Splunk_TA_microsoft-cloudservices", "Azure", "Azure Monitor", "Azure Activity"]},
     {"id": "gcp", "label": "Google Cloud Platform (GCP)", "tas": ["Splunk_TA_google-cloudplatform", "GCP", "Google Cloud"]},
