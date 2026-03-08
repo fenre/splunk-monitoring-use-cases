@@ -16,8 +16,9 @@
 - **SPL:**
 ```spl
 index=storage sourcetype="netapp:ontap:volume"
-| timechart span=1d avg(size_used_percent) as pct_used by volume_name
+| stats latest(size_used_percent) as pct_used by volume_name
 | where pct_used > 85
+| sort -pct_used
 ```
 - **References:** [Splunk Add-on for NetApp](https://splunkbase.splunk.com/app/1664), vendor REST/SNMP documentation
 - **Known false positives:** Temporary spikes during snapshots or replication; use rolling average or exclude known maintenance windows.
@@ -38,8 +39,9 @@ index=storage sourcetype="netapp:ontap:volume"
 - **SPL:**
 ```spl
 index=storage sourcetype="netapp:ontap:volume_perf"
-| timechart span=5m avg(avg_latency) as latency_ms by volume_name
+| stats avg(avg_latency) as latency_ms by volume_name
 | where latency_ms > 20
+| sort -latency_ms
 ```
 - **Implementation:** Poll latency metrics via REST or SNMP every 5 minutes. Set tiered alerts: warning >10ms, critical >20ms for production volumes. Correlate with IOPS spikes to distinguish overload from hardware issues.
 - **Visualization:** Line chart (latency over time by volume), Heatmap (volume × time), Single value (current avg latency).
@@ -171,6 +173,7 @@ index=storage sourcetype="netapp:ontap:volume"
 - **Monitoring type:** Performance
 - **Value:** FC port errors cause storage performance degradation and potential path failovers. Early detection prevents cascading failures.
 - **App/TA:** SNMP TA, FC switch syslog
+- **Equipment Models:** Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700, MDS 9706, MDS 9710
 - **Data Sources:** FC switch logs (Brocade, Cisco MDS), SNMP IF-MIB
 - **SPL:**
 ```spl
@@ -619,6 +622,110 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663 AccessMask="0
 ```
 - **Implementation:** Monitor file read events and correlate with SMB session data for volume estimates. Baseline normal transfer patterns per user. Alert when transfers exceed threshold (e.g., >1GB in single session). Correlate with HR/departure lists.
 - **Visualization:** Table (users with large transfers), Bar chart (transfer volume by user), Line chart (daily transfer volume trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.6 · Backup Encryption and Key Access Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Backup encryption keys must be used only by authorized backup jobs. Unusual key access or decryption attempts may indicate theft or ransomware. Auditing supports compliance and incident response.
+- **App/TA:** Backup vendor logs, KMS/HSM audit logs
+- **Data Sources:** Backup software audit log, AWS KMS CloudTrail, Azure Key Vault audit
+- **SPL:**
+```spl
+index=backup sourcetype=backup_audit (event="key_access" OR event="decrypt")
+| bin _time span=1h
+| stats count by user, key_id, event, _time
+| where count > 20
+| sort -count
+```
+- **Implementation:** Forward backup software audit logs and cloud KMS/key vault audit logs. Extract key ID, user, and action. Alert on high volume of decrypt or key access from unexpected principal or outside backup window.
+- **Visualization:** Table (user, key, count), Timeline of key access, Bar chart by principal.
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.7 · Backup Target Capacity and Growth Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Backup destination (disk, dedup appliance, object storage) that fills up causes backup failures and retention gaps. Tracking growth and remaining capacity prevents surprise outages.
+- **App/TA:** Backup vendor API, storage array metrics, S3/CloudWatch
+- **Data Sources:** Backup catalog size, target filesystem capacity, object storage metrics
+- **SPL:**
+```spl
+index=backup sourcetype=backup_capacity
+| eval used_pct=round(used_bytes/capacity_bytes*100, 1)
+| stats latest(used_pct) as pct, latest(used_bytes) as used by target_name
+| where pct > 85
+| table target_name pct used capacity_bytes
+```
+- **Implementation:** Poll backup target capacity (vendor API or filesystem/object metrics). Ingest used and total. Alert at 85% (warning) and 95% (critical). Compute week-over-week growth rate for capacity planning.
+- **Visualization:** Gauge per target, Line chart (usage % over time), Table (target, %, growth rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.8 · Restore Job Success and Duration Trending
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Restore failures or abnormally long restores indicate corrupt backups, network issues, or misconfiguration. Tracking ensures recovery procedures are validated and RTO is achievable.
+- **App/TA:** Backup vendor logs, job status API
+- **Data Sources:** Restore job status, duration, bytes restored
+- **SPL:**
+```spl
+index=backup sourcetype=backup_restore job_type=restore
+| bin _time span=1d
+| stats count(eval(status="failed")) as failures, count(eval(status="success")) as success, avg(duration_sec) as avg_duration by job_name, _time
+| eval fail_rate=round(failures/(failures+success)*100, 1)
+| where failures > 0 OR avg_duration > 3600
+```
+- **Implementation:** Ingest restore job completion events. Track success/failure and duration. Alert on any restore failure. Baseline restore duration by job type; alert when duration exceeds 2x baseline. Run periodic test restores and log results.
+- **Visualization:** Table (job, success, failures, avg duration), Line chart (restore duration trend), Single value (last 7d fail rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.9 · Backup Job Overlap and Schedule Conflict Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Overlapping full backups or too many concurrent jobs overload the backup infrastructure and extend backup windows. Detecting overlap supports schedule tuning and resource sizing.
+- **App/TA:** Backup vendor logs or API
+- **Data Sources:** Backup job start/end timestamps, job type (full/incremental)
+- **SPL:**
+```spl
+index=backup sourcetype=backup_job
+| eval start_epoch=_time end_epoch=_time+duration_sec
+| stats values(job_name) as jobs by host, _time
+| where mvcount(jobs) > 3
+| table _time host jobs
+```
+- **Implementation:** Ingest job start and duration. For each time window, count concurrent jobs per host or media server. Alert when more than N full backups run concurrently or when backup window is exceeded.
+- **Visualization:** Timeline (jobs by start/end), Table (overlapping jobs), Single value (max concurrent).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.10 · Immutable Backup and Ransomware Recovery Readiness
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Availability
+- **Value:** Immutable or air-gapped copies are the last line of defense against ransomware. Verifying immutability and recovery procedure readiness ensures backups cannot be deleted or encrypted by an attacker.
+- **App/TA:** Backup vendor API, object lock compliance check
+- **Data Sources:** Backup copy retention lock status, object lock (S3), backup integrity checksum
+- **SPL:**
+```spl
+index=backup sourcetype=backup_immutable
+| stats latest(immutable_ok) as ok, latest(last_checksum_verify) as last_verify by copy_name
+| where ok != 1 OR (now()-last_verify) > 604800
+| table copy_name ok last_verify
+```
+- **Implementation:** Poll backup copy configuration for retention lock or immutable flag. Optionally run periodic checksum or catalog validation. Alert when any critical copy is not immutable or when last verification is older than 7 days. Document and test recovery runbook.
+- **Visualization:** Status grid (copy, immutable, last verify), Table (non-compliant copies), Single value (ready for recovery %).
 - **CIM Models:** N/A
 
 ---

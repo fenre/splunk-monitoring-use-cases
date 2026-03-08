@@ -41,7 +41,7 @@ index=aws sourcetype="aws:cloudtrail" errorCode="AccessDenied" OR errorCode="Una
 ### UC-4.1.2 · Root Account Usage
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security
 - **Value:** The AWS root account has unrestricted access and should never be used for daily operations. Any root activity is a critical security event.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -174,7 +174,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="RunInstances" OR eventName="Te
 ### UC-4.1.7 · S3 Bucket Policy Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security
 - **Value:** S3 bucket policy changes can expose sensitive data to the public internet. One of the most common cloud security incidents.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -2474,6 +2474,109 @@ index=aws sourcetype="aws:config:notification" resourceType="AWS::CloudTrail::Tr
 ```
 - **Implementation:** Use Config rules (e.g. cloudtrail-enabled, multi-region), Azure Policy (diagnostic logs to Event Hub), or GCP org policy for log sinks. Ingest compliance state. Alert when any account/region has trail disabled or logging gap. Dashboard coverage by account and log type.
 - **Visualization:** Table (account, region, trail, multi-region, validation), Status (coverage %), Bar chart (gaps by account).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.15 · Cloud Resource Tag Compliance and Drift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Missing or inconsistent tags (Owner, CostCenter, Environment) block cost allocation, automation, and governance. Detecting untagged or non-compliant resources supports tag policy enforcement.
+- **App/TA:** `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory
+- **Data Sources:** AWS Config (resource compliance), Azure Policy compliance, GCP labels API
+- **SPL:**
+```spl
+index=aws sourcetype="aws:config:resource" tag_compliance="non_compliant"
+| stats count by resourceType, account_id, region
+| where count > 0
+| sort -count
+```
+- **Implementation:** Use AWS Config rules (required-tags), Azure Policy (e.g. RequireTagAndValue), or GCP org policy for label requirements. Ingest compliance results. Alert when net new untagged resources appear or compliance score drops below threshold. Dashboard by OU/account and resource type.
+- **Visualization:** Table (account, resource type, non-compliant count), Gauge (tag compliance %), Bar chart by tag key missing.
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.16 · Cross-Region Replication and Backup Verification
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Replication lag or failed backup copies leave RPO/RTO at risk. Monitoring ensures DR readiness and supports audit of backup and replication jobs.
+- **App/TA:** `Splunk_TA_aws`, Azure Monitor, GCP operations
+- **Data Sources:** S3 replication metrics, RDS cross-region replica lag, Azure Backup job status, GCP snapshot schedule
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch:metric" metric_name=ReplicationLatency namespace=AWS/S3
+| stats latest(value) as lag_seconds by dimension.BucketName, dimension.DestinationBucket
+| where lag_seconds > 900
+| table dimension.BucketName dimension.DestinationBucket lag_seconds
+```
+- **Implementation:** Collect S3 ReplicationTime and ReplicationLatency from CloudWatch. For RDS, use ReplicaLag. For Azure, ingest Backup job state from Monitor or automation runbooks. Alert when replication lag exceeds RPO (e.g. 15 min) or backup job fails.
+- **Visualization:** Line chart (replication lag by bucket/replica), Table (failed backup jobs), Single value (max lag).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.17 · Cloud Quota and Service Limit Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Hitting account or region quotas (e.g. EC2 instance limit, VPCs, EBS volumes) blocks provisioning and causes runtime failures. Proactive tracking supports limit increase requests.
+- **App/TA:** `Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas
+- **Data Sources:** AWS Service Quotas API, Trusted Advisor (limits), Azure usage and quotas, GCP quota API
+- **SPL:**
+```spl
+index=aws sourcetype="aws:service_quotas"
+| eval usage_pct=round(usage/value*100, 1)
+| where usage_pct > 80
+| table quota_name region usage value usage_pct
+| sort -usage_pct
+```
+- **Implementation:** Poll Service Quotas (or equivalent) for key limits (EC2, EBS, VPC, Lambda concurrency). Ingest current usage and quota value. Alert when utilization exceeds 80%. Dashboard all quotas with trend.
+- **Visualization:** Table (quota, usage %, limit), Gauge per critical quota, Bar chart (top near-limit quotas).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.18 · Cloud Endpoint and DNS Resolution Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** PrivateLink, VPC endpoints, and private DNS zones enable secure access to AWS/Azure/GCP services. Endpoint or DNS failures cause application outages that are hard to diagnose.
+- **App/TA:** Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health
+- **Data Sources:** Route53 Resolver query logs, VPC endpoint connection acceptance, Azure Private Endpoint status
+- **SPL:**
+```spl
+index=cloud sourcetype="endpoint:health"
+| stats latest(connect_ok) as ok, latest(rtt_ms) as rtt by endpoint_id, vpc_id
+| where ok != 1 OR rtt > 500
+| table endpoint_id vpc_id ok rtt _time
+```
+- **Implementation:** Run periodic probes (DNS lookup for private hosted zone, HTTPS to VPC endpoint) from a central host or Lambda. Ingest success/failure and latency. Alert when endpoint is unreachable or RTT exceeds threshold.
+- **Visualization:** Status grid (endpoint, OK/fail), Table (endpoint, RTT), Line chart (RTT over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.19 · Multi-Cloud Cost Anomaly and Spike Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost
+- **Value:** Sudden cost spikes across AWS, Azure, or GCP indicate misconfiguration, abuse, or runaway resources. Early detection limits financial impact and supports FinOps review.
+- **App/TA:** `Splunk_TA_aws`, Azure Cost Management export, GCP Billing export
+- **Data Sources:** AWS CUR, Azure Cost Management, GCP Billing export (BigQuery or file)
+- **SPL:**
+```spl
+index=cloud sourcetype="billing:daily" (provider=aws OR provider=azure OR provider=gcp)
+| timechart span=1d sum(unblended_cost) as cost by provider
+| eventstats avg(cost) as avg_cost, stdev(cost) as std_cost by provider
+| eval z_score=if(std_cost>0, (cost-avg_cost)/std_cost, 0)
+| where z_score > 2
+| table _time provider cost avg_cost z_score
+```
+- **Implementation:** Ingest daily (or hourly) cost by provider and service. Compute rolling mean and standard deviation per provider. Alert when daily cost exceeds 2 standard deviations. Correlate with resource inventory for top contributors.
+- **Visualization:** Line chart (cost by provider over time), Table (anomalous days), Single value (current day vs baseline).
 - **CIM Models:** N/A
 
 ---

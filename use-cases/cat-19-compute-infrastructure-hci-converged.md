@@ -11,18 +11,19 @@
 - **Monitoring type:** Availability
 - **Value:** UCS blade and rack servers host critical workloads. Monitoring component health (CPU, memory, PSU, fans) enables proactive hardware replacement before failures cause VM outages and unplanned downtime.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager syslog
+- **Equipment Models:** Cisco UCS B200 M5/M6/M7, UCS C220 M5/M6/M7, UCS C240 M5/M6/M7, UCS C480 M5, UCS X210c M6/M7, UCS X410c M6, UCS 6324 FI, UCS 6332 FI, UCS 6454 FI, UCS 6536 FI
 - **Data Sources:** UCS Manager faults, UCS Manager equipment API
 - **SPL:**
 ```spl
 index=cisco_ucs sourcetype="cisco:ucs:faults"
 | search dn="sys/chassis-*/blade-*" OR dn="sys/rack-unit-*"
 | eval component=case(
-    cause LIKE "%cpu%", "CPU",
-    cause LIKE "%memory%", "Memory",
-    cause LIKE "%psu%", "PSU",
-    cause LIKE "%fan%", "Fan",
-    cause LIKE "%disk%", "Disk",
-    1==1, "Other")
+   like(cause, "%cpu%"), "CPU",
+   like(cause, "%memory%"), "Memory",
+   like(cause, "%psu%"), "PSU",
+   like(cause, "%fan%"), "Fan",
+   like(cause, "%disk%"), "Disk",
+   1==1, "Other")
 | stats count by severity, component, dn, descr
 | sort -severity, -count
 ```
@@ -37,6 +38,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 - **Monitoring type:** Configuration
 - **Value:** UCS service profiles define the identity of compute resources. Non-compliant associations indicate configuration drift, failed hardware migrations, or policy violations that can impact workload performance and security.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager events
+- **Equipment Models:** Cisco UCS B200 M5/M6/M7, UCS C220 M5/M6/M7, UCS C240 M5/M6/M7, UCS C480 M5, UCS X210c M6/M7, UCS X410c M6, UCS 6324 FI, UCS 6332 FI, UCS 6454 FI, UCS 6536 FI
 - **Data Sources:** UCS Manager service profile API, configuration events
 - **SPL:**
 ```spl
@@ -61,6 +63,7 @@ index=cisco_ucs sourcetype="cisco:ucs:config"
 - **Monitoring type:** Compliance
 - **Value:** Running inconsistent firmware across UCS creates compatibility issues and security vulnerabilities. Tracking firmware versions enables compliance reporting, patch planning, and ensures consistency across the compute fleet.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager inventory
+- **Equipment Models:** Cisco UCS B200 M5/M6/M7, UCS C220 M5/M6/M7, UCS C240 M5/M6/M7, UCS C480 M5, UCS X210c M6/M7, UCS X410c M6, UCS 6324 FI, UCS 6332 FI, UCS 6454 FI, UCS 6536 FI
 - **Data Sources:** UCS Manager firmware inventory, UCS firmware policy
 - **SPL:**
 ```spl
@@ -83,6 +86,7 @@ index=cisco_ucs sourcetype="cisco:ucs:inventory"
 - **Monitoring type:** Capacity
 - **Value:** UCS fault trends reveal systemic hardware issues, environmental problems, or configuration problems across the compute fleet. Rising fault counts indicate deteriorating conditions requiring proactive attention.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager faults
+- **Equipment Models:** Cisco UCS B200 M5/M6/M7, UCS C220 M5/M6/M7, UCS C240 M5/M6/M7, UCS C480 M5, UCS X210c M6/M7, UCS X410c M6, UCS 6324 FI, UCS 6332 FI, UCS 6454 FI, UCS 6536 FI
 - **Data Sources:** UCS Manager fault log, syslog
 - **SPL:**
 ```spl
@@ -101,6 +105,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 - **Monitoring type:** Availability
 - **Value:** Fabric Interconnects are the network gateway for all UCS compute. Port-channel failures reduce bandwidth or cause complete loss of connectivity, impacting every workload in the UCS domain.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager stats
+- **Equipment Models:** Cisco UCS B200 M5/M6/M7, UCS C220 M5/M6/M7, UCS C240 M5/M6/M7, UCS C480 M5, UCS X210c M6/M7, UCS X410c M6, UCS 6324 FI, UCS 6332 FI, UCS 6454 FI, UCS 6536 FI
 - **Data Sources:** UCS Manager FI port-channel statistics, FI syslog
 - **SPL:**
 ```spl
@@ -122,11 +127,12 @@ index=cisco_ucs sourcetype="cisco:ucs:fi_stats"
 - **Monitoring type:** Fault
 - **Value:** UCS power and thermal data helps optimize data center capacity planning, detect cooling failures before overheating causes server throttling, and track energy efficiency metrics for sustainability reporting.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager environmental
+- **Equipment Models:** Cisco UCS B200 M5/M6/M7, UCS C220 M5/M6/M7, UCS C240 M5/M6/M7, UCS C480 M5, UCS X210c M6/M7, UCS X410c M6, UCS 6324 FI, UCS 6332 FI, UCS 6454 FI, UCS 6536 FI
 - **Data Sources:** UCS Manager environmental statistics, power supply metrics
 - **SPL:**
 ```spl
 index=cisco_ucs sourcetype="cisco:ucs:environmental"
-| eval metric_type=case(stat_name LIKE "%power%", "Power", stat_name LIKE "%temp%", "Temperature", stat_name LIKE "%fan%", "Fan", 1==1, "Other")
+| eval metric_type=case(like(stat_name, "%power%"), "Power", like(stat_name, "%temp%"), "Temperature", like(stat_name, "%fan%"), "Fan", 1==1, "Other")
 | stats avg(value) as avg_val, max(value) as max_val by chassis_id, metric_type, unit
 | eval status=case(
     metric_type=="Temperature" AND max_val>75, "Critical",
@@ -175,11 +181,10 @@ index=hci sourcetype="hci:cluster_health"
 ```spl
 index=hci sourcetype="hci:storage_metrics"
 | stats latest(total_capacity_tb) as total_tb, latest(used_capacity_tb) as used_tb by cluster_name, storage_pool
-| eval free_tb=total_tb-used_tb
+| eval free_tb=round(total_tb-used_tb, 2)
 | eval used_pct=round((used_tb/total_tb)*100, 1)
-| eval days_to_full=if(used_pct>50, round(free_tb/avg_daily_growth_tb, 0), "N/A")
-| table cluster_name, storage_pool, total_tb, used_tb, free_tb, used_pct, days_to_full
 | sort -used_pct
+| table cluster_name, storage_pool, total_tb, used_tb, free_tb, used_pct
 ```
 - **Implementation:** Collect storage capacity metrics every 5 minutes. Track daily growth rates for forecasting. Alert at 75% warning and 85% critical thresholds. Use Splunk predict command for capacity forecasting. Plan procurement cycles based on projected exhaustion dates.
 - **Visualization:** Gauge (capacity utilization), Timechart (capacity trending with forecast), Table (pool details), Single value (days to capacity).
@@ -292,6 +297,109 @@ index=hci sourcetype="nutanix:cvm"
 ```
 - **Implementation:** Monitor CVM service status (Stargate, Cassandra, Zookeeper, Prism) every 30 seconds. Track CVM CPU and memory utilization. Alert immediately on any CVM service failure. Monitor CVM-to-CVM communication for cluster stability. Track CVM restart events and correlate with I/O disruptions.
 - **Visualization:** Status grid (CVM health by node), Table (CVM service status), Gauge (CVM resource utilization), Timechart (CVM metrics trending).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.2.8 · HCI Cluster Balance and Skew
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Imbalanced storage or compute across nodes causes hot spots and reduced resilience. Monitoring skew supports rebalance and capacity planning.
+- **App/TA:** Nutanix/vSphere HCI APIs, Prism metrics
+- **Data Sources:** Storage used per node, IOPS per node, VM count per node
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:capacity"
+| stats latest(storage_used_gb) as used_gb, latest(iops) as iops, latest(vm_count) as vms by node
+| eventstats avg(used_gb) as avg_gb, avg(iops) as avg_iops by cluster
+| eval storage_skew_pct=abs(used_gb-avg_gb)/avg_gb*100
+| where storage_skew_pct > 25
+| table node, used_gb, avg_gb, storage_skew_pct, iops, vms
+```
+- **Implementation:** Ingest per-node capacity and load. Compute skew vs cluster average. Alert when storage or IOPS skew exceeds threshold. Trigger rebalance or migration. Report on balance trend.
+- **Visualization:** Table (nodes with skew), Bar chart (used by node), Gauge (cluster balance score).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.2.9 · HCI Data Resiliency and Rebuild Progress
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** After node or disk failure, rebuild must complete before another failure. Monitoring rebuild progress and ETA ensures data remains protected.
+- **App/TA:** Nutanix/vSAN resiliency APIs
+- **Data Sources:** Rebuild progress %, ETA, affected containers/vSAN components
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:resiliency"
+| where status="rebuilding" OR status="rebalancing"
+| stats latest(progress_pct) as progress, latest(eta_sec) as eta, latest(affected_gb) as gb by cluster, task_type
+| table cluster, task_type, progress, eta, gb
+```
+- **Implementation:** Poll resiliency and rebuild status. Alert when rebuild is slow or ETA exceeds threshold. Report on rebuild history and time-to-full resilience. Correlate with disk and node events.
+- **Visualization:** Gauge (rebuild progress), Table (active rebuilds), Line chart (rebuild rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.2.10 · HCI Hypervisor and AOS Version Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Mixed hypervisor or AOS versions can cause compatibility and support issues. Tracking version compliance supports upgrade planning and support eligibility.
+- **App/TA:** Nutanix Prism, vSphere/vCenter API
+- **Data Sources:** Node AOS version, hypervisor version, compliance baseline
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:cluster"
+| stats latest(aos_version) as aos, latest(hypervisor_version) as hv by node
+| lookup hci_compliance_baseline.csv env OUTPUT target_aos, target_hv
+| where aos!=target_aos OR hv!=target_hv
+| table node, aos, target_aos, hv, target_hv
+```
+- **Implementation:** Ingest cluster and node version data. Maintain baseline by environment. Alert on version drift. Report on compliance percentage and nodes due for upgrade.
+- **Visualization:** Table (non-compliant nodes), Pie chart (version distribution), Single value (compliance %).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.2.11 · HCI Network and Storage Controller Saturation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Saturated storage or network controllers cause latency and timeouts. Monitoring utilization supports capacity and design decisions.
+- **App/TA:** HCI platform metrics, Prism/vCenter
+- **Data Sources:** Controller queue depth, network throughput per node, latency percentiles
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:io"
+| stats latest(queue_depth) as queue, latest(latency_p99_ms) as p99, latest(throughput_mbps) as mbps by node, controller
+| where queue > 50 OR p99 > 100 OR mbps > 9000
+| table node, controller, queue, p99, mbps
+```
+- **Implementation:** Ingest I/O and network metrics per node and controller. Alert when queue depth or latency exceeds threshold. Report on saturation events and trend. Plan node or network upgrade when sustained.
+- **Visualization:** Table (saturated controllers), Line chart (latency and queue), Gauge (throughput utilization).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.2.12 · HCI Prism Central and Management Plane Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Prism Central (PC) failure affects visibility and automation. Monitoring PC and management plane ensures operations and alerting remain functional.
+- **App/TA:** Prism Central API, management node metrics
+- **Data Sources:** PC service status, API latency, task queue depth
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:prism_central"
+| stats latest(status) as status, latest(api_latency_ms) as latency, latest(task_queue) as queue by pc_instance
+| where status!="healthy" OR latency > 5000 OR queue > 100
+| table pc_instance, status, latency, queue
+```
+- **Implementation:** Poll Prism Central health and API metrics. Alert on unhealthy status, high API latency, or backed-up task queue. Report on PC availability and performance trend. Maintain HA for PC where available.
+- **Visualization:** Status grid (PC health), Table (PC metrics), Line chart (API latency).
 - **CIM Models:** N/A
 
 ---

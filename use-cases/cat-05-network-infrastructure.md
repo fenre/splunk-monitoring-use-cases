@@ -17,7 +17,7 @@
 
 ## 5.1 Routers & Switches
 
-**Primary App/TA:** Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`), SNMP Modular Input — Free
+**Primary App/TA:** Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), SNMP Modular Input — Free
 
 ---
 
@@ -26,7 +26,8 @@
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Link state changes directly impact connectivity. Flapping interfaces cause intermittent outages.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -46,6 +47,7 @@ index=network sourcetype="cisco:ios" "%LINEPROTO-5-UPDOWN" OR "%LINK-3-UPDOWN"
 - **Monitoring type:** Performance
 - **Value:** CRC errors, drops indicate cabling, transceiver, or duplex issues.
 - **App/TA:** SNMP Modular Input, IF-MIB
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=snmp:interface`
 - **SPL:**
 ```spl
@@ -66,6 +68,7 @@ index=network sourcetype="snmp:interface"
 - **Monitoring type:** Performance, Capacity
 - **Value:** Saturated links cause drops and congestion. Trending enables proactive upgrades.
 - **App/TA:** SNMP Modular Input
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** SNMP IF-MIB (ifHCInOctets, ifHCOutOctets, ifSpeed)
 - **SPL:**
 ```spl
@@ -92,7 +95,8 @@ index=network sourcetype="snmp:interface"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** BGP session drops cause routing convergence, potentially making networks unreachable.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -110,7 +114,8 @@ index=network sourcetype="cisco:ios" "%BGP-5-ADJCHANGE" OR "%BGP-3-NOTIFICATION"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** OSPF neighbor loss triggers SPF recalculation, disrupting traffic.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -129,7 +134,8 @@ index=network sourcetype="cisco:ios" "%OSPF-5-ADJCHG"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability, Anomaly
 - **Value:** STP topology changes cause brief disruption and MAC flushing. Root bridge changes are critical.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -147,7 +153,8 @@ index=network sourcetype="cisco:ios" "%SPANTREE-5-TOPOTCHANGE" OR "%SPANTREE-2-R
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration, Compliance
 - **Value:** Unauthorized config changes are a top cause of outages. Essential for compliance.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -167,6 +174,7 @@ index=network sourcetype="cisco:ios" "%SYS-5-CONFIG_I"
 - **Monitoring type:** Performance, Capacity
 - **Value:** CPU exhaustion causes packet drops, routing failures, management unresponsiveness.
 - **App/TA:** SNMP, CISCO-PROCESS-MIB
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=snmp:cpu`
 - **SPL:**
 ```spl
@@ -185,6 +193,7 @@ index=network sourcetype="snmp:cpu"
 - **Monitoring type:** Availability, Fault
 - **Value:** Unexpected reboots indicate hardware failure or unauthorized reload.
 - **App/TA:** SNMP, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** SNMP sysUpTime, `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -202,7 +211,8 @@ index=network sourcetype="cisco:ios" "%SYS-5-RESTART" OR "%SYS-5-RELOAD"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration, Compliance
 - **Value:** VLAN changes affect segmentation. Unauthorized changes can bypass security controls.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -220,7 +230,8 @@ index=network sourcetype="cisco:ios" "%VLAN_MANAGER-6-VLAN_CREATE" OR "%VLAN_MAN
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** Hardware failures reduce redundancy. A second failure causes outage.
-- **App/TA:** `Splunk_TA_cisco-ios`, SNMP CISCO-ENVMON-MIB
+- **App/TA:** `TA-cisco_ios`, SNMP CISCO-ENVMON-MIB
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -238,7 +249,8 @@ index=network sourcetype="cisco:ios" "%FAN-3-FAN_FAILED" OR "%PLATFORM_ENV-1-PSU
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Anomaly, Security
 - **Value:** MAC flapping indicates loops, misconfigurations, or layer-2 attacks.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -257,7 +269,8 @@ index=network sourcetype="cisco:ios" "%SW_MATM-4-MACFLAP_NOTIF"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** ACL deny hits show blocked traffic. High volumes may indicate attacks or misconfigured apps.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -284,7 +297,8 @@ index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Failed SNMP auth indicates unauthorized polling or reconnaissance.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -303,6 +317,7 @@ index=network sourcetype="cisco:ios" "%SNMP-3-AUTHFAIL"
 - **Monitoring type:** Fault
 - **Value:** Temperature alerts catch cooling failures before they cause device outages.
 - **App/TA:** SNMP, CISCO-ENVMON-MIB
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=snmp:environment`
 - **SPL:**
 ```spl
@@ -320,7 +335,8 @@ index=network sourcetype="snmp:environment"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly
 - **Value:** Unstable routes cause packet loss and reachability failures. Detecting flapping routes prevents cascading network outages across your infrastructure.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -340,7 +356,8 @@ index=network sourcetype="cisco:ios" "ROUTING" OR "RT_ENTRY" OR "%DUAL-5-NBRCHAN
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fault
 - **Value:** Duplex mismatches degrade link performance silently. They cause late collisions, CRC errors, and reduced throughput that are hard to diagnose.
-- **App/TA:** SNMP Modular Input, IF-MIB, `Splunk_TA_cisco-ios`
+- **App/TA:** SNMP Modular Input, IF-MIB, `TA-cisco_ios`
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=snmp:interface`
 - **SPL:**
 ```spl
@@ -361,6 +378,7 @@ index=network sourcetype="cisco:ios" "%CDP-4-DUPLEX_MISMATCH"
 - **Monitoring type:** Availability, Configuration
 - **Value:** Unexpected neighbor changes indicate cabling modifications, device replacements, or unauthorized devices connecting to the network.
 - **App/TA:** SNMP Modular Input, CISCO-CDP-MIB, LLDP-MIB
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=snmp:cdp`, `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -382,6 +400,7 @@ index=network sourcetype="snmp:cdp"
 - **Monitoring type:** Capacity, Fault
 - **Value:** PoE budget exhaustion causes powered devices (IP phones, APs, cameras) to lose power. Proactive monitoring prevents unplanned device outages.
 - **App/TA:** SNMP Modular Input, POWER-ETHERNET-MIB
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=snmp:poe`
 - **SPL:**
 ```spl
@@ -401,7 +420,8 @@ index=network sourcetype="snmp:poe"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly, Availability
 - **Value:** EIGRP neighbor instability causes route recalculation, increased CPU load, and traffic blackholing during convergence.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -422,6 +442,7 @@ index=network sourcetype="cisco:ios" "%DUAL-5-NBRCHANGE"
 - **Monitoring type:** Performance
 - **Value:** Increasing CRC errors indicate failing cables, SFPs, or electromagnetic interference. Early detection prevents link failures.
 - **App/TA:** SNMP Modular Input, IF-MIB
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=snmp:interface`
 - **SPL:**
 ```spl
@@ -443,6 +464,7 @@ index=network sourcetype="snmp:interface"
 - **Monitoring type:** Availability
 - **Value:** Silence from a device means either it's healthy or its syslog forwarding broke. Detecting missing syslog sources ensures continuous visibility.
 - **App/TA:** Splunk core (metadata search)
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=syslog`
 - **SPL:**
 ```spl
@@ -462,7 +484,8 @@ index=network sourcetype="snmp:interface"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Gateway redundancy state changes impact all hosts on a subnet. Detecting unexpected failovers prevents prolonged outages.
-- **App/TA:** `Splunk_TA_cisco-ios`, syslog
+- **App/TA:** `TA-cisco_ios`, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
@@ -480,7 +503,7 @@ index=network sourcetype="cisco:ios" "%HSRP-5-STATECHANGE" OR "%VRRP-6-STATECHAN
 
 ## 5.2 Firewalls
 
-**Primary App/TA:** Palo Alto Networks Add-on (`Splunk_TA_paloalto`), Cisco Firepower TA, Fortinet TA — Free
+**Primary App/TA:** Palo Alto Networks Add-on for Splunk (`Splunk_TA_paloalto`, Splunkbase 7523), Fortinet FortiGate Add-On for Splunk (`TA-fortinet_fortigate`, Splunkbase 2846) — Free
 
 ---
 
@@ -490,6 +513,7 @@ index=network sourcetype="cisco:ios" "%HSRP-5-STATECHANGE" OR "%VRRP-6-STATECHAN
 - **Monitoring type:** Security
 - **Value:** Identifies top blocked traffic sources — useful for rule tuning, detecting scanning, and misconfigured apps.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`, `sourcetype=cisco:firepower:syslog`
 - **SPL:**
 ```spl
@@ -516,6 +540,7 @@ index=firewall action="denied" OR action="drop"
 - **Monitoring type:** Configuration, Compliance
 - **Value:** Firewall rule changes can expose the network. Compliance must-have (PCI, SOX, HIPAA).
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:config`, firewall system/config logs
 - **SPL:**
 ```spl
@@ -541,6 +566,7 @@ index=firewall sourcetype="pan:config" cmd="set" OR cmd="edit" OR cmd="delete"
 - **Monitoring type:** Security
 - **Value:** IPS/IDS events indicate active attacks. Correlation with traffic context enables rapid response.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:threat`, `sourcetype=cisco:firepower:alert`
 - **SPL:**
 ```spl
@@ -566,6 +592,7 @@ index=firewall sourcetype="pan:threat" severity="critical" OR severity="high"
 - **Monitoring type:** Availability
 - **Value:** VPN failures isolate remote sites or users. Proactive monitoring prevents "the VPN is down" calls.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall VPN/system logs
 - **SPL:**
 ```spl
@@ -593,6 +620,7 @@ index=firewall ("tunnel" OR "IPSec" OR "IKE") ("down" OR "failed" OR "establishe
 - **Monitoring type:** Security
 - **Value:** Allowed traffic to RDP/SMB/Telnet from untrusted zones indicates policy gaps.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall traffic logs
 - **SPL:**
 ```spl
@@ -619,6 +647,7 @@ index=firewall action="allowed" (dest_port=3389 OR dest_port=445 OR dest_port=23
 - **Monitoring type:** Security, Anomaly
 - **Value:** Traffic to/from sanctioned or unexpected countries flags exfiltration, C2, or compromised hosts.
 - **App/TA:** Vendor-specific TA + GeoIP lookup
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall traffic logs
 - **SPL:**
 ```spl
@@ -646,12 +675,16 @@ index=firewall action="allowed" direction="outbound"
 - **Monitoring type:** Anomaly, Performance
 - **Value:** Sudden connection spikes indicate DDoS, scanning, or worm propagation.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall traffic logs
 - **SPL:**
 ```spl
-index=firewall | timechart span=5m count as connections by src_ip
+index=firewall
+| bin _time span=5m
+| stats count as connections by src_ip, _time
 | eventstats avg(connections) as avg_c, stdev(connections) as std_c by src_ip
-| where connections > (avg_c + 3*std_c) | sort -connections
+| where connections > (avg_c + 3*std_c)
+| sort -connections
 ```
 - **Implementation:** Baseline connection rates over 7 days. Alert when rate exceeds 3 standard deviations.
 - **Visualization:** Line chart with threshold overlay, Table, Timechart.
@@ -672,6 +705,7 @@ index=firewall | timechart span=5m count as connections by src_ip
 - **Monitoring type:** Security
 - **Value:** SSL decryption failures mean traffic passes uninspected — could be legitimate cert pinning or SSL evasion.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall decryption logs
 - **SPL:**
 ```spl
@@ -697,6 +731,7 @@ index=firewall sourcetype="pan:decryption" action="ssl-error"
 - **Monitoring type:** Security
 - **Value:** Shows what categories users are trying to access. Reveals policy effectiveness and shadow IT.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:url`
 - **SPL:**
 ```spl
@@ -723,6 +758,7 @@ index=firewall sourcetype="pan:url" action="block-url"
 - **Monitoring type:** Compliance
 - **Value:** Firewall admin access is highly privileged. Audit trail is a compliance must-have.
 - **App/TA:** Vendor-specific firewall TA
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall system/auth logs
 - **SPL:**
 ```spl
@@ -749,6 +785,7 @@ index=firewall sourcetype="pan:system" ("login" OR "logout" OR "auth")
 - **Monitoring type:** Performance, Capacity
 - **Value:** Session table exhaustion blocks new connections. CPU saturation degrades throughput.
 - **App/TA:** Vendor-specific TA, SNMP
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall system resource logs
 - **SPL:**
 ```spl
@@ -774,6 +811,7 @@ index=firewall ("session" AND "utilization") OR ("cpu" AND "dataplane")
 - **Monitoring type:** Capacity
 - **Value:** NAT exhaustion prevents outbound connections. Users lose internet access.
 - **App/TA:** Vendor-specific TA, syslog
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** Firewall NAT/system logs
 - **SPL:**
 ```spl
@@ -798,7 +836,8 @@ index=firewall ("NAT" OR "nat") ("exhausted" OR "allocation failed" OR "out of")
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Capacity
 - **Value:** When session tables fill, new connections are dropped. This causes service outages that are difficult to diagnose without firewall telemetry.
-- **App/TA:** `Splunk_TA_paloalto`, Splunk_TA_fortinet_fortigate, SNMP
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, SNMP
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:system`, `sourcetype=fgt_event`, SNMP
 - **SPL:**
 ```spl
@@ -825,11 +864,12 @@ index=network sourcetype="pan:system" "session table"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** HA failovers cause brief traffic disruption and can indicate underlying hardware or link failures. Tracking failover frequency detects instability.
-- **App/TA:** `Splunk_TA_paloalto`, Splunk_TA_fortinet_fortigate
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:system`, `sourcetype=fgt_event`
 - **SPL:**
 ```spl
-index=network (sourcetype="pan:system" "HA state change") OR (sourcetype="fgt_event" subtype="ha")
+index=firewall (sourcetype="pan:system" "HA state change") OR (sourcetype="fgt_event" subtype="ha")
 | rex "state change.*from (?<old_state>\w+) to (?<new_state>\w+)"
 | table _time, dvc, old_state, new_state | sort -_time
 ```
@@ -852,6 +892,7 @@ index=network (sourcetype="pan:system" "HA state change") OR (sourcetype="fgt_ev
 - **Monitoring type:** Security
 - **Value:** Detecting outbound connections to known C2 infrastructure identifies compromised internal hosts before data exfiltration occurs.
 - **App/TA:** `Splunk_TA_paloalto`, Threat intelligence feeds
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:threat`, `sourcetype=pan:traffic`
 - **SPL:**
 ```spl
@@ -879,6 +920,7 @@ index=network sourcetype="pan:threat" category="command-and-control" OR category
 - **Monitoring type:** Security
 - **Value:** Decryption failures create blind spots in security inspection. Tracking failures by destination reveals certificate pinning, protocol mismatches, or policy gaps.
 - **App/TA:** `Splunk_TA_paloalto`
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:decryption`
 - **SPL:**
 ```spl
@@ -905,7 +947,8 @@ index=network sourcetype="pan:decryption" action="decrypt-error" OR action="no-d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Unused firewall rules increase attack surface and complexity. Identifying zero-hit rules enables rule base cleanup and reduces risk.
-- **App/TA:** `Splunk_TA_paloalto`, Splunk_TA_fortinet_fortigate
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`
 - **SPL:**
 ```spl
@@ -932,7 +975,8 @@ index=network sourcetype="pan:traffic"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.
-- **App/TA:** `Splunk_TA_paloalto`, Splunk_TA_fortinet_fortigate
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`
+- **Equipment Models:** Cisco Secure Firewall 3110, 3120, 3130, 3140, Firepower 1010, 1120, 1140, 1150, Firepower 2110, 2120, 2130, 2140, Firepower 4110, 4120, 4140, 4150, Firepower 9300, Firepower Management Center (FMC)
 - **Data Sources:** `sourcetype=pan:system`, `sourcetype=fgt_event`
 - **SPL:**
 ```spl
@@ -1242,7 +1286,8 @@ index=network sourcetype="f5:bigip:ltm" "TCL error" OR "rule error" OR "aborted"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Offline APs create coverage dead zones. Users lose connectivity in affected areas.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog), WLC syslog
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), WLC syslog
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** `sourcetype=meraki, WLC events
 - **SPL:**
 ```spl
@@ -1261,6 +1306,7 @@ index=network sourcetype="meraki" type="access point" ("went offline" OR "unreac
 - **Monitoring type:** Availability
 - **Value:** Failed associations frustrate users and indicate RADIUS/auth issues, RF problems, or AP overload.
 - **App/TA:** WLC syslog, Meraki TA
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** WLC/AP syslog, RADIUS logs
 - **SPL:**
 ```spl
@@ -1287,6 +1333,7 @@ index=network sourcetype="cisco:wlc" ("association" OR "authentication") AND ("f
 - **Monitoring type:** Performance, Capacity
 - **Value:** High channel utilization degrades wireless performance. Identifies congested APs needing channel changes or additional coverage.
 - **App/TA:** Meraki API, WLC SNMP
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** Meraki API, SNMP (CISCO-DOT11-IF-MIB)
 - **SPL:**
 ```spl
@@ -1306,6 +1353,7 @@ index=network sourcetype="meraki:api"
 - **Monitoring type:** Security
 - **Value:** Rogue APs are unauthorized and can be used for man-in-the-middle attacks or network bridging.
 - **App/TA:** WLC syslog, Meraki TA
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** WLC/Meraki security events
 - **SPL:**
 ```spl
@@ -1324,6 +1372,7 @@ index=network sourcetype="cisco:wlc" "rogue" ("detected" OR "alert" OR "containe
 - **Monitoring type:** Capacity
 - **Value:** Client count trending informs capacity planning and AP density decisions.
 - **App/TA:** Meraki API, WLC SNMP
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** WLC/Meraki client data
 - **SPL:**
 ```spl
@@ -1342,6 +1391,7 @@ index=network sourcetype="meraki:api"
 - **Monitoring type:** Fault, Performance
 - **Value:** Radar (DFS), non-WiFi interference, and channel changes degrade wireless quality.
 - **App/TA:** WLC syslog, Meraki TA
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** WLC/AP syslog
 - **SPL:**
 ```spl
@@ -1360,6 +1410,7 @@ index=network sourcetype="cisco:wlc" ("radar" OR "DFS" OR "interference" OR "cha
 - **Monitoring type:** Security
 - **Value:** 802.1X success/failure rates indicate RADIUS health, certificate issues, or expired credentials.
 - **App/TA:** WLC syslog, RADIUS/ISE logs
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** RADIUS logs, WLC auth events
 - **SPL:**
 ```spl
@@ -1386,7 +1437,8 @@ index=network sourcetype="cisco:ise:syslog" ("Passed" OR "Failed") AND "Wireless
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Mass RADIUS failures prevent wireless users from connecting. Distinguishing between user errors and server issues drives faster resolution.
-- **App/TA:** Cisco WLC syslog, Splunk_TA_cisco-ise, `Splunk_TA_cisco-ise`
+- **App/TA:** Cisco WLC syslog, `Splunk_TA_cisco-ise`
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** `sourcetype=cisco:wlc`, `sourcetype=cisco:ise:syslog`
 - **SPL:**
 ```spl
@@ -1415,6 +1467,7 @@ index=network sourcetype="cisco:ise:syslog" "Authentication failed"
 - **Monitoring type:** Performance, Anomaly
 - **Value:** Poor roaming causes dropped calls, video freezes, and application timeouts. Analyzing roaming patterns identifies coverage gaps.
 - **App/TA:** Cisco WLC syslog, Meraki API
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** `sourcetype=cisco:wlc`, `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -1436,6 +1489,7 @@ index=network sourcetype="cisco:wlc" "roam" OR "reassociation"
 - **Monitoring type:** Security
 - **Value:** Wireless attacks (deauth floods, evil twin, KRACK) compromise network security. Early detection prevents credential theft and MitM attacks.
 - **App/TA:** Cisco WLC syslog, Meraki API
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** `sourcetype=cisco:wlc`, `sourcetype=meraki:ids`
 - **SPL:**
 ```spl
@@ -1455,6 +1509,7 @@ index=network sourcetype="cisco:wlc" "IDS Signature" OR "wIPS"
 - **Monitoring type:** Performance
 - **Value:** Band steering moves capable clients to 5 GHz, reducing congestion on 2.4 GHz. Measuring effectiveness validates RF policy.
 - **App/TA:** Cisco WLC syslog, Meraki API
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800
 - **Data Sources:** `sourcetype=cisco:wlc`, `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -1482,7 +1537,8 @@ index=network sourcetype="cisco:wlc" "associated"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Tunnel loss/latency/jitter directly impacts application experience over WAN.
-- **App/TA:** ta-cisco-sdwan, vManage API
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** vManage BFD metrics
 - **SPL:**
 ```spl
@@ -1508,7 +1564,8 @@ index=sdwan sourcetype="cisco:sdwan:bfd"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Edge device offline = remote site disconnected from the network.
-- **App/TA:** ta-cisco-sdwan, vManage API
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** vManage device status
 - **SPL:**
 ```spl
@@ -1527,7 +1584,8 @@ index=sdwan sourcetype="cisco:sdwan:device"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Detects when business-critical applications aren't meeting performance requirements over the WAN.
-- **App/TA:** ta-cisco-sdwan
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** vManage app-aware routing metrics
 - **SPL:**
 ```spl
@@ -1546,7 +1604,8 @@ index=sdwan sourcetype="cisco:sdwan:approute"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Tracks when traffic switches between WAN transports. Frequent failovers indicate unstable links.
-- **App/TA:** ta-cisco-sdwan
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** vManage events
 - **SPL:**
 ```spl
@@ -1564,7 +1623,8 @@ index=sdwan sourcetype="cisco:sdwan:events" ("failover" OR "path-change" OR "tra
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** vSmart/vManage connectivity issues affect policy distribution and overlay routing.
-- **App/TA:** ta-cisco-sdwan
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** vManage control connection logs
 - **SPL:**
 ```spl
@@ -1583,7 +1643,8 @@ index=sdwan sourcetype="cisco:sdwan:control"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** SD-WAN device certificates must be valid for overlay connectivity.
-- **App/TA:** ta-cisco-sdwan, vManage API
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** vManage certificate inventory
 - **SPL:**
 ```spl
@@ -1602,7 +1663,8 @@ index=sdwan sourcetype="cisco:sdwan:certificate"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
 - **Value:** WAN bandwidth consumption per site enables capacity planning and cost optimization.
-- **App/TA:** ta-cisco-sdwan
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** vManage interface metrics
 - **SPL:**
 ```spl
@@ -1628,7 +1690,8 @@ index=sdwan sourcetype="cisco:sdwan:interface"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Real-time jitter and latency metrics reveal WAN quality degradation before users complain. Critical for voice/video SLAs.
-- **App/TA:** ta-cisco-sdwan, Cisco vManage API
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), Cisco vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:approute`
 - **SPL:**
 ```spl
@@ -1655,7 +1718,8 @@ index=network sourcetype="cisco:sdwan:approute"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Validates that SD-WAN policies are steering traffic correctly. Detects policy misconfigurations that route real-time traffic over suboptimal paths.
-- **App/TA:** ta-cisco-sdwan, Cisco vManage API
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), Cisco vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** `sourcetype=cisco:sdwan:approute`, `sourcetype=cisco:sdwan:flow`
 - **SPL:**
 ```spl
@@ -1676,7 +1740,8 @@ index=network sourcetype="cisco:sdwan:flow"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
 - **Value:** Unbalanced link utilization wastes expensive MPLS bandwidth while underusing broadband circuits. Enables cost-effective traffic engineering.
-- **App/TA:** ta-cisco-sdwan, SNMP
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), SNMP
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
 - **Data Sources:** `sourcetype=cisco:sdwan:interface`, SNMP IF-MIB
 - **SPL:**
 ```spl
@@ -2282,7 +2347,7 @@ index=network sourcetype="netflow"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** DNA Center provides AI/ML-driven network issue detection. Centralizing in Splunk enables cross-domain correlation.
-- **App/TA:** Splunk-TA-cisco-dnacenter (API)
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)
 - **Data Sources:** DNA Center API (issues, events)
 - **SPL:**
 ```spl
@@ -2300,7 +2365,8 @@ index=network sourcetype="cisco:dnac:issues"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Tracks Meraki device status across all networks and organizations from a single pane.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog) (API + syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Equipment Models:** Cisco Meraki MX64, MX67, MX68, MX75, MX84, MX85, MX95, MX100, MX105, MX250, MX450, Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Cisco Meraki MS120, MS125, MS130, MS210, MS225, MS250, MS350, MS390
 - **Data Sources:** Meraki Dashboard API, syslog
 - **SPL:**
 ```spl
@@ -2378,6 +2444,7 @@ index=network sourcetype="oxidized"
 - **Monitoring type:** Compliance
 - **Value:** Non-compliant endpoints (missing patches, disabled AV) on the network increase attack surface. ISE posture data enables enforcement visibility.
 - **App/TA:** `Splunk_TA_cisco-ise`
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** `sourcetype=cisco:ise:syslog`
 - **SPL:**
 ```spl
@@ -2438,7 +2505,7 @@ index=network sourcetype="config:diff"
 
 ## 5.9 Cisco Meraki
 
-**Primary App/TA:** Splunk Add-on for Cisco Meraki (`Splunk_TA_cisco_meraki`) — Free on Splunkbase; `TA-meraki` for syslog
+**Primary App/TA:** Cisco Meraki Add-on for Splunk (Splunkbase 5580) — Free on Splunkbase
 
 ---
 
@@ -2447,7 +2514,7 @@ index=network sourcetype="config:diff"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Identifies recurring authentication failures and SSID configuration issues that prevent users from connecting to wireless networks.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event
 - **SPL:**
 ```spl
@@ -2466,7 +2533,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*Associat
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Proactively identifies weak WiFi coverage areas and client placement issues before users experience connectivity problems.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -2486,7 +2553,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Detects unstable roaming patterns and AP handoff issues that cause latency spikes and dropped connections.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*Roaming*" OR signature="*handoff*"
 - **SPL:**
 ```spl
@@ -2507,7 +2574,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Roaming
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Compares performance across multiple SSIDs to identify underperforming networks and optimize deployment strategy.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -2527,7 +2594,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
 - **Value:** Identifies channel congestion and interference sources to optimize channel assignments and reduce co-channel interference.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api sourcetype=meraki
 - **SPL:**
 ```spl
@@ -2548,7 +2615,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Identifies unauthorized wireless networks and malicious APs that may represent security threats or network intrusion attempts.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=air_marshal
 - **SPL:**
 ```spl
@@ -2568,7 +2635,7 @@ index=cisco_network sourcetype="meraki" type=air_marshal signature="*Rogue*" OR 
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Value:** Tracks device types connecting to network for capacity planning, security policy enforcement, and support optimization.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -2588,7 +2655,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Measures effectiveness of steering clients from 2.4GHz to 5GHz bands to reduce congestion and improve performance.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -2608,7 +2675,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
 - **Value:** Detects DHCP server failures and IP pool exhaustion that prevent new clients from obtaining addresses.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*DHCP*"
 - **SPL:**
 ```spl
@@ -2628,7 +2695,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*" (
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Identifies authentication server problems, credential issues, and 802.1X configuration mismatches.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*802.1X*" OR signature="*Radius*"
 - **SPL:**
 ```spl
@@ -2649,7 +2716,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*802.1X*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Monitors DNS query resolution times and failures to identify misconfiguration or server issues affecting user experience.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*DNS*"
 - **SPL:**
 ```spl
@@ -2668,7 +2735,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DNS*" re
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Identifies latency patterns across network to optimize AP placement, channel allocation, and client routing.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -2689,7 +2756,7 @@ index=cisco_network sourcetype="meraki:api" latency=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Tracks guest network splash page performance and user acceptance rates for marketing and network access purposes.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*Splash*"
 - **SPL:**
 ```spl
@@ -2708,7 +2775,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*Splash*"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly
 - **Value:** Identifies multicast/broadcast flooding that degrades wireless performance across multiple client devices.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=flow
 - **SPL:**
 ```spl
@@ -2728,7 +2795,7 @@ index=cisco_network sourcetype="meraki" type=flow dest_ip="255.255.255.255" OR d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Provides a composite health metric across all APs to facilitate executive reporting and trend analysis.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MR
 - **SPL:**
 ```spl
@@ -2747,7 +2814,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** Tracks client density by AP and SSID for capacity planning and performance optimization.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -2768,7 +2835,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Identifies bandwidth-intensive clients and applications to enforce QoS policies and prevent network congestion.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=flow
 - **SPL:**
 ```spl
@@ -2789,7 +2856,7 @@ index=cisco_network sourcetype="meraki" type=flow
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Analyzes typical session lengths and stability to identify problematic SSIDs or time-based issues.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -2808,7 +2875,7 @@ index=cisco_network sourcetype="meraki:api" connection_duration=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Ensures all access points are online and operational; alerts on unexpected AP outages.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MR
 - **SPL:**
 ```spl
@@ -2827,7 +2894,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Monitors wireless mesh backhaul links to ensure reliability of remote AP connections.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MR sourcetype=meraki type=security_event
 - **SPL:**
 ```spl
@@ -2847,7 +2914,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR mesh_link_quality=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Tracks guest network adoption, usage patterns, and peak times for network provisioning.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api ssid="guest*"
 - **SPL:**
 ```spl
@@ -2866,7 +2933,7 @@ index=cisco_network sourcetype="meraki:api" ssid="guest"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Uses Cisco Meraki location services to track foot traffic patterns and heat maps in physical spaces.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api location_data=*
 - **SPL:**
 ```spl
@@ -2885,7 +2952,7 @@ index=cisco_network sourcetype="meraki:api" ap_name=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Identifies port saturation and congestion events that require capacity upgrades or load balancing adjustments.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MS
 - **SPL:**
 ```spl
@@ -2905,7 +2972,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Monitors PoE power allocation to prevent over-subscription and ensure sufficient power for all devices.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MS
 - **SPL:**
 ```spl
@@ -2925,7 +2992,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS poe_consumption=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Alerts on unexpected STP topology changes that indicate link failures or network configuration issues.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*STP*" OR signature="*topology*"
 - **SPL:**
 ```spl
@@ -2944,7 +3011,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*STP*" O
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Detects unauthorized MAC addresses and port security breaches that indicate potential network intrusion.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*Port Security*" OR signature="*Unauthorized MAC*"
 - **SPL:**
 ```spl
@@ -2964,7 +3031,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Port Se
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Identifies port flapping, cable issues, and unstable link states that cause intermittent connectivity.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*link*" OR signature="*Interface*"
 - **SPL:**
 ```spl
@@ -2984,7 +3051,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" 
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Detects VLAN configuration errors and tagging violations that disrupt network segmentation.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MS sourcetype=meraki
 - **SPL:**
 ```spl
@@ -3003,7 +3070,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*VLAN*"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
 - **Value:** Detects MAC address table exhaustion and flooding attacks that could overwhelm switch resources.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*MAC*" OR signature="*bridge*"
 - **SPL:**
 ```spl
@@ -3022,7 +3089,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*MAC*" O
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Detects unauthorized DHCP servers and spoofing attempts that disrupt network address allocation.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*DHCP Snooping*"
 - **SPL:**
 ```spl
@@ -3041,7 +3108,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*Sno
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly
 - **Value:** Identifies and alerts on broadcast storms that can freeze network performance across all switches.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*broadcast*"
 - **SPL:**
 ```spl
@@ -3060,7 +3127,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*broadcas
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** Monitors switch hardware resources to prevent performance degradation or device failure.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MS
 - **SPL:**
 ```spl
@@ -3079,7 +3146,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Ensures switch stacking configuration remains healthy and redundancy is not compromised.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MS stack_id=*
 - **SPL:**
 ```spl
@@ -3098,7 +3165,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS stack_id=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Monitors inter-switch and uplink trunk utilization to identify bandwidth constraints.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MS
 - **SPL:**
 ```spl
@@ -3118,7 +3185,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS port_type="trunk"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Detects QoS queue overflow and drops that indicate traffic priority issues.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*QoS*" OR signature="*queue*"
 - **SPL:**
 ```spl
@@ -3137,7 +3204,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*QoS*" O
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Tracks ACL rule hits to monitor policy enforcement and identify anomalous traffic.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*ACL*"
 - **SPL:**
 ```spl
@@ -3156,7 +3223,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*ACL*" ac
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Analyzes cable integrity test results to identify wiring faults before they cause outages.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*cable*" OR signature="*diagnostic*"
 - **SPL:**
 ```spl
@@ -3175,7 +3242,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Monitors primary/secondary uplink status to detect failover events and connection issues.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*Uplink*" OR signature="*failover*"
 - **SPL:**
 ```spl
@@ -3194,7 +3261,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Uplink*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Ensures all site-to-site and client VPN tunnels remain active and operative.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=vpn sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3213,7 +3280,7 @@ index=cisco_network sourcetype="meraki" type=vpn
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Tracks blocked URLs and categories to monitor policy compliance and identify misclassified content.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=urls action="blocked"
 - **SPL:**
 ```spl
@@ -3233,7 +3300,7 @@ index=cisco_network sourcetype="meraki" type=urls action="blocked"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Identifies and prioritizes intrusion detection alerts for investigation and threat response.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=ids_alert
 - **SPL:**
 ```spl
@@ -3261,7 +3328,7 @@ index=cisco_network sourcetype="meraki" type=ids_alert
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Detects and tracks file-based threats to respond quickly to potential malware infections.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*malware*" OR signature="*AMP*"
 - **SPL:**
 ```spl
@@ -3281,7 +3348,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*malware
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Identifies top denied flows to optimize firewall rules and detect policy violations.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=flow action="deny"
 - **SPL:**
 ```spl
@@ -3308,7 +3375,7 @@ index=cisco_network sourcetype="meraki" type=flow action="deny"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Measures the impact of traffic shaping policies on bandwidth distribution and priority.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=flow sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3334,7 +3401,7 @@ index=cisco_network sourcetype="meraki" type=flow priority_queue=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Monitors latency and jitter on VPN tunnels to ensure quality of critical business traffic.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=vpn sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3353,7 +3420,7 @@ index=cisco_network sourcetype="meraki" type=vpn latency=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Tracks client VPN usage patterns for remote workers and identifies problematic connections.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=vpn client_vpn=true
 - **SPL:**
 ```spl
@@ -3372,7 +3439,7 @@ index=cisco_network sourcetype="meraki" type=vpn client_vpn=true
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** Monitors NAT pool utilization to prevent address exhaustion that could block outbound traffic.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3392,7 +3459,7 @@ index=cisco_network sourcetype="meraki:api" nat_pool_usage=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Ensures BGP peers remain established and routing remains stable for multi-ISP designs.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*BGP*"
 - **SPL:**
 ```spl
@@ -3411,7 +3478,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*BGP*" (s
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** Alerts when DHCP pools approach depletion to prevent clients from obtaining IP addresses.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3431,7 +3498,7 @@ index=cisco_network sourcetype="meraki:api" dhcp_pool=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Correlates network traffic with threat intelligence databases to detect known malicious IPs and domains.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event OR type=urls OR type=flow
 - **SPL:**
 ```spl
@@ -3452,7 +3519,7 @@ index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR typ
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Tracks geo-blocking policy enforcement to verify compliance with data residency and export controls.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=urls action="blocked" country=*
 - **SPL:**
 ```spl
@@ -3472,7 +3539,7 @@ index=cisco_network sourcetype="meraki" type=urls action="blocked"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** Identifies top applications and protocols on network to understand usage patterns and detect anomalies.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=flow application=*
 - **SPL:**
 ```spl
@@ -3493,7 +3560,7 @@ index=cisco_network sourcetype="meraki" type=flow application=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Tracks bandwidth consumption by application and business unit for chargeback and optimization.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=flow
 - **SPL:**
 ```spl
@@ -3514,7 +3581,7 @@ index=cisco_network sourcetype="meraki" type=flow
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Continuously monitors WAN quality metrics to detect link degradation before impacting users.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api wan_metrics=*
 - **SPL:**
 ```spl
@@ -3533,7 +3600,7 @@ index=cisco_network sourcetype="meraki:api" uplink=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Tracks failover events, recovery time, and uplink behavior to ensure high availability.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*failover*" OR signature="*recovery*"
 - **SPL:**
 ```spl
@@ -3552,7 +3619,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*failove
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Tracks cellular backup activation to monitor failover effectiveness and cellular data usage.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*4G*"
 - **SPL:**
 ```spl
@@ -3571,7 +3638,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cellula
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Ensures warm spare failover mechanism is operational and redundancy is maintained.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*warm spare*" OR signature="*HA*"
 - **SPL:**
 ```spl
@@ -3590,7 +3657,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*warm sp
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Tracks automatic VPN path optimization to understand tunnel usage and convergence behavior.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=vpn signature="*Auto VPN*" OR signature="*path change*"
 - **SPL:**
 ```spl
@@ -3609,7 +3676,7 @@ index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR sign
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Detects denial of service attacks by analyzing abnormal connection establishment rates.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=flow protocol="tcp" tcp_flags="SYN"
 - **SPL:**
 ```spl
@@ -3628,7 +3695,7 @@ index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Detects and alerts on sensitive data transmission to prevent data exfiltration.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*DLP*"
 - **SPL:**
 ```spl
@@ -3648,7 +3715,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DLP*"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Monitors SSL certificate expiration dates on all network devices to prevent outages.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3669,7 +3736,7 @@ index=cisco_network sourcetype="meraki:api" certificate_expiry=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Value:** Ensures all network devices run supported firmware versions and patches.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3689,7 +3756,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Monitors API usage to prevent rate limit hits and optimize automation efficiency.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3709,7 +3776,7 @@ index=cisco_network sourcetype="meraki:api:*"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Ensures licenses don't expire unexpectedly and features remain available.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3730,7 +3797,7 @@ index=cisco_network sourcetype="meraki:api" license_expiry=*
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Configuration
 - **Value:** Maintains accurate inventory of network devices and tracks hardware/software changes.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3750,7 +3817,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Tracks administrator actions and logins for compliance and security auditing.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*admin*" OR signature="*login*"
 - **SPL:**
 ```spl
@@ -3769,7 +3836,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*admin*"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Detects unauthorized privilege changes and permission escalation attempts.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*privilege*" OR signature="*permission*"
 - **SPL:**
 ```spl
@@ -3788,7 +3855,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*privile
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
 - **Value:** Analyzes alert volume trends to optimize alerting rules and reduce false positives.
-- **App/TA:** `Splunk_TA_cisco_meraki` (webhooks)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580, webhooks)
 - **Data Sources:** `sourcetype=meraki:webhook
 - **SPL:**
 ```spl
@@ -3807,7 +3874,7 @@ index=cisco_network sourcetype="meraki:webhook"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Provides high-level network health metric for executive dashboards and trend reporting.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3827,7 +3894,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Tracks device connectivity status to quickly identify and respond to device failures.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3847,7 +3914,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Compares metrics across organizations to identify best practices and outliers.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3866,7 +3933,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Ensures configuration changes only occur within approved maintenance windows.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*config*"
 - **SPL:**
 ```spl
@@ -3887,7 +3954,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*config*"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** Ensures webhook notifications reach integrations and alerts don't get lost.
-- **App/TA:** `Splunk_TA_cisco_meraki` (webhooks)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580, webhooks)
 - **Data Sources:** `sourcetype=meraki:webhook status="failure" OR status="error"
 - **SPL:**
 ```spl
@@ -3906,7 +3973,7 @@ index=cisco_network sourcetype="meraki:webhook" (status="failure" OR status="err
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Monitors API endpoint health and error rates to ensure automation reliability.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api (http_status_code=4* OR http_status_code=5*)
 - **SPL:**
 ```spl
@@ -3926,7 +3993,7 @@ index=cisco_network sourcetype="meraki:api:*" (http_status_code=4* OR http_statu
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Tracks dashboard configuration backups to enable disaster recovery and configuration review.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3946,7 +4013,7 @@ index=cisco_network sourcetype="meraki:api" backup_timestamp=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Monitors video surveillance system availability to ensure continuous monitoring coverage.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MV sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3965,7 +4032,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MV
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Tracks cloud storage usage for video archives to manage costs and ensure retention SLA.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -3985,7 +4052,7 @@ index=cisco_network sourcetype="meraki:api" storage_usage=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Analyzes motion detection event patterns to optimize camera sensitivity and reduce false alerts.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*motion*"
 - **SPL:**
 ```spl
@@ -4004,7 +4071,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*motion*"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Monitors video quality metrics to identify network or hardware issues affecting video feeds.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -4024,7 +4091,7 @@ index=cisco_network sourcetype="meraki:api" quality_score=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Ensures video archives are successfully uploaded to cloud and backup integrity is maintained.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api archive_status=*
 - **SPL:**
 ```spl
@@ -4043,7 +4110,7 @@ index=cisco_network sourcetype="meraki:api" archive_status=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Detects video stream connection failures that prevent remote viewing or recording.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*stream*" OR signature="*connection*"
 - **SPL:**
 ```spl
@@ -4062,7 +4129,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*stream*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Value:** Ensures all cameras run current firmware with security patches.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MV
 - **SPL:**
 ```spl
@@ -4082,7 +4149,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MV
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Monitors camera performance in low-light conditions to ensure night surveillance effectiveness.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api night_mode=true
 - **SPL:**
 ```spl
@@ -4101,7 +4168,7 @@ index=cisco_network sourcetype="meraki:api" night_mode=true
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Uses camera people counting to track foot traffic trends for space utilization and facility planning.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api people_count=*
 - **SPL:**
 ```spl
@@ -4119,7 +4186,7 @@ index=cisco_network sourcetype="meraki:api" people_count=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** Alerts when environmental temperatures exceed safe thresholds to prevent equipment damage.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*temperature*"
 - **SPL:**
 ```spl
@@ -4138,7 +4205,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*temperat
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** Monitors humidity levels to ensure optimal conditions for equipment and prevent moisture damage.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*humidity*"
 - **SPL:**
 ```spl
@@ -4157,7 +4224,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*humidity
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Tracks door access events for security and facility monitoring.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*door*"
 - **SPL:**
 ```spl
@@ -4175,7 +4242,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*door*" (
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Immediately detects water leaks to prevent equipment damage and business interruption.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*water*" OR signature="*leak*"
 - **SPL:**
 ```spl
@@ -4194,7 +4261,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*water*"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Tracks electrical power consumption and load to identify anomalies and plan upgrades.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -4213,7 +4280,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type="power" power_watts=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Monitors indoor air quality to ensure safe working conditions.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api sensor_type="air_quality"
 - **SPL:**
 ```spl
@@ -4232,7 +4299,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type="air_quality" co2_ppm=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Tracks noise levels to ensure comfortable working environment and detect anomalies.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api sensor_type="noise"
 - **SPL:**
 ```spl
@@ -4251,7 +4318,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type="noise" noise_db=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
 - **Value:** Analyzes temperature and humidity trends to optimize HVAC system efficiency.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api sensor_type IN ("temperature", "humidity")
 - **SPL:**
 ```spl
@@ -4270,7 +4337,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type IN ("temperature", "humi
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Tracks sensor battery levels to ensure sensors remain operational and schedule replacements.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -4290,7 +4357,7 @@ index=cisco_network sourcetype="meraki:api" battery_level=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Ensures all sensors maintain connectivity and operational status.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api
 - **SPL:**
 ```spl
@@ -4310,7 +4377,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Value:** Ensures all managed devices comply with security policies and configuration standards.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api compliance_status=*
 - **SPL:**
 ```spl
@@ -4329,7 +4396,7 @@ index=cisco_network sourcetype="meraki:api" (compliance_status="noncompliant" OR
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Tracks device enrollment status to ensure mobile device management coverage.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api enrollment_status=*
 - **SPL:**
 ```spl
@@ -4348,7 +4415,7 @@ index=cisco_network sourcetype="meraki:api" enrollment_status IN ("enrolled", "p
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Uses geofencing to detect when devices leave secure zones and trigger location-based policies.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*geofence*"
 - **SPL:**
 ```spl
@@ -4367,7 +4434,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*geofence
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Detects policy violations and restricted app usage attempts.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*policy*" OR signature="*app*"
 - **SPL:**
 ```spl
@@ -4386,7 +4453,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*policy*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Tracks activation of lost mode on devices to ensure recovery protocols are working.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*lost mode*"
 - **SPL:**
 ```spl
@@ -4404,7 +4471,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*lost mod
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Tracks app deployment success and identifies devices with failed or incomplete deployments.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*app*deployment*"
 - **SPL:**
 ```spl
@@ -4424,7 +4491,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*app*depl
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Monitors cellular signal strength to ensure reliable backup connectivity.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MG
 - **SPL:**
 ```spl
@@ -4443,7 +4510,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MG
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Tracks cellular data consumption to manage carrier costs and prevent overages.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MG data_usage=*
 - **SPL:**
 ```spl
@@ -4462,7 +4529,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MG data_usage=*
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** Monitors carrier connectivity and network performance metrics for backup internet links.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*carrier*"
 - **SPL:**
 ```spl
@@ -4481,7 +4548,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cellula
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Tracks SIM card status and plan expiration to ensure continuous cellular connectivity.
-- **App/TA:** `Splunk_TA_cisco_meraki` (API), `TA-meraki` (syslog)
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api device_type=MG sim_status=*
 - **SPL:**
 ```spl
@@ -4496,4 +4563,105 @@ index=cisco_network sourcetype="meraki:api" device_type=MG
 
 ---
 
+### UC-5.9.105 · Meraki VPN Tunnel and Failover Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Site-to-site and client VPN tunnel state directly impacts remote site and user connectivity. Detecting tunnel down or failover events supports quick remediation.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API
+- **Data Sources:** `sourcetype=meraki:api` (VPN status), syslog from MX
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
+| stats latest(tunnel_state) as state, latest(peer_ip) as peer by device_serial, tunnel_id
+| where state != "up"
+| table device_serial tunnel_id peer state _time
+```
+- **Implementation:** Poll Meraki API for VPN tunnel status or ingest MX syslog for tunnel events. Alert when any tunnel is down. Track failover events for active/standby links.
+- **Visualization:** Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.9.106 · Wireless Client Association and Roaming Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** High association failure or roaming failure rates indicate coverage gaps, interference, or AP misconfiguration. Trending supports WLAN troubleshooting and capacity planning.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (WLC), wireless controller logs
+- **Data Sources:** Meraki wireless events, Cisco WLC syslog
+- **SPL:**
+```spl
+index=cisco_network sourcetype=meraki:wireless (event_type="association_failed" OR event_type="roam_failed")
+| stats count by ap_serial, ssid, _time span=15m
+| where count > 20
+| sort -count
+```
+- **Implementation:** Ingest wireless client events from Meraki or WLC. Extract association and roam outcomes. Alert when failure rate exceeds threshold per AP or SSID. Dashboard by location and time.
+- **Visualization:** Table (AP, SSID, failures), Line chart (failure rate over time), Heatmap (AP by location).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.9.107 · DHCP Lease Exhaustion and Scope Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Exhausted DHCP scopes prevent new devices from joining the network. Monitoring utilization and lease count supports proactive scope expansion or cleanup.
+- **App/TA:** Infoblox, Microsoft DHCP, ISC DHCP — scripted input or API
+- **Data Sources:** DHCP server logs, lease table export, SNMP (DHCP pool MIB)
+- **SPL:**
+```spl
+index=network sourcetype=dhcp_scope
+| eval used_pct=round(leases_in_use/scope_size*100, 1)
+| stats latest(used_pct) as pct, latest(leases_in_use) as used by scope_name, server
+| where pct > 85
+| table scope_name server used scope_size pct
+```
+- **Implementation:** Poll DHCP server (Infoblox API, Windows WMI, or lease file) for scope size and in-use count. Ingest daily or hourly. Alert when utilization exceeds 85%. Track lease duration and stale lease cleanup.
+- **Visualization:** Gauge per scope, Table (scope, used, size, %), Line chart (utilization trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.9.108 · DNS Query Latency and Resolution Failure by Resolver
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Slow or failing DNS resolution impacts all applications. Tracking latency and NXDOMAIN/timeout rates per resolver supports capacity and upstream provider decisions.
+- **App/TA:** Custom scripted input (dig, DNS query log), Infoblox/BIND query logs
+- **Data Sources:** DNS resolver query logs, synthetic DNS probes
+- **SPL:**
+```spl
+index=network sourcetype=dns_query
+| stats avg(response_time_ms) as avg_ms, count(eval(response_code="NXDOMAIN" OR response_code="SERVFAIL")) as failures, count as total by resolver_ip, _time span=5m
+| eval fail_rate=round(failures/total*100, 2)
+| where avg_ms > 200 OR fail_rate > 5
+| table resolver_ip avg_ms fail_rate total
+```
+- **Implementation:** Run synthetic DNS probes (e.g. dig to critical domains) from multiple hosts; ingest response time and result. Optionally ingest resolver query logs. Alert when latency exceeds 200ms or failure rate exceeds 5%.
+- **Visualization:** Line chart (latency by resolver), Table (resolver, avg ms, fail rate), Single value (p95 latency).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.9.109 · Network Device Configuration Backup and Drift
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Missing or stale configuration backups complicate recovery after failure or bad change. Detecting backup failure or config drift supports change control and RTO.
+- **App/TA:** RANCID, Oxidized, custom scripted input
+- **Data Sources:** Backup job output, config repository (Git), device config fetch
+- **SPL:**
+```spl
+index=network sourcetype=config_backup
+| stats latest(backup_ok) as ok, latest(backup_time) as last_backup by device_hostname
+| where ok != 1 OR (now()-last_backup) > 86400
+| table device_hostname ok last_backup
+```
+- **Implementation:** Run config backup (RANCID, Oxidized, or vendor API) on schedule. Ingest success/failure and timestamp. Alert when backup fails or last successful backup is older than 24 hours. Optionally diff current vs. last backup for drift.
+- **Visualization:** Table (device, last backup, status), Single value (devices without backup today), Timeline (backup runs).
+- **CIM Models:** N/A
+
+---
 

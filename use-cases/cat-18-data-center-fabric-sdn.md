@@ -2,7 +2,7 @@
 
 ### 18.1 Cisco ACI
 
-**Splunk Add-on:** Cisco ACI TA, APIC syslog
+**Splunk Add-on:** Cisco ACI Add-on for Splunk (`TA_cisco-ACI`, Splunkbase 1897 — deprecated, successor: Cisco DC Networking Application, Splunkbase 7777), APIC syslog
 
 ### UC-18.1.1 · Fabric Health Score Monitoring
 
@@ -11,11 +11,12 @@
 - **Monitoring type:** Compliance
 - **Value:** ACI fabric health scores provide a single-pane view of overall data center network health. Monitoring these scores lets you catch degradation before it impacts workloads, correlate health drops with specific faults, and maintain SLA compliance across your data center fabric.
 - **App/TA:** `TA_cisco-ACI`, APIC REST API via scripted input
+- **Equipment Models:** Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)
 - **Data Sources:** APIC REST API (`/api/node/mo/topology/health.json`), APIC syslog
 - **SPL:**
 ```spl
 index=cisco_aci sourcetype="cisco:aci:health"
-| eval node_type=case(dn LIKE "%/node-1%", "APIC", dn LIKE "%/node-1___%", "Leaf", dn LIKE "%/node-2___%", "Spine", 1==1, "Other")
+| eval node_type=case(like(dn, "%/node-1%"), "APIC", like(dn, "%/node-1___%"), "Leaf", like(dn, "%/node-2___%"), "Spine", 1==1, "Other")
 | stats latest(healthScore) as health_score by dn, node_type
 | eval status=case(health_score>=90, "Healthy", health_score>=70, "Degraded", health_score>=50, "Warning", 1==1, "Critical")
 | sort health_score
@@ -31,6 +32,7 @@ index=cisco_aci sourcetype="cisco:aci:health"
 - **Monitoring type:** Capacity
 - **Value:** ACI faults are the primary operational signal from the fabric. Trending faults by severity helps identify worsening conditions, recurring hardware issues, and configuration problems before they cascade into outages.
 - **App/TA:** `TA_cisco-ACI`, APIC syslog
+- **Equipment Models:** Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)
 - **Data Sources:** APIC faults API (`/api/node/class/faultInst.json`), APIC syslog
 - **SPL:**
 ```spl
@@ -50,6 +52,7 @@ index=cisco_aci sourcetype="cisco:aci:faults"
 - **Monitoring type:** Performance
 - **Value:** Endpoint mobility in ACI tracks workload movement across leaf switches. Anomalous mobility (rapid moves, unexpected locations) can indicate misconfigurations, loops, or security issues like MAC spoofing.
 - **App/TA:** `TA_cisco-ACI`, APIC endpoint tracker
+- **Equipment Models:** Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)
 - **Data Sources:** APIC endpoint tracker, ACI endpoint move events
 - **SPL:**
 ```spl
@@ -71,6 +74,7 @@ index=cisco_aci sourcetype="cisco:aci:endpoint"
 - **Monitoring type:** Performance
 - **Value:** ACI contracts control EPG-to-EPG communication. Analyzing contract hits reveals traffic patterns, identifies overly permissive or unused contracts, and helps validate micro-segmentation policies are working as designed.
 - **App/TA:** `TA_cisco-ACI`, APIC flow logs
+- **Equipment Models:** Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)
 - **Data Sources:** APIC contract hit counters, ACI flow telemetry
 - **SPL:**
 ```spl
@@ -92,11 +96,12 @@ index=cisco_aci sourcetype="cisco:aci:contracts"
 - **Monitoring type:** Compliance
 - **Value:** Configuration changes in ACI tenants (BDs, EPGs, contracts) are a leading cause of outages. Auditing all changes provides accountability, supports compliance, and enables rapid rollback identification when issues occur.
 - **App/TA:** `TA_cisco-ACI`, APIC audit log
+- **Equipment Models:** Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)
 - **Data Sources:** APIC audit log (`/api/node/class/aaaModLR.json`)
 - **SPL:**
 ```spl
 index=cisco_aci sourcetype="cisco:aci:audit"
-| search affected LIKE "uni/tn-*"
+| where like(affected, "uni/tn-%")
 | rex field=affected "uni/tn-(?<tenant>[^/]+)"
 | stats count by _time, user, action, tenant, affected, descr
 | sort -_time
@@ -113,6 +118,7 @@ index=cisco_aci sourcetype="cisco:aci:audit"
 - **Monitoring type:** Performance
 - **Value:** Fabric link saturation causes packet drops and application latency. Monitoring leaf/spine interface utilization identifies hotspots, validates ECMP distribution, and supports capacity planning for fabric expansion.
 - **App/TA:** `TA_cisco-ACI`, APIC interface metrics
+- **Equipment Models:** Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)
 - **Data Sources:** APIC interface statistics API, fabric port counters
 - **SPL:**
 ```spl
@@ -134,6 +140,7 @@ index=cisco_aci sourcetype="cisco:aci:interface_stats"
 - **Monitoring type:** Availability
 - **Value:** APIC controllers manage the entire ACI fabric. Cluster health issues (split-brain, leader election, convergence problems) can cause fabric-wide configuration and policy failures. Monitoring APIC cluster state is essential for fabric reliability.
 - **App/TA:** `TA_cisco-ACI`, APIC system logs
+- **Equipment Models:** Cisco APIC, Nexus 9332C (ACI), Nexus 93180YC-FX (ACI), Nexus 9364C (ACI), Nexus 9504 (ACI), Nexus 9508 (ACI)
 - **Data Sources:** APIC cluster health API, APIC system logs/syslog
 - **SPL:**
 ```spl
@@ -153,7 +160,7 @@ index=cisco_aci sourcetype="cisco:aci:system"
 
 ### 18.2 VMware NSX
 
-**Splunk Add-on:** VMware NSX TA, syslog
+**Splunk Add-on:** VMware NSX add-on (`vmware_nsx_addon`, Splunkbase 6805), syslog
 
 ### UC-18.2.1 · Distributed Firewall Rule Hits
 
@@ -321,6 +328,109 @@ index=sdn sourcetype="sdn:controller"
 ```
 - **Implementation:** Monitor SDN controller cluster via heartbeat polling every 15 seconds. Track cluster membership, leader election events, and consensus state. Alert immediately on controller failure or split-brain conditions. Monitor controller resource utilization (CPU, memory, database size). Maintain runbook for controller failover.
 - **Visualization:** Status grid (controller cluster), Timeline (cluster events), Single value (cluster health), Table (controller details).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.4 · VXLAN Tunnel and Overlay Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** VXLAN tunnel failures break overlay connectivity. Monitoring tunnel state and packet drops ensures fabric reliability and fast troubleshooting.
+- **App/TA:** Leaf/spine device logs, fabric manager
+- **Data Sources:** VXLAN tunnel status, NVE interface, encapsulation stats
+- **SPL:**
+```spl
+index=sdn sourcetype="vxlan:tunnel"
+| where state!="up" OR packet_drops > 0
+| stats latest(state) as state, sum(packet_drops) as drops by tunnel_id, leaf_id, vni
+| table tunnel_id, leaf_id, vni, state, drops
+```
+- **Implementation:** Poll VXLAN tunnel and NVE stats from fabric devices. Alert on tunnel down or non-zero drops. Report on overlay health by VNI and leaf. Correlate with BGP and underlay events.
+- **Visualization:** Status grid (tunnel × state), Table (tunnels with drops), Line chart (drops over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.5 · EVPN Route and MAC Mobility Events
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** EVPN route churn or MAC mobility storms can impact convergence and stability. Tracking route and mobility events supports fabric tuning and VM mobility analysis.
+- **App/TA:** BGP/EVPN route monitor, spine/leaf logs
+- **Data Sources:** EVPN route advertisements, MAC mobility sequence numbers
+- **SPL:**
+```spl
+index=sdn sourcetype="evpn:route"
+| search (type=mac_ip OR type=mac_mobility)
+| stats count by vni, host, _time span=5m
+| where count > 100
+| sort -count
+```
+- **Implementation:** Ingest EVPN route and mobility events. Alert on route storm or high mobility count in short window. Report on top movers and VNIs with most churn. Use for capacity and placement planning.
+- **Visualization:** Line chart (mobility events over time), Table (top VNIs by churn), Bar chart (mobility by host).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.6 · ACI Contract Deny and Drop Statistics
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** High contract deny or drop counts may indicate overly restrictive policy or attack traffic. Monitoring supports policy tuning and security analysis.
+- **App/TA:** ACI policy stats, fabric stats
+- **Data Sources:** Contract hit counters, deny/drop by contract and EPG
+- **SPL:**
+```spl
+index=aci sourcetype="aci:contract_stats"
+| where action="deny" OR action="drop"
+| stats sum(packets) as denied by contract_name, src_epg, dest_epg, _time span=1h
+| where denied > 1000
+| sort -denied
+```
+- **Implementation:** Ingest ACI contract statistics. Track deny and drop by contract and EPG pair. Alert on spike in denies. Report on top denied flows for policy review. Correlate with app and security events.
+- **Visualization:** Table (denied flows), Bar chart (denies by contract), Line chart (deny trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.7 · NSX-T Segment and Gateway Capacity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Segment or gateway overload affects tenant connectivity and performance. Monitoring capacity and utilization supports scale planning and troubleshooting.
+- **App/TA:** NSX-T API, vSphere/NSX metrics
+- **Data Sources:** Segment port count, gateway session count, throughput per segment
+- **SPL:**
+```spl
+index=nsx sourcetype="nsx:segment"
+| stats latest(port_count) as ports, latest(port_limit) as limit, latest(throughput_mbps) as mbps by segment_id, gateway_id
+| eval port_pct=round((ports/limit)*100, 1)
+| where port_pct > 80 OR mbps > 9000
+| table segment_id, gateway_id, ports, limit, port_pct, mbps
+```
+- **Implementation:** Poll NSX-T segment and gateway metrics. Alert when port usage or throughput approaches limit. Report on capacity trend and top-loaded segments. Plan gateway scale-out when needed.
+- **Visualization:** Table (segments near limit), Gauge (port utilization), Line chart (throughput trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.8 · SDN Configuration Change and Rollback Audit
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Unauthorized fabric or policy changes can cause outages or security gaps. Auditing changes and rollbacks supports change control and incident analysis.
+- **App/TA:** APIC/NSX/controller audit logs
+- **Data Sources:** Configuration change events, user, object, before/after
+- **SPL:**
+```spl
+index=sdn sourcetype="sdn:audit"
+| search (action="modified" OR action="deleted" OR action="rollback")
+| table _time, user, object_type, object_name, action, change_summary
+| sort -_time
+```
+- **Implementation:** Ingest controller and fabric audit logs. Alert on change to critical objects (e.g., tenant, contract, segment) without change ticket. Report on change frequency and rollback rate. Integrate with change management.
+- **Visualization:** Table (recent changes), Timeline (change events), Bar chart (changes by user).
 - **CIM Models:** N/A
 
 ---

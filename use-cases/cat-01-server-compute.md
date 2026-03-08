@@ -674,8 +674,9 @@ index=os sourcetype=custom:irq_stats
 - **SPL:**
 ```spl
 index=os sourcetype=vmstat host=*
-| stats avg(cs) as avg_ctx_switch by host
-| streamstats avg(avg_ctx_switch) as baseline, stdev(avg_ctx_switch) as stddev
+| bin _time span=5m
+| stats avg(cs) as avg_ctx_switch by host, _time
+| streamstats window=100 avg(avg_ctx_switch) as baseline stdev(avg_ctx_switch) as stddev by host
 | eval upper_bound=baseline+(2*stddev)
 | where avg_ctx_switch > upper_bound
 ```
@@ -1036,9 +1037,10 @@ index=os sourcetype=vmstat host=*
 - **Data Sources:** `sourcetype=custom:slabinfo, /proc/slabinfo`
 - **SPL:**
 ```spl
-index=os sourcetype=custom:slabinfo host=*
-| stats sum(slab_size) as total_slab by host
-| streamstats avg(total_slab) as baseline, stdev(total_slab) as stddev
+index=os sourcetype=syslog "slab"
+| bin _time span=1d
+| stats sum(slab_size) as total_slab by host, _time
+| streamstats window=30 avg(total_slab) as baseline stdev(total_slab) as stddev by host
 | eval upper=baseline+(2*stddev)
 | where total_slab > upper
 ```
@@ -1136,11 +1138,12 @@ index=os sourcetype=syslog ("thp_defrags" OR "khugepaged" OR "thp_collapse")
 - **Data Sources:** `sourcetype=custom:tcp_stats, /proc/net/tcp`
 - **SPL:**
 ```spl
-index=os sourcetype=custom:tcp_stats host=*
-| stats avg(TcpRetransSegs) as avg_retrans by host
-| streamstats avg(avg_retrans) as baseline, stdev(avg_retrans) as stddev
-| eval upper=baseline+(3*stddev)
-| where avg_retrans > upper
+index=os sourcetype=netstat host=*
+| bin _time span=5m
+| stats sum(retransSegs) as retrans by host, _time
+| streamstats window=100 avg(retrans) as baseline stdev(retrans) as stddev by host
+| eval upper=baseline+(2*stddev)
+| where retrans > upper
 ```
 - **Implementation:** Create a scripted input that parses /proc/net/snmp for TCP retransmission metrics. Track TcpRetransSegs and TcpOutSegs to calculate retransmission percentage. Alert when above 2% or 3x baseline.
 - **Visualization:** Timechart, Anomaly Chart
@@ -1198,7 +1201,7 @@ index=os sourcetype=custom:socket_stats host=*
 ```spl
 index=os sourcetype=custom:netns host=*
 | stats count by host, netns_name
-| where count > expected_netns_count
+| where count > 10
 ```
 - **Implementation:** Create a scripted input that enumerates /var/run/netns/ and tracks namespace creation/deletion. Baseline expected namespaces per host. Alert on unexpected new namespaces which may indicate container escape or compromise.
 - **Visualization:** Table, Alert
@@ -1263,7 +1266,7 @@ index=os sourcetype=syslog "ufw" ("DENY" OR "REJECT" OR "DROP")
 ```spl
 index=os sourcetype=custom:arp host=*
 | stats count as arp_entry_count by host
-| eval max_entries=ntohs_limit
+| eval max_entries=1024
 | where arp_entry_count > (max_entries * 0.8)
 ```
 - **Implementation:** Create a scripted input that counts /proc/net/arp entries and monitors /proc/sys/net/ipv4/neigh/*/gc_thresh* limits. Alert when ARP table approaches limits. Correlate with network scans or spoofing indicators.
@@ -3818,7 +3821,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType IN 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
+  where Authentication.action=success
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
@@ -5993,6 +5996,110 @@ index=hardware sourcetype=ecc_errors
 ```
 - **Implementation:** Create scripted input: `edac-util -s` or parse `/sys/devices/system/edac/mc/mc*/ce_count`. Run hourly. Alert when correctable errors increase by >10/week. Track per-DIMM slot for targeted replacement.
 - **Visualization:** Line chart (errors over time by host), Table (host, DIMM, error count), Trend chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.4.7 · BMC Out-of-Band Connectivity Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** BMC (IPMI/iDRAC/iLO) loss prevents remote power, console, and sensor access. Early detection ensures out-of-band management remains available for recovery.
+- **App/TA:** Custom scripted input, IPMI
+- **Data Sources:** `ipmitool lan print`, BMC health sensors, SNMP (if BMC supports it)
+- **SPL:**
+```spl
+index=hardware sourcetype=bmc_health host=*
+| stats latest(channel_voltage) as voltage, latest(link_detected) as link by host
+| where link="no" OR voltage < 3.0
+| table host link voltage _time
+```
+- **Implementation:** Create scripted input: `ipmitool lan print` or vendor-specific tools (racadm, hpasm) to verify BMC reachability and LAN channel. Run every 5 minutes. Alert when BMC becomes unreachable.
+- **Visualization:** Status grid (BMC up/down per host), Table of unreachable BMCs, Single value (count of healthy BMCs).
+- **CIM Models:** N/A
+
+---
+
+### UC-1.4.8 · PCIe Link Width and Speed Degradation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** PCIe links that downgrade (e.g. x16→x8) indicate slot or cable issues. Affects GPU, NVMe, and HBA performance and can precede full failure.
+- **App/TA:** Custom scripted input (`lspci -vv` or Windows PCI query)
+- **Data Sources:** `lspci -vv`, `/sys/bus/pci/devices/*/current_link_width_speed`
+- **SPL:**
+```spl
+index=hardware sourcetype=pcie_link host=*
+| stats latest(link_width) as width, latest(link_speed) as speed by host, slot
+| lookup pcie_expected host slot OUTPUT expected_width expected_speed
+| where width < expected_width OR speed < expected_speed
+| table host slot width speed expected_width expected_speed
+```
+- **Implementation:** Parse `lspci -vv` for "LnkCap" and "LnkSta" or read sysfs. Run daily. Maintain lookup of expected width/speed per host and slot. Alert on downgrade.
+- **Visualization:** Table (host, slot, current vs. expected), Bar chart of link widths.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.4.9 · Out-of-Band Sensor Threshold Breach (IPMI)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** IPMI sensor events (temperature, voltage, fan) indicate environmental or hardware problems before they cause crashes. Critical for datacenter and server health.
+- **App/TA:** Splunk Add-on for Unix and Linux (scripted input), IPMI
+- **Data Sources:** `ipmitool sdr`, IPMI SEL (System Event Log)
+- **SPL:**
+```spl
+index=hardware sourcetype=ipmi_sdr host=*
+| search sensor_type="Temperature" OR sensor_type="Voltage" OR sensor_type="Fan"
+| eval status=case(sensor_reading >= upper_critical, "Critical", sensor_reading >= upper_non_critical, "Warning", 1=1, "OK")
+| where status != "OK"
+| table _time host sensor_name sensor_reading upper_critical status
+```
+- **Implementation:** Create scripted input: `ipmitool sdr type temperature` (and voltage, fan). Parse thresholds and current readings. Forward IPMI SEL for discrete events. Alert on Critical/Warning threshold breach.
+- **Visualization:** Gauges per sensor, Table of breached sensors, Timeline of SEL events.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.4.10 · Disk Controller and HBA Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** RAID/HBA controller errors and degraded state often precede array failure. Early visibility enables planned maintenance and avoids data loss.
+- **App/TA:** Custom scripted input (MegaRAID, perccli, hpssacli)
+- **Data Sources:** Vendor CLI output (e.g. `MegaCli64 -AdpAllInfo -aAll`), `/proc/scsi/`
+- **SPL:**
+```spl
+index=hardware sourcetype=raid_controller host=*
+| stats latest(controller_status) as status, latest(degraded_virtual_drives) as degraded by host, controller_id
+| where status != "Optimal" OR degraded > 0
+| table host controller_id status degraded
+```
+- **Implementation:** Run vendor CLI (MegaCli, perccli, hpssacli) via scripted input every 15 minutes. Parse controller and virtual drive state. Alert when status is not Optimal or any array is degraded.
+- **Visualization:** Status panel (Optimal/Degraded/Failed), Table of degraded arrays.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.4.11 · Boot Order and UEFI/BIOS Configuration Drift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
+- **Value:** Unauthorized or accidental boot order changes can prevent systems from booting from the correct disk or PXE. Tracking supports change audit and recovery.
+- **App/TA:** Custom scripted input (vendor tools, dmidecode)
+- **Data Sources:** `dmidecode -t bios`, vendor REST/CLI (iDRAC, iLO) for boot order
+- **SPL:**
+```spl
+index=hardware sourcetype=boot_config host=*
+| stats latest(boot_order) as current_order, latest(secure_boot) as secure_boot by host
+| inputlookup expected_boot_config append=t
+| eval match=if('current_order'='expected_order', "Match", "Drift")
+| where match="Drift"
+| table host current_order expected_order secure_boot
+```
+- **Implementation:** Use vendor APIs or scripts to export boot order and Secure Boot state. Compare to a lookup of expected configuration. Alert on drift. Run after changes or daily.
+- **Visualization:** Table (host, current vs. expected boot order), Compliance percentage.
 - **CIM Models:** N/A
 
 ---

@@ -2,7 +2,7 @@
 
 ## 2.1 VMware vSphere
 
-**Primary App/TA:** Splunk Add-on for VMware (`TA-vmware`) — Free on Splunkbase; Splunk App for VMware (optional, provides dashboards)
+**Primary App/TA:** Splunk Add-on for VMware (`Splunk_TA_vmware`, Splunkbase 3215) — Free on Splunkbase; Splunk App for VMware (optional, provides dashboards)
 
 ---
 
@@ -454,9 +454,9 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin" 
 ```spl
 index=hyperv sourcetype=integration_services
 | stats latest(version) as ic_version by vm_name, host
-| where ic_version != expected_version
+| where ic_version != "latest"
 ```
-- **Implementation:** Create a PowerShell scripted input on Hyper-V hosts: `Get-VM | Get-VMIntegrationService | Select VMName, Name, Enabled, PrimaryOperationalStatus`. Run daily.
+- **Implementation:** Replace `"latest"` in the SPL with the actual expected integration services version. Create a PowerShell scripted input on Hyper-V hosts: `Get-VM | Get-VMIntegrationService | Select VMName, Name, Enabled, PrimaryOperationalStatus`. Run daily.
 - **Visualization:** Table (VM, version, status), Pie chart (current vs. outdated).
 - **CIM Models:** N/A
 
@@ -525,6 +525,111 @@ index=virtualization sourcetype=syslog source="/var/log/libvirt/*"
 ```
 - **Implementation:** Forward `/var/log/libvirt/qemu/*.log` and libvirt system logs. Parse VM name and event type. Alert on unexpected VM shutdowns or crashes.
 - **Visualization:** Events timeline, Table (VM, event, time).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.3.4 · KVM Guest Agent Heartbeat
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Guest agent (QEMU GA) unavailability prevents graceful shutdown, snapshot consistency, and time sync. Detecting agent loss ensures proper VM management.
+- **App/TA:** Custom scripted input (virsh qemu-agent-command)
+- **Data Sources:** `virsh qemu-agent-command <vm> '{"execute":"guest-ping"}'`
+- **SPL:**
+```spl
+index=virtualization sourcetype=kvm_guest_agent host=*
+| stats latest(agent_ok) as ok by host, vm_name
+| where ok != 1
+| table host vm_name _time
+```
+- **Implementation:** Script that iterates VMs and runs `virsh qemu-agent-command <domain> '{"execute":"guest-ping"}'`. Ingest result (0/1) per VM. Run every 60 seconds. Alert when agent stops responding.
+- **Visualization:** Status grid (VM vs. agent OK), Table of VMs with no agent.
+- **CIM Models:** N/A
+
+---
+
+### UC-2.3.5 · Libvirt Network Filter and Firewall Rule Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration, Security
+- **Value:** VM-level firewall and filter rules can be changed accidentally or maliciously. Auditing ensures network isolation and compliance.
+- **App/TA:** Custom scripted input (`virsh nwfilter-list`, `virsh dumpxml`)
+- **Data Sources:** Libvirt XML dump, nwfilter definitions
+- **SPL:**
+```spl
+index=virtualization sourcetype=libvirt_nwfilter host=*
+| stats latest(rule_hash) as current by host, vm_name, filter_name
+| inputlookup expected_nwfilter append=t
+| eval drift=if(current!=expected_hash, "Yes", "No")
+| where drift="Yes"
+| table host vm_name filter_name
+```
+- **Implementation:** Periodically dump VM network filter config and compute hash. Compare to baseline lookup. Alert on change. Run after change windows or daily.
+- **Visualization:** Table (host, VM, filter, drift), Compliance count.
+- **CIM Models:** N/A
+
+---
+
+### UC-2.3.6 · Virtual Disk Backing Chain and Snapshot Age
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Fault
+- **Value:** Long snapshot chains and old snapshots degrade I/O and complicate recovery. Monitoring supports snapshot hygiene and prevents runaway growth.
+- **App/TA:** Custom scripted input (`virsh domblkinfo`, `qemu-img info`)
+- **Data Sources:** Libvirt/QEMU disk info
+- **SPL:**
+```spl
+index=virtualization sourcetype=kvm_disk_chain host=*
+| stats latest(chain_depth) as depth, latest(oldest_snapshot_days) as snapshot_days by host, vm_name, disk
+| where depth > 3 OR snapshot_days > 30
+| table host vm_name disk depth snapshot_days
+| sort -snapshot_days
+```
+- **Implementation:** Script to list VM disks and snapshot chains (e.g. `virsh snapshot-list`, `qemu-img info`). Compute chain depth and oldest snapshot age. Alert when depth >3 or oldest snapshot >30 days.
+- **Visualization:** Table (VM, disk, depth, oldest snapshot), Bar chart of snapshot age.
+- **CIM Models:** N/A
+
+---
+
+### UC-2.3.7 · KVM Host CPU Model and Migration Compatibility
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
+- **Value:** Live migration fails or degrades when host CPU models differ. Tracking CPU compatibility avoids failed migrations and performance surprises.
+- **App/TA:** Custom scripted input (`virsh capabilities`, `virsh dominfo`)
+- **Data Sources:** Libvirt capabilities XML, VM CPU config
+- **SPL:**
+```spl
+index=virtualization sourcetype=kvm_cpu_compat host=*
+| stats latest(host_cpu_model) as host_model, values(vm_cpu_model) as vm_models by host
+| eval compatible=if(match(vm_models, host_model), "Yes", "No")
+| where compatible="No"
+| table host host_model vm_models
+```
+- **Implementation:** Extract host CPU model from `virsh capabilities` and per-VM CPU from `virsh dumpxml`. Compare for migration compatibility. Document and alert when VMs use incompatible CPU.
+- **Visualization:** Table (host, VM, CPU model, compatible), Migration readiness matrix.
+- **CIM Models:** N/A
+
+---
+
+### UC-2.3.8 · Virtio Driver and Balloon Status in Guests
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Virtio drivers and balloon driver improve I/O and allow memory reclamation. Missing or inactive drivers cause poor performance and overcommit issues.
+- **App/TA:** Custom scripted input (guest agent or in-guest script)
+- **Data Sources:** QEMU guest agent, `virsh dommemstat`
+- **SPL:**
+```spl
+index=virtualization sourcetype=kvm_balloon host=*
+| stats latest(balloon_current_kb) as balloon_kb, latest(balloon_max_kb) as max_kb by host, vm_name
+| eval balloon_ratio=round(balloon_kb/max_kb*100, 1)
+| where balloon_ratio > 50
+| table host vm_name balloon_kb max_kb balloon_ratio
+```
+- **Implementation:** Use `virsh dommemstat` to get balloon current and maximum. High ratio indicates host is reclaiming memory from the VM. Alert when ratio >50% for critical VMs.
+- **Visualization:** Table (VM, balloon KB, ratio), Line chart (balloon over time).
 - **CIM Models:** N/A
 
 ---

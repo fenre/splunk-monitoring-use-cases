@@ -55,10 +55,10 @@ index=web sourcetype="access_combined"
 - **CIM Models:** Web
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` avg(Web.bytes) as avg_bytes count
+| tstats `summariesonly` count as request_count
   from datamodel=Web.Web
   by Web.uri_path Web.status span=5m
-| sort -avg_bytes
+| sort -request_count
 ```
 
 ---
@@ -483,7 +483,7 @@ index=application sourcetype="log4j" log_level=ERROR
 
 ### 8.3 Message Queues & Event Streaming
 
-**Primary App/TA:** Splunk Add-on for Kafka (`TA-kafka`), RabbitMQ management API (scripted input), JMX for Java-based brokers, custom REST inputs.
+**Primary App/TA:** Splunk Connect for Kafka (Splunkbase 3862), JMX, RabbitMQ management API (scripted input), custom REST inputs.
 
 ---
 
@@ -492,7 +492,7 @@ index=application sourcetype="log4j" log_level=ERROR
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Growing consumer lag means messages aren't being processed fast enough, leading to data staleness and eventual message loss if retention is exceeded.
-- **App/TA:** `TA-kafka`, Burrow integration, JMX
+- **App/TA:** `Splunk Connect for Kafka` (Splunkbase 3862), Burrow integration, JMX
 - **Data Sources:** Kafka consumer group offsets (JMX, Burrow, `kafka-consumer-groups.sh`)
 - **SPL:**
 ```spl
@@ -549,7 +549,7 @@ index=kafka sourcetype="kafka:broker"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Under-replicated partitions mean data is at risk of loss if additional brokers fail. Immediate remediation is required.
-- **App/TA:** `TA-kafka`, JMX
+- **App/TA:** `Splunk Connect for Kafka` (Splunkbase 3862), JMX
 - **Data Sources:** Kafka JMX (`UnderReplicatedPartitions`, `UnderMinIsrPartitionCount`)
 - **SPL:**
 ```spl
@@ -1025,15 +1025,12 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 - **Data Sources:** `sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe
 - **SPL:**
 ```spl
-index=os sourcetype=syslog process=sshd
-| bucket _time span=5m
-| stats count as ssh_events by host, _time
-| join type=left host [
-    | inputlookup monitored_linux_hosts.csv
-    | table host ]
+| inputlookup monitored_linux_hosts.csv
+| fields host
+| join type=left host [search index=os sourcetype=syslog process=sshd earliest=-15m | stats count as ssh_events by host]
 | where isnull(ssh_events) OR ssh_events=0
 | eval status="SSH_DOWN"
-| table _time, host, status
+| table host, status
 ```
 - **Implementation:** Ingest sshd syslog messages (Linux) via Universal Forwarder. Maintain a lookup (`monitored_linux_hosts.csv`) of expected hosts. Use `tstats` or a scheduled search every 5 minutes to detect hosts with no sshd events in the last 10 minutes. Optionally deploy a scripted input that performs a TCP connect to port 22 and logs result (0=up, 1=down) for direct availability data. Alert on SSH_DOWN status for more than 2 consecutive intervals to reduce false positives during restart.
 - **Visualization:** Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).
@@ -1049,15 +1046,12 @@ index=os sourcetype=syslog process=sshd
 - **Data Sources:** `vsftpd`, `proftpd`, or `openssh-sftp-server` logs; scripted TCP port probe output
 - **SPL:**
 ```spl
-index=os (sourcetype=vsftpd OR sourcetype=syslog process=sftp-server)
-| bucket _time span=5m
-| stats count as ftp_events by host, _time
-| appendcols [
-    | inputlookup ftp_hosts.csv
-    | table host, service_name ]
+| inputlookup ftp_hosts.csv
+| fields host, service_name
+| join type=left host [search index=os (sourcetype=vsftpd OR sourcetype=syslog process=sftp-server) earliest=-15m | stats count as ftp_events by host]
 | where isnull(ftp_events) OR ftp_events=0
 | eval status="FTP_DOWN"
-| table _time, host, service_name, status
+| table host, service_name, status
 ```
 - **Implementation:** Monitor vsftpd, proftpd, or OpenSSH SFTP subsystem logs via Universal Forwarder. For SFTP (port 22 subsystem), filter syslog for `sftp-server` process events. Alert when no daemon activity is seen for more than 15 minutes on a host expected to serve FTP/SFTP. Supplement with a scripted input using `nc -z -w5 host 21` (FTP) or `nc -z -w5 host 22` (SFTP) logged as synthetic check results. Correlate FTP availability with file-transfer success/failure logs.
 - **Visualization:** Table (host, port, status, last event), Single value (unavailable FTP hosts), Line chart (event rate over time per host), Alert timeline.
@@ -1104,5 +1098,110 @@ index=mail sourcetype=syslog (process=dovecot OR process=imap OR process=pop3)
 ```
 - **Implementation:** Forward Dovecot or Cyrus IMAP logs via Universal Forwarder. Dovecot logs login events, failed auth, and daemon lifecycle events continuously during normal operation. Zero events for >10 minutes on a mail host indicates a process crash or service failure. Alert after 2 consecutive empty windows. Cross-correlate with auth failures (could indicate process restart loops). For comprehensive coverage, deploy a scripted TCP probe on ports 143 (IMAP), 993 (IMAPS), 110 (POP3), 995 (POP3S).
 - **Visualization:** Table (host, protocol, port, status), Timeline (downtime events), Single value (services down count), Line chart (login event rate as proxy for service health).
+
+---
+
+### UC-8.6.5 · Mail Queue Depth and Deferred Message Backlog
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Growing mail queue (deferred, hold) indicates delivery failures, recipient issues, or abuse. Detecting backlog early prevents bounce storms and blacklisting.
+- **App/TA:** `Splunk_TA_syslog`, custom scripted input (mailq, postqueue)
+- **Data Sources:** Postfix `mailq`, Sendmail queue, Exchange queue length
+- **SPL:**
+```spl
+index=mail sourcetype=mail_queue host=*
+| stats latest(queue_depth) as depth, latest(deferred_count) as deferred, latest(_time) as last_seen by host
+| where depth > 100 OR deferred > 50
+| table host depth deferred last_seen
+```
+- **Implementation:** Run `mailq` or equivalent every 5 minutes. Parse queue depth and deferred count. Alert when queue exceeds 100 or deferred exceeds 50. Correlate with rejection logs and recipient domains.
+- **Visualization:** Line chart (queue depth over time), Table (host, queue, deferred), Single value (max queue).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.6 · SMTP Authentication and Relay Policy Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Failed SMTP auth or unauthorized relay attempts may indicate credential stuffing or abuse. Monitoring supports security and ensures relay policy is enforced.
+- **App/TA:** `Splunk_TA_syslog`, mail server logs
+- **Data Sources:** Postfix maillog, Sendmail logs, Exchange SMTP receive connector logs
+- **SPL:**
+```spl
+index=mail sourcetype=syslog (process=postfix OR process=sendmail) ("authentication failed" OR "relay denied" OR "reject")
+| rex "user=(?<sasl_user>\S+)"
+| stats count by src_ip, sasl_user, action
+| where count > 10
+| sort -count
+```
+- **Implementation:** Forward mail server logs. Extract auth and relay outcomes. Alert on high volume of auth failures from single IP or relay denied for internal IPs (possible misconfiguration).
+- **Visualization:** Table (IP, user, action, count), Timechart of failures, Map (GeoIP).
+- **CIM Models:** Authentication
+
+---
+
+### UC-8.6.7 · Mail Delivery Rate and Bounce Rate by Domain
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Sudden drop in delivery rate or spike in bounces for a domain indicates reputation or configuration issues. Trending supports deliverability and capacity planning.
+- **App/TA:** Mail server logs, bounce logs
+- **Data Sources:** Postfix/Sendmail delivery status, bounce messages, Exchange tracking logs
+- **SPL:**
+```spl
+index=mail sourcetype=mail_delivery
+| stats count(eval(status="delivered")) as delivered, count(eval(status="bounce")) as bounces by domain, _time span=1h
+| eval bounce_rate=round(bounces/(delivered+bounces)*100, 2)
+| where bounce_rate > 5 OR delivered < 10
+| table domain delivered bounces bounce_rate
+```
+- **Implementation:** Parse delivery and bounce events by recipient domain. Compute hourly delivery and bounce rate. Alert when bounce rate exceeds 5% or delivery volume drops significantly for critical domains.
+- **Visualization:** Line chart (delivery and bounce rate by domain), Table (domain, delivered, bounces, %), Bar chart (bounce rate by domain).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.8 · Outbound Mail Volume and Recipient Anomaly
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unusual outbound volume or new bulk recipients may indicate compromised account or phishing campaign. Baseline and anomaly detection support incident response.
+- **App/TA:** Mail server logs
+- **Data Sources:** Postfix/Sendmail/Exchange outbound logs
+- **SPL:**
+```spl
+index=mail sourcetype=mail_send
+| stats dc(recipient) as recipients, count as msg_count by sender, _time span=1h
+| eventstats avg(msg_count) as avg_count, stdev(msg_count) as std_count by sender
+| eval z_score=if(std_count>0, (msg_count-avg_count)/std_count, 0)
+| where z_score > 3 OR recipients > 100
+| table _time sender msg_count recipients z_score
+```
+- **Implementation:** Ingest outbound send events. Baseline message count and unique recipients per sender (hourly). Alert when volume or recipient count exceeds 3 standard deviations or recipient count >100 in one hour.
+- **Visualization:** Table (sender, count, recipients, z-score), Line chart (volume by sender), Bar chart (top senders).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.9 · Mail Server TLS and Certificate Expiration
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Security
+- **Value:** Expired or expiring TLS certificates on SMTP/IMAP/POP break encryption and can cause delivery failures. Proactive monitoring prevents outages.
+- **App/TA:** Custom scripted input (openssl s_client)
+- **Data Sources:** TLS handshake to mail server ports (25, 465, 587, 993, 995)
+- **SPL:**
+```spl
+index=mail sourcetype=mail_tls host=*
+| eval days_left=round((expiry_epoch-now())/86400, 0)
+| where days_left < 30
+| table host port days_left subject
+| sort days_left
+```
+- **Implementation:** Script that connects to mail server ports and extracts certificate expiry (e.g. `openssl s_client -connect host:25 -starttls smtp`). Ingest daily. Alert when expiry is within 30 days.
+- **Visualization:** Table (host, port, days left), Single value (soonest expiry), Gauge (days remaining).
+- **CIM Models:** N/A
 
 ---

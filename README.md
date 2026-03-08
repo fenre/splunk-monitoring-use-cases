@@ -30,6 +30,7 @@ A searchable repository of **1,000+** IT infrastructure monitoring use cases for
 | `custom-text.js` | User-editable site text (hero, roadmap, labels); not overwritten by build or tooling |
 | `docs/` | Extra docs (GitHub Pages setup, [Implementation guide](docs/implementation-guide.md), [CIM and data models](docs/cim-and-data-models.md) (CIM, DMA, OCSF), [category files and display names](docs/category-files-and-names.md), [SSE import](docs/sse-import.md), [use case fields](docs/use-case-fields.md), [Splunk apps use cases comparison](docs/splunk-apps-use-cases-comparison.md)) |
 | `_legacy/` | Archival content; not used by the build (see `_legacy/README.md`) |
+| `splunk_apps/` | **Deprecated.** Splunk app sources and build scripts; see [splunk_apps/README.md](splunk_apps/README.md). |
 | `CODEBASE-DIAGRAM.md` | Mermaid diagrams of structure and data flow |
 
 ## Requirements
@@ -41,12 +42,9 @@ A searchable repository of **1,000+** IT infrastructure monitoring use cases for
 
 To host on **GitHub Pages**: commit `index.html` and `data.js`, enable Pages from the default branch (e.g. `main`), root. See [docs/github-pages-setup.md](docs/github-pages-setup.md) for step-by-step instructions.
 
-## Splunk apps (sample v0.0.1)
+## Splunk apps (deprecated)
 
-- **Classic (iframe):** **`imucl/`** — Embeds the static dashboard in an iframe. Run `./build_app.sh --package` and install `imucl-0.0.1.spl`. See [imucl/README.md](imucl/README.md).
-- **UI Toolkit (React):** **`imucl_uitoolkit/`** — React SPA built with Vite; no iframe. Run `./build_uitoolkit_app.sh` and install `imucl-uitoolkit-0.0.1.spl`. See [imucl_uitoolkit/README.md](imucl_uitoolkit/README.md). Use this if the classic app shows an empty dashboard.
-
-The design for a full app (UCC-based layout, catalog lookup, saved searches) is in [docs/splunk-app-design.md](docs/splunk-app-design.md).
+Splunk app code and build scripts have been moved to **[splunk_apps/](splunk_apps/)** and are deprecated in this repo. They are kept for reference and to be reused in a **new standalone project** later. See [splunk_apps/README.md](splunk_apps/README.md) for contents and how to run the builds from the repo root.
 
 ## Improving the resource
 

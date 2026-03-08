@@ -316,6 +316,7 @@ index=_internal sourcetype=splunkd "certificate" ("expire" OR "expiration" OR "n
 - **Monitoring type:** Availability
 - **Value:** Service health scores provide a single-pane view of business service status. Trending enables SLA reporting and proactive management.
 - **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk ITSI
 - **Data Sources:** `itsi_summary` index
 - **SPL:**
 ```spl
@@ -558,6 +559,106 @@ index=alerts sourcetype=*
 ```
 - **Implementation:** Ingest alerts from all monitoring tools into a common index. Track alert rate across all sources. Alert when rate exceeds normal baseline by >5× (indicates correlated event). Use ITSI Event Analytics for intelligent grouping.
 - **Visualization:** Line chart (alert rate across all sources), Single value (current alert rate), Timeline (alert storm events), Table (contributing alerts).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.6 · SLO Burn Rate and Error Budget Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Burn rate and error budget show how fast SLO is consumed. Tracking supports proactive action before SLA breach and prioritization of reliability work.
+- **App/TA:** ITSI, custom SLO metrics, APM data
+- **Data Sources:** SLO compliance metrics, error budget calculations
+- **SPL:**
+```spl
+index=slos sourcetype="slo:compliance"
+| eval burn_rate=1-(success_count/(success_count+failure_count))
+| stats avg(burn_rate) as avg_burn, sum(error_budget_consumed) as consumed by service, slo_name, _time span=1h
+| where avg_burn > 0.1
+```
+- **Implementation:** Compute SLO compliance and error budget from availability/latency data. Ingest into Splunk. Alert on burn rate above threshold or error budget exhaustion. Report on remaining budget by service.
+- **Visualization:** Gauge (error budget remaining), Line chart (burn rate), Table (services by budget consumed).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.7 · Distributed Trace Sampling and Coverage
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Trace sampling rate and coverage affect observability. Monitoring sampling decisions and trace completeness supports tuning and gap detection.
+- **App/TA:** APM/tracing TAs (Jaeger, Tempo, OTLP)
+- **Data Sources:** Trace metadata, sampling flags, span counts per trace
+- **SPL:**
+```spl
+index=traces sourcetype="trace:span"
+| stats count as spans, dc(trace_id) as traces, avg(sample_rate) as avg_sample by service, _time span=1h
+| eval spans_per_trace=spans/traces
+| where spans_per_trace < 5 OR avg_sample < 0.01
+```
+- **Implementation:** Ingest trace metadata and sampling rates. Alert when sampling drops below target or trace completeness (spans per trace) is low for critical services. Report on coverage by service and env.
+- **Visualization:** Line chart (sampling rate by service), Table (low-coverage services), Bar chart (spans per trace).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.8 · Log Ingestion Backlog and Lag
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Ingestion backlog or lag causes delayed alerting and search. Monitoring lag per source ensures data freshness and pipeline health.
+- **App/TA:** Splunk _internal, forwarder metrics
+- **Data Sources:** Indexer acknowledgment, forwarder queue depth, event timestamps
+- **SPL:**
+```spl
+index=_internal source=*metrics* group=queue
+| stats latest(current_size) as queue_depth by host, name
+| where queue_depth > 1000
+| table host, name, queue_depth
+```
+- **Implementation:** Monitor forwarder and indexer queue metrics. Alert when queue depth or event lag (now - event time) exceeds threshold. Report on lag by source and index.
+- **Visualization:** Table (hosts with backlog), Single value (max lag minutes), Line chart (queue depth trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.9 · Dashboard and Saved Search Usage Analytics
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Usage of dashboards and saved searches guides optimization and retirement. Analytics support adoption and reduce stale or unused content.
+- **App/TA:** Splunk audit logs, usage metadata
+- **Data Sources:** Dashboard view and search run audit logs
+- **SPL:**
+```spl
+index=_audit action=view OR action=run
+| search (resource_type="dashboard" OR resource_type="saved_search")
+| stats count by user, resource_name, resource_type
+| sort -count
+```
+- **Implementation:** Ingest Splunk audit or usage logs for dashboard and search runs. Report on most/least used dashboards and searches. Identify unused content for archival. Track adoption by team.
+- **Visualization:** Bar chart (views by dashboard), Table (search run count by name), Pie chart (usage by user).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.10 · Synthetic Check Failure and Geographic Variance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Synthetic checks validate user-facing availability. Failure or variance by geography highlights regional issues and CDN/edge health.
+- **App/TA:** Synthetic monitoring product logs, Splunk HTTP Event Collector
+- **Data Sources:** Synthetic check results, response time, status by location
+- **SPL:**
+```spl
+index=synthetic sourcetype="synthetic:check"
+| where success="false" OR response_time_ms > 5000
+| stats count, avg(response_time_ms) as avg_ms by check_name, location, _time span=15m
+| sort -count
+```
+- **Implementation:** Ingest synthetic check results from Datadog, Pingdom, or custom scripts. Alert on failure or latency above threshold. Compare success rate and latency by region. Report on SLA by check and location.
+- **Visualization:** Table (failed checks by location), Geo map (failure by region), Line chart (latency by location).
 - **CIM Models:** N/A
 
 ---

@@ -62,7 +62,7 @@ index=os sourcetype=syslog "Memory cgroup out of memory" OR "oom-kill"
 - **SPL:**
 ```spl
 index=containers sourcetype="docker:stats"
-| eval throttle_pct = round(throttled_periods / nr_periods * 100, 1)
+| eval throttle_pct = round(nr_throttled / nr_periods * 100, 1)
 | where throttle_pct > 25
 | stats avg(throttle_pct) as avg_throttle by container_name
 | sort -avg_throttle
@@ -117,7 +117,7 @@ index=containers sourcetype="trivy:scan"
 ### UC-3.1.6 · Privileged Container Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Performance
+- **Monitoring type:** Security
 - **Value:** Privileged containers have full host access — a container escape gives root on the host. Should be flagged and justified in production.
 - **App/TA:** Docker events, custom audit input
 - **Data Sources:** `docker inspect` output, Kubernetes pod security
@@ -351,7 +351,7 @@ index=k8s sourcetype="kube:etcd"
 index=k8s sourcetype="kube:ingress:nginx"
 | eval is_error = if(status >= 500, 1, 0)
 | timechart span=5m sum(is_error) as errors, count as total
-| eval error_rate = round(errors / total * 100, 2)
+| eval error_rate = if(total>0, round(errors/total*100, 2), 0)
 | where error_rate > 5
 ```
 - **Implementation:** Forward ingress controller access logs. Parse status code, upstream response time, and backend server. Alert when 5xx error rate exceeds 5% over 5 minutes.
@@ -626,6 +626,110 @@ index=containers sourcetype="registry:metrics"
 ```
 - **Implementation:** Poll registry API for storage metrics. Alert when usage exceeds 80%. Review and tune image retention/garbage collection policies.
 - **Visualization:** Gauge (storage usage), Line chart (growth trend), Table.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.4.4 · Registry Image Vulnerability Scan Results
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Images with known CVEs in the registry pose risk when deployed. Tracking scan results ensures only approved images are used and triggers remediation.
+- **App/TA:** Custom API input (Trivy, Clair, registry scanner)
+- **Data Sources:** Registry vulnerability scan output (JSON/CSV)
+- **SPL:**
+```spl
+index=containers sourcetype="registry:vuln_scan"
+| search severity="Critical" OR severity="High"
+| stats count as vuln_count, values(cve_id) as cves by image_tag, registry
+| where vuln_count > 0
+| sort -vuln_count
+```
+- **Implementation:** Run vulnerability scanner against registry images (e.g. Trivy, Clair) and ingest results. Alert when Critical/High CVEs appear. Enforce policy to block deployment of failing images.
+- **Visualization:** Table (image, CVE count, severity), Bar chart by image, Single value (images with critical vulns).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.4.5 · Registry Authentication and Authorization Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Failed logins and denied pushes/pulls may indicate credential abuse or misconfiguration. Detecting anomalies supports security and access troubleshooting.
+- **App/TA:** Registry audit logs (Harbor, Docker Registry, ECR)
+- **Data Sources:** Registry audit log API or log files
+- **SPL:**
+```spl
+index=containers sourcetype="registry:audit" (action="login_failed" OR action="pull_denied" OR action="push_denied")
+| bin _time span=1h
+| stats count by user, action, repository, _time
+| where count > 10
+| sort -count
+```
+- **Implementation:** Forward registry audit logs to Splunk. Extract user, action, repository. Alert on high failure rates or denied actions for critical repos.
+- **Visualization:** Table (user, action, count), Timechart of failures, Events list.
+- **CIM Models:** Authentication
+
+---
+
+### UC-3.4.6 · Registry Replication Lag and Consistency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** Replication lag between registry replicas can cause inconsistent image availability and failed pulls. Monitoring supports HA and DR assurance.
+- **App/TA:** Custom API input (registry replication status)
+- **Data Sources:** Registry replication API or admin metrics
+- **SPL:**
+```spl
+index=containers sourcetype="registry:replication"
+| stats latest(lag_seconds) as lag, latest(status) as status by source_registry, target_registry
+| where lag > 300 OR status != "success"
+| table source_registry target_registry lag status _time
+```
+- **Implementation:** Poll replication status from registry (e.g. Harbor replication jobs). Ingest lag and status. Alert when lag exceeds 5 minutes or status is failed.
+- **Visualization:** Line chart (lag over time), Table (source, target, lag, status), Single value (max lag).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.4.7 · Registry Image Tag Retention and Orphan Cleanup
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Untagged and old tags consume storage and complicate governance. Tracking supports retention policy tuning and cleanup automation.
+- **App/TA:** Custom API input (registry catalog API)
+- **Data Sources:** Registry catalog, image manifest API
+- **SPL:**
+```spl
+index=containers sourcetype="registry:tags"
+| eval age_days=round((now()-tag_time)/86400, 0)
+| stats count as tag_count, values(tag) as tags by repository
+| where tag_count > 100 OR age_days > 90
+| table repository tag_count age_days
+```
+- **Implementation:** List repositories and tags via registry API. Compute tag count and oldest tag age per repo. Report repos with excessive tags or very old tags for retention policy review.
+- **Visualization:** Table (repository, tag count, oldest tag), Bar chart (tags per repo).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.4.8 · Registry TLS and Certificate Expiration
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Security
+- **Value:** Expired or expiring registry certificates break all pulls and pushes. Proactive monitoring prevents pipeline and runtime failures.
+- **App/TA:** Custom scripted input (openssl s_client, registry health API)
+- **Data Sources:** TLS certificate from registry endpoint
+- **SPL:**
+```spl
+index=containers sourcetype="registry:tls"
+| eval days_left=round((expiry_time-now())/86400, 0)
+| where days_left < 30
+| table registry_host expiry_time days_left subject
+| sort days_left
+```
+- **Implementation:** Script that connects to registry HTTPS and extracts cert expiry (e.g. `openssl s_client -connect registry:443 -servername registry`). Ingest daily. Alert when expiry is within 30 days.
+- **Visualization:** Table (registry, expiry, days left), Single value (soonest expiry), Gauge (days remaining).
 - **CIM Models:** N/A
 
 ---

@@ -465,3 +465,104 @@ index=iac sourcetype="policy_check"
 
 ---
 
+### UC-12.4.6 · Pipeline Failure Root Cause Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Recurring failure causes (e.g., flaky tests, env issues) slow delivery. Trending root causes supports targeted remediation and stability.
+- **App/TA:** Jenkins/GitHub Actions/Azure DevOps TAs
+- **Data Sources:** Pipeline run logs, failure reasons, stage outcomes
+- **SPL:**
+```spl
+index=cicd sourcetype="jenkins:build"
+| where result="FAILURE"
+| rex field=message "(?<cause>Timeout|OOM|Connection refused|AssertionError|dependency)"
+| stats count by cause, job_name
+| sort -count
+```
+- **Implementation:** Parse failure messages and stack traces from CI logs. Classify by cause (test, env, dependency, timeout). Alert on spike in a specific cause. Report on top failure reasons by job and week.
+- **Visualization:** Bar chart (failures by cause), Table (job × cause), Line chart (failure rate trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.7 · Container Image Build and Push Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Unauthorized or untagged image pushes can introduce risk. Auditing build and push events supports supply chain security and compliance.
+- **App/TA:** Registry and CI logs (ECR, ACR, Harbor, Docker)
+- **Data Sources:** Image push events, build logs, registry audit
+- **SPL:**
+```spl
+index=registry sourcetype="registry:audit"
+| search action=push
+| stats latest(_time) as last_push, count by image_name, actor, tag
+| table image_name, tag, actor, last_push, count
+```
+- **Implementation:** Ingest registry audit and CI build events. Alert on push from unexpected identity or to production repo without tag policy. Report on image provenance and push frequency.
+- **Visualization:** Table (push events), Timeline (pushes by image), Bar chart (pushes by actor).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.8 · Release Gate and Approval Lag
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Long approval or gate wait times delay releases. Monitoring gate duration and approval latency supports process improvement.
+- **App/TA:** Release management / pipeline TAs
+- **Data Sources:** Gate and approval timestamps from release pipelines
+- **SPL:**
+```spl
+index=cicd sourcetype="release:gate"
+| eval wait_sec=approved_time - submitted_time
+| stats avg(wait_sec) as avg_wait, max(wait_sec) as max_wait by stage_name, environment
+| where avg_wait > 3600
+```
+- **Implementation:** Ingest gate and approval events from Azure DevOps, Spinnaker, or similar. Compute wait time per stage. Alert when average wait exceeds threshold. Report on approval latency by stage and approver.
+- **Visualization:** Bar chart (wait time by stage), Table (slow gates), Line chart (approval latency trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.9 · Feature Flag and Experiment Rollout Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Feature flags and experiments affect user experience. Monitoring rollout percentage and error rate per flag supports safe rollouts and rollback.
+- **App/TA:** Feature flag provider logs, app telemetry
+- **Data Sources:** Flag evaluation logs, rollout events, error rates by flag
+- **SPL:**
+```spl
+index=app sourcetype="feature_flag:eval"
+| stats count, sum(eval(if(error="true",1,0))) as errors by flag_name, variant, _time span=1h
+| eval error_rate=round((errors/count)*100, 2)
+| where error_rate > 5
+```
+- **Implementation:** Ingest flag evaluation and error data. Track rollout % and error rate per flag/variant. Alert on error rate spike after rollout. Report on flag adoption and performance by variant.
+- **Visualization:** Line chart (error rate by flag), Table (flags with high errors), Bar chart (rollout % by variant).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.10 · Deployment Rollback and Canary Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed canaries or automatic rollbacks indicate bad releases. Tracking rollback rate and canary metrics ensures safe deployments.
+- **App/TA:** Kubernetes/Argo/Spinnaker TAs, app metrics
+- **Data Sources:** Deployment events, canary success/failure, rollback triggers
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:deployment"
+| search (reason="Rollback" OR reason="CanaryFailed" OR type="Rollback")
+| stats count by namespace, deployment, reason
+| sort -count
+```
+- **Implementation:** Ingest deployment and canary outcome events. Alert on any rollback or canary failure. Correlate with change and error metrics. Report on rollback rate by service and time.
+- **Visualization:** Table (rollback events), Single value (rollbacks this week), Line chart (canary success rate).
+- **CIM Models:** N/A
+
+---
+

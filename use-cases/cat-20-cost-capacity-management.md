@@ -355,6 +355,110 @@ index=network sourcetype="ipam:pool"
 
 ---
 
+### UC-20.2.9 · Cloud Commitment and Savings Plan Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Underutilized commitments or savings plans leave money on the table. Monitoring utilization and coverage supports optimization and renewal decisions.
+- **App/TA:** AWS Cost Explorer, Azure Cost Management, CUDRI/savings plan data
+- **Data Sources:** Commitment usage, savings plan coverage, hourly coverage %
+- **SPL:**
+```spl
+index=cloud_cost sourcetype="aws:savings_plan"
+| stats latest(utilization_pct) as util_pct, latest(coverage_pct) as coverage by plan_id, commitment_type
+| where util_pct < 80 OR coverage < 70
+| table plan_id, commitment_type, util_pct, coverage
+```
+- **Implementation:** Ingest commitment and savings plan usage from cloud cost APIs. Alert when utilization or coverage drops below target. Report on commitment ROI and recommend size changes at renewal.
+- **Visualization:** Gauge (utilization %), Table (plans below target), Line chart (coverage trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.10 · Anomalous Cost Spike by Service or Account
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Sudden cost spikes may indicate runaway resources, misconfiguration, or abuse. Early detection limits bill shock and supports incident response.
+- **App/TA:** Cloud cost TAs, billing exports
+- **Data Sources:** Daily cost by service, account, region
+- **SPL:**
+```spl
+index=cloud_cost sourcetype="cost:daily"
+| stats sum(cost) as daily_cost by service, account_id, _time span=1d
+| eventstats avg(daily_cost) as avg_cost, stdev(daily_cost) as std_cost by service, account_id
+| where daily_cost > (avg_cost + (3*std_cost))
+| table service, account_id, daily_cost, avg_cost, std_cost
+```
+- **Implementation:** Ingest daily cost by dimensions. Compute baseline and standard deviation. Alert when cost exceeds 3× std dev. Report on top anomalies and trend. Correlate with resource and usage data.
+- **Visualization:** Table (anomalous services/accounts), Line chart (cost vs baseline), Bar chart (spike magnitude).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.11 · Unused and Orphaned Resource Cost Attribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Unused disks, idle instances, and orphaned snapshots drive waste. Attributing cost to these resources supports cleanup and chargeback.
+- **App/TA:** Cloud resource inventory, cost allocation tags
+- **Data Sources:** Resource list with last used, cost, tags
+- **SPL:**
+```spl
+index=cloud_cost sourcetype="resource:inventory"
+| where (last_used_days > 30 OR state="stopped") AND cost > 0
+| stats sum(cost) as waste_cost, count by resource_type, account_id
+| sort -waste_cost
+| table resource_type, account_id, count, waste_cost
+```
+- **Implementation:** Combine resource inventory (with last-used or state) and cost data. Flag idle or stopped resources older than threshold. Report on waste by type and account. Drive cleanup campaigns.
+- **Visualization:** Table (waste by type and account), Bar chart (waste cost by resource type), Single value (total waste).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.12 · License and Subscription Consumption vs Entitlement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Over-consumption causes true-up or compliance issues; under-consumption wastes spend. Monitoring usage vs entitlement supports optimization and renewal.
+- **App/TA:** License management, SaaS usage APIs
+- **Data Sources:** Entitlement count, consumed count, by product and pool
+- **SPL:**
+```spl
+index=licenses sourcetype="license:usage"
+| stats latest(entitled) as entitled, latest(consumed) as consumed by product, pool
+| eval usage_pct=round((consumed/entitled)*100, 1)
+| where usage_pct > 100 OR usage_pct < 50
+| table product, pool, entitled, consumed, usage_pct
+```
+- **Implementation:** Ingest entitlement and consumption from license or SaaS tools. Alert when consumption exceeds entitlement or falls below target. Report on utilization by product and pool. Use for right-sizing at renewal.
+- **Visualization:** Table (over/under utilized), Gauge (usage %), Bar chart (consumed vs entitled).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.13 · Cost Forecast vs Budget and Variance Alert
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Forecast over budget risks overspend; large variance indicates model or usage change. Monitoring forecast vs budget supports proactive control and reforecasting.
+- **App/TA:** Cost forecasting tool, budget data
+- **Data Sources:** Monthly forecast, budget, actuals to date
+- **SPL:**
+```spl
+index=cloud_cost sourcetype="cost:forecast"
+| stats latest(forecast_total) as forecast, latest(budget) as budget, latest(actual_ytd) as actual by account_id, month
+| eval variance_pct=round((forecast-budget)/budget*100, 1)
+| where variance_pct > 10 OR variance_pct < -20
+| table account_id, month, forecast, budget, actual, variance_pct
+```
+- **Implementation:** Ingest forecast and budget. Compute variance. Alert when forecast exceeds budget by threshold or variance is large. Report on forecast accuracy and budget burn rate. Integrate with finance.
+- **Visualization:** Table (accounts over budget), Gauge (variance %), Line chart (forecast vs budget trend).
+- **CIM Models:** N/A
+
+---
+
 ## Summary Statistics
 
 | Category | Subcategories | Use Cases |

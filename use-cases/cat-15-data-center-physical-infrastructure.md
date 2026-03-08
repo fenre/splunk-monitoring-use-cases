@@ -264,14 +264,10 @@ index=physical sourcetype="access_control"
 ```
 - **Implementation:** Forward access control events to Splunk. Parse all badge events (granted, denied, door held, forced). Retain per compliance requirements. Enable search by person, door, or time for investigations.
 - **Visualization:** Table (access log), Bar chart (access by door), Timeline (access events for person), Single value (total access today).
-- **CIM Models:** Authentication
+- **CIM Models:** N/A
 - **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+```
+No CIM model available for physical access control data.
 ```
 
 ---
@@ -292,14 +288,10 @@ index=physical sourcetype="access_control" result="granted"
 ```
 - **Implementation:** Define business hours per facility. Alert on access outside hours (excluding authorized roles like NOC, security). Require pre-authorization for after-hours access. Track after-hours access patterns.
 - **Visualization:** Table (after-hours access events), Bar chart (after-hours by person), Heatmap (time × access volume).
-- **CIM Models:** Authentication
+- **CIM Models:** N/A
 - **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+```
+No CIM model available for physical access control data.
 ```
 
 ---
@@ -358,15 +350,114 @@ index=physical sourcetype="cabinet_lock"
 ```
 - **Implementation:** Deploy smart cabinet locks with event logging. Forward events to Splunk. Alert on unauthorized openings. Track door open duration. Correlate with badge access events for validation. Report on cabinet access frequency.
 - **Visualization:** Table (cabinet access events), Timeline (open/close events), Bar chart (access by rack).
-- **CIM Models:** Authentication
+- **CIM Models:** N/A
 - **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
 ```
+No CIM model available for physical access control data.
+```
+
+---
+
+### UC-15.3.6 · Rack PDU Load and Phase Balance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** PDU overload or phase imbalance risks circuit trips and equipment failure. Monitoring supports capacity planning and safe load distribution.
+- **App/TA:** PDU SNMP or API, DCIM
+- **Data Sources:** PDU current/load per phase, per outlet
+- **SPL:**
+```spl
+index=physical sourcetype="pdu:metrics"
+| stats latest(current_a) as current, latest(kw) as load by pdu_id, phase
+| eval imbalance=abs(current - avg(current) over (partition by pdu_id))
+| where load > 80 OR imbalance > 10
+| table pdu_id, phase, current, load, imbalance
+```
+- **Implementation:** Poll PDU metrics via SNMP or API. Alert when load exceeds 80% or phase imbalance exceeds threshold. Report on load trend and top-loaded PDUs. Balance loads across phases as needed.
+- **Visualization:** Table (PDU load by phase), Bar chart (phase balance), Line chart (load trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.7 · Fire Suppression and Detection System Alarms
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Fire and gas detection events require immediate response. Centralized alarm monitoring ensures rapid escalation and audit trail.
+- **App/TA:** Fire alarm panel integration, BMS
+- **Data Sources:** Fire detection, suppression system status, alarm events
+- **SPL:**
+```spl
+index=physical sourcetype="fire:alarm"
+| search (status="alarm" OR status="trouble" OR type="suppression")
+| table _time, zone, type, status, description
+| sort -_time
+```
+- **Implementation:** Integrate fire panel or BMS for alarm events. Alert immediately on any alarm or suppression activation. Log all events for compliance. Report on alarm history and trouble events.
+- **Visualization:** Table (alarms), Timeline (events), Single value (active alarms).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.8 · Raised Floor and Cable Management Events
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Floor tile removal or cable strain events can indicate unauthorized work or trip hazards. Monitoring supports physical security and change audit.
+- **App/TA:** Floor/cable sensors, DCIM
+- **Data Sources:** Tile position, cable tension or movement sensors
+- **SPL:**
+```spl
+index=physical sourcetype="floor:sensor"
+| search (tile_removed="true" OR cable_strain > 80)
+| table _time, location, tile_id, cable_strain, operator
+| sort -_time
+```
+- **Implementation:** Deploy sensors for critical floor tiles and cable runs. Forward events to Splunk. Alert on tile removal or strain above threshold. Correlate with change tickets. Report on access and strain history.
+- **Visualization:** Table (events), Timeline (tile/cable events), Floor plan (locations).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.9 · Generator Run Hours and Maintenance Due
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Generator maintenance based on run hours ensures reliability during outages. Tracking run hours and maintenance due dates avoids missed service.
+- **App/TA:** Generator controller, BMS
+- **Data Sources:** Run hours, last maintenance date, next due
+- **SPL:**
+```spl
+index=physical sourcetype="generator:status"
+| stats latest(run_hours) as run_hrs, latest(maintenance_due_hrs) as due_hrs by generator_id
+| eval remaining_hrs=due_hrs-run_hrs
+| where remaining_hrs < 100
+| table generator_id, run_hrs, due_hrs, remaining_hrs
+```
+- **Implementation:** Ingest generator run hours and maintenance schedule. Alert when remaining hours until next service is below threshold. Report on run hour trend and overdue maintenance.
+- **Visualization:** Table (generators due for service), Gauge (remaining hours), Bar chart (run hours by unit).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.10 · Data Center Capacity Headroom by Zone
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Tracking power, cooling, and space headroom by zone supports capacity planning and prevents over-provisioning in hot spots.
+- **App/TA:** DCIM, PDU/CRAC metrics
+- **Data Sources:** Power capacity vs used, cooling capacity vs load, rack U available
+- **SPL:**
+```spl
+index=dcim sourcetype="capacity:zone"
+| eval power_headroom_pct=((capacity_kw - used_kw)/capacity_kw)*100
+| eval cooling_headroom_pct=((capacity_tons - load_tons)/capacity_tons)*100
+| where power_headroom_pct < 20 OR cooling_headroom_pct < 20
+| table zone, power_headroom_pct, cooling_headroom_pct, u_available
+```
+- **Implementation:** Aggregate capacity and usage by zone from DCIM or meters. Alert when headroom drops below 20%. Report on trend and zones with least headroom. Use for placement and expansion planning.
+- **Visualization:** Table (zones with low headroom), Bar chart (headroom by zone), Heatmap (zone capacity).
+- **CIM Models:** N/A
 
 ---
 

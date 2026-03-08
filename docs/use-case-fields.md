@@ -17,6 +17,8 @@ Use cases in this repo support the following optional fields. All are optional u
 | Script example | **Script example:** | Optional. For scripted-input use cases: add a code block after this line with the script. Shown in the modal and in detailed instructions. See [Implementation guide](implementation-guide.md). |
 | Visualization | **Visualization:** | Suggested dashboards/charts. |
 | CIM Models | **CIM Models:** | Splunk CIM data model names the use case relies on (comma-separated, e.g. `Performance`, `Network_Traffic`, `Change`). See [CIM and data models](cim-and-data-models.md). |
+| Premium Apps | **Premium Apps:** | Optional. Splunk premium products required for this use case when applicable (e.g. `Splunk Enterprise Security`, `Splunk ITSI`, `Splunk SOAR`). Omit when the use case works with Splunk Enterprise or Cloud alone. |
+| Equipment Models | **Equipment Models:** | Optional. Specific hardware models the use case applies to (e.g. `Cisco Catalyst 9300, Catalyst 9500, ISR 4321, Meraki MX68`). Searchable in the UI — users can type a model number to find relevant use cases. Place after `App/TA`. |
 | Data model acceleration | **Data model acceleration:** | Optional. Short note for implementers (e.g. "Enable for Performance, Network_Traffic" or "Required for tstats; summary range ≥30d"). Shown with CIM in the dashboard; [DMA docs](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels). |
 | Schema | **Schema:** or **OCSF:** | Optional. Schema context: `CIM`, `OCSF`, or e.g. `OCSF: authentication` when the use case aligns with [OCSF](https://schema.ocsf.io/). |
 | CIM SPL | **CIM SPL:** | tstats/accelerated query (optional). Requires the listed CIM models to be populated and accelerated. |

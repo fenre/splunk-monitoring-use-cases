@@ -1751,3 +1751,424 @@ index=iot sourcetype="iot_platform:inventory"
 
 ---
 
+### UC-14.4.6 · IoT Device Connectivity and Last-Seen Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Devices that stop reporting indicate failure, network issues, or tampering. Last-seen monitoring ensures fleet visibility and rapid response to outages.
+- **App/TA:** IoT platform, MQTT/CoAP gateway logs
+- **Data Sources:** Device heartbeat, last telemetry timestamp per device
+- **SPL:**
+```spl
+index=iot sourcetype="iot:telemetry"
+| stats latest(_time) as last_seen by device_id, gateway
+| eval gap_sec=now()-last_seen
+| where gap_sec > 3600
+| table device_id, gateway, last_seen, gap_sec
+```
+- **Implementation:** Track last-seen per device from telemetry or heartbeat. Alert when device has not reported for >1 hour (tune per use case). Report on connectivity rate and devices with longest gap. Correlate with gateway health.
+- **Visualization:** Table (devices with gap), Single value (devices offline), Line chart (connectivity rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.7 · OT Protocol Anomaly and Unauthorized Command Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unusual Modbus/OPC-UA/DNP3 commands or write operations can indicate attack or misconfiguration. Detection supports OT security and safety.
+- **App/TA:** OT protocol decoders, industrial IDS
+- **Data Sources:** Modbus/OPC-UA/DNP3 traffic, write and function code logs
+- **SPL:**
+```spl
+index=ot sourcetype="modbus:traffic"
+| search (function_code=6 OR function_code=16 OR function_code IN ("0x10","0x06"))
+| stats count by source_ip, unit_id, function_code, register
+| where count > 100
+| sort -count
+```
+- **Implementation:** Ingest OT protocol traffic from sensors or IDS. Baseline normal read/write patterns. Alert on write to critical registers, unknown source, or high command rate. Report on command distribution by source and function.
+- **Visualization:** Table (write events), Timeline (commands by source), Bar chart (function codes).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.8 · Sensor Calibration and Drift Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Sensor drift causes incorrect control and compliance issues. Detecting drift against reference or peer sensors supports maintenance and data quality.
+- **App/TA:** Sensor telemetry, reference sensor or baseline data
+- **Data Sources:** Sensor readings, calibration records
+- **SPL:**
+```spl
+index=iot sourcetype="sensor:reading"
+| stats avg(value) as avg_val, stdev(value) as stdev_val by sensor_id, metric, _time span=1d
+| eventstats avg(avg_val) as fleet_avg by metric
+| eval drift=abs(avg_val-fleet_avg)
+| where drift > (stdev_val * 3)
+```
+- **Implementation:** Ingest sensor readings and optional reference values. Compute baseline or peer average. Alert when a sensor deviates beyond threshold. Track calibration history and flag sensors due for recalibration.
+- **Visualization:** Line chart (sensor vs baseline), Table (sensors with drift), Bar chart (drift magnitude).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.9 · Gateway and Edge Node Resource Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Overloaded gateways drop telemetry or delay processing. Monitoring CPU, memory, and queue depth ensures edge reliability and capacity planning.
+- **App/TA:** Edge/gateway metrics, SNMP or agent
+- **Data Sources:** Gateway CPU, memory, disk, message queue depth
+- **SPL:**
+```spl
+index=iot sourcetype="gateway:metrics"
+| stats latest(cpu_pct) as cpu, latest(mem_pct) as mem, latest(queue_depth) as queue by gateway_id
+| where cpu > 80 OR mem > 85 OR queue > 1000
+| table gateway_id, cpu, mem, queue
+```
+- **Implementation:** Collect gateway and edge node metrics via agent or SNMP. Alert when CPU/memory or queue exceeds threshold. Report on utilization trend and top-loaded gateways. Plan scale-out before saturation.
+- **Visualization:** Table (gateways over threshold), Gauge (queue depth), Line chart (utilization trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.10 · IoT Data Pipeline Throughput and Latency
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Pipeline latency or drop in throughput affects real-time dashboards and alerts. Monitoring supports SLA and troubleshooting of ingestion and processing.
+- **App/TA:** Pipeline metrics, message broker logs
+- **Data Sources:** Ingestion rate, end-to-end latency, backlog size
+- **SPL:**
+```spl
+index=iot sourcetype="pipeline:metrics"
+| stats avg(ingestion_rate) as rate, avg(latency_ms) as latency, max(backlog) as backlog by pipeline_stage, _time span=5m
+| where rate < 100 OR latency > 5000 OR backlog > 50000
+| table pipeline_stage, rate, latency, backlog
+```
+- **Implementation:** Ingest pipeline stage metrics (rate, latency, backlog). Alert when rate drops or latency/backlog exceeds threshold. Report on throughput by stage and trend. Correlate with gateway and cloud health.
+- **Visualization:** Line chart (throughput and latency), Table (stages with issues), Single value (pipeline health).
+- **CIM Models:** N/A
+
+---
+
+### 14.5 MQTT and OPC-UA (Edge Hub and Gateways)
+
+**Primary App/TA:** Splunk Edge Hub (built-in MQTT broker, OPC-UA connector), Azure IoT Edge Hub, MQTT brokers (Eclipse Mosquitto, HiveMQ), OPC-UA gateways (KEPServerEX, Prosys), Splunk OT Intelligence.
+
+**Data Sources:** MQTT topics (sensors, actuators, BMS, SCADA); OPC-UA nodes (PLC tags, alarms, history); Edge Hub health and connector metrics; gateway logs.
+
+---
+
+### UC-14.5.1 · MQTT Topic Message Rate and Subscription Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Per-topic message rate and subscriber count indicate whether sensors and downstream consumers are healthy. Sudden drops mean a publisher or subscription failed; spikes can indicate a runaway device or replay.
+- **App/TA:** Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ)
+- **Data Sources:** `index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics
+- **SPL:**
+```spl
+index=edge-hub-data OR index=ot sourcetype=mqtt OR sourcetype=edge_hub
+| stats count as msg_count, latest(_time) as last_seen by topic, host, _time span=5m
+| eval age_sec = now() - last_seen
+| where age_sec > 600 OR msg_count < 1
+| table topic host msg_count last_seen age_sec
+```
+- **Implementation:** Use Edge Hub MQTT topic subscriptions with metric extraction (topic as dimension). Or ingest broker metrics (e.g. Mosquitto stats, HiveMQ REST API) for messages per topic. Alert when a critical topic has no messages for >10 minutes or rate drops below baseline. Dashboard message rate by topic and subscriber count.
+- **Visualization:** Line chart (message rate by topic), Table (topics with no recent data), Single value (topics healthy %).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.2 · OPC-UA Server Connection and Session Count
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** OPC-UA session count and connection state indicate whether Edge Hub or gateways are successfully bound to PLCs/servers. Lost sessions create data gaps and break real-time monitoring.
+- **App/TA:** Splunk Edge Hub (OPC-UA connector), OPC-UA gateway (KEPServerEX, Prosys)
+- **Data Sources:** `index=edge-hub-logs` (connector logs), gateway connection status API or logs
+- **SPL:**
+```spl
+index=edge-hub-logs sourcetype=splunk_edge_hub_log "opcua" OR "opc-ua"
+| rex "session|connection|endpoint"
+| stats count, latest(_time) as last_seen by host, connection_state
+| where connection_state="disconnected" OR connection_state="failed"
+| table host connection_state count last_seen
+```
+- **Implementation:** Configure Edge Hub OPC-UA connector with endpoint URL and security. Forward connector logs to edge-hub-logs. Parse connection/session state from log messages or gateway API. Alert when connection state is disconnected or session count drops to zero for a critical server.
+- **Visualization:** Table (server, state, session count), Status grid (endpoint × state), Single value (OPC-UA connections healthy).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.3 · Edge Hub MQTT Broker Client Disconnections
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Frequent client disconnections or reconnect storms indicate network issues, broker overload, or misconfigured keep-alive. Monitoring supports stability and capacity planning.
+- **App/TA:** Splunk Edge Hub (built-in MQTT broker), broker logs
+- **Data Sources:** `index=edge-hub-logs sourcetype=splunk_edge_hub_log` (broker events), MQTT broker log (disconnect, connect)
+- **SPL:**
+```spl
+index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" ("disconnect" OR "connection closed" OR "client")
+| rex "client_id=(?<client_id>\S+)|client (?<client_id>\S+)"
+| stats count as disconnect_count by client_id, host, _time span=15m
+| where disconnect_count > 5
+| sort -disconnect_count
+```
+- **Implementation:** Enable MQTT broker logging on Edge Hub or external broker. Ingest disconnect and connection events. Count disconnects per client per 15 minutes. Alert on disconnect storms (>5 in 15 min) or when a critical client (e.g. PLC gateway) disconnects.
+- **Visualization:** Table (client, disconnect count), Line chart (disconnects over time), Timeline (connection events).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.4 · OPC-UA Node Value Change Rate and Anomaly
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Anomaly
+- **Value:** PLC tag value change rate and distribution indicate normal process behavior. Sudden change in rate or value distribution can signal sensor fault, process upset, or cyber event.
+- **App/TA:** Splunk Edge Hub (OPC-UA connector), Splunk OT Intelligence
+- **Data Sources:** `index=edge-hub-data sourcetype=splunk_edge_hub_opcua` (node values)
+- **SPL:**
+```spl
+index=edge-hub-data sourcetype=splunk_edge_hub_opcua
+| stats count as sample_count, dc(node_id) as nodes_seen by host, _time span=5m
+| eventstats avg(sample_count) as avg_count, stdev(sample_count) as std_count by host
+| eval z = if(std_count>0, (sample_count-avg_count)/std_count, 0)
+| where abs(z) > 3
+| table host _time sample_count avg_count z
+```
+- **Implementation:** Ingest OPC-UA node samples from Edge Hub. Compute per-host message rate (samples per 5 min). Baseline mean and stdev; alert when rate exceeds 3 standard deviations. Optionally run MLTK anomaly detection on critical tags.
+- **Visualization:** Line chart (sample rate by host), Table (anomalous intervals), Single value (current rate vs baseline).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.5 · Edge Hub to Cloud HEC Forwarding Backlog
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** When Edge Hub loses connectivity to Splunk, data backs up locally (e.g. 3M sensor points in SQLite). Backlog growth and drain rate indicate risk of data loss and recovery time.
+- **App/TA:** Splunk Edge Hub (system health)
+- **Data Sources:** `index=edge-hub-health sourcetype=edge_hub` (backlog, queue depth)
+- **SPL:**
+```spl
+index=edge-hub-health sourcetype=edge_hub
+| stats latest(backlog_count) as backlog, latest(hec_connected) as connected by host
+| where backlog > 10000 OR connected != 1
+| table host backlog connected _time
+```
+- **Implementation:** Edge Hub reports backlog and HEC connection state to edge-hub-health. Ingest and alert when backlog exceeds threshold (e.g. 10K events) or connected=0. Track backlog drain rate after reconnect to estimate catch-up time.
+- **Visualization:** Gauge (backlog per device), Single value (HEC connected), Line chart (backlog over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.6 · MQTT Retain and Last Will Message Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Retained messages and Last Will payloads can contain sensitive state. Auditing who published retain/LWT and when supports change control and security review.
+- **App/TA:** MQTT broker (access log, audit log)
+- **Data Sources:** Broker audit log (publish with retain=1, will payload)
+- **SPL:**
+```spl
+index=ot sourcetype=mqtt_broker_audit (retain=1 OR "last_will" OR "will_message")
+| stats count by client_id, topic, action, _time span=1h
+| where count > 0
+| table _time client_id topic action count
+```
+- **Implementation:** Enable broker audit or access logging for MQTT publish (include retain flag and will payload if logged). Forward to Splunk. Alert on new retain on sensitive topics or LWT changes. Dashboard retain/LWT events by client and topic.
+- **Visualization:** Table (client, topic, retain/LWT events), Timeline (audit events).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.7 · OPC-UA Alarms and Events Queue Depth
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** OPC-UA alarm/event queues that grow indicate slow consumption or overflow risk. Overflow can drop critical alarms; depth trending supports connector and gateway sizing.
+- **App/TA:** OPC-UA gateway, Edge Hub OPC-UA connector
+- **Data Sources:** Gateway or connector metrics (alarm queue depth, event count)
+- **SPL:**
+```spl
+index=edge-hub-data OR index=ot sourcetype=opcua_metrics
+| stats latest(alarm_queue_depth) as queue, latest(events_pending) as pending by host, endpoint
+| where queue > 100 OR pending > 500
+| table host endpoint queue pending
+```
+- **Implementation:** Expose alarm/event queue depth from OPC-UA gateway or Edge Hub connector (if available). Ingest as metric. Alert when queue depth exceeds 100 or pending events >500. Tune subscription and sampling rate if queue grows persistently.
+- **Visualization:** Gauge (queue depth), Line chart (queue over time), Table (endpoints over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.8 · MQTT QoS 0/1/2 Delivery and Drops
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** QoS 0 messages can be dropped under load; QoS 1/2 add overhead. Tracking delivery by QoS and drop rate supports SLA and broker tuning.
+- **App/TA:** MQTT broker metrics (messages in/out, dropped)
+- **Data Sources:** Broker stats (e.g. Mosquitto messages received/sent, dropped)
+- **SPL:**
+```spl
+index=ot sourcetype=mqtt_broker_metrics
+| stats sum(messages_in) as in, sum(messages_out) as out, sum(messages_dropped) as dropped by qos, _time span=5m
+| eval drop_rate=if(in>0, round(dropped/in*100, 2), 0)
+| where drop_rate > 1 OR dropped > 0
+| table _time qos in out dropped drop_rate
+```
+- **Implementation:** Collect broker metrics (SNMP, REST, or log parsing) for messages in/out/dropped by QoS. Ingest to Splunk. Alert when drop rate exceeds 1% or absolute drops exceed threshold. Correlate with broker CPU and connection count.
+- **Visualization:** Line chart (in/out/dropped by QoS), Table (drop rate by QoS), Single value (total drops).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.9 · OPC-UA Certificate Expiration and Trust
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** Expired or untrusted OPC-UA certificates break secure connections and prevent data collection. Proactive monitoring avoids blind spots after certificate rollover failures.
+- **App/TA:** Edge Hub OPC-UA connector, OPC-UA gateway
+- **Data Sources:** Connector/gateway logs (certificate validation, trust list)
+- **SPL:**
+```spl
+index=edge-hub-logs sourcetype=splunk_edge_hub_log "opcua" ("certificate" OR "trust" OR "expir" OR "reject")
+| rex "expir|reject|invalid|cert"
+| table _time host message
+| sort -_time
+```
+- **Implementation:** Forward OPC-UA connector and gateway logs. Parse certificate and trust-related messages. Maintain a script or lookup of cert expiry dates; alert when expiry is within 30 days or when log shows validation failure.
+- **Visualization:** Table (cert expiry by endpoint), Timeline (cert events), Single value (certs expiring in 30d).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.10 · Edge Hub Local Storage and SQLite Backlog
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Edge Hub stores backlog in SQLite when disconnected. Disk usage and backlog size must stay within limits (e.g. 3M sensor points) to avoid data loss and device lockup.
+- **App/TA:** Splunk Edge Hub (device health)
+- **Data Sources:** `index=edge-hub-health` (disk_usage, backlog_count)
+- **SPL:**
+```spl
+index=edge-hub-health sourcetype=edge_hub
+| stats latest(disk_usage) as disk_pct, latest(backlog_count) as backlog by host
+| where disk_pct > 85 OR backlog > 2000000
+| table host disk_pct backlog _time
+```
+- **Implementation:** Edge Hub reports disk and backlog to edge-hub-health. Alert when disk exceeds 85% or backlog approaches device limit (e.g. 2M). Plan connectivity and storage upgrades before saturation.
+- **Visualization:** Gauge (disk %), Line chart (backlog over time), Table (devices near limit).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.11 · MQTT Authentication Failure and ACL Denials
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Failed MQTT logins and publish/subscribe denials indicate credential abuse, misconfiguration, or attack. Monitoring supports access control and incident response.
+- **App/TA:** MQTT broker (auth and ACL logs)
+- **Data Sources:** Broker access log (auth failure, ACL deny)
+- **SPL:**
+```spl
+index=ot sourcetype=mqtt_broker_log ("auth failed" OR "ACL deny" OR "access denied" OR "unauthorized")
+| stats count by client_id, src_ip, reason, _time span=15m
+| where count > 5
+| sort -count
+```
+- **Implementation:** Enable broker authentication and ACL logging. Forward to Splunk. Alert when failure count from a single client or IP exceeds threshold. Dashboard failures by client and topic.
+- **Visualization:** Table (client, IP, reason, count), Timeline (denials), Bar chart (top denied clients).
+- **CIM Models:** Authentication
+
+---
+
+### UC-14.5.12 · OPC-UA Subscription Latency and Sampling Overrun
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** High subscription latency or sampling overrun (server missing sample interval) degrades real-time visibility. Tracking supports connector and server tuning.
+- **App/TA:** OPC-UA gateway, Edge Hub OPC-UA connector
+- **Data Sources:** Connector metrics (subscription latency, overrun count)
+- **SPL:**
+```spl
+index=edge-hub-data OR index=ot sourcetype=opcua_metrics
+| stats avg(subscription_latency_ms) as avg_latency, sum(sampling_overrun_count) as overruns by host, subscription_id
+| where avg_latency > 500 OR overruns > 0
+| table host subscription_id avg_latency overruns
+```
+- **Implementation:** If gateway or Edge Hub exposes subscription latency and overrun metrics, ingest them. Alert when latency exceeds 500 ms or overrun count is non-zero. Reduce sampling rate or add resources if persistent.
+- **Visualization:** Line chart (latency by subscription), Table (overruns by subscription), Single value (max latency).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.13 · Edge Hub Container Health (MQTT/OPC-UA Modules)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Edge Hub runs MQTT broker and OPC-UA connector as modules. Container restarts or OOM kills cause data gaps and require investigation.
+- **App/TA:** Splunk Edge Hub (system logs)
+- **Data Sources:** `index=edge-hub-logs` (container lifecycle, OOM)
+- **SPL:**
+```spl
+index=edge-hub-logs sourcetype=splunk_edge_hub_log ("container" OR "module" OR "oom" OR "restart")
+| search "mqtt" OR "opcua" OR "opc-ua"
+| stats count by log_level, message, _time span=1h
+| where count > 0
+| table _time log_level message count
+```
+- **Implementation:** Forward Edge Hub system logs. Parse container/module start, stop, and OOM events. Alert on any restart or OOM for MQTT or OPC-UA modules. Correlate with device memory and CPU from edge-hub-health.
+- **Visualization:** Timeline (container events), Table (restart/OOM by module), Single value (modules healthy).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.14 · MQTT TLS Handshake and Cipher Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** TLS handshake failures or weak ciphers indicate misconfiguration or downgrade attacks. Monitoring ensures encrypted MQTT and policy compliance.
+- **App/TA:** MQTT broker (TLS log), reverse proxy logs
+- **Data Sources:** Broker or proxy TLS logs (handshake, cipher)
+- **SPL:**
+```spl
+index=ot sourcetype=mqtt_tls_log ("handshake failed" OR "certificate verify" OR "TLS")
+| rex "cipher=(?<cipher>\S+)|protocol=(?<protocol>\S+)"
+| stats count by cipher, protocol, reason
+| where cipher!="*TLS_AES*" OR protocol!="TLSv1.2" OR reason="failed"
+| table cipher protocol reason count
+```
+- **Implementation:** Enable TLS logging on MQTT broker or proxy. Ingest handshake success/failure and negotiated cipher/protocol. Alert on handshake failure or use of non-approved ciphers (e.g. block TLS 1.0/1.1 and weak ciphers).
+- **Visualization:** Table (cipher, protocol, failures), Timeline (handshake events), Single value (TLS failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.15 · OPC-UA Write and Permission Denials
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unauthorized write attempts or permission denials can indicate misconfiguration, abuse, or attack. Auditing supports least-privilege and security review.
+- **App/TA:** OPC-UA server/gateway (audit or security log)
+- **Data Sources:** OPC-UA server audit log (write request, status code)
+- **SPL:**
+```spl
+index=ot sourcetype=opcua_audit action=write
+| search status_code!="Good" OR permission_denied
+| stats count by client_id, node_id, status_code, _time span=1h
+| where count > 0
+| table _time client_id node_id status_code count
+```
+- **Implementation:** Enable OPC-UA server audit or security logging for write requests. Forward to Splunk. Alert on write denials for critical nodes or high volume of denials from a single client. Dashboard writes by client and node.
+- **Visualization:** Table (client, node, status, count), Timeline (write denials), Bar chart (denials by node).
+- **CIM Models:** N/A
+
+---
+
+

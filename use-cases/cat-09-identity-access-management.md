@@ -465,7 +465,7 @@ index=ldap sourcetype="openldap:syncrepl"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** High MFA failure rates indicate user friction, potential phishing, or MFA fatigue attacks. Monitoring supports both security and user experience.
-- **App/TA:** `Splunk_TA_okta`, Splunk_TA_duo
+- **App/TA:** `Splunk_TA_okta`, `Cisco Security Cloud` app (Splunkbase, replaces Duo Splunk Connector)
 - **Data Sources:** Okta system log, Duo authentication log
 - **SPL:**
 ```spl
@@ -501,7 +501,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.session.start"
 | iplocation client.ipAddress
 | sort actor.alternateId, _time
 | streamstats window=2 earliest(_time) as prev_time, earliest(lat) as prev_lat, earliest(lon) as prev_lon by actor.alternateId
-| eval distance_km=... , time_diff_hr=((_time-prev_time)/3600)
+| eval distance_km=round(6371*2*asin(sqrt(pow(sin((lat-prev_lat)*pi()/360),2)+cos(lat*pi()/180)*cos(prev_lat*pi()/180)*pow(sin((lon-prev_lon)*pi()/360),2))),0) , time_diff_hr=((_time-prev_time)/3600)
 | where distance_km > 500 AND time_diff_hr < 2
 ```
 - **Implementation:** Ingest IdP sign-in logs. Enrich with GeoIP. Calculate distance and time between consecutive logins per user. Alert when distance/time ratio is impossible (>500km in <2 hours). Whitelist VPN exit IPs and known travel patterns.
@@ -827,6 +827,105 @@ index=pam sourcetype="cyberark:vault_health"
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
+
+---
+
+### UC-9.4.7 · Federated Identity Provider Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** IdP outages block all federated application access. Health monitoring ensures SSO availability and rapid incident response.
+- **App/TA:** IdP monitoring, SAML/OIDC audit logs
+- **Data Sources:** IdP health endpoints, federation error logs
+- **SPL:**
+```spl
+index=iam sourcetype="idp:health"
+| stats latest(status) as status, latest(response_ms) as latency by idp_host, tenant
+| where status!="healthy" OR latency > 5000
+| table idp_host, tenant, status, latency
+```
+- **Implementation:** Poll IdP health endpoints (e.g., SAML metadata, OIDC discovery) every 60 seconds. Ingest federation errors from app and IdP logs. Alert on status unhealthy or latency >5s. Correlate with user-reported SSO issues.
+- **Visualization:** Status grid (IdP × health), Single value (IdP uptime %), Line chart (latency trend).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.8 · API Token Usage Anomaly
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unusual API token usage may indicate token theft or abuse. Detection supports least-privilege and incident response.
+- **App/TA:** Cloud identity TAs, API gateway logs
+- **Data Sources:** Token audit logs, API request logs
+- **SPL:**
+```spl
+index=iam sourcetype="api:token_audit"
+| stats dc(ip) as unique_ips, count as requests by token_id, _time span=1h
+| where unique_ips > 3 OR requests > 1000
+| sort -requests
+```
+- **Implementation:** Ingest token usage from IdP and API gateways. Baseline normal usage per token. Alert on new IPs, high request volume, or off-hours spikes. Rotate tokens on anomaly.
+- **Visualization:** Table (anomalous tokens), Line chart (requests by token), Bar chart (unique IPs per token).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.9 · Cross-Domain Trust Change Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Trust relationship changes can enable cross-domain abuse. Early detection prevents privilege escalation across forests.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Security Event Log (4706 — trust modified, 4714 — trust created)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706, 4714)
+| table _time, SubjectUserName, TargetDomainName, TrustType, TrustDirection
+| sort -_time
+```
+- **Implementation:** Forward DC Security logs. Alert on any trust creation or modification. Require change approval for trust changes. Report on trust topology for audit.
+- **Visualization:** Table (trust changes), Timeline (events), Single value (changes this week).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.10 · Just-in-Time Access Request Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** JIT access reduces standing privilege. Monitoring request and approval patterns ensures policy compliance and detects abuse.
+- **App/TA:** PAM / JIT access system logs
+- **Data Sources:** Access request and approval audit logs
+- **SPL:**
+```spl
+index=pam sourcetype="jit:requests"
+| stats count, values(approver) as approvers by requester, resource, action
+| where count > 20
+| sort -count
+```
+- **Implementation:** Ingest JIT request and approval events. Alert on excessive requests per user, self-approvals, or access outside business hours. Report on approval latency and denial rate.
+- **Visualization:** Table (request summary), Bar chart (requests by requester), Line chart (approval latency).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.11 · Identity Sync Failure Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Sync failures cause stale or missing identities in target systems, leading to access denials or orphaned accounts. Detection enables quick remediation.
+- **App/TA:** Identity sync / SCIM connector logs
+- **Data Sources:** Sync job logs, connector error logs
+- **SPL:**
+```spl
+index=iam sourcetype="sync:job"
+| where status="failed" OR error_count > 0
+| stats latest(_time) as last_failure, values(error_message) as errors by connector, target_system
+| table connector, target_system, last_failure, errors
+```
+- **Implementation:** Ingest sync job results from IdP and HR-driven connectors. Alert on any failed run or error count >0. Track sync latency and delta size. Report on sync health by target.
+- **Visualization:** Table (failed syncs), Single value (sync success %), Timeline (failure events).
+- **CIM Models:** Authentication
 
 ---
 

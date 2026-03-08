@@ -81,21 +81,31 @@ EQUIPMENT = [
     {
         "id": "cisco",
         "label": "Cisco",
-        "tas": ["Splunk_TA_cisco", "Cisco", "cisco-firepower", "cisco-asa", "cisco-ios", "cisco-ise", "cisco_meraki", "Meraki"],
+        "tas": ["Splunk_TA_cisco", "Cisco", "cisco-firepower", "cisco-asa", "cisco-ios", "cisco-ise",
+                "cisco_meraki", "Meraki", "cisco:ucs", "cisco:aci", "cisco:sdwan", "cisco:ucm",
+                "cisco:wlc", "Webex", "TA-cisco_ios", "Cisco Catalyst Add-on", "Cisco Meraki Add-on",
+                "Cisco Secure Firewall"],
         "models": [
-            {"id": "firepower", "label": "Cisco Firepower", "tas": ["Splunk_TA_cisco-firepower", "Cisco Firepower", "cisco-firepower"]},
-            {"id": "asa", "label": "Cisco ASA", "tas": ["Splunk_TA_cisco-asa", "Cisco ASA", "cisco-asa"]},
-            {"id": "ios", "label": "Cisco IOS / network devices", "tas": ["Splunk_TA_cisco-ios", "Cisco IOS", "cisco-ios"]},
-            {"id": "ise", "label": "Cisco ISE", "tas": ["Splunk_TA_cisco-ise", "Cisco ISE", "cisco-ise"]},
-            {"id": "meraki", "label": "Cisco Meraki", "tas": ["Splunk_TA_cisco_meraki", "Cisco Meraki", "Meraki", "cisco_meraki"]},
+            {"id": "firepower", "label": "Cisco Firepower / Secure Firewall", "tas": ["Cisco Firepower", "cisco-firepower", "cisco:firepower", "Cisco Secure Firewall"]},
+            {"id": "asa", "label": "Cisco ASA", "tas": ["Splunk_TA_cisco-asa", "Cisco ASA", "cisco-asa", "cisco:asa"]},
+            {"id": "ios", "label": "Cisco IOS / Catalyst / ISR / ASR", "tas": ["TA-cisco_ios", "Cisco IOS", "cisco-ios", "cisco:ios"]},
+            {"id": "ise", "label": "Cisco ISE", "tas": ["Splunk_TA_cisco-ise", "Cisco ISE", "cisco-ise", "cisco:ise"]},
+            {"id": "meraki", "label": "Cisco Meraki", "tas": ["Cisco Meraki Add-on", "Cisco Meraki", "Meraki", "cisco_meraki", "meraki"]},
+            {"id": "ucs", "label": "Cisco UCS", "tas": ["Splunk_TA_cisco-ucs", "Cisco UCS", "cisco:ucs", "UCS Manager"]},
+            {"id": "aci", "label": "Cisco ACI", "tas": ["cisco:aci", "Cisco ACI", "ACI", "APIC", "TA_cisco-ACI"]},
+            {"id": "sdwan", "label": "Cisco SD-WAN / Catalyst Center", "tas": ["cisco:sdwan", "Cisco SD-WAN", "vManage", "Cisco Catalyst Add-on"]},
+            {"id": "wlc", "label": "Cisco WLC / Catalyst 9800", "tas": ["cisco:wlc", "Cisco WLC", "WLC"]},
+            {"id": "ucm", "label": "Cisco UCM / Unified Communications", "tas": ["cisco:ucm", "Cisco UCM", "UCM CDR", "CUCM"]},
+            {"id": "webex", "label": "Cisco Webex", "tas": ["Webex", "webex", "ta_cisco_webex"]},
+            {"id": "spaces", "label": "Cisco Spaces", "tas": ["Cisco Spaces", "cisco:spaces", "cisco_spaces", "Spaces Add-On"]},
         ],
     },
     {
         "id": "fortinet",
         "label": "Fortinet",
-        "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet"],
+        "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
         "models": [
-            {"id": "fortigate", "label": "FortiGate", "tas": ["FortiGate", "fortigate", "Splunk_TA_fortinet"]},
+            {"id": "fortigate", "label": "FortiGate", "tas": ["FortiGate", "fortigate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"]},
             {"id": "fortianalyzer", "label": "FortiAnalyzer", "tas": ["FortiAnalyzer", "fortianalyzer"]},
         ],
     },
@@ -389,6 +399,8 @@ def parse_category_file(filepath):
                 "reqf": "",   # required fields for the search
                 "md": "",    # detailed implementation (expandable); parsed or generated
                 "script": "",  # optional script example (scripted input)
+                "premium": "",  # Premium Apps (ES, ITSI, SOAR, etc.) when required
+                "hw": "",       # Equipment Models — specific hardware models (searchable)
                 "dma": "",    # data model acceleration note (e.g. "Enable for Performance, Network_Traffic")
                 "schema": "", # schema context: CIM, OCSF, or e.g. "OCSF: authentication"
             }
@@ -490,6 +502,10 @@ def parse_category_file(filepath):
                     current_uc["sdomain"] = field_value.strip()
                 elif field_name == "required fields":
                     current_uc["reqf"] = field_value
+                elif field_name == "premium apps":
+                    current_uc["premium"] = field_value
+                elif field_name == "equipment models":
+                    current_uc["hw"] = field_value
 
                 i += 1
                 continue

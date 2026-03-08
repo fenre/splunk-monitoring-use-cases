@@ -12,6 +12,7 @@
 - **Monitoring type:** Fault
 - **Value:** Authentication success/failure trends reveal infrastructure issues (certificate problems, RADIUS outages) and security events.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** RADIUS/ISE authentication logs
 - **SPL:**
 ```spl
@@ -39,6 +40,7 @@ index=nac sourcetype="cisco:ise:auth"
 - **Monitoring type:** Compliance
 - **Value:** Non-compliant endpoints accessing the network pose security risks. Posture tracking ensures endpoint hygiene enforcement.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** ISE posture assessment logs
 - **SPL:**
 ```spl
@@ -67,6 +69,7 @@ index=nac sourcetype="cisco:ise:posture"
 - **Monitoring type:** Configuration
 - **Value:** Dynamic VLAN assignments reflect authorization decisions. Anomalous placements may indicate policy misconfiguration or attacks.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** ISE authorization logs (VLAN assignment)
 - **SPL:**
 ```spl
@@ -94,6 +97,7 @@ index=nac sourcetype="cisco:ise:auth"
 - **Monitoring type:** Performance
 - **Value:** Guest network monitoring ensures acceptable use and identifies capacity needs. Unusual patterns may indicate abuse.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** ISE guest portal logs, RADIUS accounting
 - **SPL:**
 ```spl
@@ -121,6 +125,7 @@ index=nac sourcetype="cisco:ise:guest"
 - **Monitoring type:** Performance
 - **Value:** BYOD onboarding metrics inform mobile device management strategy and user experience optimization.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** ISE BYOD portal logs, certificate provisioning
 - **SPL:**
 ```spl
@@ -148,6 +153,7 @@ index=nac sourcetype="cisco:ise:byod"
 - **Monitoring type:** Security
 - **Value:** MAB devices bypass 802.1X and rely on MAC address only. Monitoring for unauthorized MACs prevents rogue device access.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** ISE MAB authentication logs
 - **SPL:**
 ```spl
@@ -176,6 +182,7 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB"
 - **Monitoring type:** Performance
 - **Value:** Accurate device profiling enables correct authorization policies. Misprofiled devices may get inappropriate access.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** ISE profiler logs, re-profiling events
 - **SPL:**
 ```spl
@@ -204,6 +211,7 @@ index=nac sourcetype="cisco:ise:profiler"
 - **Monitoring type:** Security
 - **Value:** NAC policy changes affect network access for all devices. Unauthorized changes can create security gaps or disrupt access.
 - **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
 - **Data Sources:** ISE admin audit logs
 - **SPL:**
 ```spl
@@ -237,6 +245,7 @@ index=nac sourcetype="cisco:ise:admin"
 - **Monitoring type:** Security
 - **Value:** VPN capacity planning prevents remote workers from being locked out. Trending identifies peak usage and growth patterns.
 - **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN concentrator session logs
 - **SPL:**
 ```spl
@@ -265,6 +274,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Security
 - **Value:** Repeated VPN auth failures indicate credential attacks against the remote access perimeter, a primary attack vector.
 - **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN authentication logs
 - **SPL:**
 ```spl
@@ -294,6 +304,7 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 - **Monitoring type:** Security
 - **Value:** VPN connections from unexpected countries may indicate compromised credentials being used from attacker infrastructure.
 - **App/TA:** VPN TA + GeoIP lookup
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN session logs with source IP
 - **SPL:**
 ```spl
@@ -323,6 +334,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Monitoring type:** Compliance
 - **Value:** Split-tunnel configurations affect security visibility. Ensuring compliance with tunnel policy maintains security posture.
 - **App/TA:** VPN TA
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN session attributes (tunnel type, group policy)
 - **SPL:**
 ```spl
@@ -352,6 +364,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Availability
 - **Value:** Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.
 - **App/TA:** VPN TA
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN session logs (connect/disconnect events)
 - **SPL:**
 ```spl
@@ -383,6 +396,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Security
 - **Value:** VPN access at unusual hours may indicate compromised credentials or unauthorized activity. Alerting supports investigation.
 - **App/TA:** VPN TA + user context
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN session logs, HR data (department, role)
 - **SPL:**
 ```spl
@@ -414,6 +428,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Monitoring type:** Performance
 - **Value:** Per-user bandwidth tracking identifies heavy users, guides capacity planning, and detects potential data exfiltration.
 - **App/TA:** VPN TA, RADIUS accounting
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN session accounting (bytes in/out)
 - **SPL:**
 ```spl
@@ -444,6 +459,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Security
 - **Value:** A single user with simultaneous VPN sessions from different locations strongly indicates credential compromise.
 - **App/TA:** VPN TA
+- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
 - **Data Sources:** VPN session logs
 - **SPL:**
 ```spl
@@ -632,6 +648,111 @@ index=zt sourcetype="zt:admin_audit"
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
+
+---
+
+### UC-17.3.7 · Device Certificate Expiration and Renewal
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Expired device certificates break ZTNA and VPN access. Monitoring expiration and renewal success ensures continuous access and avoids outages.
+- **App/TA:** PKI/certificate inventory, ZTNA device logs
+- **Data Sources:** Certificate validity, renewal requests, enrollment events
+- **SPL:**
+```spl
+index=zt sourcetype="device:cert"
+| eval days_left=floor((expiry_time-now())/86400)
+| where days_left < 30 OR renewal_status="failed"
+| table device_id, cn, expiry_time, days_left, renewal_status
+| sort days_left
+```
+- **Implementation:** Ingest device certificate inventory and renewal events. Alert when cert expires in <30 days or renewal fails. Report on cert distribution and renewal success rate. Automate renewal where possible.
+- **Visualization:** Table (certs expiring soon), Single value (failed renewals), Bar chart (expiry by month).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.8 · Zero Trust Access Denial Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** High denial rates may indicate policy misconfiguration or attacker probing. Trending supports tuning and security analysis.
+- **App/TA:** ZTNA/access proxy logs
+- **Data Sources:** Access decision logs (allow/deny), user, app, reason
+- **SPL:**
+```spl
+index=zt sourcetype="zt:access"
+| where decision="deny"
+| stats count by user, application, deny_reason, _time span=1h
+| where count > 20
+| sort -count
+```
+- **Implementation:** Ingest access decision logs. Baseline denial rate by user and app. Alert on spike in denials or new deny reason. Report on top denied users and apps for policy review.
+- **Visualization:** Line chart (denials over time), Table (denials by user/app), Bar chart (deny reasons).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.9 · NAC Quarantine and Remediation Duration
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Long quarantine or remediation times affect user productivity. Monitoring duration supports process improvement and exception handling.
+- **App/TA:** NAC platform logs
+- **Data Sources:** Quarantine start/end, remediation outcome
+- **SPL:**
+```spl
+index=nac sourcetype="nac:quarantine"
+| eval duration_min=(released_time - quarantine_time)/60
+| stats avg(duration_min) as avg_mins, count by posture_violation, remediation_result
+| where avg_mins > 60
+| table posture_violation, remediation_result, count, avg_mins
+```
+- **Implementation:** Ingest NAC quarantine and release events. Compute time in quarantine and remediation success. Alert when average duration exceeds threshold. Report on violation types and remediation rate.
+- **Visualization:** Table (quarantine duration by violation), Bar chart (avg duration), Pie chart (remediation outcome).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.10 · VPN Session Duration and Idle Timeout
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Anomalously long or short VPN sessions may indicate abuse or connectivity issues. Monitoring supports policy tuning and security review.
+- **App/TA:** VPN gateway logs, RADIUS accounting
+- **Data Sources:** Session start/end, duration, idle time
+- **SPL:**
+```spl
+index=vpn sourcetype="vpn:session"
+| eval duration_hrs=(end_time - start_time)/3600
+| stats avg(duration_hrs) as avg_hrs, max(duration_hrs) as max_hrs, count by user
+| where max_hrs > 24 OR avg_hrs > 12
+| table user, count, avg_hrs, max_hrs
+```
+- **Implementation:** Ingest VPN session and accounting data. Compute session duration and idle time. Alert on sessions exceeding policy (e.g., >24h) or user with unusually long average. Report on session distribution.
+- **Visualization:** Table (long sessions), Bar chart (avg duration by user), Line chart (session count trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.11 · Micro-Segment Traffic Baseline Anomaly
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** New or unexpected traffic between segments may indicate lateral movement or misconfiguration. Anomaly detection supports Zero Trust enforcement.
+- **App/TA:** Network flow logs, firewall/segment logs
+- **Data Sources:** East-west traffic, segment IDs, flow counts
+- **SPL:**
+```spl
+index=flows sourcetype="netflow"
+| stats sum(bytes) as bytes, count by src_segment, dest_segment, _time span=1h
+| eventstats avg(bytes) as avg_bytes by src_segment, dest_segment
+| where bytes > (avg_bytes * 5)
+| table src_segment, dest_segment, bytes, avg_bytes
+```
+- **Implementation:** Ingest segment-level or flow data. Baseline traffic between segment pairs. Alert when traffic exceeds baseline by threshold. Correlate with new connections and ZT policy. Report on segment traffic matrix.
+- **Visualization:** Table (anomalous segment pairs), Heatmap (segment × segment traffic), Line chart (traffic trend).
+- **CIM Models:** Network_Traffic
 
 ---
 

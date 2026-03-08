@@ -285,7 +285,7 @@ index=itsm sourcetype="snow:cmdb_ci" operational_status="operational"
 - **SPL:**
 ```spl
 index=itsm sourcetype="snow:cmdb_ci" ci_class IN ("cmdb_ci_server","cmdb_ci_app_server")
-| join type=left sys_id [search index=itsm sourcetype="snow:cmdb_rel_ci" | stats count as rel_count by child]
+| join type=left sys_id [search index=itsm sourcetype="snow:cmdb_rel_ci" | stats count as rel_count by child | rename child as sys_id]
 | where isnull(rel_count) OR rel_count=0
 | table name, ci_class, rel_count
 ```
@@ -327,6 +327,7 @@ Covers Nagios Business Process Intelligence (BPI)-style monitoring: aggregating 
 - **Monitoring type:** Availability
 - **Value:** Individual component alerts do not communicate business impact. A BPI model aggregates the health of all components that together constitute a business capability (e.g., "Order Processing = web tier + database + payment gateway + message queue"). When any essential member fails, the business process is immediately flagged as degraded or down — mirroring Nagios BPI groups with essential member logic. Operations teams see business impact, not raw host counts.
 - **App/TA:** Splunk IT Service Intelligence (ITSI), or custom KV Store + scheduled searches
+- **Premium Apps:** Splunk ITSI
 - **Data Sources:** All existing monitoring indexes (`index=os`, `index=network`, `index=app`, `index=db`), ITSI entity/service model
 - **SPL:**
 ```spl
@@ -379,5 +380,112 @@ index=monitoring sourcetype IN (server_health, service_check, network_health)
 ```
 - **Implementation:** Normalize availability data from all sources (server, network, app) into a shared `index=monitoring` with a standardized `status` field. Schedule this search hourly. Store results in a summary index or KV Store for long-term retention. Build a Dashboard Studio heatmap visualization with host on the Y-axis and time on the X-axis, color-coded by availability percentage. Implement drilldown to raw events for any red cell. Export monthly availability reports per host/service for SLA documentation. Filter by host group (infrastructure, application, network) using tokens.
 - **Visualization:** Heatmap (host × time, color = availability%), Table (hosts sorted by lowest monthly availability), Single value (fleet-wide availability %), Line chart (fleet availability trend), Bar chart (downtime hours by host).
+
+---
+
+### UC-16.3.3 · First Contact Resolution Rate by Group
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** FCR indicates support efficiency and customer satisfaction. Tracking by group and category supports staffing and process improvement.
+- **App/TA:** ServiceNow/Service Desk TA, ITSM API
+- **Data Sources:** Incident resolution, first-contact resolution flag
+- **SPL:**
+```spl
+index=itsm sourcetype="incident"
+| where is_open=0
+| stats count, sum(eval(if(first_contact_resolution=1,1,0))) as fcr_count by assignment_group, category
+| eval fcr_rate=round((fcr_count/count)*100, 1)
+| sort -count
+| table assignment_group, category, count, fcr_count, fcr_rate
+```
+- **Implementation:** Ingest incident closure data with FCR flag. Compute FCR rate by group and category. Report on trend and groups below target. Use for training and process review.
+- **Visualization:** Bar chart (FCR rate by group), Table (group × category FCR), Line chart (FCR trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.4 · Escalation and Handoff Latency
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Long escalation or handoff times delay resolution. Monitoring handoff duration supports SLA and identifies bottlenecks.
+- **App/TA:** ITSM workflow logs, incident history
+- **Data Sources:** Assignment change events, timestamps per group
+- **SPL:**
+```spl
+index=itsm sourcetype="incident:history"
+| search type=assignment_change
+| eval handoff_hrs=(next_assignment_time - prev_assignment_time)/3600
+| stats avg(handoff_hrs) as avg_handoff, max(handoff_hrs) as max_handoff by from_group, to_group
+| where avg_handoff > 2
+```
+- **Implementation:** Ingest assignment and state change history. Compute time between assignments. Alert when average handoff exceeds threshold. Report on escalation paths and slow handoffs.
+- **Visualization:** Table (handoff latency by path), Bar chart (avg handoff by group), Sankey (escalation flow).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.5 · Knowledge Article Usage and Gap Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Low article use or repeated incidents without matching KB may indicate content gaps. Analytics support knowledge management and deflection.
+- **App/TA:** ITSM knowledge base, search logs
+- **Data Sources:** Article views, incident–KB linkage, search terms
+- **SPL:**
+```spl
+index=itsm sourcetype="kb:usage"
+| stats count as views, dc(incident_id) as linked_incidents by article_id, title
+| where views < 10 AND linked_incidents > 0
+| sort -linked_incidents
+| table article_id, title, views, linked_incidents
+```
+- **Implementation:** Ingest KB view and incident–article link data. Identify articles with many linked incidents but few views (potential discovery gap). Report on top articles and unused content. Suggest new articles from frequent incident categories.
+- **Visualization:** Table (articles by usage), Bar chart (linked incidents vs views), Pie chart (top articles).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.6 · Major Incident and Post-Mortem Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Tracking major incidents and post-mortem completion ensures learning and accountability. Supports compliance and continuous improvement.
+- **App/TA:** ITSM major incident, post-mortem records
+- **Data Sources:** Major incident flag, post-mortem due and completed dates
+- **SPL:**
+```spl
+index=itsm sourcetype="incident"
+| where major_incident=1 AND is_open=0
+| eval pm_due=closed_time + (7*86400)
+| where now() > pm_due AND post_mortem_completed=0
+| table number, short_description, closed_time, pm_due, post_mortem_completed
+```
+- **Implementation:** Ingest major incident and post-mortem status. Alert when post-mortem is overdue. Report on major incident count, MTTR, and post-mortem completion rate. Track root cause categories.
+- **Visualization:** Table (overdue post-mortems), Single value (major incidents this month), Line chart (post-mortem completion rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.7 · Request Fulfillment and Approval Cycle Time
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Long approval or fulfillment times delay service delivery. Monitoring cycle time supports process optimization and SLA for requests.
+- **App/TA:** ITSM request, approval workflow logs
+- **Data Sources:** Request submitted, approval, and fulfillment timestamps
+- **SPL:**
+```spl
+index=itsm sourcetype="request"
+| where state="fulfilled"
+| eval approval_hrs=(approval_time - submitted_time)/3600
+| eval fulfill_hrs=(fulfilled_time - approval_time)/3600
+| stats avg(approval_hrs) as avg_approval, avg(fulfill_hrs) as avg_fulfill by catalog_item, approval_group
+| table catalog_item, approval_group, avg_approval, avg_fulfill
+```
+- **Implementation:** Ingest request and approval lifecycle events. Compute approval and fulfillment duration. Alert when average exceeds target. Report on slow catalog items and approvers.
+- **Visualization:** Table (cycle time by catalog item), Bar chart (approval vs fulfillment time), Line chart (trend).
+- **CIM Models:** N/A
 
 ---

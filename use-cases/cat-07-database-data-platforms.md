@@ -673,7 +673,7 @@ index=datawarehouse sourcetype="airflow:task_instance"
 | where fail_rate > 0
 | sort -fail_rate
 ```
-- **Implementation:** Ingest pipeline orchestrator logs (Airflow, dbt, custom). Track job outcomes, durations, and data freshness. Alert on any pipeline failure. Create data freshness SLA dashboard showing when each table was last updated.
+- **Implementation:** Ingest pipeline orchestrator logs (Airflow, dbt, custom). Track job outcomes, durations, and data freshness. Alert on any pipeline failure. Create data freshness SLA dashboard showing when each table was last updated. For dbt and Snowflake pipelines, create similar searches targeting their respective sourcetypes (e.g., snowflake:task_history, dbt:run_results).
 - **Visualization:** Status grid (pipeline × status), Table (failed pipelines), Line chart (pipeline duration trend), Single value (overall success rate).
 - **CIM Models:** N/A
 
@@ -736,5 +736,103 @@ index=datawarehouse sourcetype="snowflake:warehouse_load"
 ```
 - **Implementation:** Use Splunk DB Connect to poll `V$OPEN_CURSOR` every 5 minutes. Join with `V$SESSION` to identify which application user or service is leaking cursors. Alert when any single session exceeds 400 open cursors (WARNING) or 800 (CRITICAL). Correlate spikes with deployment events from CI/CD logs to pinpoint root cause. For SQL Server, poll `sys.dm_exec_cursors` grouped by `login_name`. Set `OPEN_CURSORS` init parameter baseline in a lookup for dynamic threshold comparison.
 - **Visualization:** Line chart (total open cursors over time by application), Table (top sessions by cursor count), Single value (current max), Bar chart (cursors by application/service).
+
+---
+
+### UC-7.1.17 · Database Connection Pool Exhaustion
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.
+- **App/TA:** `splunk_app_db_connect`, database performance views
+- **Data Sources:** Oracle `V$SESSION`/`V$PROCESS`, PostgreSQL `pg_stat_activity`, MySQL `SHOW PROCESSLIST`, SQL Server `sys.dm_exec_connections`
+- **SPL:**
+```spl
+| dbxquery connection="oracle_prod" query="SELECT COUNT(*) AS conn_count FROM v\$session WHERE type='USER'"
+| eval usage_pct=round(conn_count/400*100, 1)
+| where usage_pct > 85
+| table conn_count usage_pct
+```
+- **Implementation:** Use DB Connect to poll session/connection count every 1–5 minutes. Compare to max_connections (or pool size). Alert when utilization exceeds 85%. Correlate with application logs for connection leak or traffic spike.
+- **Visualization:** Gauge (connection count vs max), Line chart (connections over time), Table (by program/user).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.1.18 · Long-Running Query and Blocking Session Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Queries that run for hours or sessions that block others cause timeouts and user impact. Identifying blocking chains and long-running queries supports tuning and kill decisions.
+- **App/TA:** `splunk_app_db_connect`, database wait/block views
+- **Data Sources:** Oracle `V$SESSION`/`V$SQL`, PostgreSQL `pg_stat_activity`, SQL Server `sys.dm_exec_requests`/`sys.dm_os_waiting_tasks`
+- **SPL:**
+```spl
+| dbxquery connection="oracle_prod" query="SELECT s.sid, s.serial#, s.username, s.seconds_in_wait, s.blocking_session, sq.sql_text FROM v\$session s JOIN v\$sql sq ON s.sql_id=sq.sql_id WHERE s.seconds_in_wait > 300 OR s.blocking_session IS NOT NULL"
+| table sid username seconds_in_wait blocking_session sql_text
+```
+- **Implementation:** Poll active sessions and wait/block info. Ingest sessions with elapsed time >5 minutes or with blocking_session set. Alert on blocking chains. Dashboard top long-running and blocked sessions with SQL text.
+- **Visualization:** Table (session, user, wait time, blocker), Blocking chain diagram, Line chart (long-running count).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.1.19 · Table and Index Bloat and Maintenance Window
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Capacity
+- **Value:** Table and index bloat (PostgreSQL) or fragmentation (SQL Server) degrades query performance and wastes space. Tracking bloat and last vacuum/rebuild supports maintenance scheduling.
+- **App/TA:** `splunk_app_db_connect`, maintenance job logs
+- **Data Sources:** PostgreSQL `pg_stat_user_tables`/bloat estimates, SQL Server `sys.dm_db_index_physical_stats`, Oracle segment size
+- **SPL:**
+```spl
+| dbxquery connection="pg_prod" query="SELECT schemaname, relname, n_dead_tup, n_live_tup, last_vacuum, last_autovacuum FROM pg_stat_user_tables WHERE n_dead_tup > 10000"
+| eval dead_ratio=round(n_dead_tup/n_live_tup*100, 2)
+| where dead_ratio > 5
+| table schemaname relname n_dead_tup last_autovacuum dead_ratio
+```
+- **Implementation:** Poll table/index stats and last maintenance timestamps. Compute dead tuple ratio or fragmentation %. Alert when bloat exceeds threshold or last vacuum/rebuild is older than 7 days for critical tables.
+- **Visualization:** Table (table, bloat %, last vacuum), Bar chart (bloat by table), Single value (tables overdue for vacuum).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.1.20 · Database Backup and Archive Log Retention Verification
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed or missing backups and unarchived redo logs risk data loss and prevent point-in-time recovery. Verifying backup success and archive log retention ensures RPO is met.
+- **App/TA:** `splunk_app_db_connect`, backup job logs
+- **Data Sources:** Oracle RMAN output, SQL Server msdb backup history, PostgreSQL pg_backup (or vendor logs)
+- **SPL:**
+```spl
+| dbxquery connection="oracle_prod" query="SELECT status, start_time, end_time, output_bytes FROM v\$rman_backup_job_details WHERE start_time > SYSDATE-1 ORDER BY start_time DESC"
+| search status!="COMPLETED"
+| table status start_time end_time output_bytes
+```
+- **Implementation:** Ingest backup job status (RMAN, SQL Server backup history, or backup vendor logs). Alert on any failed or incomplete backup. Track archive log destination space and retention; alert when space is low or retention is below policy.
+- **Visualization:** Table (last backup, status, duration), Gauge (backup success %), Timeline of backup jobs.
+- **CIM Models:** N/A
+
+---
+
+### UC-7.1.21 · Database User and Privilege Change Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** New users, role grants, or privilege changes can indicate compromise or policy violation. Auditing supports compliance (SOX, PCI) and security investigations.
+- **App/TA:** Database audit logs, `splunk_app_db_connect`
+- **Data Sources:** Oracle audit trail, PostgreSQL `pg_audit` or log_statement, SQL Server audit, MySQL general log
+- **SPL:**
+```spl
+index=db_audit sourcetype=oracle_audit (action="CREATE USER" OR action="GRANT" OR action="ALTER USER")
+| bin _time span=1h
+| stats count by db_user, action, object_name, _time
+| where count > 0
+| table _time db_user action object_name
+```
+- **Implementation:** Enable database audit for user and privilege changes. Forward audit logs to Splunk. Alert on any CREATE USER, GRANT, or ALTER USER. Correlate with change management.
+- **Visualization:** Events timeline, Table (user, action, object), Bar chart (changes by user).
+- **CIM Models:** Change
 
 ---
