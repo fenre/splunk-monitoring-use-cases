@@ -6,7 +6,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
 ---
 
 ## 1. Server & Compute
-- **Icon:** 🖥️
+- **Icon:** monitor
 - **Description:** Linux, Windows, macOS endpoint and server monitoring — CPU, memory, disk, processes, security events, and compliance.
 - **Quick Tip:** Deploy Splunk_TA_nix or Splunk_TA_windows on forwarders to start collecting OS metrics immediately.
 - **Quick Start:**
@@ -17,7 +17,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-1.1.70 · /etc/passwd Modifications (critical, Linux Servers)
 
 ## 2. Virtualization
-- **Icon:** ☁️
+- **Icon:** cloudNodes
 - **Description:** VMware vSphere, Hyper-V, and KVM virtual infrastructure — host contention, VM sprawl, and capacity planning.
 - **Quick Tip:** Install Splunk Add-on for VMware and connect to vCenter to pull ESXi host and VM performance data.
 - **Quick Start:**
@@ -28,7 +28,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-2.1.11 · ESXi Host Hardware Alerts (high, VMware vSphere)
 
 ## 3. Containers & Orchestration
-- **Icon:** 📦
+- **Icon:** container
 - **Description:** Docker, Kubernetes, OpenShift container platforms — crash loops, OOM kills, resource limits, and orchestration health.
 - **Quick Tip:** Deploy Splunk Connect for Kubernetes (SCK) to ingest container logs and cluster events.
 - **Quick Start:**
@@ -39,7 +39,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-3.2.1 · Pod Restart Rate (critical, Kubernetes)
 
 ## 4. Cloud Infrastructure
-- **Icon:** 🌐
+- **Icon:** globe
 - **Description:** AWS, Azure, GCP cloud infrastructure — API auditing, cost anomalies, resource drift, and security posture.
 - **Quick Tip:** Enable CloudTrail/Activity Log and use the respective Splunk TA to start collecting API audit events.
 - **Quick Start:**
@@ -50,7 +50,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-4.3.2 · IAM Policy Changes (critical, Google Cloud Platform (GCP))
 
 ## 5. Network Infrastructure
-- **Icon:** 🔌
+- **Icon:** networkDevices
 - **Description:** Routers, switches, firewalls, load balancers, wireless, SD-WAN, and Meraki — interface health, routing, and traffic.
 - **Quick Tip:** Configure syslog from network devices to Splunk. Install Splunk Add-on for Cisco or vendor-specific TA.
 - **Quick Start:**
@@ -61,7 +61,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-5.2.2 · Policy Change Audit (critical, Firewalls)
 
 ## 6. Storage & Backup
-- **Icon:** 💾
+- **Icon:** layersTriple
 - **Description:** SAN, NAS, object storage, and backup systems — capacity trends, latency, IOPS, and backup job monitoring.
 - **Quick Tip:** Install vendor TAs (NetApp, Pure Storage, etc.) and configure REST API or syslog collection.
 - **Quick Start:**
@@ -72,7 +72,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-6.1.1 · Volume Capacity Trending (critical, SAN / NAS Storage)
 
 ## 7. Database & Data Platforms
-- **Icon:** 🗄️
+- **Icon:** table
 - **Description:** SQL Server, Oracle, PostgreSQL, MongoDB, and data platforms — slow queries, deadlocks, replication, and connection pools.
 - **Quick Tip:** Install Splunk DB Connect or vendor TA to collect database logs and performance metrics.
 - **Quick Start:**
@@ -83,7 +83,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-7.2.1 · Cluster Membership Changes (critical, NoSQL Databases)
 
 ## 8. Application Infrastructure
-- **Icon:** ⚙️
+- **Icon:** cog
 - **Description:** Web servers, application servers, message queues, CDNs, and DNS — HTTP errors, response times, and SSL certificates.
 - **Quick Tip:** Forward web server access/error logs and install the appropriate TA for structured field extraction.
 - **Quick Start:**
@@ -94,7 +94,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-8.1.5 · SSL Certificate Monitoring (critical, Web Servers & Reverse Proxies)
 
 ## 9. Identity & Access Management
-- **Icon:** 🔐
+- **Icon:** key
 - **Description:** Active Directory, Entra ID, LDAP, MFA, and PAM — authentication failures, privilege escalation, and identity governance.
 - **Quick Tip:** Enable Windows Security Event Log collection from DCs with Splunk_TA_windows for immediate AD visibility.
 - **Quick Start:**
@@ -105,7 +105,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-9.3.5 · IdP Availability Monitoring (critical, Identity Providers (IdP) & SSO)
 
 ## 10. Security Infrastructure
-- **Icon:** 🛡️
+- **Icon:** shield
 - **Description:** Next-gen firewalls, IDS/IPS, endpoint protection, email security, web security, vulnerability management, SIEM & SOAR, and certificate/PKI — threat detection and SecOps. ESCU detections are distributed across subcategories 10.1–10.8.
 - **Quick Tip:** Forward firewall logs (syslog) and install the vendor TA (Palo Alto, Fortinet, etc.). Use `import_sse_detections.py` to import ESCU detections, then `redistribute_sse_ucs.py` to place them in the right subcategories.
 - **Quick Start:**
@@ -117,7 +117,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-10.7.1 · Alert Volume Trending (high, SIEM & SOAR)
 
 ## 11. Email & Collaboration
-- **Icon:** 📧
+- **Icon:** envelope
 - **Description:** Microsoft 365, Exchange, Teams, and collaboration platforms — mail flow, audit logging, and DLP events.
 - **Quick Tip:** Configure Splunk Add-on for Microsoft 365 with Management Activity API for audit events.
 - **Quick Start:**
@@ -128,7 +128,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-11.1.2 · Mailbox Audit Logging (high, Microsoft 365 / Exchange)
 
 ## 12. DevOps & CI/CD
-- **Icon:** 🔄
+- **Icon:** nodeBranch
 - **Description:** Source control, CI/CD pipelines, artifact management, and IaC — build failures, deployment frequency, and secret exposure.
 - **Quick Tip:** Forward CI/CD logs (Jenkins, GitHub Actions) via webhook or log file monitoring to Splunk.
 - **Quick Start:**
@@ -139,7 +139,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-12.2.8 · Security Scan Results in Pipeline (critical, CI/CD Pipelines)
 
 ## 13. Observability & Monitoring Stack
-- **Icon:** 📊
+- **Icon:** monitorChart
 - **Description:** Splunk platform health, APM, synthetic monitoring, and log aggregation — indexer queues, search performance, and forwarder health.
 - **Quick Tip:** Use the Monitoring Console (MC) built into Splunk and supplement with _internal index searches.
 - **Quick Start:**
@@ -150,7 +150,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-13.1.10 · Search Head Cluster Status (critical, Splunk Platform Health)
 
 ## 14. IoT & Operational Technology (OT)
-- **Icon:** 🏭
+- **Icon:** factory
 - **Description:** Building management, industrial control, Splunk Edge Hub, and IoT platforms — sensor data, anomaly detection, and OT security.
 - **Quick Tip:** Deploy Splunk Edge Hub with built-in sensors or configure MQTT/OPC-UA/Modbus protocol collection.
 - **Quick Start:**
@@ -161,7 +161,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-14.2.2 · Process Variable Anomalies (critical, Industrial Control Systems (ICS/SCADA))
 
 ## 15. Data Center Physical Infrastructure
-- **Icon:** 🏢
+- **Icon:** buildings
 - **Description:** Power/UPS, cooling/CRAC, and environmental monitoring — battery health, thermal management, and physical security.
 - **Quick Tip:** Integrate DCIM or BMS platforms via SNMP or API to collect environmental and power data.
 - **Quick Start:**
@@ -172,7 +172,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-15.1.3 · Power Redundancy Status (critical, Power & UPS)
 
 ## 16. Service Management & ITSM
-- **Icon:** 🎫
+- **Icon:** clipboard
 - **Description:** Ticketing systems and CMDB — incident trends, SLA compliance, MTTR, and change management correlation.
 - **Quick Tip:** Use Splunk Add-on for ServiceNow or REST API integration to pull ticket and CMDB data.
 - **Quick Start:**
@@ -183,7 +183,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-16.2.1 · CMDB Data Quality Score (high, Configuration Management (CMDB))
 
 ## 17. Network Security & Zero Trust
-- **Icon:** 🔒
+- **Icon:** lock
 - **Description:** NAC (802.1X), micro-segmentation, and SASE — network access control, posture assessment, and zero trust enforcement.
 - **Quick Tip:** Collect ISE/NAC RADIUS accounting logs and install Splunk_TA_cisco-ise for structured data.
 - **Quick Start:**
@@ -194,7 +194,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-17.2.1 · VPN Concurrent Sessions (high, VPN & Remote Access)
 
 ## 18. Data Center Fabric & SDN
-- **Icon:** 🕸️
+- **Icon:** nodeNetwork
 - **Description:** Cisco ACI, NSX-T, and software-defined networking — fabric health, policy compliance, and endpoint tracking.
 - **Quick Tip:** Install Splunk Add-on for Cisco ACI and connect to APIC for fault, event, and audit data.
 - **Quick Start:**
@@ -205,7 +205,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-18.1.4 · Contract/Filter Hit Analysis (high, Cisco ACI)
 
 ## 19. Compute Infrastructure (HCI & Converged)
-- **Icon:** 🖲️
+- **Icon:** servers
 - **Description:** Cisco UCS, Nutanix, and hyper-converged infrastructure — blade health, service profiles, and hardware faults.
 - **Quick Tip:** Install vendor TA (UCS Manager, Nutanix Prism) and configure XML API or REST collection.
 - **Quick Start:**
@@ -216,7 +216,7 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-19.2.5 · Disk Failure Tracking (critical, Hyper-Converged Infrastructure (HCI))
 
 ## 20. Cost & Capacity Management
-- **Icon:** 💰
+- **Icon:** dollarMark
 - **Description:** Cloud cost monitoring and capacity planning — spend trends, idle resources, rightsizing, and budget alerts.
 - **Quick Tip:** Ingest cloud billing data (AWS CUR, Azure Cost Management) and use Splunk for trend analysis.
 - **Quick Start:**
