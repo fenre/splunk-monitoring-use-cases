@@ -11,9 +11,9 @@
 window.SITE_CUSTOM = {
   // Hero (Overview top)
   heroBadge: "> Solving IT Issues Together",
-  heroTitle: "Infrastructure Monitoring",
+  heroTitle: "Infrastructure Monitoring with Splunk",
   heroTitleSpan: "Getting Started",
-  heroIntro: "A curated path through {useCases} use cases across {categories} infrastructure domains. Start with the highest-impact, easiest-to-implement use cases and expand from there.",
+  heroIntro: "Find {useCases} use cases across {categories} infrastructure domains. ",
   statUseCases: "Use Cases",
   statCategories: "Categories",
   statSubcategories: "Subcategories",
