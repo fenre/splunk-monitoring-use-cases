@@ -121,6 +121,70 @@ index=environment sourcetype="sensor:environmental"
 
 ---
 
+### UC-14.1.7 · LoRaWAN Gateway Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** Gateway uplink/downlink success rate and RSSI trending indicate network coverage and reliability. Degraded gateways cause packet loss and affect IoT application availability.
+- **App/TA:** Custom (LoRaWAN Network Server API, e.g. ChirpStack)
+- **Data Sources:** LoRaWAN NS API (gateway stats, rx/tx packets)
+- **SPL:**
+```spl
+index=iot sourcetype="lorawan:gateway_stats"
+| eval uplink_success_rate=if(uplink_total>0, (uplink_ok/uplink_total)*100, null), downlink_success_rate=if(downlink_total>0, (downlink_ok/downlink_total)*100, null)
+| stats avg(rssi) as avg_rssi, avg(uplink_success_rate) as uplink_pct, avg(downlink_success_rate) as downlink_pct by gateway_id, _time span=1h
+| where uplink_pct < 95 OR downlink_pct < 95 OR avg_rssi < -120
+| table gateway_id, avg_rssi, uplink_pct, downlink_pct
+```
+- **Implementation:** Poll LoRaWAN Network Server API (ChirpStack, TTN, etc.) for gateway statistics. Ingest rx/tx packet counts, success/failure, and RSSI per gateway. Configure HEC or scripted input to forward JSON to Splunk. Alert when uplink or downlink success rate drops below 95% or RSSI trends below -120 dBm. Track gateway health for capacity planning.
+- **Visualization:** Table (gateways with degraded success rate), Line chart (RSSI trend by gateway), Gauge (uplink/downlink success %), Status grid (gateway × health).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.8 · Modbus Device Communication Failure Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Poll timeout tracking across Modbus TCP/RTU slaves identifies communication failures before they impact process control. High failure rates indicate network issues, slave overload, or misconfiguration.
+- **App/TA:** Splunk Edge Hub, custom (Modbus polling logs)
+- **Data Sources:** Modbus gateway/master logs (poll success/failure per slave address)
+- **SPL:**
+```spl
+index=ot sourcetype="modbus:poll_log" OR sourcetype="modbus:gateway"
+| rex "slave=(?<slave_addr>\d+)|address=(?<slave_addr>\d+)|(?<status>success|timeout|failure|error)"
+| eval poll_ok=if(lower(status)="success", 1, 0), poll_fail=if(lower(status)!="success" AND status!="", 1, 0)
+| stats sum(poll_ok) as ok, sum(poll_fail) as fail by slave_addr, host, _time span=15m
+| eval total=ok+fail, failure_rate_pct=if(total>0, (fail/total)*100, 0)
+| where failure_rate_pct > 10 OR fail > 5
+| table slave_addr, host, ok, fail, failure_rate_pct
+```
+- **Implementation:** Configure Modbus gateway or Edge Hub Modbus connector to log poll success/failure per slave address. Parse slave address and status from logs. Ingest via syslog or file monitor. Alert when failure rate exceeds 10% over 15 minutes or more than 5 consecutive failures for a critical slave. Correlate with network and PLC health.
+- **Visualization:** Table (slaves with high failure rate), Line chart (failure rate trend by slave), Bar chart (top failing slaves), Single value (slaves in spec %).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.9 · OPC-UA Server Session Count and Subscription Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** Session limits and subscription keep-alive failures indicate OPC-UA server capacity and client connectivity. Exceeding session limits or subscription failures cause data gaps and break real-time monitoring.
+- **App/TA:** Splunk Edge Hub, custom (OPC-UA server diagnostics)
+- **Data Sources:** OPC-UA server diagnostics node (ServerDiagnosticsSummary)
+- **SPL:**
+```spl
+index=ot sourcetype="opcua:diagnostics" OR sourcetype="opcua:server"
+| eval session_pct=if(session_limit>0, (current_sessions/session_limit)*100, null), subscription_ok=if(subscription_failures==0 OR isnull(subscription_failures), 1, 0)
+| where session_pct > 85 OR current_sessions >= session_limit OR subscription_failures > 0
+| table _time, server_endpoint, current_sessions, session_limit, session_pct, subscription_count, subscription_failures, rejected_session_count
+```
+- **Implementation:** Read OPC-UA ServerDiagnosticsSummary node (standard diagnostics object) via Edge Hub OPC-UA connector or custom client. Ingest current session count, session limit, subscription count, and subscription failure metrics. Poll every 1–5 minutes. Alert when session count exceeds 85% of limit, subscription failures occur, or rejected session count increases. Track trends for capacity planning.
+- **Visualization:** Gauge (session utilization %), Table (servers with subscription failures), Line chart (session count and subscription health trend), Single value (OPC-UA servers healthy).
+- **CIM Models:** N/A
+
+---
+
 ### 14.2 Industrial Control Systems (ICS/SCADA)
 
 **Primary App/TA:** Splunk Edge Hub (OPC-UA, Modbus, MQTT protocols), Splunk OT Intelligence (Splunkbase #5180).
@@ -1850,6 +1914,26 @@ index=iot sourcetype="pipeline:metrics"
 ```
 - **Implementation:** Ingest pipeline stage metrics (rate, latency, backlog). Alert when rate drops or latency/backlog exceeds threshold. Report on throughput by stage and trend. Correlate with gateway and cloud health.
 - **Visualization:** Line chart (throughput and latency), Table (stages with issues), Single value (pipeline health).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.11 · Aranet Environmental Sensor Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Safety
+- **Value:** CO2, temperature, humidity, and atmospheric pressure from Aranet4/Aranet PRO sensors support workplace air quality and occupant comfort. Exceedances indicate ventilation issues and may violate ASHRAE 62.1 or local workplace standards.
+- **App/TA:** Custom (Aranet Cloud API or local gateway)
+- **Data Sources:** Aranet API (sensor readings JSON)
+- **SPL:**
+```spl
+index=environment sourcetype="aranet:sensor"
+| where co2_ppm > 1000 OR temp_c < 18 OR temp_c > 26 OR humidity_pct < 30 OR humidity_pct > 60 OR pressure_hpa < 980 OR pressure_hpa > 1050
+| eval exceedance=case(co2_ppm>1000, "CO2", temp_c<18 OR temp_c>26, "Temperature", humidity_pct<30 OR humidity_pct>60, "Humidity", pressure_hpa<980 OR pressure_hpa>1050, "Pressure", 1=1, "OK")
+| table _time, sensor_id, location, co2_ppm, temp_c, humidity_pct, pressure_hpa, exceedance
+```
+- **Implementation:** Integrate Aranet Cloud API or local Aranet gateway (e.g. Aranet Cloud Bridge) to fetch sensor readings. Schedule scripted input or HEC to ingest JSON (CO2 ppm, temperature °C, humidity %, pressure hPa) every 5–15 minutes. Alert when CO2 exceeds 1000 ppm (ASHRAE 62.1 recommends <1000 ppm for occupied spaces), temperature outside 18–26°C, or humidity outside 30–60%. Track trends for ventilation and HVAC tuning.
+- **Visualization:** Gauge (CO2 ppm per zone), Line chart (CO2, temp, humidity trend), Heatmap (zone × CO2 level), Table (sensors with exceedances), Single value (zones in compliance %).
 - **CIM Models:** N/A
 
 ---

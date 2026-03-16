@@ -209,6 +209,74 @@ index=itsm sourcetype="snow:sc_request"
 
 ---
 
+### UC-16.1.11 · Problem Ticket Reopening Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operational
+- **Value:** Tickets closed then reopened indicate poor resolution quality, incomplete fixes, or inadequate testing. Tracking reopening rate drives resolution discipline and reduces repeat work.
+- **App/TA:** Custom (ITSM API — ServiceNow, Jira Service Management)
+- **Data Sources:** ITSM ticket state change history
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident:audit" field_name="state"
+| eval reopened=if(match(old_value,"closed|6") AND not(match(new_value,"closed|6")), 1, 0)
+| where reopened=1
+| stats count as reopened_count by number
+| eval metric="reopened"
+| append [| search index=itsm sourcetype="snow:incident" state="closed" earliest=-30d | stats count as total_closed | eval metric="total"]
+| stats sum(reopened_count) as reopened, sum(total_closed) as total by metric
+| stats sum(reopened) as reopened, sum(total_closed) as total
+| eval reopen_rate=round(reopened/total*100, 1)
+```
+- **Implementation:** Ingest ITSM audit/history tables capturing state transitions. For ServiceNow, use `sys_audit` or `incident_state_history`; for Jira, use `changelog` or REST API history. Identify incidents with state sequence: closed → reopened (or new/in_progress). Calculate reopening rate as reopened / total closed over rolling 30 days. Alert when rate exceeds 5%. Break down by assignment group and category to target improvement. Correlate with resolution notes to identify patterns (e.g., "workaround" vs "root cause fixed").
+- **Visualization:** Single value (reopen rate %), Bar chart (reopen rate by assignment group), Line chart (reopen rate trend), Table (reopened tickets with resolution notes).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.12 · Incident Priority Distribution Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Operational
+- **Value:** Are P1/P2 incidents increasing? Trend analysis for management reporting reveals workload shifts, infrastructure degradation, or seasonal patterns. Supports staffing and capacity planning.
+- **App/TA:** Custom (ITSM API)
+- **Data Sources:** ITSM incident records (priority, created_date)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident"
+| eval priority_label=case(priority=1,"P1", priority=2,"P2", priority=3,"P3", priority=4,"P4", priority=5,"P5", true(),"Other")
+| timechart span=1d count by priority_label
+| addtotals
+| eval p1_p2_pct=round(('P1'+'P2')/Total*100, 1)
+```
+- **Implementation:** Ingest incident creation events with priority and created timestamp. Normalize priority values (ServiceNow: 1–5; Jira: Critical/High/Medium/Low). Run daily timechart by priority. Compute P1+P2 share of total for executive summary. Alert when P1/P2 percentage exceeds 7-day rolling average by >20%. Export weekly/monthly reports for management. Compare against previous quarter for trend narrative.
+- **Visualization:** Stacked area chart (priority distribution over time), Line chart (P1+P2 count trend), Single value (P1/P2 % this week), Table (priority counts by week).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.13 · On-Call Escalation Frequency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operational
+- **Value:** Rising escalation rate indicates team capacity or knowledge gaps. Unacknowledged or escalated incidents signal burnout risk and process bottlenecks. Supports on-call rotation tuning and training.
+- **App/TA:** Custom (PagerDuty API, Opsgenie API, ITSM)
+- **Data Sources:** On-call platform API (incidents, escalations, acknowledgment times)
+- **SPL:**
+```spl
+index=oncall sourcetype IN ("pagerduty:incidents","opsgenie:alerts")
+| eval escalated=if(escalation_count>0 OR escalation_policy_used=1, 1, 0)
+| eval ack_delay_mins=round((acknowledged_at-triggered_at)/60, 0)
+| timechart span=1d count as total, sum(escalated) as escalated
+| eval escalation_rate=round(escalated/total*100, 1)
+| where total>0
+```
+- **Implementation:** Ingest PagerDuty or Opsgenie incidents via REST API (scheduled input or scripted input). Map fields: `escalation_count`, `escalation_policy_used`, `acknowledged_at`, `triggered_at`. Compute escalation rate (escalated / total) per day or per service. Alert when escalation rate exceeds 15% over 7 days. Track acknowledgment time (SLA); alert when avg ack time exceeds 15 minutes for P1. Report by service and escalation policy to identify overloaded rotations.
+- **Visualization:** Line chart (escalation rate trend), Bar chart (escalations by service), Single value (escalation rate %), Table (slowest-acknowledged incidents).
+- **CIM Models:** N/A
+
+---
+
 ### 16.2 Configuration Management (CMDB)
 
 **Primary App/TA:** ServiceNow CMDB integration, custom API inputs.
@@ -486,6 +554,57 @@ index=itsm sourcetype="request"
 ```
 - **Implementation:** Ingest request and approval lifecycle events. Compute approval and fulfillment duration. Alert when average exceeds target. Report on slow catalog items and approvers.
 - **Visualization:** Table (cycle time by catalog item), Bar chart (approval vs fulfillment time), Line chart (trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.8 · Knowledge Article Usage vs. Ticket Volume
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operational
+- **Value:** Self-service effectiveness measurement; are KB articles deflecting tickets? Correlating article views with ticket creation reveals deflection ROI and content gaps.
+- **App/TA:** Custom (ITSM API, KB platform analytics)
+- **Data Sources:** KB article view counts, ticket creation rates
+- **SPL:**
+```spl
+index=itsm (sourcetype="kb:views" OR sourcetype="snow:incident")
+| bin _time span=1d
+| eval kb_views=if(sourcetype="kb:views",coalesce(views,1),0)
+| eval ticket_count=if(sourcetype="snow:incident",1,0)
+| stats sum(kb_views) as kb_views, sum(ticket_count) as ticket_count by _time
+| eval deflection_ratio=round(kb_views/ticket_count, 2)
+| streamstats window=7 avg(deflection_ratio) as avg_ratio
+| eval trend=if(deflection_ratio>avg_ratio,"improving","declining")
+```
+- **Implementation:** Ingest KB view events (ServiceNow KB, Confluence, SharePoint) and incident creation events. Normalize to daily buckets. Compute deflection ratio (views / tickets) — higher ratio suggests effective self-service. Track 7-day rolling average; alert when ratio drops >20% vs prior week. Segment by category: compare KB views for "password reset" vs ticket volume for same category. Identify high-ticket categories with low KB coverage for content creation prioritization.
+- **Visualization:** Line chart (KB views vs ticket volume over time), Single value (deflection ratio), Bar chart (ratio by category), Table (top-deflecting articles).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.9 · Mean Time Between Failures (MTBF) per CI
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Operational, Capacity
+- **Value:** Reliability trending per configuration item for replacement planning. CIs with declining MTBF indicate aging hardware or recurring issues; supports proactive replacement and warranty decisions.
+- **App/TA:** Custom (ITSM API, CMDB)
+- **Data Sources:** Incident records linked to CIs, CI lifecycle data
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" state="closed" cmdb_ci=*
+| eval resolved_epoch=resolved_at
+| sort cmdb_ci resolved_epoch
+| streamstats current=f last(resolved_epoch) as prev_resolved by cmdb_ci
+| eval mtbf_hours=round((resolved_epoch-prev_resolved)/3600, 1)
+| where isnotnull(prev_resolved) AND mtbf_hours>0
+| stats avg(mtbf_hours) as avg_mtbf_hours, count as incident_count, min(_time) as first_incident, max(_time) as last_incident by cmdb_ci
+| lookup cmdb_ci_details name AS cmdb_ci OUTPUT ci_class, install_date, warranty_expires
+| eval avg_mtbf_days=round(avg_mtbf_hours/24, 1)
+| sort avg_mtbf_hours
+| head 50
+```
+- **Implementation:** Ingest incidents with `cmdb_ci` (or equivalent CI linkage). Ensure resolved timestamps are indexed. For each CI, compute time between consecutive incident resolutions (MTBF). Exclude same-incident reopen/resolve cycles. Join CMDB for CI metadata (class, age, warranty). Alert when MTBF for critical CIs drops below 30-day baseline by >30%. Report top 50 lowest-MTBF CIs for replacement planning. Segment by CI class (server, network device, storage) for fleet-level reliability comparison.
+- **Visualization:** Table (CI, MTBF days, incident count, warranty), Bar chart (MTBF by CI class), Line chart (MTBF trend per CI), Heatmap (CI × time, color = MTBF).
 - **CIM Models:** N/A
 
 ---

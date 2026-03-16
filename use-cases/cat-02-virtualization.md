@@ -911,6 +911,167 @@ index=vmware sourcetype="esxi_coredump"
 
 ---
 
+### UC-2.1.42 · VM CPU Ready Time Percentage
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Measures time VMs wait for physical CPU — distinct from host utilization. High CPU ready time indicates over-committed CPU; VMs are queued waiting for scheduler time even when host CPU % appears acceptable. Critical for identifying latent contention invisible from guest metrics.
+- **App/TA:** `Splunk_TA_vmware`
+- **Data Sources:** `sourcetype=vmware:perf:cpu` (counter=cpu.ready.summation)
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
+| eval ready_pct = round(Value / 20000 * 100, 2)
+| stats avg(ready_pct) as avg_ready_pct, max(ready_pct) as peak_ready_pct by host, vm_name
+| where avg_ready_pct > 5
+| sort -avg_ready_pct
+| table vm_name, host, avg_ready_pct, peak_ready_pct
+```
+- **Implementation:** TA-vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.
+- **Visualization:** Heatmap (VMs vs hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (ready % trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.1.43 · VM Disk I/O Latency per Datastore
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Correlate VM disk latency to specific datastores to identify storage bottlenecks. When multiple VMs on the same datastore show high latency, the datastore or underlying storage is the culprit rather than individual VM workload.
+- **App/TA:** `Splunk_TA_vmware`
+- **Data Sources:** `sourcetype=vmware:perf:datastore` (datastore.totalReadLatency.average, datastore.totalWriteLatency.average — per VM when object is VM)
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.totalReadLatency.average" OR counter="datastore.totalWriteLatency.average")
+| eval read_latency = if(counter="datastore.totalReadLatency.average", Value, null())
+| eval write_latency = if(counter="datastore.totalWriteLatency.average", Value, null())
+| stats avg(read_latency) as avg_read_ms, avg(write_latency) as avg_write_ms by vm_name, host, datastore
+| eval avg_latency = max(coalesce(avg_read_ms, 0), coalesce(avg_write_ms, 0))
+| where avg_latency > 20
+| sort -avg_latency
+| table vm_name, host, datastore, avg_read_ms, avg_write_ms, avg_latency
+```
+- **Implementation:** TA-vmware collects per-VM disk latency. Use datastore dimension to group VMs by backing storage. Alert when any VM-datastore pair exceeds 20ms average latency over 10 minutes. Correlate with datastore-level latency (UC-2.1.4) to distinguish VM workload from shared storage contention.
+- **Visualization:** Heatmap (VMs vs datastores, colored by latency), Table (top latency by VM/datastore), Line chart (latency trend per datastore).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.1.44 · ESXi Host Certificate Expiration
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** ESXi hosts use SSL certificates for vCenter communication, vMotion, and HA. Expired certificates break vCenter connectivity, prevent migrations, and cause HA communication failures. Proactive monitoring prevents unexpected outages when certs expire.
+- **App/TA:** Custom scripted input (openssl, ESXi API, or PowerCLI)
+- **Data Sources:** Certificate expiry from ESXi hosts (scripted input querying host API or certificate store)
+- **SPL:**
+```spl
+index=vmware sourcetype="esxi_certificates"
+| eval days_to_expiry = round((strptime(not_after, "%Y-%m-%dT%H:%M:%S") - now()) / 86400, 0)
+| eval severity = case(days_to_expiry < 0, "Expired", days_to_expiry < 7, "Critical", days_to_expiry < 30, "High", days_to_expiry < 90, "Warning", 1==1, "OK")
+| where days_to_expiry < 90
+| sort days_to_expiry
+| table host, subject, issuer, not_after, days_to_expiry, severity
+```
+- **Implementation:** Create scripted input: use `openssl s_client -connect <host>:443 -servername <host> 2>/dev/null | openssl x509 -noout -enddate` or PowerCLI `Get-VMHost | Get-VMHostCertificate`. Run daily. Alert at 90 days (warning), 30 days (high), 7 days (critical). Include vCenter VMCA and STS certs — their expiry affects all hosts.
+- **Visualization:** Table (host, cert, days to expiry), Single value (certs expiring within 30 days), Timeline (upcoming expirations).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.1.45 · VM Snapshot Age Alerting
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Fault
+- **Value:** Snapshots older than N days degrade VM I/O performance and complicate backups — distinct from snapshot count or space. Old snapshots cause delta disk growth, extended backup windows, and increased risk of consolidation failures. Age-based alerting ensures timely cleanup.
+- **App/TA:** `Splunk_TA_vmware`
+- **Data Sources:** `sourcetype=vmware:inv:vm` (snapshot info: snapshot_createTime, snapshot_name)
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:inv:vm" snapshot_name=*
+| eval snapshot_age_days = round((now() - strptime(snapshot_createTime, "%Y-%m-%dT%H:%M:%S")) / 86400, 0)
+| where snapshot_age_days > 7
+| eval snapshot_size_gb = round(snapshot_sizeBytes / 1073741824, 2)
+| sort -snapshot_age_days
+| table vm_name, host, snapshot_name, snapshot_age_days, snapshot_size_gb, snapshot_createTime
+```
+- **Implementation:** TA-vmware collects VM inventory including snapshot metadata. Define policy: alert on snapshots >7 days (high), >3 days (warning). Run daily report. Escalate to VM owners. Include snapshot size to prioritize cleanup. Correlate with datastore capacity for storage impact.
+- **Visualization:** Table (VM, snapshot, age, size), Bar chart (snapshots by age bucket), Single value (snapshots >7 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.1.46 · vCenter Alarm Acknowledgment Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operational
+- **Value:** Track alarms that remain unacknowledged for extended periods. Unacknowledged alarms indicate ignored issues — either operational gaps or alarm fatigue. Ensures critical alerts receive follow-up and supports SLA tracking for incident response.
+- **App/TA:** `Splunk_TA_vmware`
+- **Data Sources:** `sourcetype=vmware:events` (AlarmStatusChangedEvent)
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:events" event_type="AlarmStatusChangedEvent"
+| eval alarm_id = coalesce(alarm, alarm_name)
+| stats latest(_time) as last_change, latest(new_status) as status, latest(acknowledged) as ack, latest(alarm_name) as alarm_name, latest(entity) as entity by alarm_id
+| where status="red" OR status="yellow"
+| eval hours_unack = round((now() - last_change) / 3600, 1)
+| where ack!="true" AND hours_unack > 4
+| sort -hours_unack
+| table alarm_name, entity, status, last_change, hours_unack, ack
+```
+- **Implementation:** TA-vmware collects AlarmStatusChangedEvent. Parse acknowledged field if present; otherwise infer from event sequence. Alert when red/yellow alarms remain unacknowledged >4 hours. Maintain lookup of alarm ownership for escalation. Correlate with incident tickets.
+- **Visualization:** Table (unacknowledged alarms, age), Timeline (alarm state changes), Single value (count unacknowledged >4h).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.1.47 · VM Network Packet Loss and Retransmit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Per-VM network quality metrics including packet loss and retransmission. Dropped packets at the vNIC indicate congestion, driver issues, or misconfigured traffic shaping. Hypervisor-level counters capture drops invisible to the guest — essential for diagnosing application network issues.
+- **App/TA:** `Splunk_TA_vmware`
+- **Data Sources:** `sourcetype=vmware:perf:net` (net.droppedRx.summation, net.droppedTx.summation)
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:perf:net" (counter="net.droppedRx.summation" OR counter="net.droppedTx.summation" OR counter="net.packetsRx.summation" OR counter="net.packetsTx.summation")
+| stats sum(eval(if(counter="net.droppedRx.summation", Value, 0))) as dropped_rx, sum(eval(if(counter="net.droppedTx.summation", Value, 0))) as dropped_tx, sum(eval(if(counter="net.packetsRx.summation", Value, 0))) as packets_rx, sum(eval(if(counter="net.packetsTx.summation", Value, 0))) as packets_tx by vm_name, host
+| eval total_packets = packets_rx + packets_tx
+| eval loss_pct = if(total_packets > 0, round((dropped_rx + dropped_tx) / total_packets * 100, 4), 0)
+| where dropped_rx > 0 OR dropped_tx > 0
+| sort -dropped_rx
+| table vm_name, host, dropped_rx, dropped_tx, total_packets, loss_pct
+```
+- **Implementation:** TA-vmware collects net.droppedRx/Tx.summation. Alert when any VM shows >0 dropped packets sustained over 5 minutes. Compute loss percentage when packet counters available. Correlate with net.usage.average for saturation. Check dvSwitch policies, physical NIC utilization, and VMXNET3 driver version.
+- **Visualization:** Table (VM, host, drops, loss %), Line chart (drops over time), Bar chart (top VMs by packet loss).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.1.48 · VMware DRS Effectiveness
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Capacity
+- **Value:** DRS migrations per hour, cluster imbalance score, and recommendations vs. applied. High migration frequency may indicate oscillation; low application of recommendations suggests manual mode or constraint conflicts. Tracks whether DRS is effectively balancing the cluster.
+- **App/TA:** `Splunk_TA_vmware`
+- **Data Sources:** `sourcetype=vmware:events` (DrsVmMigratedEvent, DrsVmPoweredOnEvent, DrsRecommendationAppliedEvent)
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:events" (event_type="DrsVmMigratedEvent" OR event_type="DrsVmPoweredOnEvent")
+| eval migration_type = case(event_type="DrsVmMigratedEvent", "Migration", event_type="DrsVmPoweredOnEvent", "PowerOn")
+| bin _time span=1h
+| stats count as migrations by _time, cluster
+| eventstats avg(migrations) as avg_migrations, stdev(migrations) as stdev_migrations by cluster
+| eval is_high = if(migrations > avg_migrations + (2 * coalesce(stdev_migrations, 0)) AND migrations > 10, 1, 0)
+| where is_high = 1
+| table _time, cluster, migrations, avg_migrations, stdev_migrations
+```
+- **Implementation:** Collect DRS events via TA-vmware. Baseline migrations per hour per cluster. Alert when migrations exceed 2 stdev above mean (possible oscillation). For recommendations: query DrsRecommendationAppliedEvent vs. total recommendations. Manual DRS mode will show recommendations without corresponding applied events.
+- **Visualization:** Line chart (migrations per hour by cluster), Table (cluster, migrations, baseline), Bar chart (recommendations vs applied).
+- **CIM Models:** N/A
+
+---
+
 ## 2.2 Microsoft Hyper-V
 
 **Primary App/TA:** Splunk Add-on for Microsoft Hyper-V, `Splunk_TA_windows` — Free on Splunkbase
@@ -1557,6 +1718,27 @@ index=os sourcetype=syslog "libvirtd" ("error" OR "warning" OR "failed" OR "time
 
 ---
 
+### UC-2.3.17 · Proxmox VE Cluster Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Node status, storage usage, and HA fence events for Proxmox VE clusters. Ensures all nodes are online, storage is healthy, and HA operations complete successfully. Critical for multi-node Proxmox deployments.
+- **App/TA:** Custom (Proxmox API input)
+- **Data Sources:** Proxmox REST API (`/api2/json/cluster/status`), cluster resources, HA manager
+- **SPL:**
+```spl
+index=virtualization sourcetype="proxmox_cluster_status"
+| stats latest(node) as node, latest(status) as status, latest(quorum) as quorum, latest(name) as cluster_name by node
+| eval node_ok = if(status="online", "OK", "CRITICAL")
+| where node_ok="CRITICAL" OR quorum!="1"
+| table cluster_name, node, status, quorum, node_ok
+```
+- **Implementation:** Create scripted input polling Proxmox API: `GET /api2/json/cluster/status` for node membership and quorum; `GET /api2/json/nodes/{node}/storage` for storage usage; `GET /api2/json/cluster/ha/status` for HA resources. Authenticate via API token or ticket. Run every 60 seconds. Alert on node offline, quorum loss, or storage >85% used. Correlate with Corosync logs for fence events.
+- **Visualization:** Status grid (node health per cluster), Table (storage usage by node), Timeline (HA fence events).
+- **CIM Models:** N/A
+
+---
+
 ## 2.4 Cross-Platform Virtualization
 
 **Primary App/TA:** Multiple — combines data from VMware, Hyper-V, KVM sources with CMDB/asset lookups
@@ -1701,6 +1883,26 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Implementation:** Normalize VM inventory fields across all hypervisor platforms into a common schema (vm_name, platform, host, vcpus, mem_gb, power_state, guest_os). Use a scheduled search to populate a summary index or KV store for fast lookups. Enrich with CMDB data (owner, department, environment) via lookup. Generate weekly fleet reports showing total VM count, resource allocation, and platform distribution.
 - **Visualization:** Table (unified VM inventory), Pie chart (VMs by platform), Bar chart (resource allocation by platform), Treemap (VMs by department and platform).
 - **CIM Models:** Inventory
+
+---
+
+### UC-2.4.7 · oVirt / RHV Data Center Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Data center and storage domain operational status for oVirt and Red Hat Virtualization (RHV). Detects storage domain maintenance mode, data center connectivity issues, and storage domain activation failures that prevent VM operations.
+- **App/TA:** Custom (oVirt REST API input)
+- **Data Sources:** oVirt REST API (`/api/datacenters`, `/api/storagedomains`)
+- **SPL:**
+```spl
+index=virtualization sourcetype="ovirt_datacenter"
+| stats latest(status) as dc_status, latest(local) as local_dc, latest(name) as dc_name by id
+| where dc_status!="up"
+| table dc_name, dc_status, local_dc
+```
+- **Implementation:** Create scripted input polling oVirt API: `GET /api/datacenters` and `GET /api/storagedomains`. Authenticate via oVirt SSO (username/password or token). Parse status (up/down/maintenance), active flag, and available space. Run every 5 minutes. Alert when data center status != "up" or storage domain status != "active". Create separate sourcetypes for datacenter and storagedomain events. Monitor storage domain available percentage for capacity. Correlate with oVirt engine logs for root cause.
+- **Visualization:** Status grid (data centers and storage domains), Table (operational status), Gauge (storage domain capacity).
+- **CIM Models:** N/A
 
 ---
 

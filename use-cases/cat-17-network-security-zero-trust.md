@@ -233,6 +233,77 @@ index=nac sourcetype="cisco:ise:admin"
 
 ---
 
+### UC-17.1.9 · 802.1X Supplicant Timeout Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Clients timing out during RADIUS authentication (common issue with Wi-Fi and wired NAC). Tracking timeouts helps identify supplicant misconfiguration, certificate issues, or network latency affecting authentication.
+- **App/TA:** Splunk_TA_cisco-ise, RADIUS TA, NAS syslog
+- **Equipment Models:** Cisco ISE, Windows NPS, FreeRADIUS, Cisco/Aruba switches and WLCs
+- **Data Sources:** RADIUS server logs (FreeRADIUS, NPS, ISE), switch/WLC syslog (dot1x events)
+- **SPL:**
+```spl
+index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth" OR sourcetype="freeradius")
+| search "timeout" OR "timed out" OR "EAP timeout" OR "supplicant" OR "no response"
+| rex field=_raw "Calling-Station-Id=(?<mac>[^\s]+)"
+| rex field=_raw "NAS-Identifier=(?<nas>[^\s,]+)"
+| bin _time span=1h
+| stats count by mac, nas, _time
+| where count > 3
+| sort -count
+```
+- **Implementation:** Forward RADIUS authentication logs and NAS (switch/WLC) syslog to Splunk. Configure sourcetypes for FreeRADIUS, NPS, or ISE. Extract Calling-Station-Id (MAC), NAS-Identifier, and timeout-related messages. Alert when timeout count exceeds 5 per NAS per hour. Correlate with switch port and SSID to identify problematic segments. Report on timeout trends by location and time of day.
+- **Visualization:** Line chart (timeout rate over time), Bar chart (timeouts by NAS/switch), Table (affected MACs and NAS), Heatmap (NAS × hour of day).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.src Authentication.dest span=1h
+| where count > 5
+```
+
+---
+
+### UC-17.1.10 · RADIUS Accounting Discrepancies
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Value:** Start/stop mismatches indicating dropped sessions or potential abuse. Accounting discrepancies can hide unauthorized access, session hijacking, or billing/audit gaps.
+- **App/TA:** RADIUS server logs, RADIUS accounting TA
+- **Equipment Models:** Cisco ISE, Windows NPS, FreeRADIUS
+- **Data Sources:** RADIUS accounting records (Acct-Status-Type Start/Stop/Interim-Update)
+- **SPL:**
+```spl
+index=nac sourcetype="radius:accounting"
+| eval acct_status=case(
+  match(_raw,"Acct-Status-Type.*Start"), "Start",
+  match(_raw,"Acct-Status-Type.*Stop"), "Stop",
+  match(_raw,"Acct-Status-Type.*Interim"), "Interim",
+  1=1, "Unknown")
+| rex field=_raw "Acct-Session-Id=(?<session_id>[^\s]+)"
+| rex field=_raw "User-Name=(?<user>[^\s]+)"
+| rex field=_raw "NAS-IP-Address=(?<nas>[^\s]+)"
+| where acct_status!="Unknown" AND acct_status!="Interim"
+| stats count(eval(acct_status="Start")) as starts, count(eval(acct_status="Stop")) as stops by session_id, user, nas
+| eval discrepancy=abs(starts - stops)
+| where discrepancy > 0
+| sort -discrepancy
+```
+- **Implementation:** Ingest RADIUS accounting logs with Acct-Session-Id, Acct-Status-Type, User-Name, NAS-IP-Address. Build session state table: each Start should have exactly one Stop. Alert on sessions with Start but no Stop (orphaned sessions) or Stop without Start (potential replay). Report on discrepancy rate and top NAS/users. Use Interim-Update to validate long-running sessions.
+- **Visualization:** Table (sessions with discrepancies), Bar chart (discrepancy count by NAS), Single value (orphaned sessions), Line chart (discrepancy trend).
+- **CIM Models:** Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.src All_Sessions.user All_Sessions.dest span=1h
+| where count > 10
+```
+
+---
+
 ### 17.2 VPN & Remote Access
 
 **Primary App/TA:** Cisco ASA/AnyConnect TA, Palo Alto GlobalProtect TA, vendor syslog.
@@ -479,6 +550,64 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
   by All_Sessions.src All_Sessions.user All_Sessions.app span=1h
 | sort -count
 ```
+
+---
+
+### UC-17.2.9 · VPN Split-Tunnel Policy Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Verifying split-tunnel vs. full-tunnel adherence per user/group policy. Full-tunnel ensures all traffic is inspected; split-tunnel may bypass security controls for internet-bound traffic.
+- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect), vendor VPN TA
+- **Equipment Models:** Cisco ASA/AnyConnect, Palo Alto GlobalProtect, FortiGate SSL-VPN
+- **Data Sources:** VPN session logs (tunnel_type, assigned_policy, routing_mode)
+- **SPL:**
+```spl
+index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect")
+| search action="session_connect" OR "tunnel established"
+| rex field=_raw "Group Policy=(?<group_policy>[^\s]+)"
+| rex field=_raw "tunnel_type=(?<tunnel_type>[^\s]+)"
+| rex field=_raw "routing_mode=(?<routing_mode>[^\s]+)"
+| lookup vpn_policy_requirements.csv group_policy OUTPUT required_tunnel
+| eval actual_tunnel=coalesce(tunnel_type, routing_mode, group_policy)
+| where required_tunnel!=actual_tunnel OR isnull(required_tunnel)
+| table _time, user, group_policy, actual_tunnel, required_tunnel, src_ip
+```
+- **Implementation:** Ingest VPN session logs with tunnel configuration. Maintain lookup table mapping group policy to required tunnel type (full/split). For Cisco ASA, use Group-Policy; for GlobalProtect, use gateway-assigned policy. Alert when users connect with split-tunnel when policy requires full-tunnel (e.g., high-risk groups). Report on policy compliance rate by department and gateway.
+- **Visualization:** Pie chart (full vs split by policy), Table (policy violations), Bar chart (compliance by group policy), Single value (% compliant).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+         sum(Network_Sessions.bytes_in) as bytes_in
+         sum(Network_Sessions.bytes_out) as bytes_out
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.src All_Sessions.user All_Sessions.app span=1h
+| sort -count
+```
+
+---
+
+### UC-17.2.10 · mTLS Certificate Rotation Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Availability
+- **Value:** Mutual TLS certificates approaching expiry in zero-trust architectures (service-to-service auth). Expired certs cause service outages and authentication failures.
+- **App/TA:** Custom (certificate inventory, service mesh telemetry)
+- **Data Sources:** Certificate inventory scan (serial, subject, expiry), Istio/Linkerd cert rotation logs
+- **SPL:**
+```spl
+index=certs (sourcetype="cert:inventory" OR sourcetype="istio:cert" OR sourcetype="linkerd:cert")
+| eval expiry_epoch=if(isnum(expiry_time), expiry_time, strptime(expiry_time, "%Y-%m-%dT%H:%M:%SZ"))
+| eval days_to_expiry=floor((expiry_epoch - now())/86400)
+| where days_to_expiry < 60 OR days_to_expiry < 0
+| eval status=case(days_to_expiry < 0, "EXPIRED", days_to_expiry < 14, "CRITICAL", days_to_expiry < 30, "WARNING", 1=1, "OK")
+| table _time, subject, serial, expiry_epoch, days_to_expiry, status, workload, namespace
+| sort days_to_expiry
+```
+- **Implementation:** Run periodic certificate inventory scans (OpenSSL, cert-manager, HashiCorp Vault) and forward to Splunk. Ingest Istio/Linkerd cert rotation logs for service mesh. Parse subject, serial, notAfter. Alert when cert expires in <30 days; critical alert at <14 days. Track rotation success/failure from mesh logs. Report on cert distribution by workload and expiry timeline. Integrate with automation for cert renewal.
+- **Visualization:** Table (certs expiring soon), Single value (expired count), Bar chart (expiry by month), Timeline (rotation events).
+- **CIM Models:** N/A
 
 ---
 

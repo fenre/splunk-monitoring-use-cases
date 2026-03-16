@@ -500,6 +500,283 @@ index=network sourcetype="cisco:ios" "%HSRP-5-STATECHANGE" OR "%VRRP-6-STATECHAN
 
 ---
 
+### UC-5.1.24 · Network Device Configuration Backup Freshness
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Last backup age tracking; stale backups risk config loss during failures.
+- **App/TA:** Custom (Oxidized/RANCID output, SolarWinds NCM equivalent)
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** Backup system logs (timestamps of last successful backup per device)
+- **SPL:**
+```spl
+index=network sourcetype=config_backup OR sourcetype=oxidized OR sourcetype=rancid
+| stats latest(_time) as last_backup by host, device_hostname
+| eval age_hours=round((now()-last_backup)/3600,1)
+| where age_hours > 24 OR isnull(last_backup)
+| table device_hostname host last_backup age_hours
+```
+- **Implementation:** Ingest backup job output from Oxidized, RANCID, or NCM. Parse success/failure and timestamp. Create lookup or index with device→last_backup mapping. Alert when last successful backup exceeds 24 hours. Schedule backup jobs daily; verify Splunk receives logs via scripted input or syslog.
+- **Visualization:** Table (device, last backup, age), Single value (devices with stale backup), Gauge (hours since last backup).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.25 · Network Configuration Drift Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration, Security
+- **Value:** Running config differs from baseline/golden config.
+- **App/TA:** Custom scripted input (diff output from RANCID/Oxidized vs golden)
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** Config diff output, Git commit logs from network config repo
+- **SPL:**
+```spl
+index=network sourcetype=config_drift OR sourcetype=git:commit
+| search "diff" OR "drift" OR "changed" OR "modified"
+| rex "device[=:]\s*(?<device>\S+)" | rex "lines?\s*(?<lines_changed>\d+)"
+| stats count as drift_events, values(diff_summary) as changes by device, host
+| where drift_events > 0
+| table device host drift_events changes
+```
+- **Implementation:** Run diff (e.g., `diff running golden`) via Oxidized hooks or custom script. Ingest diff output or Git commit metadata. Store golden configs in Git; compare after each backup. Alert on any non-whitelisted drift. Use `git diff` or `rancid -d` output as sourcetype.
+- **Visualization:** Table (device, drift count, summary), Timeline (drift events), Single value (devices with drift).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.26 · Network Device Firmware Version Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Devices running unapproved or EOL firmware versions.
+- **App/TA:** Splunk_TA_cisco, SNMP TA (sysDescr)
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** SNMP sysDescr, show version output
+- **SPL:**
+```spl
+index=network sourcetype=snmp:sysinfo OR sourcetype=cisco:ios:version
+| rex field=_raw "Version (?<ios_version>\S+)" | rex field=sysDescr "Version (?<ios_version>\S+)"
+| lookup firmware_compliance ios_version OUTPUT approved eol_date
+| where approved!="yes" OR (eol_date!="" AND strptime(eol_date,"%Y-%m-%d")<now())
+| table host ios_version approved eol_date
+```
+- **Implementation:** Poll SNMP sysDescr or ingest `show version` via scripted input. Create lookup table (ios_version, approved, eol_date) from vendor EOL/EOS bulletins. Alert on non-approved or past-EOL versions. Update lookup quarterly.
+- **Visualization:** Table (device, version, status), Bar chart (version distribution), Single value (non-compliant count).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.27 · Interface Error Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** CRC, runts, giants, input/output errors as rate over time.
+- **App/TA:** SNMP modular input
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB
+- **SPL:**
+```spl
+index=network sourcetype=snmp:interface
+| streamstats current=f last(ifInErrors) as prev_in, last(ifOutErrors) as prev_out, last(_time) as prev_time by host, ifDescr
+| eval delta_in=ifInErrors-coalesce(prev_in,0), delta_out=ifOutErrors-coalesce(prev_out,0)
+| eval interval_sec=_time-prev_time | where interval_sec>0 AND interval_sec<900
+| eval in_err_rate=round(delta_in/interval_sec*60,2), out_err_rate=round(delta_out/interval_sec*60,2)
+| where in_err_rate>0 OR out_err_rate>0
+| timechart span=5m avg(in_err_rate) as in_errors_per_min, avg(out_err_rate) as out_errors_per_min by host
+```
+- **Implementation:** Poll IF-MIB (ifInErrors, ifOutErrors) and EtherLike-MIB (dot3StatsFCSErrors) every 300s. Use streamstats for delta calculation. Alert when error rate exceeds threshold (e.g., >1/min on uplinks). Exclude admin-down interfaces.
+- **Visualization:** Line chart (error rate over time), Table (host, interface, rate), Heatmap.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.28 · STP Topology Change Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Frequent topology changes indicating Layer 2 instability.
+- **App/TA:** SNMP modular input, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** BRIDGE-MIB (dot1dStpTopChanges), syslog STP events
+- **SPL:**
+```spl
+index=network (sourcetype=snmp:stp OR sourcetype="cisco:ios") ("dot1dStpTopChanges" OR "%SPANTREE-5-TOPOTCHANGE" OR "%SPANTREE-2-ROOTCHANGE")
+| eval stp_event=if(match(_raw,"TOPOTCHANGE|ROOTCHANGE|dot1dStpTopChanges"),1,0)
+| bin _time span=10m
+| stats sum(stp_event) as topo_changes by host, _time
+| where topo_changes > 3
+| sort -topo_changes
+```
+- **Implementation:** Poll BRIDGE-MIB dot1dStpTopChanges every 300s; ingest syslog for SPANTREE events. Alert when topology changes exceed 3 in 10 minutes. Correlate with root bridge changes for critical alerts.
+- **Visualization:** Line chart (topology changes per host), Table (host, count), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.29 · ARP Table Size Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** ARP table approaching hardware limits; can cause connectivity failures.
+- **App/TA:** SNMP modular input
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** ipNetToMediaTable entries count, show arp count
+- **SPL:**
+```spl
+index=network sourcetype=snmp:arp OR sourcetype=cisco:ios:arp
+| eval arp_count=coalesce(arp_entries, arp_count, 0)
+| stats latest(arp_count) as current_arp by host
+| lookup arp_limit host OUTPUT max_arp
+| eval util_pct=round(current_arp/max_arp*100,1)
+| where util_pct > 70
+| table host current_arp max_arp util_pct
+```
+- **Implementation:** Poll ipNetToMediaTable (count rows) or parse `show ip arp` / `show arp` output via scripted input. Create lookup with device→max_arp (from vendor specs). Alert when utilization exceeds 70%.
+- **Visualization:** Line chart (ARP count over time), Gauge (utilization), Table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.30 · MAC Address Table Capacity
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** CAM table utilization on switches approaching hardware limits.
+- **App/TA:** SNMP modular input
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** dot1qTpFdbTable count, show mac address-table count
+- **SPL:**
+```spl
+index=network sourcetype=snmp:bridge OR sourcetype=cisco:ios:mac
+| eval mac_count=coalesce(fdb_entries, mac_count, 0)
+| stats latest(mac_count) as current_mac by host
+| lookup mac_limit host OUTPUT max_mac
+| eval util_pct=round(current_mac/max_mac*100,1)
+| where util_pct > 75
+| table host current_mac max_mac util_pct
+```
+- **Implementation:** Poll dot1qTpFdbTable (count) or parse `show mac address-table count`. Create lookup with switch model→max_mac. Alert when CAM utilization exceeds 75%.
+- **Visualization:** Line chart (MAC count over time), Gauge, Table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.31 · QoS Policy Drops per Class
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Traffic dropped per QoS class/queue on routers/switches.
+- **App/TA:** SNMP modular input (CISCO-CLASS-BASED-QOS-MIB)
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** cbQosCMDropPkt, cbQosCMPrePolicyPkt
+- **SPL:**
+```spl
+index=network sourcetype=snmp:qos
+| streamstats current=f last(cbQosCMDropPkt) as prev_drop, last(cbQosCMPrePolicyPkt) as prev_pre by host, cbQosConfigIndex, cbQosObjectsIndex
+| eval drop_delta=cbQosCMDropPkt-coalesce(prev_drop,0), pre_delta=cbQosCMPrePolicyPkt-coalesce(prev_pre,0)
+| eval drop_rate=round(drop_delta/(pre_delta+0.001)*100,2)
+| where drop_delta > 0
+| stats sum(drop_delta) as total_drops, sum(pre_delta) as total_pre by host, policy_class
+| eval drop_pct=round(total_drops/(total_pre+0.001)*100,2)
+| sort -total_drops
+```
+- **Implementation:** Poll CISCO-CLASS-BASED-QOS-MIB (cbQosCMDropPkt, cbQosCMPrePolicyPkt) per policy/class. Map OID to policy name via lookup. Alert when drop rate exceeds 5% for critical classes.
+- **Visualization:** Table (host, class, drops, rate), Bar chart, Line chart (drops over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.32 · Network Device End-of-Life Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Devices approaching EOL/EOS dates.
+- **App/TA:** Lookup table with vendor EOL dates
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** Device inventory + EOL lookup
+- **SPL:**
+```spl
+| inputlookup device_inventory
+| lookup eol_lookup model OUTPUT eol_date eos_date
+| eval days_to_eol=round((strptime(eol_date,"%Y-%m-%d")-now())/86400,0)
+| where days_to_eol < 365 OR days_to_eol < 0
+| table host model eol_date days_to_eol
+| sort days_to_eol
+```
+- **Implementation:** Maintain device_inventory lookup (host, model) and eol_lookup (model, eol_date) from Cisco EOL/EOS bulletins. Run scheduled search or dashboard. Alert when days_to_eol < 180. Update lookups annually.
+- **Visualization:** Table (device, model, days to EOL), Single value (devices within 6 months), Gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.33 · Duplex Mismatch Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Half/full duplex mismatches causing performance degradation.
+- **App/TA:** SNMP modular input
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** IF-MIB (ifSpeed), EtherLike-MIB (dot3StatsDuplexStatus), syslog
+- **SPL:**
+```spl
+index=network (sourcetype=snmp:interface OR sourcetype="cisco:ios") ("duplex" OR "Duplex" OR "dot3StatsDuplexStatus" OR "halfDuplex" OR "fullDuplex")
+| rex "duplex mismatch|(?<duplex_status>halfDuplex|fullDuplex|unknown)"
+| where match(_raw,"mismatch|halfDuplex") OR duplex_status="halfDuplex"
+| stats count by host, ifDescr, duplex_status
+| table host ifDescr duplex_status count
+```
+- **Implementation:** Poll EtherLike-MIB dot3StatsDuplexStatus; ingest syslog for duplex mismatch messages. Alert on half-duplex on gigabit uplinks or explicit mismatch events.
+- **Visualization:** Table (host, interface, duplex), Status grid, Single value.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.34 · PoE Power Budget Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Power over Ethernet budget approaching capacity per switch.
+- **App/TA:** SNMP modular input
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** POWER-ETHERNET-MIB (pethMainPseOperStatus, pethMainPseConsumptionPower, pethMainPsePower)
+- **SPL:**
+```spl
+index=network sourcetype=snmp:poe
+| eval util_pct=round(pethMainPseConsumptionPower/pethMainPsePower*100,1)
+| where pethMainPseOperStatus="on" AND util_pct > 80
+| stats latest(util_pct) as poe_util, latest(pethMainPseConsumptionPower) as used_w, latest(pethMainPsePower) as total_w by host
+| table host poe_util used_w total_w
+```
+- **Implementation:** Poll POWER-ETHERNET-MIB (pethMainPsePower, pethMainPseConsumptionPower) every 300s. Alert when utilization exceeds 80%. Track per PSE unit on modular switches.
+- **Visualization:** Gauge (utilization), Table (host, used, total), Line chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.35 · LLDP / CDP Neighbor Change Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Security
+- **Value:** Unexpected topology changes in cabling/connections.
+- **App/TA:** SNMP modular input, syslog
+- **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
+- **Data Sources:** LLDP-MIB (lldpRemTable), CISCO-CDP-MIB, syslog CDP/LLDP events
+- **SPL:**
+```spl
+index=network (sourcetype=snmp:lldp OR sourcetype=snmp:cdp OR sourcetype="cisco:ios") ("lldpRem" OR "CDP-4-NATIVE" OR "LLDP" OR "neighbor")
+| rex "neighbor (?<neighbor>\S+)|lldpRemSysName[=:]\s*(?<neighbor>\S+)|port (?<port>\S+)"
+| bin _time span=1h
+| stats dc(neighbor) as neighbor_changes, values(neighbor) as neighbors by host, port, _time
+| where neighbor_changes > 1
+| table host port _time neighbor_changes neighbors
+```
+- **Implementation:** Poll LLDP-MIB lldpRemTable and CISCO-CDP-MIB; ingest syslog for CDP/LLDP neighbor change events. Baseline neighbor table; alert on unexpected changes (new/removed neighbors). Useful for change validation and cable swap detection.
+- **Visualization:** Table (host, port, changes), Timeline, Single value (unexpected changes).
+- **CIM Models:** N/A
+
+---
+
 
 ## 5.2 Firewalls
 
@@ -1752,6 +2029,49 @@ index=network sourcetype="cisco:sdwan:interface"
 ```
 - **Implementation:** Collect interface stats per WAN transport type (MPLS, Internet, LTE). Compare utilization across links. Alert on >70% sustained utilization. Use for capacity planning.
 - **Visualization:** Line chart (utilization per transport), Stacked bar (site comparison), Table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.5.11 · Wireless Client Roaming Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Failed roaming events between access points.
+- **App/TA:** WLC syslog, SNMP
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800, Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
+- **Data Sources:** WLC logs, AIRESPACE-WIRELESS-MIB
+- **SPL:**
+```spl
+index=network sourcetype="cisco:wlc" OR sourcetype="meraki" ("roam" OR "roaming" OR "handoff" OR "handover") ("fail" OR "reject" OR "timeout" OR "error")
+| rex "client (?<client_mac>\S+)|from (?<from_ap>\S+) to (?<to_ap>\S+)|AP (?<ap_name>\S+)"
+| stats count by client_mac, from_ap, to_ap, ap_name
+| sort -count
+```
+- **Implementation:** Forward WLC syslog; enable roaming/handoff event logging. For Meraki, use Dashboard events or API. Parse client MAC, source/target AP. Alert on roaming failure spikes. Correlate with RF metrics (channel utilization, interference) to identify root cause.
+- **Visualization:** Table (client, APs, failures), Timeline (roaming events), Bar chart (failures by AP).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.5.12 · Wireless Rogue AP Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Unauthorized access points detected by WLC/controller.
+- **App/TA:** WLC syslog, SNMP
+- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800, Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
+- **Data Sources:** WLC rogue AP detection logs, AIRESPACE-WIRELESS-MIB
+- **SPL:**
+```spl
+index=network sourcetype="cisco:wlc" OR sourcetype="meraki" ("rogue" OR "unauthorized") ("AP" OR "access point") ("detected" OR "alert" OR "contained" OR "threat")
+| rex "MAC (?<rogue_mac>\S+)|BSSID (?<bssid>\S+)|channel (?<channel>\d+)|SSID (?<ssid>[^\s\"]+)"
+| eval severity=case(match(_raw,"contained|threat"),"high",match(_raw,"detected|alert"),"medium",1=1,"low")
+| table _time host rogue_mac bssid channel ssid severity
+| sort -_time
+```
+- **Implementation:** Enable rogue AP detection on WLC/Meraki. Forward security events via syslog. Alert immediately on rogue AP detection, especially when broadcasting corporate SSID or in contained/threat state. Integrate with NAC for automated response.
+- **Visualization:** Table (rogue MAC, BSSID, channel, SSID), Map (rogue location), Timeline, Single value (active rogues).
 - **CIM Models:** N/A
 
 ---
@@ -4661,6 +4981,29 @@ index=network sourcetype=config_backup
 ```
 - **Implementation:** Run config backup (RANCID, Oxidized, or vendor API) on schedule. Ingest success/failure and timestamp. Alert when backup fails or last successful backup is older than 24 hours. Optionally diff current vs. last backup for drift.
 - **Visualization:** Table (device, last backup, status), Single value (devices without backup today), Timeline (backup runs).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.9.110 · SNMP Trap Storm Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Excessive SNMP traps from a device indicating failure cascade.
+- **App/TA:** SNMP modular input (trap receiver)
+- **Equipment Models:** Various (SNMP-enabled network devices)
+- **Data Sources:** snmptrapd, Splunk SNMP trap input
+- **SPL:**
+```spl
+index=network sourcetype=snmptrap
+| bin _time span=1m
+| stats count as trap_count by host, _time
+| eventstats avg(trap_count) as avg_traps, stdev(trap_count) as std_traps by host
+| where trap_count > (avg_traps + 3*std_traps) OR trap_count > 100
+| sort -trap_count
+```
+- **Implementation:** Configure Splunk SNMP trap input or forward traps from snmptrapd. Parse trap OID and host. Alert when trap rate from a single device exceeds 100/min or 3 standard deviations above baseline. Trap storms often indicate device failure, link flapping, or misconfiguration.
+- **Visualization:** Line chart (traps per host over time), Table (host, count, threshold), Single value (devices in storm).
 - **CIM Models:** N/A
 
 ---

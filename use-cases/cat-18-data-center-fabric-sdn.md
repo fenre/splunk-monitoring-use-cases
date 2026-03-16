@@ -158,6 +158,30 @@ index=cisco_aci sourcetype="cisco:aci:system"
 - **Visualization:** Status grid (APIC cluster state), Timeline (cluster events), Single value (cluster fitness), Table (APIC node details).
 - **CIM Models:** N/A
 
+### UC-18.1.8 · Spine-Leaf Fabric Latency
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Inter-switch latency within the fabric directly impacts east-west traffic between workloads. High latency causes application timeouts, database replication lag, and degraded user experience. Monitoring fabric latency identifies congestion, misrouted traffic, and capacity bottlenecks before they impact SLAs.
+- **App/TA:** Custom scripted input (ping, TWAMP, fabric analytics)
+- **Equipment Models:** Nexus 9000, Nexus 9300/9500, Arista 7050/7280/7500
+- **Data Sources:** In-band Network Telemetry (INT), fabric analytics tools, ICMP probes between switches
+- **SPL:**
+```spl
+index=fabric sourcetype="fabric:latency"
+| eval latency_ms=round(rtt_us/1000, 2)
+| stats avg(latency_ms) as avg_latency, max(latency_ms) as max_latency, stdev(latency_ms) as latency_jitter by src_switch, dst_switch, path_type
+| where avg_latency > 1 OR max_latency > 5
+| sort -max_latency
+| table src_switch, dst_switch, path_type, avg_latency, max_latency, latency_jitter
+```
+- **Implementation:** Deploy ICMP or TWAMP probes between leaf and spine switches on a dedicated management or out-of-band VLAN. Poll every 30–60 seconds. For INT-capable fabrics (Arista DANZ, Cisco NX-OS telemetry), enable in-band telemetry for real-time latency visibility. Parse probe results into Splunk via scripted input. Set thresholds: >1 ms average or >5 ms peak for east-west paths. Alert on sustained elevation. Correlate latency spikes with interface utilization and BGP convergence events.
+- **Visualization:** Heatmap (latency by switch pair), Timechart (latency trending), Table (high-latency paths), Single value (fabric P99 latency).
+- **CIM Models:** N/A
+
+---
+
 ### 18.2 VMware NSX
 
 **Splunk Add-on:** VMware NSX add-on (`vmware_nsx_addon`, Splunkbase 6805), syslog
@@ -431,6 +455,56 @@ index=sdn sourcetype="sdn:audit"
 ```
 - **Implementation:** Ingest controller and fabric audit logs. Alert on change to critical objects (e.g., tenant, contract, segment) without change ticket. Report on change frequency and rollback rate. Integrate with change management.
 - **Visualization:** Table (recent changes), Timeline (change events), Bar chart (changes by user).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.9 · VXLAN VTEP Reachability
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** VTEP (VXLAN Tunnel Endpoint) peers form the overlay mesh in VXLAN fabrics. When a VTEP goes down, tenant segments lose connectivity and workloads become isolated. Monitoring VTEP reachability ensures overlay health and enables rapid detection of NVE failures before tenant impact.
+- **App/TA:** SNMP modular input, NX-OS/EOS syslog
+- **Data Sources:** `show nve peers` (NX-OS), `show vxlan vtep` (EOS), syslog VTEP events
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:nxos:nve_peers" OR sourcetype="arista:eos:vxlan_vtep" OR sourcetype="syslog")
+| search (nve OR vtep OR "NVE peer" OR "VTEP")
+| eval peer_status=case(
+    like(_raw, "%Up%") OR like(_raw, "%up%") OR like(_raw, "%established%"), "Up",
+    like(_raw, "%Down%") OR like(_raw, "%down%") OR like(_raw, "%failed%"), "Down",
+    like(_raw, "%Init%") OR like(_raw, "%init%"), "Init",
+    1==1, "Unknown")
+| rex field=_raw "peer\s+(?<peer_ip>\d+\.\d+\.\d+\.\d+)|(?<peer_ip>\d+\.\d+\.\d+\.\d+)\s+.*?(?<state>\w+)"
+| where peer_status!="Up" OR isnull(peer_ip)
+| stats latest(peer_status) as status, latest(_time) as last_seen by host, peer_ip, vni
+| table host, peer_ip, vni, status, last_seen
+```
+- **Implementation:** Run scripted input every 60 seconds to execute `show nve peers` (Cisco NX-OS) or `show vxlan vtep` (Arista EOS) via SSH/API. Parse peer IP, state, and VNI. Ingest syslog for VTEP state-change events (e.g., NVE peer down, BGP session lost). Create sourcetype with field extractions for peer_ip, state, vni, host. Alert immediately when any VTEP peer transitions to Down. Track peer flapping (rapid Up/Down cycles) for underlay stability issues. Correlate VTEP failures with BGP and physical link events.
+- **Visualization:** Status grid (VTEP peer matrix by host), Table (down peers), Timechart (peer state changes), Single value (healthy VTEP peer count).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.10 · EVPN Route Type Distribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Capacity
+- **Value:** EVPN route table growth (Type-2 MAC/IP and Type-5 IP prefix routes) impacts control-plane memory and convergence time. Trending route counts by type supports capacity planning, identifies runaway growth (e.g., VM sprawl, IP prefix leakage), and helps size fabric hardware for future scale.
+- **App/TA:** Custom scripted input (`show bgp l2vpn evpn summary`)
+- **Data Sources:** BGP EVPN route table counts per type
+- **SPL:**
+```spl
+index=network sourcetype="evpn:route_summary"
+| eval route_type=case(
+    type=="2" OR type=="mac_ip", "Type2_MAC_IP",
+    type=="3" OR type=="imcast", "Type3_IMET",
+    type=="5" OR type=="ip_prefix", "Type5_IP_Prefix",
+    1==1, "Other")
+| timechart span=1h latest(count) as count by route_type
+```
+- **Implementation:** Deploy scripted input to run `show bgp l2vpn evpn summary` or equivalent (e.g., `show bgp evpn summary` on Arista) on each leaf every 5–15 minutes via SSH or eAPI. Parse route counts by type: Type-2 (MAC/IP), Type-3 (IMET), Type-5 (IP prefix). Ingest into Splunk with host, route_type, count, and timestamp. Baseline normal growth rates per VNI/tenant. Alert on sudden spikes (>20% in 1 hour) or sustained growth exceeding hardware limits. Report on top VNIs by route count for cleanup and capacity planning.
+- **Visualization:** Timechart (route count by type over time), Table (current counts by host and type), Single value (total EVPN routes), Bar chart (route growth rate by type).
 - **CIM Models:** N/A
 
 ---

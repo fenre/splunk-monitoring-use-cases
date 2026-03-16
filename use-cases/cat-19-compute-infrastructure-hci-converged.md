@@ -145,6 +145,84 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental"
 - **Visualization:** Gauge (temperature/power), Timechart (power and thermal trending), Heatmap (chassis thermal map), Single value (total power draw).
 - **CIM Models:** N/A
 
+#### 19.1 HCI Platforms (Nutanix)
+
+### UC-19.1.7 · Nutanix Prism Central Alert Monitoring
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Cluster-wide alerts from Prism Central provide early warning of infrastructure issues across managed Nutanix clusters. Monitoring unresolved critical and warning alerts enables rapid response to capacity, hardware, and service degradation before it impacts workloads.
+- **App/TA:** Custom (Nutanix Prism Central REST API)
+- **Data Sources:** Nutanix Prism Central `/api/nutanix/v3/alerts/list`
+- **SPL:**
+```spl
+index=nutanix sourcetype="nutanix:prism_central:alerts"
+| where resolved==false OR resolved=="false"
+| eval severity_normalized=case(
+    lower(severity)=="critical", "Critical",
+    lower(severity)=="warning", "Warning",
+    lower(severity)=="info", "Info",
+    1==1, coalesce(severity, "Unknown"))
+| stats count as alert_count, latest(_time) as last_occurred by cluster, severity_normalized, primary_impact_type, source_entity_type
+| sort -severity_normalized, -alert_count
+| table cluster, severity_normalized, primary_impact_type, source_entity_type, alert_count, last_occurred
+```
+- **Implementation:** Create a REST API modular input or scripted input that polls Prism Central `/api/nutanix/v3/alerts/list` every 2–5 minutes. Use POST with filter `resolved==false` to retrieve only active alerts. Authenticate with Prism Central credentials (stored in Splunk credential manager). Parse JSON response and index with sourcetype `nutanix:prism_central:alerts`. Configure field extractions for `cluster`, `severity`, `primary_impact_type`, `source_entity_type`, `resolved`, `title`. Alert on critical severity count > 0 or warning count exceeding threshold. Correlate with cluster health and CVM metrics.
+- **Visualization:** Table (active alerts by cluster), Bar chart (alerts by severity and impact type), Status grid (cluster alert status), Single value (critical alert count).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.1.8 · Nutanix AOS Version Compliance
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Clusters running non-current AOS versions face compatibility risks, support limitations, and security gaps. Tracking version compliance enables upgrade planning, audit reporting, and ensures consistency across the Nutanix fleet.
+- **App/TA:** Custom (Nutanix Prism Central REST API)
+- **Data Sources:** Nutanix `/api/nutanix/v3/clusters/list` (cluster_version)
+- **SPL:**
+```spl
+index=nutanix sourcetype="nutanix:prism_central:clusters"
+| stats latest(cluster_version) as aos_version, latest(cluster_name) as cluster_name, latest(uuid) as cluster_uuid by cluster_name
+| lookup nutanix_aos_baseline.csv cluster_name OUTPUT target_version
+| eval compliant=if(aos_version==target_version OR isnull(target_version), "Yes", "No")
+| where compliant=="No"
+| table cluster_name, aos_version, target_version, compliant
+| sort cluster_name
+```
+- **Implementation:** Poll Prism Central `/api/nutanix/v3/clusters/list` (or equivalent cluster inventory endpoint) every 6–24 hours. Extract `cluster_version` (AOS version) and `name` from each cluster entity. Create lookup `nutanix_aos_baseline.csv` with columns `cluster_name` and `target_version` defining the approved AOS version per cluster or environment. Compare running version to baseline. Alert on clusters with version drift. Generate weekly compliance report. Use for maintenance window planning and support eligibility checks.
+- **Visualization:** Table (non-compliant clusters), Pie chart (version distribution), Single value (compliance percentage), Bar chart (clusters by AOS version).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.1.9 · Nutanix Snapshot Retention Compliance
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Capacity
+- **Value:** Protection domain snapshots that exceed retention policy consume storage and increase backup window duration. Monitoring snapshot age and count identifies stale snapshots for cleanup, reduces storage waste, and ensures alignment with data protection policies.
+- **App/TA:** Custom (Nutanix Prism Element REST API)
+- **Data Sources:** Nutanix `/api/nutanix/v2/protection_domains`, `/api/nutanix/v2/protection_domains/:name/dr_snapshots`
+- **SPL:**
+```spl
+index=nutanix sourcetype="nutanix:protection_domains:snapshots"
+| eval snapshot_age_days=round((now()-_time)/86400, 0)
+| lookup nutanix_snapshot_retention_policy.csv protection_domain OUTPUT max_age_days, max_count
+| stats count as snapshot_count, max(snapshot_age_days) as oldest_days, latest(max_age_days) as max_age_days, latest(max_count) as max_count by cluster, protection_domain
+| eval over_retention=if(oldest_days>max_age_days OR snapshot_count>max_count, "Non-Compliant", "Compliant")
+| where over_retention=="Non-Compliant"
+| table cluster, protection_domain, snapshot_count, oldest_days, max_age_days, max_count, over_retention
+| sort -oldest_days
+```
+- **Implementation:** Poll each Prism Element (per-cluster) for `/api/nutanix/v2/protection_domains` to list protection domains, then call `/api/nutanix/v2/protection_domains/{name}/dr_snapshots` for each domain to retrieve snapshot metadata (creation time, count). Run every 6–12 hours. Index with sourcetype `nutanix:protection_domains:snapshots`. Create lookup `nutanix_snapshot_retention_policy.csv` with `protection_domain`, `max_age_days`, `max_count` per policy. Calculate snapshot age from creation timestamp. Alert when snapshot count or oldest snapshot age exceeds policy. Report on storage consumed by over-retention snapshots. Integrate with capacity dashboards.
+- **Visualization:** Table (non-compliant protection domains), Bar chart (snapshot count by domain), Gauge (oldest snapshot age), Single value (domains over retention).
+- **CIM Models:** N/A
+
+---
+
 ### 19.2 Hyper-Converged Infrastructure (HCI)
 
 **Splunk Add-on:** Nutanix TA, VMware vSAN (via vCenter TA), vendor APIs
@@ -400,6 +478,27 @@ index=hci sourcetype="nutanix:prism_central"
 ```
 - **Implementation:** Poll Prism Central health and API metrics. Alert on unhealthy status, high API latency, or backed-up task queue. Report on PC availability and performance trend. Maintain HA for PC where available.
 - **Visualization:** Status grid (PC health), Table (PC metrics), Line chart (API latency).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.2.13 · Dell VxRail Cluster Health
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** VxRail Manager health checks and LCM (Lifecycle Manager) update status directly impact cluster availability and supportability. Monitoring cluster and host health enables rapid response to hardware or software issues before they cause VM outages or failed upgrades.
+- **App/TA:** Custom (VxRail Manager REST API)
+- **Data Sources:** VxRail Manager `/rest/vxm/v1/cluster`, `/rest/vxm/v1/system/cluster-hosts`
+- **SPL:**
+```spl
+index=vxrail sourcetype="vxrail:cluster"
+| stats latest(health) as cluster_health, latest(vcenter_name) as vcenter, latest(version) as vxrail_version by cluster_id
+| eval overall=case(cluster_health!="Healthy" AND cluster_health!="", "Degraded", 1==1, "Healthy")
+| table cluster_id, overall, cluster_health, vxrail_version, vcenter
+```
+- **Implementation:** Create a REST API modular input or scripted input that polls VxRail Manager at `https://<vxrail_manager>/rest/vxm/v1/cluster` and `https://<vxrail_manager>/rest/vxm/v1/system/cluster-hosts` every 2–5 minutes. Authenticate with VxRail Manager credentials. Parse JSON responses and index with sourcetypes `vxrail:cluster` and `vxrail:cluster_hosts`. Extract fields: `health`, `version`, `vcenter_name`, `host_state`, `cluster_id`. Optionally poll LCM status endpoints for update state. Alert on cluster health != "Healthy" or any host not in CONNECTED/Healthy state. Correlate with vCenter and ESXi events for root cause analysis.
+- **Visualization:** Status grid (cluster and host health from cluster_hosts), Table (cluster details with LCM status), Single value (unhealthy cluster count), Gauge (host connectivity percentage from cluster_hosts data).
 - **CIM Models:** N/A
 
 ---

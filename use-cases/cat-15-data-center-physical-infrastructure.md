@@ -122,6 +122,68 @@ index=power sourcetype="pdu:events" OR sourcetype="bms:events"
 
 ---
 
+### UC-15.1.7 · APC PDU Outlet-Level Power Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Per-outlet current draw and on/off state on APC rack PDUs enables granular power attribution, remote outlet control verification, and identification of high-draw devices within a rack.
+- **App/TA:** SNMP modular input
+- **Data Sources:** APC PowerNet-MIB (rPDU2OutletSwitchedStatusCurrent, rPDU2OutletSwitchedStatusState)
+- **SPL:**
+```spl
+index=power sourcetype="snmp:apc:pdu"
+| eval outlet_state=case(rPDU2OutletSwitchedStatusState="1","on",rPDU2OutletSwitchedStatusState="2","off",1=1,"unknown")
+| where rPDU2OutletSwitchedStatusCurrent > 10 OR outlet_state="off"
+| table _time, pdu_name, outlet_id, outlet_label, rPDU2OutletSwitchedStatusCurrent as current_amps, outlet_state
+| sort -current_amps
+```
+- **Implementation:** Configure SNMP modular input to poll APC PowerNet-MIB. Map rPDU2OutletSwitchedStatusCurrent (0.1A resolution) and rPDU2OutletSwitchedStatusState per outlet. Poll every 5 minutes. Alert on outlets exceeding threshold (e.g., 10A) or unexpected off-state. Correlate outlet labels with DCIM for device mapping.
+- **Visualization:** Table (outlet current by PDU), Bar chart (top outlets by draw), Status grid (outlet on/off state), Line chart (outlet current trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.1.8 · Generator Runtime and Fuel Level
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Diesel generator monitoring for extended outages; fuel level and run hours ensure generators can sustain operations during prolonged utility failures.
+- **App/TA:** Custom (generator controller SNMP/Modbus, BMS integration)
+- **Data Sources:** Generator controller telemetry (fuel_level_pct, run_hours, engine_status)
+- **SPL:**
+```spl
+index=power sourcetype="generator:telemetry"
+| stats latest(fuel_level_pct) as fuel_pct, latest(run_hours) as run_hrs, latest(engine_status) as status by generator_id
+| where fuel_pct < 30 OR status!="standby" AND status!="running"
+| table generator_id, fuel_pct, run_hrs, status
+```
+- **Implementation:** Integrate generator controller via SNMP or Modbus. Ingest fuel_level_pct, run_hours, engine_status (standby, running, fault). Poll every 5–15 minutes. Alert on low fuel (<30%), engine fault, or unexpected runtime. Correlate with utility outage events. Report fuel consumption rate during run events.
+- **Visualization:** Gauge (fuel level per generator), Table (generator status), Line chart (fuel level trend), Single value (lowest fuel %).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.1.9 · Rack Power Density Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Watts per rack unit over time for capacity planning; identifies hot spots and supports safe equipment placement decisions.
+- **App/TA:** SNMP modular input, DCIM integration
+- **Data Sources:** PDU per-rack power readings, DCIM inventory (rack height, location)
+- **SPL:**
+```spl
+index=power sourcetype="pdu:rack_power"
+| lookup rack_inventory rack_id OUTPUT rack_u_height
+| eval watts_per_u=round(power_watts/rack_u_height,1)
+| timechart span=1d avg(watts_per_u) as avg_watts_per_u by rack_id
+| predict avg_watts_per_u as predicted future_timespan=30
+```
+- **Implementation:** Aggregate PDU power per rack. Join with DCIM lookup for rack U height. Calculate watts/U. Poll daily or hourly. Alert when watts/U exceeds design threshold (e.g., 500W/U). Use prediction for capacity planning. Report top-density racks and trend by zone.
+- **Visualization:** Line chart (watts/U trend by rack), Heatmap (rack × density), Bar chart (top racks by density), Table (capacity forecast).
+- **CIM Models:** N/A
+
+---
+
 ### 15.2 Cooling & Environmental
 
 **Primary App/TA:** SNMP, BMS integration, environmental sensor inputs.
@@ -239,6 +301,27 @@ index=cooling sourcetype="bms:cooling_capacity"
 ```
 - **Implementation:** Calculate cooling load from IT power consumption (1 watt IT ≈ 3.41 BTU/h heat). Compare against total cooling capacity. Track utilization percentage. Alert when approaching 80% capacity. Plan for seasonal variations.
 - **Visualization:** Dual-axis chart (load vs capacity), Gauge (cooling utilization %), Line chart (utilization trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.2.7 · APC InRow / CRAC Unit Temperature Differential
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Inlet/outlet delta-T indicating cooling effectiveness; low delta-T suggests bypass airflow or undersized cooling; high delta-T indicates effective heat removal.
+- **App/TA:** SNMP modular input
+- **Data Sources:** APC AirIR-MIB (airIRSupplyAirTemperature, airIRReturnAirTemperature)
+- **SPL:**
+```spl
+index=cooling sourcetype="snmp:apc:inrow"
+| eval delta_t=airIRReturnAirTemperature - airIRSupplyAirTemperature
+| where delta_t < 5 OR delta_t > 25
+| table _time, unit_name, zone, airIRSupplyAirTemperature as supply_f, airIRReturnAirTemperature as return_f, delta_t
+| sort -delta_t
+```
+- **Implementation:** Poll APC AirIR-MIB for airIRSupplyAirTemperature and airIRReturnAirTemperature. Calculate delta-T (return minus supply). Typical effective range 10–20°F. Alert on delta-T <5°F (ineffective cooling) or >25°F (possible airflow restriction). Poll every 5 minutes. Correlate with unit runtime and fan status.
+- **Visualization:** Line chart (delta-T trend per unit), Table (units outside range), Gauge (current delta-T), Heatmap (zone × delta-T).
 - **CIM Models:** N/A
 
 ---
@@ -457,6 +540,67 @@ index=dcim sourcetype="capacity:zone"
 ```
 - **Implementation:** Aggregate capacity and usage by zone from DCIM or meters. Alert when headroom drops below 20%. Report on trend and zones with least headroom. Use for placement and expansion planning.
 - **Visualization:** Table (zones with low headroom), Bar chart (headroom by zone), Heatmap (zone capacity).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.11 · CCTV / IP Camera Health Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Security
+- **Value:** Camera online/offline, storage utilization, recording status ensures continuous surveillance coverage and prevents blind spots during security incidents.
+- **App/TA:** Custom (NVR API, ONVIF, Hikvision ISAPI)
+- **Data Sources:** NVR API (camera status, storage), ONVIF device management
+- **SPL:**
+```spl
+index=physical sourcetype="nvr:camera_status"
+| where connection_status!="online" OR recording_status!="recording" OR storage_util_pct > 90
+| table camera_id, location, connection_status, recording_status, storage_util_pct, last_frame_time
+| sort connection_status
+```
+- **Implementation:** Poll NVR API (Hikvision ISAPI, Milestone, Genetec) or ONVIF for camera status. Ingest connection_status, recording_status, storage_util_pct. Poll every 5–15 minutes. Alert on camera offline, recording stopped, or storage >90%. Track camera uptime percentage. Report on coverage gaps by zone.
+- **Visualization:** Status grid (camera × status), Table (offline or degraded cameras), Gauge (storage utilization), Floor plan (camera locations with status).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.12 · Fire Suppression System Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Safety, Availability
+- **Value:** Pre-action system armed/disarmed, agent levels (FM-200/Novec) ensure fire suppression readiness; disarmed or low-agent systems leave the data center unprotected.
+- **App/TA:** Custom (BMS integration, SNMP)
+- **Data Sources:** Fire suppression panel telemetry (system_armed, agent_level_pct, alarm_active)
+- **SPL:**
+```spl
+index=physical sourcetype="fire:suppression_status"
+| where system_armed!="armed" OR agent_level_pct < 95 OR alarm_active="true"
+| table _time, zone, system_armed, agent_level_pct, alarm_active, last_inspection_date
+| sort -_time
+```
+- **Implementation:** Integrate fire suppression panel via BMS, SNMP, or vendor API. Ingest system_armed (armed/disarmed), agent_level_pct, alarm_active. Poll every 15–30 minutes. Alert immediately on disarmed state, low agent (<95%), or active alarm. Track inspection dates. Report on system readiness for compliance.
+- **Visualization:** Status grid (zone × armed/agent status), Table (zones needing attention), Gauge (agent level %), Single value (systems disarmed).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.13 · Environmental Sensor Battery Status
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Wireless environmental sensor battery health; dead batteries create monitoring gaps and risk undetected temperature or humidity exceedances.
+- **App/TA:** SNMP modular input, custom (sensor API)
+- **Data Sources:** Sensor management interface (battery_level_pct, last_report_time)
+- **SPL:**
+```spl
+index=environment sourcetype="sensor:battery_status"
+| eval hours_since_report=round((now()-last_report_time)/3600,1)
+| where battery_level_pct < 20 OR hours_since_report > 24
+| table sensor_id, zone, sensor_type, battery_level_pct, last_report_time, hours_since_report
+| sort battery_level_pct
+```
+- **Implementation:** Poll sensor management interface (SNMP, API) for battery_level_pct and last_report_time. Poll daily or every 6 hours. Alert on battery <20% or no report in 24+ hours (possible dead battery). Maintain sensor inventory with battery replacement schedule. Report on sensors due for battery change.
+- **Visualization:** Table (low battery sensors), Gauge (lowest battery %), Bar chart (sensors by battery level), Single value (sensors needing battery replacement).
 - **CIM Models:** N/A
 
 ---

@@ -48,10 +48,14 @@ CAT_GROUPS = {
 
 # Equipment (IT assets) → TA patterns. Used to filter use cases by "what equipment do you have?"
 # Each entry: id (slug), label (user-facing), tas (substrings; if any appears in UC's App/TA field, UC is relevant).
+# Matching is case-insensitive substring: pattern.lower() in app_ta_field.lower()
 EQUIPMENT = [
+    # ── Operating Systems ──────────────────────────────────────────────────
     {"id": "linux", "label": "Linux / Unix servers", "tas": ["Splunk_TA_nix"]},
     {"id": "windows", "label": "Windows servers & workstations", "tas": ["Splunk_TA_windows"]},
     {"id": "macos", "label": "macOS", "tas": ["macOS", "Splunk UF for macOS"]},
+
+    # ── Virtualization ─────────────────────────────────────────────────────
     {
         "id": "vmware",
         "label": "VMware",
@@ -63,21 +67,43 @@ EQUIPMENT = [
             {"id": "ta_vmware", "label": "Splunk TA for VMware", "tas": ["Splunk_TA_vmware", "TA-vmware"]},
         ],
     },
-    {"id": "hyperv", "label": "Microsoft Hyper-V", "tas": ["Hyper-V", "Splunk_TA_microsoft-cloudservices", "hyperv", "HyperV", "Perfmon:HyperV", "Hyper-V"]},
+    {"id": "hyperv", "label": "Microsoft Hyper-V", "tas": ["Hyper-V", "hyperv", "HyperV", "Perfmon:HyperV"]},
+    {"id": "proxmox", "label": "Proxmox VE", "tas": ["Proxmox", "proxmox"]},
+    {"id": "ovirt", "label": "oVirt / Red Hat Virtualization", "tas": ["oVirt", "ovirt", "RHV", "rhv"]},
+    {"id": "openstack", "label": "OpenStack", "tas": ["OpenStack", "openstack"]},
+
+    # ── HCI & Converged ────────────────────────────────────────────────────
+    {
+        "id": "nutanix",
+        "label": "Nutanix",
+        "tas": ["Nutanix", "nutanix", "TA-nutanix", "Prism"],
+        "models": [
+            {"id": "prism_central", "label": "Prism Central", "tas": ["Prism Central"]},
+            {"id": "prism_element", "label": "Prism Element", "tas": ["Prism Element"]},
+        ],
+    },
+    {"id": "vxrail", "label": "Dell VxRail", "tas": ["VxRail", "vxrail"]},
+
+    # ── Cloud Providers ────────────────────────────────────────────────────
     {"id": "aws", "label": "Amazon Web Services (AWS)", "tas": ["Splunk_TA_aws", "AWS", "CloudTrail", "CloudWatch"]},
     {"id": "azure", "label": "Microsoft Azure", "tas": ["Splunk_TA_microsoft-cloudservices", "Azure", "Azure Monitor", "Azure Activity"]},
     {"id": "gcp", "label": "Google Cloud Platform (GCP)", "tas": ["Splunk_TA_google-cloudplatform", "GCP", "Google Cloud"]},
-    {"id": "kubernetes", "label": "Kubernetes / containers", "tas": ["Kubernetes", "Splunk Connect for Kubernetes", "SCK", "OpenTelemetry", "Splunk_TA_otel", "Docker", "containers"]},
+
+    # ── Containers & Orchestration ─────────────────────────────────────────
     {
-        "id": "paloalto",
-        "label": "Palo Alto Networks",
-        "tas": ["Splunk_TA_paloalto", "Palo Alto", "GlobalProtect", "Prisma"],
+        "id": "kubernetes",
+        "label": "Kubernetes",
+        "tas": ["Kubernetes", "Splunk Connect for Kubernetes", "SCK", "kube-state-metrics", "kubelet"],
         "models": [
-            {"id": "pan_firewall", "label": "Palo Alto Firewall / PAN-OS", "tas": ["Splunk_TA_paloalto", "Palo Alto", "PAN-OS", "paloalto"]},
-            {"id": "globalprotect", "label": "GlobalProtect", "tas": ["GlobalProtect", "globalprotect"]},
-            {"id": "prisma", "label": "Prisma Access", "tas": ["Prisma", "prisma"]},
+            {"id": "k8s", "label": "Kubernetes clusters", "tas": ["Kubernetes", "kube-state-metrics", "kubelet"]},
+            {"id": "openshift", "label": "OpenShift", "tas": ["OpenShift", "openshift"]},
+            {"id": "helm", "label": "Helm", "tas": ["Helm", "helm"]},
         ],
     },
+    {"id": "docker", "label": "Docker", "tas": ["Docker", "docker", "Splunk Connect for Docker"]},
+    {"id": "argocd", "label": "ArgoCD", "tas": ["ArgoCD", "argocd", "Argo CD"]},
+
+    # ── Network Infrastructure ─────────────────────────────────────────────
     {
         "id": "cisco",
         "label": "Cisco",
@@ -101,6 +127,16 @@ EQUIPMENT = [
         ],
     },
     {
+        "id": "paloalto",
+        "label": "Palo Alto Networks",
+        "tas": ["Splunk_TA_paloalto", "Palo Alto", "GlobalProtect", "Prisma"],
+        "models": [
+            {"id": "pan_firewall", "label": "Palo Alto Firewall / PAN-OS", "tas": ["Splunk_TA_paloalto", "Palo Alto", "PAN-OS", "paloalto"]},
+            {"id": "globalprotect", "label": "GlobalProtect", "tas": ["GlobalProtect", "globalprotect"]},
+            {"id": "prisma", "label": "Prisma Access", "tas": ["Prisma", "prisma"]},
+        ],
+    },
+    {
         "id": "fortinet",
         "label": "Fortinet",
         "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
@@ -118,7 +154,34 @@ EQUIPMENT = [
             {"id": "asm", "label": "F5 ASM", "tas": ["ASM", "f5-bigip (ASM)"]},
         ],
     },
-    {"id": "syslog", "label": "Syslog (generic)", "tas": ["Splunk_TA_syslog", "Syslog", "syslog"]},
+    {
+        "id": "citrix",
+        "label": "Citrix",
+        "tas": ["Splunk_TA_citrix-netscaler", "citrix", "NetScaler"],
+        "models": [
+            {"id": "netscaler", "label": "Citrix NetScaler / ADC", "tas": ["Splunk_TA_citrix-netscaler", "citrix", "NetScaler", "netscaler"]},
+        ],
+    },
+    {"id": "checkpoint", "label": "Check Point", "tas": ["Check Point", "checkpoint", "CheckPoint"]},
+    {"id": "nsx", "label": "VMware NSX", "tas": ["NSX", "nsx", "vmware_nsx_addon", "NSX-T"]},
+    {
+        "id": "infoblox",
+        "label": "Infoblox",
+        "tas": ["Splunk_TA_infoblox", "Infoblox", "infoblox"],
+        "models": [
+            {"id": "dns", "label": "Infoblox DNS", "tas": ["Infoblox DNS"]},
+            {"id": "dhcp", "label": "Infoblox DHCP", "tas": ["Infoblox DHCP"]},
+        ],
+    },
+    {
+        "id": "netflow",
+        "label": "NetFlow / sFlow",
+        "tas": ["NetFlow", "netflow", "sFlow", "sflow"],
+        "models": [
+            {"id": "netflow", "label": "NetFlow", "tas": ["NetFlow", "netflow"]},
+            {"id": "sflow", "label": "sFlow", "tas": ["sFlow", "sflow"]},
+        ],
+    },
     {
         "id": "snmp",
         "label": "SNMP",
@@ -127,12 +190,12 @@ EQUIPMENT = [
             {"id": "generic", "label": "SNMP (generic)", "tas": ["SNMP", "snmp"]},
             {"id": "pdu", "label": "PDU / power", "tas": ["PDU", "PDU-MIB", "pdu"]},
             {"id": "ups", "label": "UPS", "tas": ["UPS", "UPS-MIB", "ups"]},
+            {"id": "apc", "label": "APC / Schneider Electric", "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"]},
         ],
     },
-    {"id": "iis", "label": "Microsoft IIS", "tas": ["IIS", "Microsoft IIS", "Splunk Add-on for Microsoft IIS"]},
-    {"id": "mssql", "label": "Microsoft SQL Server", "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver", "SQL Server"]},
-    {"id": "m365", "label": "Microsoft 365 / Entra ID", "tas": ["Splunk_TA_MS_O365", "MS_O365", "Office 365", "Entra", "M365", "microsoft-cloudservices"]},
-    {"id": "exchange", "label": "Microsoft Exchange", "tas": ["Splunk_TA_microsoft-exchange", "microsoft-exchange", "Exchange"]},
+    {"id": "syslog", "label": "Syslog (generic)", "tas": ["Splunk_TA_syslog", "Syslog", "syslog"]},
+
+    # ── Web Servers & Reverse Proxies ──────────────────────────────────────
     {
         "id": "apache",
         "label": "Apache HTTP Server",
@@ -150,66 +213,175 @@ EQUIPMENT = [
             {"id": "plus", "label": "NGINX Plus", "tas": ["NGINX Plus", "nginx plus"]},
         ],
     },
-    {"id": "okta", "label": "Okta", "tas": ["Splunk_TA_okta", "okta"]},
-    {"id": "servicenow", "label": "ServiceNow", "tas": ["Splunk_TA_snow", "snow", "ServiceNow"]},
-    {"id": "jenkins", "label": "Jenkins", "tas": ["Jenkins"]},
-    {"id": "kafka", "label": "Kafka", "tas": ["TA-kafka", "Kafka", "kafka"]},
+    {"id": "iis", "label": "Microsoft IIS", "tas": ["IIS", "Microsoft IIS", "Splunk Add-on for Microsoft IIS"]},
+    {"id": "haproxy", "label": "HAProxy", "tas": ["HAProxy", "haproxy"]},
+    {"id": "traefik", "label": "Traefik", "tas": ["Traefik", "traefik"]},
+
+    # ── Application Servers ────────────────────────────────────────────────
+    {"id": "tomcat", "label": "Apache Tomcat", "tas": ["Tomcat", "tomcat", "Catalina"]},
+    {"id": "jboss", "label": "WildFly / JBoss", "tas": ["WildFly", "JBoss", "wildfly", "jboss"]},
+    {"id": "phpfpm", "label": "PHP-FPM", "tas": ["PHP-FPM", "php-fpm"]},
+
+    # ── Caching & Proxy ────────────────────────────────────────────────────
+    {"id": "varnish", "label": "Varnish Cache", "tas": ["Varnish", "varnish"]},
+    {"id": "squid", "label": "Squid Proxy", "tas": ["Squid", "squid"]},
+    {"id": "memcached", "label": "Memcached", "tas": ["Memcached", "memcached"]},
+    {"id": "envoy", "label": "Envoy Proxy", "tas": ["Envoy", "envoy"]},
+
+    # ── Databases ──────────────────────────────────────────────────────────
     {
         "id": "db_connect",
-        "label": "Databases",
-        "tas": ["DB Connect", "Splunk_TA_oracle", "splunk_app_db_connect", "Oracle", "MySQL", "PostgreSQL"],
+        "label": "Splunk DB Connect",
+        "tas": ["DB Connect", "splunk_app_db_connect"],
+    },
+    {"id": "mssql", "label": "Microsoft SQL Server", "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver", "SQL Server"]},
+    {
+        "id": "oracle",
+        "label": "Oracle Database",
+        "tas": ["Splunk_TA_oracle", "Oracle"],
         "models": [
-            {"id": "dbconnect", "label": "Splunk DB Connect", "tas": ["DB Connect", "splunk_app_db_connect"]},
-            {"id": "oracle", "label": "Oracle", "tas": ["Splunk_TA_oracle", "Oracle", "oracle"]},
-            {"id": "mssql_ta", "label": "Microsoft SQL (TA)", "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver"]},
+            {"id": "oracle_db", "label": "Oracle Database", "tas": ["Oracle", "oracle", "tablespace"]},
         ],
     },
     {
+        "id": "postgresql",
+        "label": "PostgreSQL",
+        "tas": ["PostgreSQL", "postgresql", "PgBouncer", "pgbouncer"],
+        "models": [
+            {"id": "pg", "label": "PostgreSQL", "tas": ["PostgreSQL", "postgresql"]},
+            {"id": "pgbouncer", "label": "PgBouncer", "tas": ["PgBouncer", "pgbouncer"]},
+        ],
+    },
+    {"id": "mysql", "label": "MySQL / MariaDB", "tas": ["MySQL", "mysql", "MariaDB", "mariadb", "InnoDB"]},
+    {
+        "id": "mongodb",
+        "label": "MongoDB",
+        "tas": ["MongoDB", "mongodb", "mongosh"],
+        "models": [
+            {"id": "mongod", "label": "MongoDB Server", "tas": ["MongoDB", "mongodb", "mongosh"]},
+            {"id": "wiredtiger", "label": "WiredTiger", "tas": ["WiredTiger", "wiredtiger"]},
+        ],
+    },
+    {"id": "redis", "label": "Redis", "tas": ["Redis", "redis"]},
+    {
+        "id": "elasticsearch",
+        "label": "Elasticsearch / OpenSearch",
+        "tas": ["Elasticsearch", "elasticsearch", "ES REST API", "OpenSearch"],
+        "models": [
+            {"id": "es", "label": "Elasticsearch", "tas": ["Elasticsearch", "elasticsearch", "ES REST API"]},
+            {"id": "opensearch", "label": "OpenSearch", "tas": ["OpenSearch", "opensearch"]},
+        ],
+    },
+    {"id": "clickhouse", "label": "ClickHouse", "tas": ["ClickHouse", "clickhouse"]},
+    {"id": "cassandra", "label": "Apache Cassandra", "tas": ["Cassandra", "cassandra", "nodetool"]},
+    {"id": "snowflake", "label": "Snowflake", "tas": ["Snowflake", "snowflake"]},
+
+    # ── Message Queues & Streaming ─────────────────────────────────────────
+    {"id": "kafka", "label": "Apache Kafka", "tas": ["TA-kafka", "Kafka", "kafka", "Splunk Connect for Kafka"]},
+    {"id": "rabbitmq", "label": "RabbitMQ", "tas": ["RabbitMQ", "rabbitmq"]},
+    {"id": "activemq", "label": "Apache ActiveMQ", "tas": ["ActiveMQ", "activemq"]},
+    {"id": "zookeeper", "label": "Apache ZooKeeper", "tas": ["ZooKeeper", "zookeeper"]},
+
+    # ── HashiCorp ──────────────────────────────────────────────────────────
+    {
+        "id": "hashicorp",
+        "label": "HashiCorp",
+        "tas": ["Vault", "Consul", "Nomad", "HashiCorp", "Terraform"],
+        "models": [
+            {"id": "vault", "label": "HashiCorp Vault", "tas": ["Vault"]},
+            {"id": "consul", "label": "HashiCorp Consul", "tas": ["Consul"]},
+            {"id": "nomad", "label": "HashiCorp Nomad", "tas": ["Nomad"]},
+            {"id": "terraform", "label": "Terraform", "tas": ["Terraform", "terraform"]},
+        ],
+    },
+
+    # ── Storage ────────────────────────────────────────────────────────────
+    {"id": "netapp", "label": "NetApp", "tas": ["TA-netapp_ontap", "NetApp", "netapp", "ONTAP"]},
+    {"id": "pure_storage", "label": "Pure Storage", "tas": ["Pure Storage", "FlashArray", "FlashBlade"]},
+    {"id": "dell_emc", "label": "Dell EMC Storage", "tas": ["Dell EMC", "Isilon", "PowerStore", "Unity", "EqualLogic"]},
+    {"id": "truenas", "label": "TrueNAS / FreeNAS", "tas": ["TrueNAS", "truenas", "FreeNAS", "freenas"]},
+    {"id": "ceph", "label": "Ceph", "tas": ["Ceph", "ceph"]},
+
+    # ── Backup & Data Protection ───────────────────────────────────────────
+    {"id": "veeam", "label": "Veeam", "tas": ["Veeam", "veeam"]},
+    {"id": "commvault", "label": "Commvault", "tas": ["Commvault", "commvault"]},
+
+    # ── Identity & Access ──────────────────────────────────────────────────
+    {"id": "okta", "label": "Okta", "tas": ["Splunk_TA_okta", "okta"]},
+    {"id": "cyberark", "label": "CyberArk", "tas": ["Splunk_TA_cyberark", "CyberArk", "cyberark"]},
+    {"id": "beyondtrust", "label": "BeyondTrust", "tas": ["BeyondTrust", "beyondtrust"]},
+
+    # ── Microsoft Ecosystem ────────────────────────────────────────────────
+    {"id": "m365", "label": "Microsoft 365 / Entra ID", "tas": ["Splunk_TA_MS_O365", "MS_O365", "Office 365", "Entra", "M365", "microsoft-cloudservices"]},
+    {"id": "exchange", "label": "Microsoft Exchange", "tas": ["Splunk_TA_microsoft-exchange", "microsoft-exchange", "Exchange"]},
+    {"id": "sharepoint", "label": "Microsoft SharePoint", "tas": ["SharePoint", "sharepoint", "SPOSite"]},
+
+    # ── Security Platforms ─────────────────────────────────────────────────
+    {"id": "security_essentials", "label": "Splunk Security Essentials (ESCU)", "tas": ["Security Essentials", "ESCU"]},
+    {"id": "crowdstrike", "label": "CrowdStrike Falcon", "tas": ["CrowdStrike", "crowdstrike", "Falcon"]},
+    {"id": "defender", "label": "Microsoft Defender", "tas": ["Microsoft Defender", "Defender for"]},
+    {"id": "tenable", "label": "Tenable / Nessus", "tas": ["Tenable", "tenable", "Nessus"]},
+    {"id": "qualys", "label": "Qualys", "tas": ["Qualys", "qualys"]},
+    {"id": "proofpoint", "label": "Proofpoint", "tas": ["Proofpoint", "proofpoint", "TA-proofpoint"]},
+    {"id": "suricata", "label": "Suricata / Snort (IDS/IPS)", "tas": ["Suricata", "suricata", "TA-suricata", "Snort", "snort"]},
+    {"id": "zscaler", "label": "Zscaler", "tas": ["Zscaler", "zscaler"]},
+
+    # ── DevOps & CI/CD ─────────────────────────────────────────────────────
+    {"id": "jenkins", "label": "Jenkins", "tas": ["Jenkins", "jenkins"]},
+    {"id": "github", "label": "GitHub", "tas": ["GitHub", "github"]},
+    {"id": "gitlab", "label": "GitLab", "tas": ["GitLab", "gitlab"]},
+    {"id": "ansible", "label": "Ansible", "tas": ["Ansible", "ansible"]},
+    {"id": "controlm", "label": "Control-M", "tas": ["Control-M", "control-m"]},
+
+    # ── Monitoring & Observability ─────────────────────────────────────────
+    {"id": "itsi", "label": "Splunk ITSI", "tas": ["ITSI", "Splunk ITSI"]},
+    {"id": "stream", "label": "Splunk Stream", "tas": ["Splunk Stream", "Splunk App for Stream"]},
+    {"id": "opentelemetry", "label": "OpenTelemetry", "tas": ["OpenTelemetry", "OTel Collector", "Splunk_TA_otel", "otelcol"]},
+    {"id": "prometheus", "label": "Prometheus", "tas": ["Prometheus", "prometheus"]},
+    {"id": "grafana", "label": "Grafana", "tas": ["Grafana", "grafana"]},
+    {
+        "id": "log_pipeline",
+        "label": "Log Pipeline (Fluentd / Fluent Bit)",
+        "tas": ["Fluentd", "fluentd", "Fluent Bit", "fluent bit"],
+    },
+
+    # ── ITSM & Incident Management ─────────────────────────────────────────
+    {"id": "servicenow", "label": "ServiceNow", "tas": ["Splunk_TA_snow", "snow", "ServiceNow"]},
+    {"id": "jira", "label": "Atlassian Jira", "tas": ["Jira", "jira"]},
+    {"id": "pagerduty", "label": "PagerDuty / Opsgenie", "tas": ["PagerDuty", "pagerduty", "Opsgenie", "opsgenie"]},
+
+    # ── IoT & Operational Technology ───────────────────────────────────────
+    {"id": "edge_hub", "label": "Splunk Edge Hub", "tas": ["Splunk Edge Hub", "Edge Hub"]},
+    {"id": "modbus", "label": "Modbus (TCP/RTU)", "tas": ["Modbus", "modbus"]},
+    {"id": "opcua", "label": "OPC-UA", "tas": ["OPC-UA", "opc-ua", "OPC UA", "opcua"]},
+    {"id": "mqtt", "label": "MQTT", "tas": ["MQTT", "mqtt", "Mosquitto", "HiveMQ"]},
+    {"id": "aranet", "label": "Aranet Sensors", "tas": ["Aranet", "aranet"]},
+
+    # ── Telephony & UC ─────────────────────────────────────────────────────
+    {"id": "asterisk", "label": "Asterisk / FreePBX", "tas": ["Asterisk", "asterisk", "FreePBX", "freepbx", "AMI"]},
+
+    # ── Hardware / BMC ─────────────────────────────────────────────────────
+    {
         "id": "hardware_bmc",
         "label": "Hardware / BMC",
-        "tas": ["ipmitool", "iDRAC", "iLO", "smartctl", "storcli", "megacli", "BMC", "edac-util", "ssacli", "dmidecode"],
+        "tas": ["ipmitool", "iDRAC", "iLO", "smartctl", "storcli", "megacli", "BMC", "edac-util", "ssacli", "dmidecode", "perccli", "hpssacli"],
         "models": [
             {"id": "idrac", "label": "Dell iDRAC", "tas": ["iDRAC", "idrac"]},
             {"id": "ilo", "label": "HPE iLO", "tas": ["iLO", "ilo"]},
             {"id": "ipmi", "label": "IPMI (generic)", "tas": ["ipmitool", "IPMI", "ipmi"]},
             {"id": "smartctl", "label": "Disks (SMART / smartctl)", "tas": ["smartctl"]},
             {"id": "storcli", "label": "LSI MegaRAID (storcli)", "tas": ["storcli"]},
-            {"id": "megacli", "label": "LSI MegaRAID (megacli)", "tas": ["megacli"]},
-            {"id": "ssacli", "label": "HPE Smart Array (ssacli)", "tas": ["ssacli"]},
+            {"id": "megacli", "label": "LSI MegaRAID (megacli)", "tas": ["megacli", "MegaCli"]},
+            {"id": "perccli", "label": "Dell PERC (perccli)", "tas": ["perccli"]},
+            {"id": "ssacli", "label": "HPE Smart Array (ssacli)", "tas": ["ssacli", "hpssacli"]},
             {"id": "edac", "label": "Memory / EDAC (edac-util)", "tas": ["edac-util", "edac"]},
             {"id": "dmidecode", "label": "System info (dmidecode)", "tas": ["dmidecode"]},
         ],
     },
-    {"id": "security_essentials", "label": "Splunk Security Essentials (ESCU)", "tas": ["Security Essentials", "ESCU"]},
-    {
-        "id": "infoblox",
-        "label": "Infoblox",
-        "tas": ["Splunk_TA_infoblox", "Infoblox", "infoblox"],
-        "models": [
-            {"id": "dns", "label": "Infoblox DNS", "tas": ["Infoblox", "infoblox", "DNS"]},
-            {"id": "dhcp", "label": "Infoblox DHCP", "tas": ["Infoblox", "infoblox", "DHCP"]},
-        ],
-    },
-    {
-        "id": "netflow",
-        "label": "NetFlow",
-        "tas": ["NetFlow", "netflow"],
-        "models": [
-            {"id": "netflow", "label": "NetFlow", "tas": ["NetFlow", "netflow"]},
-            {"id": "sflow", "label": "sFlow", "tas": ["sFlow", "sflow"]},
-        ],
-    },
-    {
-        "id": "citrix",
-        "label": "Citrix",
-        "tas": ["Splunk_TA_citrix-netscaler", "citrix", "NetScaler"],
-        "models": [
-            {"id": "netscaler", "label": "Citrix NetScaler / ADC", "tas": ["Splunk_TA_citrix-netscaler", "citrix", "NetScaler", "netscaler"]},
-        ],
-    },
-    {"id": "cyberark", "label": "CyberArk", "tas": ["Splunk_TA_cyberark", "CyberArk", "cyberark"]},
-    {"id": "itsi", "label": "Splunk ITSI", "tas": ["ITSI", "Splunk ITSI"]},
-    {"id": "stream", "label": "Splunk Stream", "tas": ["Splunk Stream", "Splunk App for Stream"]},
+
+    # ── Data Center Physical ───────────────────────────────────────────────
+    {"id": "apc", "label": "APC / Schneider Electric", "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"]},
+    {"id": "cctv", "label": "CCTV / IP Cameras", "tas": ["NVR", "ONVIF", "Hikvision", "CCTV"]},
 ]
 
 # Link to the common implementation guide (apps, inputs.conf, Splunk directory)

@@ -461,6 +461,47 @@ N/A — Glass Tables are configured via ITSI UI, not SPL
 
 ---
 
+### UC-13.2.9 · Elasticsearch Ingest Pipeline Errors
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Log pipeline processing failures causing data loss or corruption.
+- **App/TA:** Custom (ES REST API)
+- **Data Sources:** Elasticsearch _nodes/stats/ingest, pipeline error counts
+- **SPL:**
+```spl
+index=elasticsearch sourcetype="elasticsearch:ingest"
+| where pipeline_failures > 0 OR pipeline_current > 100
+| stats sum(pipeline_failures) as total_failures, sum(pipeline_current) as current_in_flight by node_name, pipeline_id
+| sort -total_failures
+```
+- **Implementation:** Poll Elasticsearch `GET _nodes/stats/ingest` via scripted input or scheduled REST call. Parse `ingest.total.pipeline_failures`, `ingest.total.pipeline_current`, and per-pipeline stats. Ingest as events with node, pipeline ID, and counters. Alert when pipeline_failures increases or when pipeline_current exceeds threshold (backlog). Correlate with index rate and cluster health. Investigate pipeline processor errors (script failures, date parse errors, field mapping conflicts).
+- **Visualization:** Table (pipelines with failures), Line chart (pipeline failures over time), Bar chart (failures by pipeline), Single value (total pipeline failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.10 · Fluentd / Fluent Bit Buffer Overflow
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Log forwarding buffer full, data at risk of being dropped.
+- **App/TA:** Custom (Fluentd monitoring agent, Fluent Bit metrics)
+- **Data Sources:** Fluentd /api/plugins.json, Fluent Bit /api/v1/metrics
+- **SPL:**
+```spl
+index=fluent sourcetype IN ("fluentd:plugins", "fluentbit:metrics")
+| eval buffer_usage_pct=if(isnum(buffer_queue_length) AND buffer_total_limit>0, round(buffer_queue_length/buffer_total_limit*100,1), null())
+| where buffer_queue_length > 0 AND (buffer_usage_pct > 80 OR buffer_total_limit - buffer_queue_length < 1000)
+| stats latest(buffer_queue_length) as queue_depth, latest(buffer_total_limit) as limit, latest(buffer_usage_pct) as pct by host, plugin_id, output_plugin
+| sort -pct
+```
+- **Implementation:** For Fluentd, enable monitoring agent and poll `/api/plugins.json` (or use `in_monitor_agent`). For Fluent Bit, enable HTTP server and poll `/api/v1/metrics`. Ingest buffer_queue_length, buffer_total_limit, retry_count, and emit_count. Alert when buffer usage exceeds 80% or when retries spike. Correlate with downstream (Elasticsearch, Splunk) ingestion latency. Tune buffer size, flush interval, or add more workers.
+- **Visualization:** Table (plugins with high buffer usage), Gauge (buffer fill % per output), Line chart (buffer depth over time), Bar chart (retries by plugin).
+- **CIM Models:** N/A
+
+---
+
 ### 13.3 Third-Party Monitoring Integration
 
 **Primary App/TA:** Custom webhook/API inputs, Prometheus remote write receiver, SNMP trap receiver.
@@ -659,6 +700,88 @@ index=synthetic sourcetype="synthetic:check"
 ```
 - **Implementation:** Ingest synthetic check results from Datadog, Pingdom, or custom scripts. Alert on failure or latency above threshold. Compare success rate and latency by region. Report on SLA by check and location.
 - **Visualization:** Table (failed checks by location), Geo map (failure by region), Line chart (latency by location).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.11 · Prometheus Target Scrape Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Targets down or unreachable; gaps in metrics collection.
+- **App/TA:** Custom (Prometheus /api/v1/targets)
+- **Data Sources:** Prometheus targets API, up metric
+- **SPL:**
+```spl
+index=prometheus sourcetype="prometheus:targets" health="down"
+| stats latest(_time) as last_check, values(job) as job, values(instance) as instance by scrapeUrl
+| eval down_since=round((now()-last_check)/60,0)
+| table scrapeUrl, job, instance, down_since
+| sort -down_since
+```
+- **Implementation:** Poll Prometheus `/api/v1/targets` via scripted input or HTTP Event Collector. Parse JSON response and index target health (up/down), last scrape time, and last error. Alternatively, ingest `up` metric (value 0 = down) from Prometheus remote write. Alert when any target has been down >5 minutes. Track scrape duration and failure reasons (connection refused, timeout, DNS) for root cause analysis.
+- **Visualization:** Table (down targets with duration), Status grid (job × instance health), Single value (targets down count), Line chart (scrape failure rate over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.12 · Prometheus TSDB Compaction Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Storage engine issues impacting metric retention.
+- **App/TA:** Custom (Prometheus /api/v1/status/tsdb, prometheus logs)
+- **Data Sources:** Prometheus TSDB stats, server logs
+- **SPL:**
+```spl
+index=prometheus (sourcetype="prometheus:tsdb" OR sourcetype="prometheus:log")
+| search "compaction" AND ("failed" OR "error" OR "panic")
+| stats count, latest(_time) as last_occurrence by host, message
+| eval last_occurrence_human=strftime(last_occurrence,"%Y-%m-%d %H:%M:%S")
+| table host, message, count, last_occurrence_human
+| sort -count
+```
+- **Implementation:** Poll Prometheus `/api/v1/status/tsdb` for head stats, block count, and retention info. Ingest Prometheus server logs (stderr) for compaction-related errors. Parse TSDB head chunk count and series count for anomaly detection. Alert on compaction failure messages or when head series count grows abnormally (potential compaction backlog). Correlate with disk I/O and storage capacity metrics.
+- **Visualization:** Table (compaction errors by host), Single value (TSDB health status), Line chart (head series count trend), Bar chart (block count by retention).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.13 · Grafana Datasource Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Datasource connectivity and query errors; broken dashboards.
+- **App/TA:** Custom (Grafana API)
+- **Data Sources:** Grafana /api/datasources/proxy/:id, health check endpoint
+- **SPL:**
+```spl
+index=grafana sourcetype="grafana:datasource"
+| where status!="success" OR response_time_ms > 3000
+| stats count, avg(response_time_ms) as avg_ms, values(error_message) as errors by datasource_name, datasource_type, host
+| sort -count
+```
+- **Implementation:** Use scripted input or scheduled search to call Grafana `/api/datasources` and `/api/datasources/proxy/:id/health` (or datasource-specific health endpoints). Ingest response status, latency, and error messages. Alternatively, parse Grafana server logs for datasource query errors. Alert when any datasource fails health check or when error rate exceeds threshold. Track which dashboards use each datasource for impact assessment.
+- **Visualization:** Table (unhealthy datasources with errors), Status grid (datasource × status), Single value (healthy datasource count), Line chart (datasource latency trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.14 · OpenTelemetry Collector Dropped Spans and Metrics
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Collector queue pressure causing data loss.
+- **App/TA:** Custom (OTel Collector metrics)
+- **Data Sources:** OTel Collector internal metrics (otelcol_exporter_send_failed_spans, otelcol_processor_dropped_metric_points)
+- **SPL:**
+```spl
+| mstats avg(_value) WHERE index=otel_collector metric_name IN ("otelcol_exporter_send_failed_spans", "otelcol_processor_dropped_metric_points", "otelcol_exporter_send_failed_metric_points") BY metric_name, exporter, processor span=5m
+| where _value > 0
+| timechart span=5m sum(_value) as dropped by metric_name
+```
+- **Implementation:** Scrape OpenTelemetry Collector's internal metrics endpoint (default :8888/metrics) via Prometheus or OTLP. Ingest `otelcol_exporter_send_failed_spans`, `otelcol_processor_dropped_metric_points`, `otelcol_exporter_send_failed_metric_points`, and `otelcol_processor_dropped_spans`. Alert when any dropped/failed count >0 for critical pipelines. Correlate with `otelcol_receiver_accepted_spans` and queue depth metrics to identify backpressure. Tune batch size, retries, or add more collector replicas.
+- **Visualization:** Line chart (dropped spans/metrics over time), Table (dropped by exporter/processor), Single value (total dropped in last hour), Bar chart (dropped by pipeline).
 - **CIM Models:** N/A
 
 ---

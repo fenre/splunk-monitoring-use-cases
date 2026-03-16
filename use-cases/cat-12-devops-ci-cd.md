@@ -117,6 +117,46 @@ index=devops sourcetype="github:webhook" event="push" forced="true"
 
 ---
 
+### UC-12.1.7 · GitHub Actions Workflow Run Time Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Workflow duration growth over time indicates growing tech debt, resource constraints, or inefficient pipeline design. Early detection enables optimization before velocity degrades.
+- **App/TA:** Custom (GitHub API)
+- **Data Sources:** GitHub /repos/:owner/:repo/actions/runs
+- **SPL:**
+```spl
+index=devops sourcetype="github:actions_run"
+| eval duration_min=round((updated_at_epoch-run_started_at_epoch)/60,1)
+| timechart span=1d avg(duration_min) as avg_duration, median(duration_min) as median_duration by workflow_name
+| where avg_duration > 0
+```
+- **Implementation:** Poll GitHub Actions API for workflow runs. Ingest run metadata (workflow_name, status, run_started_at, updated_at) to Splunk HEC. Calculate duration per run. Track 7-day and 30-day rolling averages. Alert when avg duration increases >20% week-over-week. Correlate with runner capacity and job concurrency.
+- **Visualization:** Line chart (workflow duration trend by workflow), Bar chart (avg duration by workflow), Table (slowest workflows this week), Single value (p95 duration).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.8 · GitHub Actions Billing Usage
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Cost
+- **Value:** Approaching included minutes quota risks unexpected overages or workflow throttling. Proactive monitoring prevents billing surprises and supports capacity planning.
+- **App/TA:** Custom (GitHub API)
+- **Data Sources:** GitHub /orgs/:org/settings/billing/actions
+- **SPL:**
+```spl
+index=devops sourcetype="github:actions_billing"
+| eval pct_used=round(total_minutes_used/total_minutes_included*100,1)
+| where pct_used > 70
+| table _time, org, total_minutes_used, total_minutes_included, pct_used, total_paid_minutes_used
+```
+- **Implementation:** Poll GitHub billing API (requires org admin scope). Ingest minutes used vs. included per billing cycle. Alert at 70%, 85%, and 95% of included minutes. Track paid minutes consumption. Report on usage by repository and workflow for optimization.
+- **Visualization:** Gauge (% of included minutes used), Single value (minutes remaining), Line chart (usage trend over billing cycle), Table (top consuming repos).
+- **CIM Models:** N/A
+
+---
+
 ### 12.2 CI/CD Pipelines
 
 **Primary App/TA:** Jenkins TA (`TA-jenkins`), custom webhook receivers for GitHub Actions/GitLab CI/ArgoCD.
@@ -276,6 +316,106 @@ index=cicd sourcetype="security_scan"
 
 ---
 
+### UC-12.2.9 · Jenkins Executor Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Busy executors as % of total and queue wait time indicate CI capacity. High utilization with long queue times signals need for additional agents or executor scaling.
+- **App/TA:** Custom (Jenkins API, Prometheus metrics endpoint)
+- **Data Sources:** Jenkins /metrics, /api/json?tree=computer[displayName,busyExecutors,totalExecutors]
+- **SPL:**
+```spl
+index=cicd sourcetype="jenkins:metrics"
+| eval utilization_pct=round(busy_executors/total_executors*100,1)
+| timechart span=15m avg(utilization_pct) as avg_util, avg(queue_wait_sec) as avg_wait by computer
+| where avg_util > 80 OR avg_wait > 300
+```
+- **Implementation:** Poll Jenkins /metrics (Prometheus format) or /computer/api/json for executor counts. Ingest busyExecutors, totalExecutors, and queue wait time. Calculate utilization per node. Alert when utilization >85% sustained for 15 min or queue wait >5 min. Correlate with build duration to right-size capacity.
+- **Visualization:** Gauge (current utilization %), Line chart (utilization and queue wait trend), Bar chart (utilization by node), Single value (avg queue wait sec).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.10 · Jenkins Node Offline Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Build agents going offline impacts CI capacity and causes job failures. Rapid detection enables agent recovery or failover before queue backlog grows.
+- **App/TA:** Custom (Jenkins API)
+- **Data Sources:** Jenkins /computer/api/json
+- **SPL:**
+```spl
+index=cicd sourcetype="jenkins:computer"
+| where offline="true" OR offline=true
+| table _time, displayName, offline, temporarilyOffline, numExecutors, idleExecutors
+| sort -_time
+```
+- **Implementation:** Poll Jenkins /computer/api/json periodically (e.g., every 5 min). Ingest offline, temporarilyOffline, displayName per node. Alert immediately when any node goes offline. Exclude master if desired. Track offline duration and recurrence for capacity planning.
+- **Visualization:** Table (offline nodes), Single value (offline node count — target: 0), Status grid (node × online/offline), Timeline (offline events).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.11 · GitLab CI Runner Availability
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Runner registration status and job queue time affect CI throughput. Offline or paused runners cause jobs to wait or fail; monitoring ensures runner fleet health.
+- **App/TA:** Custom (GitLab API)
+- **Data Sources:** GitLab /api/v4/runners, runner logs
+- **SPL:**
+```spl
+index=cicd sourcetype="gitlab:runners"
+| where active="false" OR paused="true" OR (status!="online" AND status!="idle")
+| table _time, runner_id, description, active, paused, status, contacted_at
+| sort -_time
+```
+- **Implementation:** Poll GitLab /api/v4/runners for runner list and status. Ingest active, paused, contacted_at. Optionally parse runner logs for connectivity errors. Alert when runner goes inactive or paused. Track job queue time from pipeline events. Report on runner utilization and availability SLA.
+- **Visualization:** Table (inactive/paused runners), Single value (available runners), Status grid (runner × status), Line chart (job queue time trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.12 · GitLab Pipeline Duration Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Pipeline getting slower over time indicates growing tech debt or resource constraints. Trending enables proactive optimization before developer velocity degrades.
+- **App/TA:** Custom (GitLab API)
+- **Data Sources:** GitLab /api/v4/projects/:id/pipelines
+- **SPL:**
+```spl
+index=cicd sourcetype="gitlab:pipeline"
+| eval duration_sec=coalesce(duration, 0)
+| timechart span=1d avg(duration_sec) as avg_duration, percentile(duration_sec, 95) as p95_duration by ref
+| where avg_duration > 0
+```
+- **Implementation:** Poll GitLab pipelines API per project. Ingest id, ref, status, duration, created_at. Calculate duration for completed pipelines. Track 7-day rolling average. Alert when avg duration increases >25% week-over-week. Correlate with runner capacity and stage-level timings.
+- **Visualization:** Line chart (pipeline duration trend by branch), Bar chart (avg duration by project), Table (slowest pipelines this week), Single value (p95 duration).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.13 · Control-M Job Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Batch job success/failure and SLA compliance are critical for data pipelines and scheduled workloads. Failed or late jobs can cascade to downstream systems and reporting.
+- **App/TA:** Custom (Control-M Automation API)
+- **Data Sources:** Control-M /run/jobs/status, job history
+- **SPL:**
+```spl
+index=cicd sourcetype="controlm:job"
+| where status="Failed" OR status="Ended Not OK" OR (sla_met="false" AND status="Ended OK")
+| table _time, job_id, job_name, folder, status, order_date, run_as, end_time, sla_met
+| sort -_time
+```
+- **Implementation:** Poll Control-M Automation API for job status and history. Ingest job_id, job_name, status, order_date, end_time, sla_met. Alert on Failed or Ended Not OK. Alert on SLA violations. Track success rate by folder and job. Report on batch job health and SLA compliance percentage.
+- **Visualization:** Table (failed/late jobs), Single value (success rate %), Timeline (job outcomes), Bar chart (failures by folder).
+- **CIM Models:** N/A
+
+---
+
 ### 12.3 Artifact & Package Management
 
 **Primary App/TA:** Custom API inputs (Artifactory, Nexus), webhook receivers.
@@ -358,6 +498,27 @@ index=devops sourcetype="sca:license"
 ```
 - **Implementation:** Ingest SCA license scan results. Track license types across all projects. Alert on copyleft licenses in commercial products. Report on license distribution for legal review. Block deployments with policy violations.
 - **Visualization:** Table (license risks), Pie chart (license distribution), Bar chart (risks by project).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.5 · Terraform State Drift Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Planned vs. applied resource count and drift between declared and actual infrastructure indicate manual changes or state corruption. Detection ensures IaC remains source of truth and supports compliance audits.
+- **App/TA:** Custom (terraform plan output)
+- **Data Sources:** terraform plan JSON output (-json flag)
+- **SPL:**
+```spl
+index=iac sourcetype="terraform:plan_json"
+| eval add_count=coalesce(resource_changes_add, 0), change_count=coalesce(resource_changes_change, 0), destroy_count=coalesce(resource_changes_destroy, 0)
+| where add_count > 0 OR change_count > 0 OR destroy_count > 0
+| table _time, workspace, plan_mode, add_count, change_count, destroy_count, resource_changes
+| sort -_time
+```
+- **Implementation:** Run `terraform plan -json` in CI or on schedule. Parse JSON output for resource_changes (add, change, destroy). Ingest to Splunk via HEC. Alert on any unexpected changes (drift) in detect-only runs. Track planned vs. applied resource counts per workspace. Correlate drift events with cloud provider change logs. Enforce drift remediation SLA and report on compliance.
+- **Visualization:** Table (drift events with resource details), Single value (workspaces with drift), Bar chart (add/change/destroy by workspace), Timeline (drift detection events).
 - **CIM Models:** N/A
 
 ---
@@ -562,6 +723,26 @@ index=k8s sourcetype="kube:deployment"
 ```
 - **Implementation:** Ingest deployment and canary outcome events. Alert on any rollback or canary failure. Correlate with change and error metrics. Report on rollback rate by service and time.
 - **Visualization:** Table (rollback events), Single value (rollbacks this week), Line chart (canary success rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.11 · ArgoCD Application Sync Status
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Fault
+- **Value:** Out-of-sync or degraded applications in ArgoCD indicate GitOps drift or deployment failures. Detection ensures desired state matches cluster state and enables rapid remediation.
+- **App/TA:** Custom (ArgoCD API)
+- **Data Sources:** ArgoCD /api/v1/applications
+- **SPL:**
+```spl
+index=devops sourcetype="argocd:application"
+| where sync_status!="Synced" OR health_status!="Healthy" OR health_status="Degraded"
+| table _time, name, namespace, sync_status, health_status, revision, message
+| sort -_time
+```
+- **Implementation:** Poll ArgoCD API /api/v1/applications for application list. Ingest sync.status, health.status, revision, message. Alert when sync_status is OutOfSync or health_status is Degraded/Progressing for >5 min. Track sync and health history. Correlate with Git commits and cluster events. Report on application sync health and remediation time.
+- **Visualization:** Table (out-of-sync/degraded apps), Single value (synced apps %), Status grid (app × sync/health), Timeline (sync status changes).
 - **CIM Models:** N/A
 
 ---

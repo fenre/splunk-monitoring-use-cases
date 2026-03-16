@@ -185,6 +185,34 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Pie chart (cost by transfer type), Bar chart (top services by transfer cost), Timechart (transfer cost trending), Table (detailed transfer breakdown).
 - **CIM Models:** N/A
 
+### UC-20.1.9 · Predictive Disk / Volume Exhaustion
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** Time-to-full forecast using linear regression on disk usage data enables proactive capacity planning. Running out of disk space causes application outages, failed backups, and data loss. Predicting exhaustion dates allows teams to provision storage or archive data before hitting critical thresholds.
+- **App/TA:** `Splunk_TA_nix`, `Splunk_TA_windows`, SNMP-based storage inputs
+- **Data Sources:** df/disk usage data (any sourcetype with UsePct and filesystem), Windows Perfmon logical disk, SNMP storage MIBs
+- **SPL:**
+```spl
+index=infrastructure (sourcetype="df" OR sourcetype="disk" OR sourcetype="Perfmon:LogicalDisk")
+| eval UsePct=coalesce(UsePct, pctUsed, 'Percent_Used')
+| eval filesystem=coalesce(filesystem, mount, instance)
+| where isnotnull(UsePct) AND isnotnull(filesystem)
+| bin _time span=1d
+| stats latest(UsePct) as used_pct by filesystem, host, _time
+| timechart span=1d latest(used_pct) as used_pct by filesystem, host
+| predict used_pct as predicted_pct algorithm=LLP5 future_timespan=90
+| eval risk_30d=if('predicted_pct+30d'>85, "At Risk", "OK")
+| eval risk_90d=if('predicted_pct+90d'>95, "Critical", "OK")
+| where risk_30d="At Risk" OR risk_90d="Critical"
+| table _time, filesystem, host, used_pct, 'predicted_pct+30d', 'predicted_pct+90d', risk_30d, risk_90d
+```
+- **Implementation:** Collect disk usage metrics daily from all hosts (df, Perfmon, SNMP). Ensure UsePct and filesystem/mount are extracted. Use Splunk `predict` with LLP5 for 30/60/90-day forecasting. Alert when projected usage exceeds 85% within 30 days or 95% within 90 days. Exclude ephemeral or tmpfs mounts from alerts. Build a dashboard with forecast overlay and drilldown to host/filesystem.
+- **Visualization:** Timechart (usage with forecast overlay), Table (volumes approaching exhaustion with risk status), Gauge (current utilization), Single value (volumes at risk).
+- **CIM Models:** N/A
+
+---
+
 ### 20.2 Capacity Planning
 
 **Splunk Add-on:** Cross-referencing infrastructure metrics with trending/forecasting
@@ -459,6 +487,87 @@ index=cloud_cost sourcetype="cost:forecast"
 
 ---
 
+### UC-20.2.14 · License Utilization Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Compliance
+- **Value:** Software license consumption vs. purchased (VMware, Oracle, Microsoft, etc.) visibility prevents compliance violations and identifies over-licensed waste. Tracking concurrent usage against entitlements supports true-up planning and right-sizing at renewal.
+- **App/TA:** Custom (license server API, CMDB integration)
+- **Data Sources:** License server data (concurrent_in_use, total_licensed), CMDB software inventory
+- **SPL:**
+```spl
+index=licenses (sourcetype="license:server" OR sourcetype="license:usage")
+| eval concurrent_in_use=coalesce(concurrent_in_use, in_use, used_count)
+| eval total_licensed=coalesce(total_licensed, total_entitled, license_count)
+| stats latest(concurrent_in_use) as used, latest(total_licensed) as total by product, vendor, license_server, _time span=1d
+| eval utilization_pct=round((used/total)*100, 1)
+| eval status=case(utilization_pct>=95, "At Risk", utilization_pct>=80, "High", utilization_pct<40, "Over-licensed", 1==1, "Healthy")
+| lookup cmdb_software_inventory product OUTPUT cost_per_seat, cost_center
+| eval waste_monthly=if(utilization_pct<40, (total-used)*cost_per_seat, 0)
+| sort -utilization_pct
+| table product, vendor, used, total, utilization_pct, status, waste_monthly
+```
+- **Implementation:** Ingest license server data via API or log collection (FlexLM, RLM, VMware vCenter, Oracle LMS, Microsoft VLSC). Map CMDB software inventory for entitlement and cost. Track daily peak concurrent usage. Alert at 90% consumption (compliance risk) and flag <40% utilization (over-licensed). Generate quarterly true-up reports for VMware, Oracle, Microsoft, and other enterprise software.
+- **Visualization:** Gauge (overall license utilization), Table (license inventory with status), Bar chart (utilization by product), Timechart (usage trending).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.15 · Power Consumption Cost Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** kWh to cost mapping for data center charge-back enables accurate cost allocation and energy efficiency tracking. Understanding power consumption trends supports capacity planning and identifies cost reduction opportunities.
+- **App/TA:** Custom (PDU SNMP, BMS integration, utility billing)
+- **Data Sources:** PDU power readings (kWh), utility rate lookup
+- **SPL:**
+```spl
+index=infrastructure (sourcetype="snmp:pdu" OR sourcetype="pdu:power")
+| eval kwh=coalesce(kwh, energy_kwh, power_kwh)
+| where isnotnull(kwh)
+| bin _time span=1d
+| stats sum(kwh) as daily_kwh by pdu_id, rack, zone, _time
+| lookup utility_rate_lookup zone OUTPUT rate_per_kwh
+| eval daily_cost=round(daily_kwh*rate_per_kwh, 2)
+| timechart span=1d sum(daily_kwh) as total_kwh, sum(daily_cost) as total_cost by zone
+| eval cost_per_kwh=if(total_kwh>0, round(total_cost/total_kwh, 4), 0)
+```
+- **Implementation:** Collect PDU power readings via SNMP (e.g., OID 1.3.6.1.4.1.2.6.223.8.2.2.1.2 for energy) or BMS integration. Maintain utility rate lookup by zone/tier. Aggregate kWh daily per rack, zone, or cost center. Map kWh to cost for charge-back reports. Alert on anomalous power spikes. Build dashboards for energy cost trending and charge-back allocation.
+- **Visualization:** Timechart (kWh and cost trending), Table (cost by rack/zone), Bar chart (top consumers by cost), Single value (monthly power cost).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.16 · Cloud Committed-Use Discount Coverage
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost
+- **Value:** Reserved instance and savings plan coverage percentage monitoring ensures committed-use discounts are utilized. Unused commitments waste money; gaps in coverage mean paying on-demand rates. Optimizing coverage typically saves 30–50% vs on-demand.
+- **App/TA:** `Splunk Add-on for AWS`, `Splunk Add-on for Microsoft Cloud Services`, `Splunk Add-on for Google Cloud Platform`
+- **Data Sources:** AWS CUR (reservation utilization), Azure Advisor reservation recommendations, GCP commitment usage
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur"
+| eval cost=tonumber(lineItem_UnblendedCost)
+| eval is_reserved=if(isnotnull(reservation_ReservationARN) AND reservation_ReservationARN!="", 1, 0)
+| eval is_on_demand=if(lineItem_UsageType LIKE "%BoxUsage%" AND is_reserved=0, 1, 0)
+| bin _time span=1d
+| stats sum(eval(if(is_reserved=1, cost, 0))) as ri_cost, sum(eval(if(is_on_demand=1, cost, 0))) as on_demand_cost, sum(cost) as total_cost by lineItem_UsageAccountId, _time
+| eval coverage_pct=round((ri_cost/total_cost)*100, 1)
+| eval uncovered_cost=on_demand_cost
+| where total_cost > 0
+| stats avg(coverage_pct) as avg_coverage, sum(uncovered_cost) as uncovered by lineItem_UsageAccountId
+| eval status=case(avg_coverage<70, "Low Coverage", uncovered>1000, "High Uncovered Cost", 1==1, "OK")
+| where status!="OK"
+| sort -uncovered
+| table lineItem_UsageAccountId, avg_coverage, uncovered, status
+```
+- **Implementation:** Ingest AWS CUR with reservation fields, Azure Cost Management reservation utilization, and GCP commitment usage. Calculate coverage as (RI/savings plan cost) / (total compute cost). Alert when coverage drops below 70% or uncovered on-demand spend exceeds threshold. Report on unused commitment hours and recommend size changes. Correlate with Azure Advisor and AWS Cost Explorer recommendations for optimization.
+- **Visualization:** Gauge (coverage percentage), Timechart (coverage trend with forecast), Table (accounts with low coverage), Bar chart (uncovered cost by account).
+- **CIM Models:** N/A
+
+---
+
 ## Summary Statistics
 
 | Category | Subcategories | Use Cases |
@@ -482,8 +591,8 @@ index=cloud_cost sourcetype="cost:forecast"
 | 17. Network Security & Zero Trust | 3 | 22 |
 | 18. Data Center Fabric & SDN | 3 | 15 |
 | 19. Compute Infrastructure (HCI) | 2 | 13 |
-| 20. Cost & Capacity Management | 2 | 16 |
-| **TOTAL** | **72** | **1001** |
+| 20. Cost & Capacity Management | 2 | 20 |
+| **TOTAL** | **72** | **1005** |
 
 ---
 

@@ -510,6 +510,48 @@ index=database sourcetype="elasticsearch:cluster_health"
 
 ---
 
+### UC-7.2.11 · MongoDB Oplog Window
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Availability
+- **Value:** Oplog window shrinking indicates replication at risk of falling behind. Exhausted oplog causes replica set members to resync from scratch (full resync), causing extended downtime.
+- **App/TA:** Custom scripted input (mongosh)
+- **Data Sources:** `rs.printReplicationInfo()`, `db.getReplicationInfo()`
+- **SPL:**
+```spl
+index=database sourcetype="mongodb:replication_info"
+| eval window_hours=round(timeDiff/3600, 1)
+| where window_hours < 24
+| timechart span=1h latest(window_hours) as oplog_window_hours by host
+| where oplog_window_hours < 12
+```
+- **Implementation:** Run scripted input polling `rs.printReplicationInfo()` or `db.getReplicationInfo()` every 15–30 minutes via mongosh. Parse `timeDiff` (oplog window in seconds). Alert when window drops below 24 hours (warning) or 12 hours (critical). Correlate with write throughput and replication lag. Recommend oplog size increase when window consistently shrinks.
+- **Visualization:** Line chart (oplog window hours over time), Single value (current window hours), Table (hosts with shrinking oplog).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.12 · MongoDB WiredTiger Cache Pressure
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Cache dirty/used ratio approaching eviction thresholds causes increased disk I/O and degraded query performance. Early detection enables cache sizing or workload tuning.
+- **App/TA:** Custom scripted input (mongosh serverStatus)
+- **Data Sources:** `db.serverStatus().wiredTiger.cache`
+- **SPL:**
+```spl
+index=database sourcetype="mongodb:server_status"
+| eval dirty_pct=round(bytes_dirty/bytes_currently_in_the_cache*100, 1)
+| eval used_pct=round(bytes_currently_in_the_cache/cache_maximum_bytes_configured*100, 1)
+| where dirty_pct > 20 OR used_pct > 90
+| timechart span=5m avg(dirty_pct) as dirty_pct, avg(used_pct) as used_pct by host
+```
+- **Implementation:** Poll `db.serverStatus()` via mongosh every 5 minutes. Extract `wiredTiger.cache`; map MongoDB fields ("bytes dirty in the cache", "bytes currently in the cache", "maximum bytes configured") to bytes_dirty, bytes_currently_in_the_cache, cache_maximum_bytes_configured in the scripted input output. Compute dirty and used percentages. Alert when dirty_pct >20% (eviction pressure) or used_pct >90%. Track eviction count and evicted pages. Correlate with workload spikes.
+- **Visualization:** Line chart (dirty % and used % over time), Gauge (cache pressure), Table (hosts with high cache pressure).
+- **CIM Models:** N/A
+
+---
+
 ### 7.3 Cloud-Managed Databases
 
 **Primary App/TA:** Cloud provider TAs — `Splunk_TA_aws` (CloudWatch, RDS logs), `Splunk_TA_microsoft-cloudservices` (Azure Monitor), GCP TA.
@@ -609,6 +651,47 @@ index=aws sourcetype="aws:cloudwatch:events"
 ```
 - **Implementation:** Subscribe to RDS maintenance events via SNS. Ingest into Splunk. Create calendar view of upcoming maintenance. Alert 72 hours before scheduled maintenance. Log actual impact duration after completion.
 - **Visualization:** Table (upcoming/recent maintenance), Calendar view, Timeline (maintenance history).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.6 · Redis Memory Fragmentation Ratio
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Fragmentation ratio > 1.5 indicating memory inefficiency. High fragmentation wastes RAM and can trigger OOM or evictions under memory pressure.
+- **App/TA:** Custom scripted input (redis-cli INFO memory)
+- **Data Sources:** redis-cli INFO memory (mem_fragmentation_ratio)
+- **SPL:**
+```spl
+index=database sourcetype="redis:info"
+| where mem_fragmentation_ratio > 1.5
+| timechart span=15m avg(mem_fragmentation_ratio) as frag_ratio by host
+| where frag_ratio > 1.5
+```
+- **Implementation:** Create scripted input running `redis-cli INFO memory` every 15 minutes. Parse `mem_fragmentation_ratio` (used_memory_rss/used_memory). Alert when ratio exceeds 1.5. Track `used_memory_rss` and `used_memory` for trend analysis. Consider `MEMORY PURGE` (Redis 4+) or restart for severe fragmentation. Correlate with eviction rate.
+- **Visualization:** Line chart (fragmentation ratio over time), Gauge (current ratio), Table (hosts with high fragmentation).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.7 · Redis Keyspace Hit / Miss Ratio
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cache effectiveness trending. Low hit ratio indicates cache is not serving requests effectively, increasing load on backing stores.
+- **App/TA:** Custom scripted input (redis-cli INFO stats)
+- **Data Sources:** redis-cli INFO stats (keyspace_hits, keyspace_misses)
+- **SPL:**
+```spl
+index=database sourcetype="redis:info"
+| eval total_ops=keyspace_hits+keyspace_misses
+| eval hit_ratio_pct=round(100*keyspace_hits/nullif(total_ops,0), 2)
+| where hit_ratio_pct < 90
+| timechart span=15m avg(hit_ratio_pct) as hit_ratio_pct by host
+```
+- **Implementation:** Poll `redis-cli INFO stats` every 15 minutes. Extract `keyspace_hits` and `keyspace_misses`. Compute hit_ratio = hits/(hits+misses)*100. Alert when hit ratio drops below 90% for sustained periods. Track trend to identify cache warming after restarts or workload shifts. Correlate with eviction rate and memory usage.
+- **Visualization:** Gauge (keyspace hit ratio %), Line chart (hit ratio over time), Table (hosts with low hit ratio).
 - **CIM Models:** N/A
 
 ---
@@ -715,6 +798,66 @@ index=datawarehouse sourcetype="snowflake:warehouse_load"
 ```
 - **Implementation:** Poll warehouse utilization metrics every 15 minutes. Track running vs queued queries. Alert when queuing occurs consistently (indicates undersized warehouse). Identify idle warehouses for auto-suspend policy adjustment.
 - **Visualization:** Line chart (running vs queued queries), Heatmap (warehouse × hour utilization), Table (underutilized warehouses), Bar chart (utilization by warehouse).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.6 · Elasticsearch Cluster Health and Shard Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Red/yellow cluster, unassigned shards, and JVM pressure indicate data availability risk. Early detection prevents data loss and service degradation.
+- **App/TA:** Custom scripted input (ES REST API)
+- **Data Sources:** `_cluster/health`, `_cluster/stats`, `_cat/shards`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:cluster_health"
+| eval status_num=case(status="green",0, status="yellow",1, status="red",2)
+| where status_num > 0 OR unassigned_shards > 0
+| timechart span=5m latest(status_num) as health, latest(unassigned_shards) as unassigned, latest(active_primary_shards) as primary by cluster_name
+```
+- **Implementation:** Poll `GET _cluster/health?level=shards` and `GET _cat/shards?v&h=index,shard,prirep,state,node` every 1–2 minutes via REST API scripted input. Parse status (green/yellow/red), unassigned_shards, active_primary_shards. Poll `_cluster/stats` for JVM heap usage. Alert on red status (critical) or yellow (warning). Alert when unassigned_shards >0. Correlate with disk space, JVM pressure, and node availability.
+- **Visualization:** Status indicator (green/yellow/red), Single value (unassigned shards), Table (unassigned shard details), Line chart (cluster health and JVM heap over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.7 · Elasticsearch Index Size and Document Count Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Growth forecasting for indices enables proactive storage provisioning and index lifecycle management (ILM) tuning.
+- **App/TA:** Custom scripted input (ES REST API)
+- **Data Sources:** `_cat/indices`, `_stats`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:indices"
+| eval size_gb=round(store.size_in_bytes/1073741824, 2)
+| timechart span=1d sum(size_gb) as total_gb, sum(docs.count) as doc_count by index
+| predict total_gb as predicted_gb future_timespan=30
+```
+- **Implementation:** Poll `GET _cat/indices?v&h=index,docs.count,store.size&bytes=b` or `GET _stats` every 6–24 hours. Parse index name, document count, store size. Track per-index and cluster-wide growth. Use `predict` for 30-day forecast. Alert when projected size exceeds available storage. Support ILM policy tuning based on growth rate.
+- **Visualization:** Line chart (index size and doc count with prediction), Table (indices by size and growth rate), Bar chart (top growing indices).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.8 · ClickHouse Query Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Merge operations, insert rate, and query duration indicate system health. Monitoring enables tuning and capacity planning for analytical workloads.
+- **App/TA:** Custom scripted input (ClickHouse system tables)
+- **Data Sources:** `system.query_log`, `system.metrics`, `system.merges`
+- **SPL:**
+```spl
+index=database sourcetype="clickhouse:query_log"
+| where query_duration_ms > 30000
+| stats count, avg(query_duration_ms) as avg_duration_ms, sum(read_rows) as total_rows by query_kind, user
+| sort -avg_duration_ms
+```
+- **Implementation:** Poll `system.query_log` (or enable query_log and ingest via DB Connect/scripted input) for completed queries. Extract query_duration_ms, query_kind, read_rows, memory_usage. Poll `system.metrics` for Merge, Insert, Query metrics. Poll `system.merges` for active merge count and progress. Alert on queries >30s, merge backlog >10, or insert rate drop. Track p95/p99 query duration by type.
+- **Visualization:** Table (slow queries with duration and rows), Line chart (query duration p95 over time), Bar chart (merge count and insert rate), Single value (active merges).
 - **CIM Models:** N/A
 
 ---
@@ -834,5 +977,131 @@ index=db_audit sourcetype=oracle_audit (action="CREATE USER" OR action="GRANT" O
 - **Implementation:** Enable database audit for user and privilege changes. Forward audit logs to Splunk. Alert on any CREATE USER, GRANT, or ALTER USER. Correlate with change management.
 - **Visualization:** Events timeline, Table (user, action, object), Bar chart (changes by user).
 - **CIM Models:** Change
+
+---
+
+### UC-7.1.22 · PostgreSQL WAL Growth
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Capacity
+- **Value:** WAL accumulation indicating replication issues or archival failures. Uncontrolled WAL growth exhausts disk space and can halt the database.
+- **App/TA:** Splunk DB Connect or custom scripted input
+- **Data Sources:** PostgreSQL `pg_stat_replication`, `pg_wal_lsn_diff()`, `pg_ls_waldir()` or filesystem WAL directory size
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:postgresql_wal"
+| eval wal_size_gb=round(wal_size_bytes/1073741824, 2)
+| timechart span=1h latest(wal_size_gb) as wal_size_gb by host
+| where wal_size_gb > 10
+```
+- **Implementation:** Use DB Connect or a scripted input to poll WAL metrics every 15–30 minutes. Query `pg_current_wal_lsn()` and compare with `pg_walfile_name()` to derive WAL size; alternatively, measure WAL directory on disk. Track replication slot lag via `pg_stat_replication` (replication_lag). Alert when WAL size exceeds threshold (e.g., >10 GB) or when replication lag indicates archival/streaming is falling behind. Correlate with `archive_command` failures and disk space.
+- **Visualization:** Line chart (WAL size over time), Single value (current WAL size GB), Table (host, WAL size, replication lag).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.23 · PostgreSQL Vacuum Activity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Autovacuum running, dead tuples, and table bloat affect query performance. Monitoring ensures vacuum keeps pace with write workload and prevents bloat.
+- **App/TA:** Splunk DB Connect or custom scripted input
+- **Data Sources:** `pg_stat_user_tables` (n_dead_tup, n_live_tup, last_autovacuum, last_vacuum)
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:pg_stat_user_tables"
+| eval dead_ratio=round(n_dead_tup/nullif(n_live_tup,0)*100, 2)
+| where dead_ratio > 5 OR n_dead_tup > 10000
+| eval hours_since_vacuum=round((now()-strptime(last_autovacuum,"%Y-%m-%d %H:%M:%S"))/3600, 1)
+| table schemaname, relname, n_dead_tup, n_live_tup, dead_ratio, last_autovacuum, hours_since_vacuum
+| sort -n_dead_tup
+```
+- **Implementation:** Poll `pg_stat_user_tables` via DB Connect every hour. Extract `n_dead_tup`, `n_live_tup`, `last_autovacuum`. Compute dead tuple ratio and time since last vacuum. Alert when dead_ratio >5% or n_dead_tup >10000 for critical tables. Alert when last_autovacuum is >24 hours for high-churn tables. Track autovacuum runs from `pg_stat_progress_vacuum` if available.
+- **Visualization:** Table (tables with bloat risk), Bar chart (dead tuples by table), Line chart (dead tuple ratio trend), Single value (tables overdue for vacuum).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.24 · PostgreSQL Connection Pool Monitoring (PgBouncer)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Pool utilization and wait queue length indicate connection pressure. High utilization or growing wait queue causes application timeouts.
+- **App/TA:** Custom scripted input (PgBouncer SHOW POOLS/STATS)
+- **Data Sources:** PgBouncer admin console output (`SHOW POOLS`, `SHOW STATS`)
+- **SPL:**
+```spl
+index=database sourcetype="pgbouncer:pools"
+| eval pool_util_pct=round(cl_active+cl_wait)/nullif(max_client_conn,0)*100, 1
+| eval wait_queue=cl_wait
+| where pool_util_pct > 80 OR wait_queue > 5
+| timechart span=5m max(pool_util_pct) as util_pct, max(wait_queue) as wait_queue by database, pool_mode
+```
+- **Implementation:** Create a scripted input that connects to PgBouncer admin console (default port 6432) and runs `SHOW POOLS` and `SHOW STATS` every 5 minutes. Parse output into structured events. Extract `cl_active`, `cl_wait`, `max_client_conn` per database/pool. Alert when pool utilization >80% or `cl_wait` >5. Track `sv_idle`, `sv_used` for server connection usage.
+- **Visualization:** Gauge (pool utilization %), Line chart (active vs wait connections), Table (pools with high utilization or wait queue).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.25 · MySQL / MariaDB InnoDB Buffer Pool Hit Ratio
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Buffer pool effectiveness; low hit ratio means excessive disk I/O and degraded query performance.
+- **App/TA:** Splunk DB Connect or custom scripted input
+- **Data Sources:** `SHOW GLOBAL STATUS` (Innodb_buffer_pool_read_requests, Innodb_buffer_pool_reads)
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:mysql_status"
+| eval hit_ratio=round(100*(1-Innodb_buffer_pool_reads/nullif(Innodb_buffer_pool_read_requests,0)), 2)
+| where hit_ratio < 99
+| timechart span=15m avg(hit_ratio) as buffer_pool_hit_ratio by host
+```
+- **Implementation:** Poll `SHOW GLOBAL STATUS` via DB Connect every 15 minutes. Extract `Innodb_buffer_pool_read_requests` and `Innodb_buffer_pool_reads`. Compute hit ratio = (1 - reads/requests) * 100. Alert when hit ratio drops below 99% for sustained periods. Correlate with memory allocation and workload changes.
+- **Visualization:** Gauge (buffer pool hit ratio %), Line chart (hit ratio over time), Single value (current hit ratio).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.26 · MySQL Binary Log Space Usage
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Binlog accumulation on disk can exhaust disk space and impact replication. Monitoring enables proactive purging or archival.
+- **App/TA:** Splunk DB Connect or custom scripted input
+- **Data Sources:** `SHOW BINARY LOGS`, filesystem binlog directory size
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:mysql_binlogs"
+| eval size_gb=round(File_size/1073741824, 2)
+| stats sum(File_size) as total_bytes by host
+| eval total_gb=round(total_bytes/1073741824, 2)
+| where total_gb > 50
+| table host, total_gb, binlog_count
+```
+- **Implementation:** Poll `SHOW BINARY LOGS` via DB Connect daily or every 6 hours. Sum `File_size` across all binlogs. Optionally measure binlog directory on disk. Alert when total binlog size exceeds threshold (e.g., >50 GB). Track binlog purge lag (oldest binlog age). Correlate with replication lag and `expire_logs_days`/`binlog_expire_logs_seconds` settings.
+- **Visualization:** Line chart (binlog total size over time), Single value (current binlog size GB), Table (host, size, count).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.27 · Oracle Tablespace Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Approaching max size per tablespace causes ORA-1653 (out of space) errors and application failures. Proactive monitoring prevents outages.
+- **App/TA:** Splunk DB Connect
+- **Data Sources:** `DBA_TABLESPACE_USAGE_METRICS`, `DBA_DATA_FILES`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:oracle_tablespace"
+| eval used_pct=round(USED_PERCENT, 1)
+| where used_pct > 80
+| timechart span=1d latest(used_pct) as used_pct by TABLESPACE_NAME
+| where used_pct > 85
+```
+- **Implementation:** Poll `DBA_TABLESPACE_USAGE_METRICS` (or `DBA_FREE_SPACE` + `DBA_DATA_FILES`) via DB Connect every 4–6 hours. Extract used percent per tablespace. Alert at 80% (warning) and 90% (critical). Track growth rate for capacity planning. Include temp and undo tablespaces.
+- **Visualization:** Gauge (tablespace used %), Table (tablespaces over threshold), Line chart (utilization trend by tablespace).
+- **CIM Models:** Databases
 
 ---

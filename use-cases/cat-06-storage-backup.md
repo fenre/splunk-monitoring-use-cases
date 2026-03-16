@@ -246,6 +246,110 @@ index=storage sourcetype=isilon:metrics
 
 ---
 
+### UC-6.1.13 · TrueNAS / FreeNAS Pool Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** ZFS pool degradation, scrub results, and resilver progress directly impact data integrity. Early detection of unhealthy pools prevents data loss and enables timely intervention during rebuilds.
+- **App/TA:** Custom (TrueNAS REST API)
+- **Data Sources:** TrueNAS API (/api/v2.0/pool, /api/v2.0/pool/id/X)
+- **SPL:**
+```spl
+index=storage sourcetype="truenas:pool"
+| search status!="ONLINE" OR health!="HEALTHY" OR "resilver" OR "scrub"
+| eval health_status=coalesce(health, status)
+| table _time, pool_name, health_status, status, size, used_pct, resilver_progress, scrub_status
+| sort -_time
+```
+- **Implementation:** Create scripted input or HTTP Event Collector (HEC) input that polls TrueNAS REST API every 5–15 minutes. Use `/api/v2.0/pool` for pool list and `/api/v2.0/pool/id/{id}` for detailed status including scrub/resilver. Authenticate with API key. Parse JSON response and index to Splunk with sourcetype `truenas:pool`. Alert on health != HEALTHY or status != ONLINE. Track resilver progress and ETA during rebuilds.
+- **Visualization:** Single value (pools not healthy), Table (pool name, health, resilver %), Timeline (health change events), Gauge (resilver progress during rebuild).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.14 · Ceph Cluster Health and OSD Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** Ceph health warnings, OSD down/out events, and placement group (PG) state issues can lead to data unavailability or loss. Monitoring ensures rapid response to cluster degradation.
+- **App/TA:** Custom scripted input (ceph status --format json)
+- **Data Sources:** ceph status JSON, ceph osd tree, ceph pg stat
+- **SPL:**
+```spl
+index=storage sourcetype="ceph:status"
+| search health!="HEALTH_OK" OR osd_down>0 OR osd_out>0 OR "degraded" OR "stuck"
+| eval pg_degraded=if(match(pg_summary, "degraded"), 1, 0)
+| table _time, health, health_detail, osd_down, osd_out, osd_up, pg_degraded, pg_summary
+| sort -_time
+```
+- **Implementation:** Run `ceph status --format json` and `ceph osd tree --format json` via cron or Splunk scripted input every 5 minutes. Parse JSON and extract health, osd_map (num_up, num_in, num_down), and pg_summary. Index to Splunk. Alert on health != HEALTH_OK, osd_down > 0, osd_out > 0, or PG states containing "degraded" or "stuck". Correlate OSD events with disk failure logs.
+- **Visualization:** Single value (cluster health status), Table (OSD up/down/out counts), Timeline (health and OSD events), Bar chart (PG states distribution).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.15 · NFS Export Availability
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** NFS mount point reachability and latency directly affect application availability. Monitoring from client perspective ensures end-to-end access validation.
+- **App/TA:** Custom scripted input (showmount, mount probes)
+- **Data Sources:** NFS mount probe results, rpcinfo output
+- **SPL:**
+```spl
+index=storage sourcetype="nfs:probe"
+| search status!="ok" OR latency_ms>500
+| table _time, export_path, server, status, latency_ms, error_message
+| sort -_time
+```
+- **Implementation:** Deploy scripted input on one or more probe hosts. Script performs `showmount -e <server>` and attempts `mount -t nfs <server>:<export> <mountpoint>` or uses `rpcinfo -p` and a simple read/write test. Measure latency and record success/failure. Run every 5–10 minutes. Index results with export_path, server, status, latency_ms. Alert on status != ok or latency > 500 ms.
+- **Visualization:** Table (exports with status and latency), Single value (unreachable exports count), Line chart (latency trend per export), Status grid (export × server).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.16 · SMB / CIFS Share Availability
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Windows/SMB share reachability is critical for file-serving workloads. Monitoring ensures shares are accessible before users report issues.
+- **App/TA:** Custom scripted input (smbclient, net use)
+- **Data Sources:** SMB share probe results
+- **SPL:**
+```spl
+index=storage sourcetype="smb:probe"
+| search status!="ok" OR latency_ms>1000
+| table _time, share_path, server, status, latency_ms, error_message
+| sort -_time
+```
+- **Implementation:** Deploy scripted input on Windows or Linux probe host. Use `smbclient -L //server` or `net use \\server\share` (Windows) to test connectivity. Optionally perform read/write test and measure latency. Run every 5–10 minutes. Index share_path, server, status, latency_ms. Alert on status != ok or latency exceeding threshold. Use domain credentials with minimal read-only access.
+- **Visualization:** Table (shares with status and latency), Single value (unreachable shares count), Line chart (latency trend per share), Status grid (share × server).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.17 · RAID Rebuild Progress and Estimated Completion
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** During array rebuilds, progress percentage and ETA help plan maintenance and detect stalled rebuilds. Stalled rebuilds increase risk of data loss if another disk fails.
+- **App/TA:** Custom scripted input (mdadm, MegaCli, perccli)
+- **Data Sources:** mdadm --detail, vendor RAID CLI output (MegaCli, perccli)
+- **SPL:**
+```spl
+index=storage sourcetype="raid:rebuild"
+| search state="rebuild" OR state="resync"
+| eval progress_pct=if(isnum(progress), progress, tonumber(replace(progress, "%", "")))
+| where progress_pct < 100
+| table _time, array_name, state, progress_pct, speed_mb_s, eta_hours, spare_disk
+| sort -_time
+```
+- **Implementation:** Create scripted input that runs `mdadm --detail /dev/md*` (Linux software RAID) or vendor CLIs (`MegaCli64 -AdpAllInfo -aAll`, `perccli64 /c0 show` for Dell PERC). Parse rebuild/resync state, progress %, speed, and ETA. Run every 5–15 minutes during rebuilds. Index to Splunk. Alert when rebuild is active and progress has not increased in 2+ hours (stalled). Track ETA for maintenance planning.
+- **Visualization:** Gauge (rebuild progress %), Table (arrays in rebuild with ETA), Line chart (progress over time), Single value (hours until rebuild complete).
+- **CIM Models:** N/A
+
+---
+
 ### 6.2 Object Storage
 
 **Primary App/TA:** Cloud provider TAs (`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`), MinIO webhook inputs, custom REST API inputs.
@@ -520,6 +624,48 @@ index=backup sourcetype="tape_library"
 
 ---
 
+### UC-6.3.9 · Veeam Backup Job Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Job success/failure/warning status, duration, and data transferred are essential for backup reliability. Immediate visibility into job outcomes ensures data protection SLAs are met and enables rapid troubleshooting.
+- **App/TA:** Custom (Veeam Enterprise Manager REST API, PowerShell output)
+- **Data Sources:** Veeam job session data (REST API or PowerShell Get-VBRSession)
+- **SPL:**
+```spl
+index=backup sourcetype="veeam:job_session"
+| stats latest(_time) as last_run, latest(status) as status, latest(duration_min) as duration_min, latest(data_transferred_gb) as data_gb by job_name
+| where status!="Success" OR duration_min>480
+| table job_name, last_run, status, duration_min, data_gb
+| sort last_run
+```
+- **Implementation:** Use Veeam Enterprise Manager REST API (`/api/sessionMgr`) or PowerShell script invoking `Get-VBRSession` to collect job session data. Poll every 15–30 minutes or trigger on job completion. Extract job_name, status (Success/Failed/Warning), start/end time (for duration), and data transferred. Index to Splunk with sourcetype `veeam:job_session`. Alert immediately on status=Failed; warning on status=Warning. Alert when duration exceeds backup window (e.g., >8 hours).
+- **Visualization:** Table (job, status, duration, data transferred), Single value (failed jobs count), Bar chart (duration by job), Status grid (job × date).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.10 · Backup Data Growth Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Backup repository consumption trending enables capacity planning and prevents surprise exhaustion. Proactive forecasting supports budget and procurement decisions.
+- **App/TA:** Custom (backup software API/CLI)
+- **Data Sources:** Backup repository size over time
+- **SPL:**
+```spl
+index=backup sourcetype="veeam:repository" OR sourcetype="backup:repository"
+| eval used_pct=round(used_bytes/capacity_bytes*100, 1)
+| timechart span=1d latest(used_bytes) as used, latest(capacity_bytes) as capacity by repository_name
+| eval used_pct=round(used/capacity*100, 1)
+| predict used as predicted future_timespan=30
+```
+- **Implementation:** Poll backup repository capacity via vendor API (Veeam, Commvault, etc.) or scripted input (filesystem df, REST endpoint). Collect used_bytes and capacity_bytes per repository daily. Index to Splunk. Use `predict` or `trendline` for 30/60/90-day forecasts. Alert when projected full date is within 90 days. Correlate growth rate with backup job data volume trends.
+- **Visualization:** Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).
+- **CIM Models:** N/A
+
+---
+
 ### 6.4 File Services
 
 **Primary App/TA:** Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`) for file audit events; NFS syslog; Varonis TA for advanced file analytics.
@@ -726,6 +872,28 @@ index=backup sourcetype=backup_immutable
 ```
 - **Implementation:** Poll backup copy configuration for retention lock or immutable flag. Optionally run periodic checksum or catalog validation. Alert when any critical copy is not immutable or when last verification is older than 7 days. Document and test recovery runbook.
 - **Visualization:** Status grid (copy, immutable, last verify), Table (non-compliant copies), Single value (ready for recovery %).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.11 · Tape Library Slot Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Tape library capacity and media expiration tracking prevent backup failures when slots are exhausted or tapes expire. Supports capacity planning and media lifecycle management.
+- **App/TA:** Custom scripted input (tape library SNMP, vendor API)
+- **Data Sources:** Tape library management interface (SNMP/API)
+- **SPL:**
+```spl
+index=backup sourcetype="tape_library:capacity"
+| eval slot_util_pct=round(slots_used/total_slots*100, 1)
+| eval media_expiring_30d=if(media_expiration_days<=30, 1, 0)
+| stats latest(slot_util_pct) as pct_used, latest(slots_used) as used, latest(total_slots) as total, sum(media_expiring_30d) as expiring_soon by library_name
+| where pct_used > 85 OR expiring_soon > 0
+| table library_name, used, total, pct_used, expiring_soon
+```
+- **Implementation:** Poll tape library via SNMP (MIB-II, vendor-specific MIBs for slot counts) or vendor REST/CLI API. Collect total_slots, slots_used, and optionally media expiration dates. Run scripted input every 1–4 hours. Index to Splunk. Alert when slot utilization exceeds 85% or when media expiring within 30 days is detected. Maintain lookup of media barcodes and expiration for lifecycle tracking.
+- **Visualization:** Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
 - **CIM Models:** N/A
 
 ---

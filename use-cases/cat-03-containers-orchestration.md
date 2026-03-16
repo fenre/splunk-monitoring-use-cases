@@ -173,6 +173,33 @@ index=containers sourcetype="docker:daemon" level="error" OR level="fatal"
 
 ---
 
+### UC-3.1.9 · Docker Daemon Health and Version Drift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Configuration
+- **Value:** Docker engine responsiveness and version mismatches across fleet.
+- **App/TA:** Custom scripted input (docker info, docker version)
+- **Data Sources:** docker info JSON output, docker version
+- **SPL:**
+```spl
+index=containers sourcetype="docker:info"
+| stats latest(ServerVersion) as version, latest(Containers) as containers, latest(Images) as images by host
+| table host version containers images _time
+
+| comment "Version drift across hosts"
+index=containers sourcetype="docker:info"
+| stats values(ServerVersion) as versions by host
+| eval version_count = mvcount(versions)
+| where version_count > 1
+| mvexpand versions
+| table host versions
+```
+- **Implementation:** Create scripted input that runs `docker info --format '{{json .}}'` and `docker version --format '{{json .}}'` every 300 seconds. Parse ServerVersion, ServerErrors, Containers, Images, and DriverStatus. Forward to Splunk via HEC. Alert when Docker daemon is unresponsive (no data for >5 minutes) or when ServerErrors is non-empty. Report version drift: alert when multiple Engine versions exist across the fleet.
+- **Visualization:** Table (host, version, containers, images), Single value (version count), Status grid (host health).
+- **CIM Models:** N/A
+
+---
+
 ## 3.2 Kubernetes
 
 **Primary App/TA:** Splunk OpenTelemetry Collector for Kubernetes, Splunk Connect for Kubernetes — Free
@@ -481,6 +508,148 @@ index=k8s sourcetype="kube:daemonset:meta"
 
 ---
 
+### UC-3.2.16 · Kubernetes PersistentVolume Claim Capacity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** PVC approaching storage limits; prevents application failures from full volumes.
+- **App/TA:** Splunk Connect for Kubernetes, metrics from kubelet
+- **Data Sources:** kubelet metrics (`kubelet_volume_stats_used_bytes`, `kubelet_volume_stats_capacity_bytes`)
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:metrics" (metric_name="kubelet_volume_stats_used_bytes" OR metric_name="kubelet_volume_stats_capacity_bytes")
+| stats latest(_value) as value by metric_name, namespace, persistentvolumeclaim, node
+| xyseries namespace,persistentvolumeclaim,node metric_name value
+| eval used_pct = round(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100, 1)
+| where used_pct > 80
+| table namespace persistentvolumeclaim node used_pct kubelet_volume_stats_used_bytes kubelet_volume_stats_capacity_bytes
+| sort -used_pct
+```
+- **Implementation:** Configure Splunk Connect for Kubernetes or OTel Collector to scrape kubelet metrics. The kubelet exposes volume stats at `/metrics` on each node. Extract `kubelet_volume_stats_used_bytes` and `kubelet_volume_stats_capacity_bytes` with labels `namespace`, `persistentvolumeclaim`. Alert when any PVC exceeds 80% capacity. Consider 90% for critical stateful workloads.
+- **Visualization:** Gauge per PVC, Table (namespace, PVC, node, used %, bytes), Line chart (trend over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.17 · Kubernetes HorizontalPodAutoscaler Status
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** HPA at max replicas, unable to scale, or flapping between min and max.
+- **App/TA:** Splunk Connect for Kubernetes
+- **Data Sources:** kube-state-metrics (`kube_horizontalpodautoscaler_status_current_replicas`, `kube_horizontalpodautoscaler_spec_min_replicas`, `kube_horizontalpodautoscaler_spec_max_replicas`)
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_*"
+| stats latest(_value) as value by metric_name, namespace, horizontalpodautoscaler
+| eval current_replicas = case(metric_name="kube_horizontalpodautoscaler_status_current_replicas", value)
+| eval min_replicas = case(metric_name="kube_horizontalpodautoscaler_spec_min_replicas", value)
+| eval max_replicas = case(metric_name="kube_horizontalpodautoscaler_spec_max_replicas", value)
+| stats max(current_replicas) as current_replicas, max(min_replicas) as min_replicas, max(max_replicas) as max_replicas by namespace, horizontalpodautoscaler
+| eval at_max = if(current_replicas >= max_replicas AND max_replicas > 0, 1, 0)
+| where at_max=1
+| table namespace horizontalpodautoscaler current_replicas min_replicas max_replicas
+| sort -current_replicas
+```
+- **Implementation:** Collect kube-state-metrics HPA series via Splunk Connect for Kubernetes. Alert when `current_replicas == max_replicas` (HPA cannot scale further; application may be under-provisioned). Also alert on rapid replica flapping (e.g. current oscillating between min and max within 10 minutes) indicating unstable scaling.
+- **Visualization:** Table (HPA, namespace, current, min, max), Status indicator (at max = warning), Line chart (replicas over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.18 · Kubernetes Ingress Backend Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Ingress controller returning 502/503 due to unhealthy backends.
+- **App/TA:** Splunk Connect for Kubernetes, ingress controller logs
+- **Data Sources:** nginx-ingress controller logs, traefik logs
+- **SPL:**
+```spl
+index=k8s (sourcetype="kube:ingress:nginx" OR sourcetype="kube:ingress:traefik")
+| eval is_backend_error = if(status>=502 AND status<=503, 1, 0)
+| bin _time span=5m
+| stats sum(is_backend_error) as backend_errors, count as total by host, path, upstream, _time
+| eval error_rate = if(total>0, round(backend_errors/total*100, 2), 0)
+| where error_rate > 5 OR backend_errors > 10
+| table _time host path upstream backend_errors total error_rate
+| sort -error_rate
+```
+- **Implementation:** Forward ingress controller access logs to Splunk. For NGINX Ingress, enable access log format with `$upstream_addr` and `$upstream_status`. For Traefik, enable access logs with backend info. Parse status, host, path, and upstream. Alert when 502/503 rate exceeds 5% over 5 minutes or absolute count >10. Correlate with pod readiness and service endpoints.
+- **Visualization:** Table (host, path, upstream, errors, rate), Line chart (error rate over time), Single value (current 5xx rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.19 · Kubernetes DaemonSet Missing Pods
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** DaemonSet pods not running on all expected nodes.
+- **App/TA:** Splunk Connect for Kubernetes
+- **Data Sources:** kube-state-metrics (`kube_daemonset_status_desired_number_scheduled`, `kube_daemonset_status_current_number_scheduled`, `kube_daemonset_status_number_ready`)
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:daemonset:meta"
+| eval missing_scheduled = desiredNumberScheduled - currentNumberScheduled
+| eval missing_ready = desiredNumberScheduled - numberReady
+| where missing_scheduled > 0 OR missing_ready > 0
+| table namespace daemonset_name desiredNumberScheduled currentNumberScheduled numberReady missing_scheduled missing_ready
+| sort -missing_ready
+```
+- **Implementation:** kube-state-metrics exposes DaemonSet status. Splunk Connect for Kubernetes collects this. Alert when `currentNumberScheduled < desiredNumberScheduled` (pods not scheduled) or `numberReady < desiredNumberScheduled` (pods scheduled but not ready). Critical for CNI, kube-proxy, and monitoring DaemonSets. Investigate node taints, resource constraints, or image pull issues.
+- **Visualization:** Table (DaemonSet, desired, scheduled, ready, missing), Status grid by DaemonSet, Single value (DaemonSets with gaps).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.20 · Kubernetes Job and CronJob Failure Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Failed jobs and missed cron schedules.
+- **App/TA:** Splunk Connect for Kubernetes
+- **Data Sources:** kube-state-metrics (`kube_job_status_failed`, `kube_cronjob_status_last_schedule_time`)
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:events" (involvedObject.kind="Job" OR involvedObject.kind="CronJob") (reason="Failed" OR reason="BackoffLimitExceeded")
+| stats count by namespace, involvedObject.name, involvedObject.kind, message
+| sort -count
+
+| comment "CronJob missed schedule - last_schedule_time stale"
+index=k8s sourcetype="kube:metrics" metric_name="kube_cronjob_status_last_schedule_time"
+| eval hours_since_schedule = (now() - _value) / 3600
+| where hours_since_schedule > 2
+| table namespace cronjob hours_since_schedule _value
+```
+- **Implementation:** Forward Kubernetes events for Job/CronJob failures. Collect `kube_job_status_failed` and `kube_cronjob_status_last_schedule_time` from kube-state-metrics. Alert on any Job with `failed > 0` or BackoffLimitExceeded. For CronJobs, alert when `last_schedule_time` is older than expected (e.g. 2x the cron interval) indicating missed runs.
+- **Visualization:** Table (job/cronjob, namespace, failures, message), Line chart (failure rate over time), Single value (failed jobs last 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.21 · Kubernetes Admission Webhook Latency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Slow webhooks causing API server delays and impacting cluster operations.
+- **App/TA:** Splunk Connect for Kubernetes
+- **Data Sources:** apiserver metrics (`apiserver_admission_webhook_admission_duration_seconds`)
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:apiserver" metric_name="apiserver_admission_webhook_admission_duration_seconds"
+| bin _time span=5m
+| stats avg(_value) as avg_sec, max(_value) as max_sec, count by webhook, operation, _time
+| where avg_sec > 0.5 OR max_sec > 2
+| table _time webhook operation avg_sec max_sec count
+| sort -avg_sec
+```
+- **Implementation:** Scrape API server metrics (typically via kube-apiserver /metrics or OTel Collector). The `apiserver_admission_webhook_admission_duration_seconds` histogram has labels `name` (webhook) and `operation`. Alert when P99 or average exceeds 500ms. Slow webhooks (e.g. OPA, Kyverno, cert-manager) block all API requests. Identify and optimize or remove slow webhooks.
+- **Visualization:** Table (webhook, operation, avg, max latency), Line chart (latency over time by webhook), Heatmap.
+- **CIM Models:** N/A
+
+---
+
 ## 3.3 OpenShift
 
 **Primary App/TA:** OpenTelemetry Collector, OpenShift audit log forwarding
@@ -561,6 +730,33 @@ index=openshift sourcetype="openshift:audit" responseStatus.code=403 objectRef.r
 ```
 - **Implementation:** Enable and forward OpenShift audit logs. Alert on SCC-related 403 errors. Track which SCCs are most commonly requested and denied.
 - **Visualization:** Table (user, namespace, pod, SCC requested), Bar chart by SCC, Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.3.5 · Helm Release Drift Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
+- **Value:** Deployed state differs from declared chart version.
+- **App/TA:** Custom scripted input (helm list --output json)
+- **Data Sources:** helm list output, GitOps desired state
+- **SPL:**
+```spl
+index=k8s sourcetype="helm:list"
+| stats latest(chart) as chart, latest(app_version) as app_version, latest(updated) as updated by namespace, name
+| table namespace name chart app_version updated
+
+| comment "Compare with GitOps desired state"
+index=k8s (sourcetype="helm:list" OR sourcetype="gitops:desired")
+| eval chart_version = mvindex(split(chart, "-"), -1)
+| stats values(chart_version) as versions by namespace, name, source
+| eval version_count = mvcount(versions)
+| where version_count > 1
+| table namespace name versions source
+```
+- **Implementation:** Scripted input: `helm list -A -o json` (all namespaces). Parse name, namespace, chart (includes version), app_version, status, updated. Run every 600 seconds. Optionally ingest GitOps desired state (Argo CD, Flux) from API or Git. Compare deployed chart version to desired. Alert when drift detected (deployed != desired). Useful for detecting manual changes or failed syncs.
+- **Visualization:** Table (namespace, release, chart, version, status), Drift indicator (deployed vs desired), Timeline of updates.
 - **CIM Models:** N/A
 
 ---
@@ -730,6 +926,28 @@ index=containers sourcetype="registry:tls"
 ```
 - **Implementation:** Script that connects to registry HTTPS and extracts cert expiry (e.g. `openssl s_client -connect registry:443 -servername registry`). Ingest daily. Alert when expiry is within 30 days.
 - **Visualization:** Table (registry, expiry, days left), Single value (soonest expiry), Gauge (days remaining).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.4.9 · Container Image Vulnerability Age
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Images running with known CVEs older than N days.
+- **App/TA:** Custom (Trivy, Grype, or registry scanner output)
+- **Data Sources:** vulnerability scanner JSON output
+- **SPL:**
+```spl
+index=containers (sourcetype="trivy:scan" OR sourcetype="grype:scan" OR sourcetype="registry:vuln_scan")
+| eval vuln_date = coalesce(discovered_at, PublishedDate, published_date)
+| eval vuln_age_days = round((now() - strptime(vuln_date, "%Y-%m-%dT%H:%M:%S")) / 86400, 0)
+| where (Severity="Critical" OR Severity="High") AND vuln_age_days > 7
+| stats count as vuln_count, min(vuln_age_days) as oldest_vuln_days by image, tag, Severity
+| sort -oldest_vuln_days -vuln_count
+```
+- **Implementation:** Run Trivy, Grype, or registry-native scanner (Harbor, ACR) against running images or registry catalog. Output JSON with image, CVE ID, severity, and discovered_at (or published date). Forward to Splunk via HEC. Alert when Critical/High CVEs have been known for >7 days (configurable). Integrate with CI/CD to block deployment of images with aged critical vulns. Track remediation SLA.
+- **Visualization:** Table (image, tag, severity, vuln count, oldest days), Bar chart (images by vuln age), Single value (images with aged critical vulns).
 - **CIM Models:** N/A
 
 ---

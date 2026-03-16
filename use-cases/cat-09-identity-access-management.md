@@ -337,6 +337,49 @@ index=azure sourcetype="azure:aad:signin" conditionalAccessStatus="failure"
 
 ---
 
+### UC-9.1.13 · AD Certificate Services Certificate Expiration
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** Internal CA-issued certificates approaching expiry; missed renewals cause outages.
+- **App/TA:** `Splunk_TA_windows`, custom scripted input (certutil)
+- **Data Sources:** ADCS issued certificates database (certutil -view), Certificate Services logs
+- **SPL:**
+```spl
+index=adcs sourcetype="adcs:cert_inventory"
+| eval days_to_expiry=round((expiry_epoch-now())/86400)
+| where days_to_expiry < 30 AND days_to_expiry > 0
+| table _time, subject, issuer, days_to_expiry, serial_number
+| sort days_to_expiry
+```
+- **Implementation:** Run `certutil -view -restrict "Disposition=20"` (issued certs) on CA servers via scripted input daily. Parse output and compute days until expiry. Alert on certificates expiring within 30 days. Include Certificate Services event logs (Event ID 100–107) for issuance/renewal events. Maintain lookup of critical certs (e.g., LDAPS, VPN) for prioritized alerts.
+- **Visualization:** Table (expiring certificates), Single value (certs expiring in 30 days), Gauge (days until next expiry), Bar chart (expiry by issuer).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.1.14 · Service Account Password Age
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Service accounts with passwords older than policy permits increase risk exposure.
+- **App/TA:** `Splunk_TA_windows` (AD inventory), SA-ldapsearch
+- **Data Sources:** AD attribute pwdLastSet on service accounts
+- **SPL:**
+```spl
+index=ad sourcetype="ad:accounts"
+| search objectClass=serviceAccount OR samAccountName=svc_* OR samAccountName=*_svc
+| eval days_since_pwd=round((now()-(pwdLastSet/10000000-11644473600))/86400)
+| where days_since_pwd > 90 AND enabled="True"
+| table samAccountName, displayName, days_since_pwd, ou
+| sort -days_since_pwd
+```
+- **Implementation:** Run PowerShell or ldapsearch script querying AD for service accounts (filter by naming convention or OU). Export pwdLastSet and convert to days. Ingest via scripted input. Alert on accounts exceeding policy (e.g., >90 days). Maintain lookup of accounts with approved exceptions. Report for quarterly access reviews.
+- **Visualization:** Table (overdue service accounts), Bar chart (password age by OU), Single value (accounts over policy limit), Gauge (compliance %).
+- **CIM Models:** N/A
+
+---
+
 ### 9.2 LDAP Directories
 
 **Primary App/TA:** Syslog inputs, custom scripted inputs for LDAP server stats.
@@ -451,6 +494,31 @@ index=ldap sourcetype="openldap:syncrepl"
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
+
+---
+
+### UC-9.2.5 · Azure AD / Entra ID Conditional Access Policy Evaluation Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Operational
+- **Value:** Policy conflicts causing access denials; helps fine-tune conditional access and reduce user friction.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`)
+- **Data Sources:** Azure AD Sign-in logs (conditionalAccessStatus, appliedConditionalAccessPolicies)
+- **SPL:**
+```spl
+index=azure sourcetype="azure:aad:signin"
+| where conditionalAccessStatus="failure" OR conditionalAccessStatus="reportOnlyNotApplied"
+| spath path=conditionalAccessPolicies{}
+| mvexpand conditionalAccessPolicies{}
+| spath input=conditionalAccessPolicies{} path=displayName
+| spath input=conditionalAccessPolicies{} path=result
+| where result="failure" OR result="reportOnlyNotApplied"
+| stats count by displayName, result
+| sort -count
+```
+- **Implementation:** Configure Splunk Add-on for Microsoft Cloud Services to ingest Entra ID sign-in logs via Graph API. Parse appliedConditionalAccessPolicies array for policy names and results. Alert on spikes in failures per policy. Track reportOnlyNotApplied for policy tuning. Correlate with userPrincipalName and appDisplayName to identify affected users and apps.
+- **Visualization:** Bar chart (failures by policy), Table (blocked users with policy details), Line chart (failure rate trend), Pie chart (failures by application).
+- **CIM Models:** Authentication
 
 ---
 
@@ -926,6 +994,46 @@ index=iam sourcetype="sync:job"
 - **Implementation:** Ingest sync job results from IdP and HR-driven connectors. Alert on any failed run or error count >0. Track sync latency and delta size. Report on sync health by target.
 - **Visualization:** Table (failed syncs), Single value (sync success %), Timeline (failure events).
 - **CIM Models:** Authentication
+
+---
+
+### UC-9.4.12 · RADIUS / TACACS+ Server Response Time
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Authentication server latency and availability for network device auth; slow or unavailable RADIUS/TACACS+ blocks admin access to routers and switches.
+- **App/TA:** Custom scripted input (radtest, tacacs_plus probe), syslog from NAS devices
+- **Data Sources:** RADIUS accounting logs, NAS syslog, synthetic probe results
+- **SPL:**
+```spl
+index=radius sourcetype="radius:probe"
+| stats avg(response_ms) as avg_ms, max(response_ms) as max_ms, count(eval(response_ms>2000)) as slow_count by server, _time span=5m
+| where avg_ms > 500 OR max_ms > 2000 OR slow_count > 0
+| table _time, server, avg_ms, max_ms, slow_count
+```
+- **Implementation:** Run radtest (FreeRADIUS) or equivalent probe against RADIUS servers every 60 seconds. For TACACS+, use tacacs_plus Python library or custom script. Ingest probe results with response time. Forward NAS syslog (e.g., Cisco, Arista) for accounting and auth events. Alert on avg response >500ms or any probe timeout. Correlate with NAS auth failures to distinguish server vs network issues.
+- **Visualization:** Line chart (response time by server), Table (slow probes), Single value (current avg latency), Status grid (server × health).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.4.13 · Active Directory Domain Controller Response Time
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** LDAP bind time, DNS query time per DC — slow DCs cause auth delays and user lockouts.
+- **App/TA:** `Splunk_TA_windows`, custom scripted input
+- **Data Sources:** LDAP bind latency probes, DNS query timing, Windows DC perf counters
+- **SPL:**
+```spl
+index=ad_perf sourcetype="ad:dc_probe"
+| stats avg(ldap_bind_ms) as avg_ldap, avg(dns_query_ms) as avg_dns, count(eval(ldap_bind_ms>1000)) as slow_ldap by dc_host, _time span=5m
+| where avg_ldap > 500 OR avg_dns > 200 OR slow_ldap > 0
+| table _time, dc_host, avg_ldap, avg_dns, slow_ldap
+```
+- **Implementation:** Run scripted input from monitoring host: perform LDAP bind (e.g., ldapsearch -x -H ldap://dc:389 -b "" -s base) and measure elapsed time; run nslookup or Resolve-DnsName for _ldap._tcp.dc._msdcs.domain. Ingest Windows perf counters (NTDS, LDAP Client Sessions) via Splunk_TA_windows. Alert on LDAP bind >1s or DNS >200ms. Identify overloaded DCs for load balancing.
+- **Visualization:** Line chart (LDAP/DNS latency by DC), Table (slow DCs), Status grid (DC × response time tier), Single value (worst DC latency).
+- **CIM Models:** N/A
 
 ---
 

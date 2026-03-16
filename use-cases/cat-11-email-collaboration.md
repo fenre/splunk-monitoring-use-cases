@@ -204,6 +204,54 @@ index=m365 sourcetype="m365:licenses"
 
 ---
 
+### UC-11.1.11 · Exchange Message Queue Depth
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Hub transport queue length indicates mail flow issues. Messages stuck in queue cause delivery delays, NDRs, and user complaints. Growing queues often precede transport service failures.
+- **App/TA:** `Splunk_TA_windows` (perfmon), custom scripted input
+- **Data Sources:** Exchange Transport Queue counters (MSExchangeTransport Queues), Get-Queue PowerShell output
+- **SPL:**
+```spl
+(index=perfmon object="MSExchangeTransport Queues") OR (index=exchange sourcetype="exchange:queue_depth")
+| eval queue_depth=coalesce(QueueLength, MessageCount, 0)
+| where queue_depth > 0
+| bin _time span=15m
+| stats latest(queue_depth) as current_depth, max(queue_depth) as peak_depth, avg(queue_depth) as avg_depth by _time, host, QueueName
+| where current_depth > 100 OR peak_depth > 500
+| sort -current_depth
+| table _time, host, QueueName, current_depth, peak_depth, avg_depth
+```
+- **Implementation:** Configure Splunk_TA_windows to collect MSExchangeTransport Queues perfmon counters (QueueLength, MessageCount) from Exchange servers every 60 seconds. Alternatively, run a scheduled script that executes `Get-Queue` and outputs JSON to Splunk via HEC or scripted input. Map QueueName to delivery type (Submission, Poison, Unreachable). Alert when any queue exceeds 100 messages (warning) or 500 (critical). Correlate queue spikes with transport service restarts and network issues.
+- **Visualization:** Line chart (queue depth over time by queue), Single value (max queue depth), Table (queues exceeding threshold), Bar chart (peak depth by server).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.1.12 · Exchange Database Copy Queue Length
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** DAG replication lag measured in number of log files. Growing copy queue risks data loss on failover and indicates replication or disk I/O issues. Replay queue lag affects failover time.
+- **App/TA:** `Splunk_TA_windows`, custom scripted input
+- **Data Sources:** Get-MailboxDatabaseCopyStatus (CopyQueueLength, ReplayQueueLength)
+- **SPL:**
+```spl
+index=exchange sourcetype="exchange:dag_status"
+| eval copy_queue=coalesce(CopyQueueLength, copyQueueLength, 0), replay_queue=coalesce(ReplayQueueLength, replayQueueLength, 0)
+| where copy_queue > 10 OR replay_queue > 50
+| bin _time span=15m
+| stats latest(copy_queue) as copy_queue_len, latest(replay_queue) as replay_queue_len, latest(Status) as status by _time, host, DatabaseName, MailboxServer
+| where copy_queue_len > 10 OR replay_queue_len > 50
+| sort -copy_queue_len
+| table _time, host, DatabaseName, MailboxServer, copy_queue_len, replay_queue_len, status
+```
+- **Implementation:** Run a PowerShell script every 5–15 minutes that executes `Get-MailboxDatabaseCopyStatus | Select-Object DatabaseName, MailboxServer, CopyQueueLength, ReplayQueueLength, Status` and forwards results to Splunk via HEC. Normalize field names (CopyQueueLength vs copyQueueLength). Alert when CopyQueueLength > 10 (warning) or > 50 (critical), or ReplayQueueLength > 50. Track per-database and per-server. Correlate with disk latency and network metrics.
+- **Visualization:** Line chart (copy/replay queue over time by database), Table (lagging copies), Single value (max copy queue), Heat map (database × server queue status).
+- **CIM Models:** N/A
+
+---
+
 ### 11.2 Google Workspace
 
 **Primary App/TA:** Splunk Add-on for Google Workspace (`Splunk_TA_GoogleWorkspace`).
@@ -793,6 +841,78 @@ index=webex sourcetype="webex:events" resource="messages"
 ```
 - **Implementation:** Register a Webex Compliance integration with the `spark-compliance:events_read` scope to access organization-wide message events. Poll the Events API every 5 minutes for near-real-time visibility. Build user activity baselines over 30 days before enabling anomaly alerting. Alert on: message volume exceeding 3 standard deviations from baseline, bulk file uploads (>20 files in 1 hour), and messages containing URLs to known-bad domains (cross-reference with threat intel). Combine with DLP data for comprehensive messaging security.
 - **Visualization:** Timechart (message volume by department), Table (anomalous users), Bar chart (top active spaces), Line chart (adoption trend over 90 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.22 · SharePoint Site Storage Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Site collections approaching quota block uploads and disrupt teams. Proactive monitoring enables quota increases or content archival before users hit limits.
+- **App/TA:** Custom (SharePoint REST API, PowerShell)
+- **Data Sources:** SharePoint REST API (/_api/site/usage), Get-SPOSite (SharePoint Online)
+- **SPL:**
+```spl
+index=sharepoint sourcetype="sharepoint:site_usage"
+| eval used_mb=coalesce(StorageUsageCurrent/1024, StorageUsageCurrentMB, 0), quota_mb=coalesce(StorageQuota/1024, StorageQuotaMB, 0)
+| eval used_pct=if(quota_mb>0, round(used_mb/quota_mb*100, 1), 0)
+| where used_pct >= 70
+| bin _time span=1d
+| stats latest(used_mb) as used_mb, latest(quota_mb) as quota_mb, latest(used_pct) as used_pct by _time, SiteUrl, SiteName
+| where used_pct >= 70
+| sort -used_pct
+| table SiteUrl, SiteName, used_mb, quota_mb, used_pct
+```
+- **Implementation:** For SharePoint Online, use `Get-SPOSite -IncludePersonalSite $false | Select-Object Url, StorageUsageCurrent, StorageQuota` via a scheduled PowerShell script; for on-prem, call `/_api/site/usage` with app-only or user credentials. Forward JSON to Splunk via HEC. Run daily or every 6 hours. Alert when used_pct >= 80 (warning) or >= 95 (critical). Maintain a lookup of site owners for notification. Report on growth rate and projected quota exhaustion.
+- **Visualization:** Table (sites near quota), Bar chart (usage by site), Gauge (overall tenant usage %), Line chart (storage growth trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.23 · SharePoint Search Crawl Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Crawl errors, stale content, and index freshness affect findability. Failed crawls leave content undiscoverable; slow crawls delay new content visibility.
+- **App/TA:** Custom (SharePoint Search Admin API)
+- **Data Sources:** Search Administration crawl logs, Get-SPEnterpriseSearchCrawlContentSource (on-prem), Search & Intelligence admin reports (M365)
+- **SPL:**
+```spl
+index=sharepoint sourcetype="sharepoint:search_crawl"
+| eval error_type=case(match(ErrorLevel, "Error|Critical|Failure"), "Error", match(ErrorLevel, "Warning"), "Warning", 1==1, "Info")
+| where error_type="Error" OR error_type="Warning"
+| bin _time span=1h
+| stats count as crawl_errors, dc(ItemId) as unique_items, latest(LastCrawlTime) as last_crawl by _time, ContentSource, error_type
+| where crawl_errors > 0
+| sort -crawl_errors
+| table _time, ContentSource, error_type, crawl_errors, unique_items, last_crawl
+```
+- **Implementation:** For on-prem SharePoint, query crawl logs via Search Admin API or `Get-SPEnterpriseSearchCrawlLog` and stream to Splunk. For M365, use Search & Intelligence admin center APIs or export crawl health reports. Ingest crawl start/end, error count, item count, and last successful crawl per content source. Alert on error count spike (>10 errors in 1 hour) or last successful crawl >24 hours ago for critical sources. Track crawl duration and index freshness.
+- **Visualization:** Line chart (crawl errors over time), Table (content sources with errors), Single value (sources with stale index), Bar chart (errors by content source).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.24 · Jira Data Center Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** JMX metrics, request duration, and attachment storage indicate Jira health. Slow requests frustrate users; disk usage growth risks outages. Enables capacity planning and performance tuning.
+- **App/TA:** Custom JMX input (Jolokia), Jira REST API
+- **Data Sources:** Jira JMX MBeans (heap, threads, request duration), /rest/api/2/serverInfo, Jira access logs
+- **SPL:**
+```spl
+index=jira sourcetype="jira:jmx"
+| eval heap_used_pct=if(HeapMemoryMax>0, round(HeapMemoryUsed/HeapMemoryMax*100, 1), null())
+| where heap_used_pct > 85 OR ThreadCount > 500 OR RequestDurationP95 > 3000
+| bin _time span=5m
+| stats latest(HeapMemoryUsed) as heap_used, latest(HeapMemoryMax) as heap_max, latest(heap_used_pct) as heap_pct, latest(ThreadCount) as threads, latest(RequestDurationP95) as p95_ms by _time, host
+| where heap_pct > 85 OR threads > 500 OR p95_ms > 3000
+| table _time, host, heap_used, heap_max, heap_pct, threads, p95_ms
+```
+- **Implementation:** Deploy Jolokia agent on Jira application nodes and configure Splunk to poll JMX MBeans (java.lang:type=Memory, java.lang:type=Threading, com.atlassian.jira:type=RequestMetrics). Poll every 60 seconds. Ingest Jira access logs for request duration percentiles. Optionally poll /rest/api/2/serverInfo for version and build. Alert on heap >85%, thread count >500, or P95 request duration >3 seconds. Track attachment storage via JMX or filesystem metrics. Correlate with database and disk I/O.
+- **Visualization:** Line chart (heap usage, thread count, P95 latency), Gauge (heap %), Table (performance metrics by node), Bar chart (request duration by endpoint).
 - **CIM Models:** N/A
 
 ---

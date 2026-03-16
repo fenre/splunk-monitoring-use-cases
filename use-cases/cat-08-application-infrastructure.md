@@ -481,6 +481,66 @@ index=application sourcetype="log4j" log_level=ERROR
 
 ---
 
+### UC-8.2.11 · PHP-FPM Pool Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Active/idle process counts, listen queue depth, and slow request detection indicate PHP-FPM capacity and backend saturation. Exhausted pools cause 502 errors and request timeouts.
+- **App/TA:** Custom scripted input (PHP-FPM status page)
+- **Data Sources:** PHP-FPM status page (JSON output, `/status?json`)
+- **SPL:**
+```spl
+index=php sourcetype="phpfpm:status"
+| eval pool_util=round(active_processes/(active_processes+idle_processes)*100,1)
+| where pool_util > 80 OR listen_queue > 5
+| timechart span=5m max(pool_util) as util_pct, max(listen_queue) as queue_depth by host, pool
+```
+- **Implementation:** Enable PHP-FPM status via `pm.status_path = /status` and `pm.status_listen` in pool config. Add `fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name`; protect with auth. Poll `/status?json` via scripted input every minute. Parse active_processes, idle_processes, listen_queue, max_listen_queue, slow_requests. Forward to Splunk via HEC. Alert when pool_util >80% or listen_queue >5. Track slow_requests for endpoints needing optimization.
+- **Visualization:** Gauge (% pool used), Line chart (pool utilization and queue depth), Table (pools with high utilization), Single value (slow requests).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.12 · Tomcat JMX Thread Pool Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Connector thread pool busy percentage and rejected connections indicate Tomcat capacity limits. Exhausted pools cause 503 errors and connection timeouts.
+- **App/TA:** Custom JMX input (Jolokia, JMX modular input)
+- **Data Sources:** JMX MBeans (`Catalina:type=ThreadPool,name="http-nio-8080"`)
+- **SPL:**
+```spl
+index=jmx sourcetype="jmx:tomcat:threadpool"
+| eval pool_pct=round(currentThreadsBusy/maxThreads*100,1)
+| where pool_pct > 80 OR connectionCount > 0
+| timechart span=5m max(pool_pct) as busy_pct, sum(connectionCount) as rejected by host, connector_name
+```
+- **Implementation:** Deploy Jolokia agent or Splunk JMX modular input on Tomcat. Configure polling for `Catalina:type=ThreadPool,name="http-nio-8080"` (adjust connector name per instance). Extract currentThreadsBusy, maxThreads, connectionCount (rejected). Poll every 5 minutes. Alert when pool_pct >80% or any rejected connections. Correlate with request rate and response time to distinguish traffic spikes from slow backends.
+- **Visualization:** Gauge (% threads busy), Line chart (thread utilization over time), Table (connectors with rejections), Single value (rejected connections).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.13 · WildFly / JBoss Datasource Pool Usage
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** JMX datasource pool active/idle/wait connections indicate database connectivity health. Exhausted pools cause application errors and slow transactions.
+- **App/TA:** Custom JMX input (Jolokia)
+- **Data Sources:** JMX MBeans (`jboss.as:subsystem=datasources,data-source=*`)
+- **SPL:**
+```spl
+index=jmx sourcetype="jmx:wildfly:datasource"
+| eval pool_pct=round(AvailableCount/(AvailableCount+InUseCount)*100,1), wait_pct=round(WaitingCount/(AvailableCount+InUseCount+WaitingCount)*100,1)
+| where pool_pct < 20 OR WaitingCount > 0
+| timechart span=5m max(pool_pct) as avail_pct, avg(WaitingCount) as waiting by host, data_source
+```
+- **Implementation:** Deploy Jolokia on WildFly/JBoss. Poll `jboss.as:subsystem=datasources,data-source=*` for AvailableCount, InUseCount, WaitingCount, MaxUsedCount. Poll every 5 minutes. Alert when pool availability drops below 20% or WaitingCount >0 (indicating connection starvation). Track MaxUsedCount for capacity planning.
+- **Visualization:** Gauge (% pool available), Line chart (active vs idle over time), Table (datasources with waiting connections), Single value (total waiting).
+- **CIM Models:** N/A
+
+---
+
 ### 8.3 Message Queues & Event Streaming
 
 **Primary App/TA:** Splunk Connect for Kafka (Splunkbase 3862), JMX, RabbitMQ management API (scripted input), custom REST inputs.
@@ -683,6 +743,45 @@ index=messaging sourcetype="rabbitmq:queue"
 
 ---
 
+### UC-8.3.11 · RabbitMQ Queue Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Queue depth, consumer count, message rate, and unacknowledged messages indicate message processing health. Growing depth or unacked messages signal consumer lag or failures.
+- **App/TA:** Custom (RabbitMQ Management API)
+- **Data Sources:** RabbitMQ Management API (`/api/queues`)
+- **SPL:**
+```spl
+index=messaging sourcetype="rabbitmq:queue"
+| eval unacked_pct=if(messages>0, round(messages_unacknowledged/messages*100,1), 0)
+| where messages > 1000 OR messages_unacknowledged > 100 OR consumer_count==0
+| timechart span=5m max(messages) as queue_depth, avg(messages_unacknowledged) as unacked by vhost, name
+```
+- **Implementation:** Enable RabbitMQ Management Plugin. Poll `/api/queues` via scripted input (curl with auth) every minute. Parse name, vhost, messages, messages_unacknowledged, messages_ready, consumers, message_stats.publish_details.rate, message_stats.deliver_get_details.rate. Forward to Splunk via HEC. Alert when queue depth exceeds threshold, unacked messages grow, or consumer_count drops to 0 for critical queues. Track publish vs deliver rate delta for backlog detection.
+- **Visualization:** Line chart (queue depth and unacked over time), Table (queues with high depth), Single value (queues with no consumers), Bar chart (message rate by queue).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.12 · ZooKeeper Ensemble Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Leader election state, outstanding requests, and watch count indicate ZooKeeper stability. Frequent leader changes or growing outstanding requests signal ensemble instability affecting Kafka, HBase, and other dependents.
+- **App/TA:** Custom scripted input (ZooKeeper 4-letter commands or AdminServer)
+- **Data Sources:** mntr command output, ZooKeeper AdminServer `/commands/monitor`
+- **SPL:**
+```spl
+index=zookeeper sourcetype="zookeeper:mntr"
+| where outstanding_requests > 100 OR (mode!="standalone" AND num_alive_connections < 2)
+| timechart span=5m max(outstanding_requests) as outstanding by host
+```
+- **Implementation:** Enable ZooKeeper AdminServer or use 4-letter commands (`echo mntr | nc localhost 2181`). Poll mntr output every minute via scripted input. Parse mode (leader/follower/standalone), outstanding_requests, num_alive_connections, watch_count, zk_approximate_data_size. Forward to Splunk via HEC. Alert when outstanding_requests exceeds 100 or num_alive_connections drops (ensemble partition). Track leader changes via mode transitions.
+- **Visualization:** Status grid (node × mode), Line chart (outstanding requests over time), Single value (leader node), Table (ensemble health summary).
+- **CIM Models:** N/A
+
+---
+
 ### 8.4 API Gateways & Service Mesh
 
 **Primary App/TA:** Custom access log inputs, Envoy access log parsing, Istio telemetry, Kong/Apigee API inputs.
@@ -865,6 +964,27 @@ index=mesh sourcetype="istio:cert_status"
 
 ---
 
+### UC-8.4.9 · HAProxy Backend and Frontend Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Backend server state, connection queue depth, and HTTP response distribution indicate load balancer effectiveness and backend capacity. Detection of DOWN backends or saturated queues enables rapid failover and scaling decisions.
+- **App/TA:** Custom (HAProxy stats socket/CSV, syslog)
+- **Data Sources:** HAProxy stats CSV (`/haproxy?stats;csv`), syslog
+- **SPL:**
+```spl
+index=haproxy sourcetype="haproxy:stats"
+| eval backend_status=case(status=="UP",1, status=="DOWN",0, 1=1,null())
+| stats latest(backend_status) as up, latest(qcur) as queue_depth, latest(scur) as sessions by pxname, svname, type
+| where type=="backend" AND (up==0 OR queue_depth>10)
+| table pxname, svname, up, queue_depth, sessions
+```
+- **Implementation:** Enable HAProxy stats via `stats uri /haproxy?stats` and `stats enable` in the frontend. Poll stats CSV via scripted input (curl or socket) every 30–60 seconds. Parse backend/frontend rows; extract status (UP/DOWN), qcur (current queued requests), scur (current sessions), and response code distribution. Forward to Splunk via HEC. Alert when any backend is DOWN or queue_depth exceeds 10. Correlate with syslog for connection errors and backend health transitions.
+- **Visualization:** Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).
+- **CIM Models:** N/A
+
+---
+
 ### 8.5 Caching Layers
 
 **Primary App/TA:** Custom scripted inputs (Redis CLI, Memcached stats), Varnish syslog, SNMP for hardware caches.
@@ -1009,6 +1129,108 @@ index=cache sourcetype="redis:info"
 
 ---
 
+### UC-8.5.8 · Memcached Hit Ratio and Eviction Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cache hit ratio and eviction rate measure cache effectiveness and capacity pressure. Declining hit ratio or rising evictions indicate undersized cache or changing access patterns.
+- **App/TA:** Custom scripted input (memcached stats)
+- **Data Sources:** memcached stats command (get_hits, get_misses, evictions)
+- **SPL:**
+```spl
+index=cache sourcetype="memcached:stats"
+| eval hit_ratio=round(get_hits/(get_hits+get_misses)*100,2)
+| timechart span=5m avg(hit_ratio) as hit_pct, per_second(evictions) as eviction_rate by host
+| where hit_pct < 85 OR eviction_rate > 5
+```
+- **Implementation:** Run `echo stats | nc localhost 11211` (or memcached stats protocol) via scripted input every minute. Parse get_hits, get_misses, evictions, bytes, bytes_read, bytes_written. Forward to Splunk via HEC. Calculate hit ratio; alert when below 85%. Track eviction rate; alert when evictions per second exceed 5. Correlate with memory usage (limit_maxbytes).
+- **Visualization:** Gauge (hit ratio %), Line chart (hit ratio and eviction rate over time), Single value (current eviction rate), Table (instances with low hit ratio).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.5.9 · Squid Proxy Cache Hit Ratio
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cache HIT/MISS/DENY rates on forward/reverse proxy indicate cache effectiveness and upstream load. Declining ratio increases origin latency and bandwidth.
+- **App/TA:** Custom (Squid access log, SNMP)
+- **Data Sources:** Squid access.log (cache result codes), SNMP
+- **SPL:**
+```spl
+index=proxy sourcetype="squid:access"
+| rex "TCP_(?<cache_result>HIT|MISS|DENIED|REFRESH)"
+| stats count by cache_result
+| eventstats sum(count) as total
+| eval pct=round(count/total*100,2)
+| where cache_result=="MISS" AND pct > 30
+```
+- **Implementation:** Configure Squid to log cache result codes (TCP_HIT, TCP_MISS, TCP_DENIED, TCP_REFRESH) in access.log. Forward via Universal Forwarder. Parse cache_result field. Alternatively poll Squid SNMP cacheHitRatio if available. Calculate hit ratio per 5-minute window. Alert when MISS rate exceeds 30%. Correlate with request rate for capacity planning.
+- **Visualization:** Pie chart (HIT vs MISS vs DENY), Line chart (hit ratio over time), Table (cache result distribution), Single value (hit ratio %).
+- **CIM Models:** Web
+
+---
+
+### UC-8.5.10 · Varnish Cache Hit Rate and Backend Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Cache efficiency and backend connection failures indicate Varnish health. Backend failures cause cache misses and user-facing errors.
+- **App/TA:** Custom scripted input (varnishstat, varnishlog)
+- **Data Sources:** varnishstat JSON output
+- **SPL:**
+```spl
+index=cache sourcetype="varnish:stats"
+| eval hit_ratio=round(cache_hit/(cache_hit+cache_miss)*100,2)
+| where hit_ratio < 80 OR backend_fail > 0 OR backend_busy > 0
+| timechart span=5m avg(hit_ratio) as hit_pct, sum(backend_fail) as backend_failures by host
+```
+- **Implementation:** Run `varnishstat -j` via scripted input every minute. Parse MAIN.cache_hit, MAIN.cache_miss, MAIN.backend_fail, MAIN.backend_busy, MAIN.backend_unhealthy. Forward to Splunk via HEC. Alert when hit ratio drops below 80% or backend failures occur. Correlate backend_fail with backend health probes.
+- **Visualization:** Gauge (hit ratio %), Line chart (hit ratio and backend failures), Table (backend health status), Single value (backend failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.5.11 · Synthetic Transaction Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** Simulated multi-step user journeys with timing per step validate end-to-end availability and detect degradation before users report issues. Step-level timing enables pinpointing of slow components.
+- **App/TA:** Splunk Synthetic Monitoring, custom scripted input (Selenium, Playwright)
+- **Data Sources:** Synthetic test runner output with step-level timings
+- **SPL:**
+```spl
+index=synthetic sourcetype="synthetic:test"
+| eval step_duration=step_end_time-step_start_time
+| where overall_status=="FAIL" OR step_duration > 5000
+| stats count, avg(step_duration) as avg_step_ms by test_name, step_name
+| sort -avg_step_ms
+```
+- **Implementation:** Run synthetic tests via Splunk Synthetic Monitoring, Selenium, or Playwright. Configure tests to log JSON with test_name, step_name, step_start_time, step_end_time, overall_status, error_message. Forward to Splunk via HEC. Alert when any test fails or step duration exceeds SLA (e.g., 5s). Track step-level trends to identify regressions. Use transaction for multi-step journey correlation.
+- **Visualization:** Timeline (test runs with pass/fail), Table (slow steps by test), Line chart (step duration trend), Single value (failed tests).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.5.12 · Website Page Load Time Breakdown
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** DNS, connect, TLS, TTFB, and download timing per page element enable root cause analysis of slow page loads. Breakdown identifies whether slowness is network, backend, or resource-related.
+- **App/TA:** Splunk RUM or custom scripted input (curl timing)
+- **Data Sources:** Navigation Timing API, curl -w format, RUM beacon data
+- **SPL:**
+```spl
+index=rum sourcetype="rum:timing"
+| eval dns_ms=domain_dns_end-domain_dns_start, connect_ms=connect_end-connect_start, ttfb_ms=response_start-request_start
+| timechart span=5m perc95(ttfb_ms) as p95_ttfb, perc95(dns_ms) as p95_dns by page_url
+| where p95_ttfb > 1000
+```
+- **Implementation:** Instrument frontend with RUM (Splunk RUM, Boomerang, or custom beacon) to capture Navigation Timing API fields. Alternatively run curl with `-w` format for key endpoints. Parse domainLookupEnd-domainLookupStart (DNS), connectEnd-connectStart (connect), responseStart-requestStart (TTFB). Forward to Splunk via HEC. Alert when p95 TTFB exceeds 1s. Correlate with backend latency and CDN metrics.
+- **Visualization:** Waterfall (timing breakdown by resource), Line chart (p95 TTFB/DNS/connect over time), Table (slowest pages), Single value (p95 page load).
+- **CIM Models:** Web
+
+---
 
 ### 8.6 Network Service Availability
 
@@ -1202,6 +1424,107 @@ index=mail sourcetype=mail_tls host=*
 ```
 - **Implementation:** Script that connects to mail server ports and extracts certificate expiry (e.g. `openssl s_client -connect host:25 -starttls smtp`). Ingest daily. Alert when expiry is within 30 days.
 - **Visualization:** Table (host, port, days left), Single value (soonest expiry), Gauge (days remaining).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.10 · Envoy Proxy Upstream Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Upstream cluster health, retry rate, and circuit breaker trips indicate Envoy proxy and backend service health. Detection enables rapid isolation of failing upstreams.
+- **App/TA:** Custom (Envoy admin /stats, Prometheus metrics)
+- **Data Sources:** Envoy /stats endpoint (envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry)
+- **SPL:**
+```spl
+index=mesh sourcetype="envoy:stats"
+| search "envoy_cluster_upstream" ("cx_active" OR "rq_retry" OR "circuit_breakers")
+| rex "envoy_cluster\.(?<cluster>[^.]+)\.(?<metric>\w+)=(?<value>\d+)"
+| stats latest(value) as val by cluster, metric
+| where metric=="rq_retry" AND val > 0 OR metric=="circuit_breakers_default_rq_open" AND val > 0
+```
+- **Implementation:** Enable Envoy admin interface (`/stats`). Poll via scripted input or Prometheus scrape every 30 seconds. Parse envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry, envoy_cluster_upstream_rq_retry_overflow, circuit_breakers.*.rq_open. Forward to Splunk via HEC. Alert when retry rate spikes or circuit breaker opens. Correlate with upstream service health checks.
+- **Visualization:** Status grid (cluster × health), Line chart (retry rate over time), Table (clusters with circuit breaker trips), Single value (active circuit breakers).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.11 · HashiCorp Vault Seal Status and Token Count
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** Vault health, auto-unseal events, and token creation rate indicate secrets management availability. Sealed Vault blocks all secret access; token anomalies may indicate abuse.
+- **App/TA:** Custom (Vault API, audit log)
+- **Data Sources:** Vault `/v1/sys/health`, `/v1/sys/audit`, audit log
+- **SPL:**
+```spl
+index=vault sourcetype="vault:health"
+| where sealed==true
+| table _time, host, sealed, standby, version
+```
+- **Implementation:** Poll Vault `/v1/sys/health` via scripted input every minute. Parse sealed, standby, version, replication_performance_mode. Forward to Splunk via HEC. Enable Vault audit log; forward audit events for token creation and auth attempts. Alert immediately when sealed==true. Track token creation rate; alert on anomalies. Correlate unseal events with operator actions.
+- **Visualization:** Single value (sealed status — target: false), Table (Vault cluster health), Line chart (token creation rate), Timeline (unseal events).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.12 · HashiCorp Consul Service Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Service registration, deregistration, and health check failures indicate Consul service discovery health. Critical checks mean services are unavailable for discovery and routing.
+- **App/TA:** Custom (Consul HTTP API)
+- **Data Sources:** Consul `/v1/health/state/critical`, `/v1/catalog/services`
+- **SPL:**
+```spl
+index=consul sourcetype="consul:health"
+| where status=="critical"
+| stats count, latest(Output) as Output by Node, ServiceID, CheckID
+| table Node, ServiceID, CheckID, count, Output
+```
+- **Implementation:** Poll Consul `/v1/health/state/critical` and `/v1/catalog/services` via scripted input every minute. Parse Node, ServiceID, CheckID, Status, Output. Forward to Splunk via HEC. Alert when any service has critical health. Track service registration/deregistration events from catalog changes. Correlate with deployment events.
+- **Visualization:** Status grid (service × health), Table (critical services), Single value (critical check count), Timeline (health transitions).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.13 · HashiCorp Nomad Job and Allocation Status
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed allocations and job deployment health indicate Nomad scheduler and workload availability. Failed allocations mean tasks are not running; deployment failures block rollouts.
+- **App/TA:** Custom (Nomad HTTP API)
+- **Data Sources:** Nomad `/v1/jobs`, `/v1/allocations`
+- **SPL:**
+```spl
+index=nomad sourcetype="nomad:allocations"
+| where ClientStatus=="failed" OR (DesiredStatus=="run" AND ClientStatus!="running")
+| stats count by JobID, TaskGroup, ClientStatus
+| sort -count
+```
+- **Implementation:** Poll Nomad `/v1/jobs` and `/v1/allocations` via scripted input every 5 minutes. Parse JobID, TaskGroup, ClientStatus, DesiredStatus, CreateIndex. Forward to Splunk via HEC. Alert when ClientStatus==failed or allocations are pending/running when desired is stop. Track deployment status (job version, allocation placement). Correlate with node availability.
+- **Visualization:** Table (failed allocations by job), Single value (failed allocation count), Status grid (job × allocation status), Timeline (allocation events).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.14 · Asterisk / FreePBX Call Quality and Trunk Status
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** Call volume, ASR (Answer Seizure Ratio), ACD (Average Call Duration), and trunk registration indicate VoIP/PBX health. Trunk failures block inbound/outbound calls; quality metrics affect user experience.
+- **App/TA:** Custom (Asterisk AMI, CDR logs)
+- **Data Sources:** Asterisk CDR logs, AMI events, SIP trunk status
+- **SPL:**
+```spl
+index=asterisk sourcetype="asterisk:cdr"
+| eval duration_sec=tonumber(duration)
+| stats count as calls, avg(duration_sec) as acd, count(eval(disposition=="ANSWERED")) as answered by _time span=1h
+| eval asr=round(answered/calls*100,2)
+| where asr < 80 OR acd < 60
+```
+- **Implementation:** Forward Asterisk CDR (Call Detail Record) logs via Universal Forwarder. Parse caller, callee, duration, disposition, channel. For trunk status, use AMI (Asterisk Manager Interface) or `asterisk -rx "pjsip show endpoints"` via scripted input. Poll trunk registration status every 5 minutes. Calculate ASR (answered/total*100) and ACD per hour. Alert when ASR drops below 80% or trunk shows UNREACHABLE. Track call volume for capacity planning.
+- **Visualization:** Line chart (ASR and ACD over time), Table (trunk status), Single value (calls per hour), Bar chart (call volume by trunk).
 - **CIM Models:** N/A
 
 ---

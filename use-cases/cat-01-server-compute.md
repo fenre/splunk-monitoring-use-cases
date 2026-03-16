@@ -2620,6 +2620,266 @@ index=os sourcetype=linux_audit path~="/boot/(grub|efi)" action=modified
 
 ---
 
+### UC-1.1.122 · Systemd Unit State Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Track failed/inactive systemd services, auto-restart counts, and service startup time to prevent cascading failures and identify misconfigured or unhealthy units.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `systemctl list-units` output, systemd journal
+- **SPL:**
+```spl
+index=os sourcetype=systemd_units host=*
+| where ActiveState="failed" OR ActiveState="inactive"
+| stats latest(ActiveState) as state, latest(SubState) as substate, values(Unit) as units by host
+| where state!="active"
+| table host state substate units
+
+| comment "Restart count tracking"
+index=os sourcetype=systemd_units host=* NRestarts>0
+| stats sum(NRestarts) as total_restarts by host, Unit
+| where total_restarts > 5
+| sort -total_restarts
+```
+- **Implementation:** Create a scripted input that runs `systemctl list-units --all --no-pager --plain` and `systemctl show --property=ActiveState,SubState,NRestarts` for critical units. Parse ActiveState, SubState, and NRestarts. Run every 60 seconds. For startup time, use `systemd-analyze` output. Alert on any failed units; alert when NRestarts exceeds 5 in 1 hour for critical services.
+- **Visualization:** Table (failed/inactive units by host), Single value (count of failed units), Timechart of restart counts.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.1.123 · Linux Cgroup Resource Pressure (PSI)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Monitor Pressure Stall Information (PSI) for CPU, memory, and I/O at cgroup level to detect resource contention before it causes application latency.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `/proc/pressure/cpu`, `/proc/pressure/memory`, `/proc/pressure/io`
+- **SPL:**
+```spl
+index=os sourcetype=psi host=*
+| eval resource=coalesce(cpu_resource, mem_resource, io_resource)
+| timechart span=5m avg(avg10) as avg10_pct, avg(avg60) as avg60_pct, avg(avg300) as avg300_pct by host, resource
+| where avg10_pct > 10 OR avg60_pct > 5
+
+| comment "Per-cgroup PSI (if collected)"
+index=os sourcetype=psi host=* cgroup=*
+| stats latest(avg10) as pressure by host, cgroup, resource
+| where pressure > 20
+| sort -pressure
+```
+- **Implementation:** Create a scripted input that reads `/proc/pressure/cpu`, `/proc/pressure/memory`, and `/proc/pressure/io`. Parse avg10, avg60, avg300, and total fields (format: `avg10=0.00 avg60=0.00 avg300=0.00 total=12345`). Optionally collect per-cgroup PSI from `/sys/fs/cgroup/<cgroup>/cpu.pressure` etc. Run every 60 seconds. Alert when avg10 exceeds 10% or avg60 exceeds 5% for any resource.
+- **Visualization:** Line chart (pressure over time by resource), Table of hosts with elevated pressure, Gauge per resource type.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.1.124 · Linux Entropy Pool Depletion
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** Low entropy blocks /dev/random and can stall crypto operations (SSL handshakes, key generation). Detecting depletion prevents application hangs and security failures.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `/proc/sys/kernel/random/entropy_avail`
+- **SPL:**
+```spl
+index=os sourcetype=entropy host=*
+| stats latest(entropy_avail) as avail by host
+| where avail < 200
+| table host avail
+
+| comment "Trending"
+index=os sourcetype=entropy host=*
+| timechart span=5m avg(entropy_avail) as entropy by host
+| where entropy < 500
+```
+- **Implementation:** Create a scripted input that reads `cat /proc/sys/kernel/random/entropy_avail` and optionally `poolsize`. Run every 60 seconds. Parse entropy_avail as integer. Alert when entropy drops below 200 (warning) or 100 (critical). Consider haveged or rng-tools for entropy generation on VMs.
+- **Visualization:** Single value (entropy_avail), Line chart (entropy over time by host), Table of hosts below threshold.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.1.125 · Linux Journal / Journald Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Journal corruption, excessive disk usage, and rate-limited entries indicate logging problems that can hide critical events and fill disk.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `journalctl --disk-usage`, `journalctl --verify`
+- **SPL:**
+```spl
+index=os sourcetype=journal_health host=*
+| stats latest(disk_usage_mb) as size_mb, latest(corruption_status) as corrupt, latest(suppressed_count) as suppressed by host
+| where corrupt="inconsistent" OR corrupt="corrupt" OR size_mb > 4096 OR suppressed > 100
+| table host size_mb corrupt suppressed
+
+| comment "Size trending"
+index=os sourcetype=journal_health host=*
+| timechart span=1h avg(disk_usage_mb) as journal_mb by host
+```
+- **Implementation:** Create a scripted input that runs `journalctl --disk-usage` (parse "Archived and active: X.XG" or similar) and `journalctl --verify 2>&1` (check exit code and output for "corrupt" or "inconsistent"). For suppressed messages, parse `journalctl -u systemd-journald` for "Suppressed" or use `journalctl --output=short-full` rate stats. Run every 300 seconds. Alert on corruption; alert when journal exceeds 4GB or suppressed count is high.
+- **Visualization:** Table (host, size, corruption status), Line chart (journal size over time), Single value (corruption count).
+- **CIM Models:** N/A
+
+---
+
+### UC-1.1.126 · Chrony / NTP Time Synchronization Drift
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Availability
+- **Value:** Clock offset, stratum, and reachability issues cause authentication failures, log correlation errors, and certificate validation problems. Time drift is a root cause of many subtle failures.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `chronyc tracking`, `ntpq -p`
+- **SPL:**
+```spl
+index=os sourcetype=ntp_status host=*
+| stats latest(offset_ms) as offset, latest(stratum) as stratum, latest(reachability) as reach by host
+| where abs(offset) > 100 OR stratum > 10 OR reachability < 377
+| table host offset stratum reachability
+
+| comment "Offset trending"
+index=os sourcetype=ntp_status host=*
+| timechart span=15m avg(offset_ms) as offset_ms by host
+| where abs(offset_ms) > 50
+```
+- **Implementation:** Create a scripted input that runs `chronyc tracking` (parse Last offset, Stratum, Leap status) or `ntpq -p` for ntpd. Extract offset_ms (convert to milliseconds), stratum, and reachability (octal 377 = all peers reachable). Run every 300 seconds. Alert when offset exceeds 100ms; alert when stratum > 10 or reachability indicates no peers.
+- **Visualization:** Line chart (offset over time by host), Table (host, offset, stratum), Single value (hosts with drift).
+- **CIM Models:** N/A
+
+---
+
+### UC-1.1.127 · Swap Activity Rate Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Pages swapped in/out per second (distinct from swap usage %) indicates memory pressure and I/O load. High swap I/O rate degrades performance even before swap usage is critical.
+- **App/TA:** `Splunk_TA_nix`
+- **Data Sources:** `sourcetype=vmstat`
+- **SPL:**
+```spl
+index=os sourcetype=vmstat host=*
+| eval swap_io_rate = si + so
+| timechart span=5m avg(swap_io_rate) as avg_swap_rate, avg(si) as swap_in, avg(so) as swap_out by host
+| where avg_swap_rate > 100
+
+| comment "Baseline deviation alert"
+index=os sourcetype=vmstat host=*
+| eval swap_rate = si + so
+| bin _time span=1h
+| stats avg(swap_rate) as avg_rate, stdev(swap_rate) as std_rate by host, _time
+| eventstats avg(avg_rate) as baseline stdev(avg_rate) as baseline_std by host
+| eval threshold = baseline + (2 * coalesce(baseline_std, 50))
+| where avg_rate > threshold
+```
+- **Implementation:** Enable vmstat scripted input in Splunk_TA_nix (interval=60). Fields `si` (swap in) and `so` (swap out) represent pages per interval. Create baseline of normal swap rate per host; alert when swap I/O rate exceeds 2x baseline or exceeds 100 pages/sec sustained for 10 minutes.
+- **Visualization:** Line chart (swap in/out rates by host), Table of hosts with elevated swap I/O, Single value (current swap rate).
+- **CIM Models:** Performance
+
+---
+
+### UC-1.1.128 · Filesystem Inode Exhaustion
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Inode usage approaching 100% blocks file creation even with free disk space. Applications fail with "No space left on device" despite available blocks — a common misdiagnosis.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `df -i` output
+- **SPL:**
+```spl
+index=os sourcetype=df_inode host=*
+| stats latest(IUsePct) as inode_pct by host, Filesystem, MountedOn
+| where inode_pct > 90
+| sort -inode_pct
+| table host Filesystem MountedOn inode_pct
+
+| comment "Warning threshold"
+index=os sourcetype=df_inode host=*
+| stats latest(IUsePct) as inode_pct by host, MountedOn
+| where inode_pct > 80
+```
+- **Implementation:** Create a scripted input that runs `df -i` and parses output. Extract Filesystem, Inodes, IUsed, IFree, IUse%, MountedOn. Run every 300 seconds. Set tiered alerts: 80% (warning), 90% (high), 95% (critical). Include `find` or `du --inodes` to identify directories consuming inodes for remediation.
+- **Visualization:** Table (filesystem, host, inode %), Gauge per critical mount, Line chart (inode % over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-1.1.129 · Linux Softirq / Hardirq Time
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Detect interrupt storms (softirq/hardirq) that degrade system performance. High IRQ time indicates network, block I/O, or timer storms.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `/proc/interrupts`, `/proc/softirqs`, `mpstat` output
+- **SPL:**
+```spl
+index=os sourcetype=irq_stats host=*
+| eval irq_pct = softirq_pct + hardirq_pct
+| timechart span=5m avg(irq_pct) as irq_total, avg(softirq_pct) as softirq, avg(hardirq_pct) as hardirq by host
+| where irq_total > 20
+
+| comment "Per-CPU IRQ breakdown"
+index=os sourcetype=irq_stats host=* cpu=*
+| stats latest(softirq_pct) as softirq, latest(hardirq_pct) as hardirq by host, cpu
+| where softirq > 30 OR hardirq > 15
+```
+- **Implementation:** Create a scripted input that parses `/proc/softirqs` and `/proc/interrupts` (or use `mpstat -I SUM` for softirq/hardirq percentages). Calculate softirq and hardirq as percentage of CPU time. Run every 60 seconds. Alert when combined IRQ time exceeds 20% sustained for 10 minutes. Correlate with network/block device activity.
+- **Visualization:** Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.
+- **CIM Models:** Performance
+
+---
+
+### UC-1.1.130 · TCP Connection State Distribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** Count of ESTABLISHED, TIME_WAIT, CLOSE_WAIT, SYN_RECV connections. Detects connection leaks (accumulating CLOSE_WAIT), exhaustion (TIME_WAIT), and half-open buildup.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `ss -s` or `netstat` output
+- **SPL:**
+```spl
+index=os sourcetype=tcp_states host=*
+| stats latest(ESTAB) as established, latest(TIME-WAIT) as time_wait, latest(CLOSE-WAIT) as close_wait, latest(SYN-RECV) as syn_recv by host
+| where close_wait > 1000 OR time_wait > 10000
+| table host established time_wait close_wait syn_recv
+
+| comment "Connection leak detection (CLOSE_WAIT growth)"
+index=os sourcetype=tcp_states host=*
+| timechart span=15m avg(CLOSE-WAIT) as close_wait by host
+| where close_wait > 500
+```
+- **Implementation:** Create a scripted input that runs `ss -s` (parse TCP: inuse X orphaned X tw X alloc X mem X) or `netstat -an | awk` to count by state. Parse ESTAB, TIME-WAIT, CLOSE-WAIT, SYN-RECV. Run every 60 seconds. Alert when CLOSE_WAIT exceeds 1000 (possible connection leak); alert when TIME_WAIT exceeds 10000 (port exhaustion risk).
+- **Visualization:** Stacked bar chart (state distribution by host), Line chart (CLOSE_WAIT over time), Table of hosts exceeding thresholds.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.1.131 · Linux OOM Killer Invocation Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Track which processes were killed by the OOM killer and how often. OOM events indicate severe memory pressure and often precede application outages.
+- **App/TA:** `Splunk_TA_nix`
+- **Data Sources:** `/var/log/kern.log`, `dmesg`, `sourcetype=syslog`
+- **SPL:**
+```spl
+index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
+| search "Out of memory" OR "oom-kill" OR "oom_reaper" OR "Killed process"
+| rex "oom-kill:constraint=(?<constraint>\w+),.*process (?<pid>\d+), (?<process>\S+),"
+| rex "Killed process (?<pid>\d+) \((?<process>[^)]+)\)"
+| stats count as oom_count by host, process, _time
+| sort -_time -oom_count
+
+| comment "OOM events in last 24h"
+index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
+| search "oom-kill" OR "Out of memory" "Killed process"
+| stats count by host
+| where count > 0
+```
+- **Implementation:** Ensure kernel messages are forwarded via syslog or Splunk_TA_nix. The OOM killer logs to kernel ring buffer; rsyslog typically captures to kern.log. Use `dmesg -T` or journalctl for immediate capture. Create alert on any OOM event. Parse process name and PID for context. Correlate with memory metrics before the event.
+- **Visualization:** Alert (immediate on OOM), Table (host, process, count), Timeline of OOM events.
+- **CIM Models:** N/A
+
+---
+
 ## Document Information
 
 - **Total Use Cases:** 121 (UC-1.1.21 through UC-1.1.141)
@@ -5769,6 +6029,109 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operationa
 
 ---
 
+### UC-1.2.131 · Windows Print Spooler Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Spooler service state, queue depth, and stalled print jobs affect printing availability. Print Spooler failures block all printing on the host.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** `WinEventLog:System` (Event ID 7036 for spooler), Perfmon (Print Queue counters)
+- **SPL:**
+```spl
+index=wineventlog source="WinEventLog:System" EventCode=7036 ServiceName="Spooler"
+| eval state=case(Message="*stopped*", "stopped", Message="*started*", "started", "running")
+| stats latest(_time) as last_change, latest(state) as current_state by host
+| where current_state="stopped"
+
+| comment "Print queue depth"
+index=perfmon sourcetype=Perfmon:PrintQueue host=* counter="Jobs"
+| stats latest(Value) as queue_depth by host, instance
+| where queue_depth > 50
+| sort -queue_depth
+```
+- **Implementation:** Enable `WinEventLog:System` input for EventCode 7036 (service state change). Filter for ServiceName=Spooler. Configure Perfmon input for Print Queue object: counter=Jobs (queue depth). Run every 60 seconds. Alert when Spooler stops; alert when queue depth exceeds 50 for sustained period (stalled jobs).
+- **Visualization:** Table (host, spooler state, queue depth), Single value (failed spooler count), Line chart (queue depth over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-1.2.132 · Windows Scheduled Task Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Detect tasks that failed to run or returned non-zero result codes. Indicates missed backups, sync jobs, or automation failures.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 201, 101)
+- **SPL:**
+```spl
+index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operational" EventCode IN (201, 101)
+| search ResultCode!=0
+| eval task_result=case(ResultCode=0,"Success", ResultCode=1,"InProgress", ResultCode=2,"Disabled", ResultCode=267009,"AccessDenied", ResultCode=2147942401,"IncorrectPath", 1=1,"Other")
+| table _time host TaskName ResultCode task_result
+| sort -_time
+
+| comment "Failed task count by host"
+index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operational" EventCode=201 ResultCode!=0
+| stats count by host, TaskName
+| sort -count
+```
+- **Implementation:** Enable Task Scheduler Operational log input. EventCode 201 = task completed; EventCode 101 = task started. Parse ResultCode (0 = success). Alert on ResultCode != 0. Common codes: 0x1 (incorrect function), 0x2 (file not found), 0x5 (access denied). Exclude known flaky tasks from alert if acceptable.
+- **Visualization:** Table (task, host, result code), Alert on failed tasks, Bar chart (failed task count by task name).
+- **CIM Models:** N/A
+
+---
+
+### UC-1.2.133 · Windows WMI Repository Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** WMI corruption breaks many monitoring agents, SCCM, and management tools. Detecting broken WMI enables early remediation before dependent systems fail.
+- **App/TA:** `Splunk_TA_windows` (scripted input)
+- **Data Sources:** `winmgmt /verifyrepository` output
+- **SPL:**
+```spl
+index=os sourcetype=wmi_verify host=*
+| stats latest(verify_result) as result, latest(repository_status) as status by host
+| where result!="consistent" OR status="inconsistent"
+| table host result status
+
+| comment "WMI verification failure events"
+index=os sourcetype=wmi_verify host=*
+| search "inconsistent" OR "corrupt" OR "failed"
+| table _time host _raw
+```
+- **Implementation:** Create a scripted input that runs `winmgmt /verifyrepository` and captures output. Parse for "repository is consistent" (success) vs "inconsistent" or "corrupt". Run daily or weekly. Alert immediately on inconsistent. Remediation: `winmgmt /resetrepository` (requires reboot). WMI issues often cause perfmon and other agent inputs to fail.
+- **Visualization:** Table (host, WMI status), Single value (hosts with WMI issues), Alert.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.2.134 · Windows Pending Reboot Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
+- **Value:** Detect servers waiting for reboot after Windows updates. Pending reboots cause inconsistent behavior and can block security patch application.
+- **App/TA:** `Splunk_TA_windows` (scripted input)
+- **Data Sources:** Registry keys (RebootRequired, PendingFileRenameOperations)
+- **SPL:**
+```spl
+index=os sourcetype=windows_pending_reboot host=*
+| stats latest(reboot_pending) as pending, latest(reason) as reason by host
+| where pending="true"
+| table host pending reason
+
+| comment "Fleet pending reboot count"
+index=os sourcetype=windows_pending_reboot host=*
+| stats latest(reboot_pending) as pending by host
+| search pending="true"
+| stats count as pending_count
+```
+- **Implementation:** Create a scripted input that checks registry: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending`, `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations`, `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired`. Set reboot_pending=true if any exist. Run every 60-300 seconds. Report reason (e.g., "Windows Update", "Component Based Servicing"). Include in change management dashboard.
+- **Visualization:** Table (host, pending, reason), Single value (pending reboot count), Pie chart (pending vs. current).
+- **CIM Models:** N/A
+
+---
+
 ## 1.3 macOS Endpoints
 
 **Primary App/TA:** Splunk Universal Forwarder for macOS with custom scripted inputs (no official Splunkbase TA — use Splunk_TA_nix where applicable, or custom inputs)
@@ -5868,6 +6231,32 @@ index=os sourcetype=macos_crash host=*
 ```
 - **Implementation:** Forward `~/Library/Logs/DiagnosticReports/` and `/Library/Logs/DiagnosticReports/`. Use `monitor` input in inputs.conf. Parse process name and exception type from crash reports.
 - **Visualization:** Table (process, host, count), Bar chart of top crashing apps.
+- **CIM Models:** N/A
+
+---
+
+### UC-1.3.6 · macOS Gatekeeper and XProtect Status
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Verify Gatekeeper and XProtect are enabled and definitions are current. Disabled or outdated security controls increase malware risk.
+- **App/TA:** `Splunk_TA_nix` (scripted input)
+- **Data Sources:** `spctl --status`, `system_profiler SPInstallHistoryDataType`
+- **SPL:**
+```spl
+index=os sourcetype=macos_gatekeeper host=*
+| stats latest(gatekeeper_status) as gatekeeper, latest(xprotect_version) as xprotect_ver, latest(xprotect_date) as xprotect_date by host
+| where gatekeeper!="assessments enabled" OR gatekeeper="disabled"
+| table host gatekeeper xprotect_ver xprotect_date
+
+| comment "XProtect definition age"
+index=os sourcetype=macos_gatekeeper host=*
+| eval xprotect_age_days = now() - strptime(xprotect_date, "%Y-%m-%d")
+| where xprotect_age_days > 30
+| table host xprotect_ver xprotect_date xprotect_age_days
+```
+- **Implementation:** Create a scripted input that runs `spctl --status` (expect "assessments enabled" for Gatekeeper on). For XProtect, run `system_profiler SPInstallHistoryDataType` and parse XProtect/XProtect Remediator entries, or check `/Library/Apple/System/Library/CoreServices/XProtect.bundle/Contents/version.plist`. Run daily. Alert when Gatekeeper is disabled; alert when XProtect definitions are older than 30 days.
+- **Visualization:** Table (host, Gatekeeper status, XProtect version), Single value (non-compliant count), Pie chart (enabled vs. disabled).
 - **CIM Models:** N/A
 
 ---

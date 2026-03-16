@@ -1157,6 +1157,84 @@ index=aws sourcetype="aws:cloudtrail" eventSource="secretsmanager.amazonaws.com"
 
 ---
 
+### UC-4.1.56 · AWS Lambda Cold Start Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cold start frequency and duration impact user experience. High cold start rates or long init times cause request latency spikes and timeouts.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** CloudWatch Logs (Lambda platform logs: REPORT, INIT), X-Ray traces
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatchlogs" ("REPORT RequestId" OR "INIT_START")
+| eval function_name=case(isnotnull(log_group), replace(log_group, "/aws/lambda/", ""), 1=1, "unknown")
+| rex "Init Duration:\s+(?<init_ms>\d+\.?\d*)\s*ms"
+| rex "Duration:\s+(?<duration_ms>\d+\.?\d*)\s*ms"
+| eval cold_start=if(match(_raw, "INIT_START"), 1, 0)
+| stats count as invocations, sum(cold_start) as cold_starts, avg(init_ms) as avg_init_ms, avg(duration_ms) as avg_duration_ms by function_name, bin(_time, 1h)
+| eval cold_start_pct=round(cold_starts/invocations*100, 1)
+| where cold_start_pct > 10 OR avg_init_ms > 1000
+| table _time function_name invocations cold_starts cold_start_pct avg_init_ms avg_duration_ms
+| sort -cold_start_pct
+```
+- **Implementation:** Enable CloudWatch Logs for Lambda (platform logs include REPORT and INIT). Optionally ingest X-Ray traces for end-to-end cold start visibility. Parse REPORT/INIT_START lines to extract init duration and invocation type. Alert when cold start rate exceeds 10% or init duration > 1s for critical functions. Consider provisioned concurrency for latency-sensitive workloads.
+- **Visualization:** Line chart (cold start % and init duration by function over time), Table (function, cold starts, avg init ms), Single value (cold start rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.57 · AWS ECS Task Placement Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Tasks failing to place due to resource constraints (CPU, memory, ports, attributes) cause service scaling failures and deployment blockages.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** CloudTrail (RunTask, CreateService with placement failures), ECS container instance state change events
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudtrail" eventSource="ecs.amazonaws.com" (eventName="RunTask" OR eventName="CreateService")
+| spath path=responseElements.failures{}
+| mvexpand responseElements.failures{}
+| spath input=responseElements.failures{} path=reason
+| spath input=responseElements.failures{} path=arn
+| search reason=*
+| stats count by reason, requestParameters.cluster
+| sort -count
+```
+- **Implementation:** CloudTrail logs ECS API calls; RunTask and CreateService responses include a `failures` array when placement fails. Ingest ECS events from EventBridge for container instance state changes. Parse failure reasons (RESOURCE:MEMORY, RESOURCE:CPU, RESOURCE:PORT, attribute constraints). Alert on any placement failure. Dashboard by cluster, reason, and task definition. Remediate by adding capacity, relaxing constraints, or adjusting task definitions.
+- **Visualization:** Table (reason, cluster, count), Bar chart (failures by reason), Timeline (placement failure events).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.58 · AWS Transit Gateway Attachment Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** TGW route propagation and attachment state affect cross-VPC and hybrid connectivity. Failed attachments or stale routes cause network outages.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** AWS Config (TGW attachment compliance), TGW flow logs, CloudWatch TGW metrics (BytesIn, BytesOut, PacketsIn, PacketsOut)
+- **SPL:**
+```spl
+index=aws (sourcetype="aws:config:notification" resourceType="AWS::EC2::TransitGatewayAttachment" OR (sourcetype="aws:cloudwatch" namespace="AWS/TransitGateway" metric_name="BytesIn"))
+| eval attachment_state=case(
+  configurationItemStatus="ResourceDeleted", "deleted",
+  configurationItemStatus="ResourceNotRecorded", "unknown",
+  configurationItemStatus="OK", "ok",
+  isnotnull(configurationItemStatus), configurationItemStatus,
+  1=1, null())
+| eval resourceId=coalesce(resourceId, resource_id)
+| stats latest(attachment_state) as state, latest(Sum) as bytes_in by resourceId, bin(_time, 1h)
+| where (isnotnull(state) AND state!="ok") OR (isnotnull(bytes_in) AND bytes_in=0)
+| table _time resourceId state bytes_in
+| sort -_time
+```
+- **Implementation:** Enable AWS Config for TGW attachments to track state changes. Ingest TGW flow logs to S3 and forward to Splunk for traffic analysis. Collect CloudWatch TGW metrics (BytesIn, BytesOut) per attachment. Alert when attachment state is not available or traffic drops to zero unexpectedly. Correlate with route table propagation events. Use for hybrid connectivity and SD-WAN monitoring.
+- **Visualization:** Table (attachment, state, traffic), Status grid (attachment health), Line chart (bytes in/out by attachment).
+- **CIM Models:** N/A
+
+---
+
 ## 4.2 Microsoft Azure
 
 **Primary App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`) — Free on Splunkbase
@@ -1696,6 +1774,49 @@ index=azure sourcetype="mscs:azure:audit" resourceId=*Microsoft.Authorization/po
 
 ---
 
+### UC-4.2.28 · Azure App Service Plan CPU and Memory
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Platform-level resource pressure on App Service plan (not app-level) causes throttling, slow responses, and out-of-memory errors across all apps in the plan.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services
+- **Data Sources:** Azure Monitor metrics (CpuPercentage, MemoryPercentage for App Service Plan)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Web/serverfarms" (metric_name="CpuPercentage" OR metric_name="MemoryPercentage")
+| stats avg(average) as avg_pct by resourceId, metric_name, bin(_time, 5m)
+| where avg_pct > 80
+| eval avg_pct=round(avg_pct, 1)
+| table _time resourceId metric_name avg_pct
+| sort -avg_pct
+```
+- **Implementation:** Configure Azure Monitor diagnostic settings or metrics API to export App Service Plan metrics (CpuPercentage, MemoryPercentage) to Event Hub or storage. Ingest via Splunk_TA_microsoft-cloudservices. Alert when CPU or memory exceeds 80% for 5+ minutes. Scale up plan or optimize app code. Distinguish plan-level metrics from app-level (requests, response time).
+- **Visualization:** Line chart (CPU and memory % by plan over time), Table (plan, metric, avg %), Gauge (current utilization).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.29 · Azure Front Door Origin Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Origin probe failures cause automatic failover. Repeated failures indicate backend issues or misconfigured health probes; critical for global load balancing and CDN reliability.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services
+- **Data Sources:** Azure Front Door health probe logs, FrontDoorHealthProbeLog
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" resourceType="Microsoft.Cdn/profiles" log_s="FrontDoorHealthProbeLog"
+| spath path=properties
+| search properties.httpStatusCode!=200 OR properties.healthProbeSentResult="Unhealthy"
+| stats count by resourceId, properties.backendPoolName, properties.healthProbeSentResult
+| sort -count
+```
+- **Implementation:** Enable Front Door diagnostic logs (FrontDoorHealthProbeLog) and route to Log Analytics or Event Hub. Ingest in Splunk. Alert on any Unhealthy probe result or non-200 status. Correlate with origin availability and probe configuration (path, interval). Dashboard by backend pool and origin.
+- **Visualization:** Table (backend pool, result, count), Status grid (origin health), Timeline (probe failures).
+- **CIM Models:** N/A
+
+---
+
 ## 4.3 Google Cloud Platform (GCP)
 
 **Primary App/TA:** Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`) — Free on Splunkbase
@@ -2185,6 +2306,31 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="acces
 
 ---
 
+### UC-4.3.24 · GCP Cloud Run Cold Start Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Serverless cold start impact on request latency. High cold start rates cause P99 latency spikes and timeouts for scale-to-zero services.
+- **App/TA:** Custom (GCP Monitoring API)
+- **Data Sources:** Cloud Run metrics (request_latencies, instance_count, container/startup_latencies)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring" metric.type="run.googleapis.com/request_count" OR metric.type="run.googleapis.com/container/instance_count"
+| eval metric_type=coalesce(metric.type, 'run.googleapis.com/request_count')
+| stats sum(value) as requests, latest(value) as instances by resource.labels.service_name, metric_type, bin(_time, 5m)
+| eval cold_start_indicator=if(instances=0 AND requests>0, 1, 0)
+| stats sum(requests) as total_requests, sum(cold_start_indicator) as cold_start_events by resource.labels.service_name
+| eval cold_start_pct=round(cold_start_events/total_requests*100, 1)
+| where cold_start_pct > 5
+| table resource.labels.service_name total_requests cold_start_events cold_start_pct
+| sort -cold_start_pct
+```
+- **Implementation:** Use GCP Monitoring API (or Cloud Monitoring export) to ingest Cloud Run metrics. Request count and instance count indicate scale-to-zero; zero instances with requests implies cold starts. For detailed latency, ingest `run.googleapis.com/request_latencies` and `run.googleapis.com/container/startup_latencies`. Alert when cold start rate exceeds 5% or startup latency > 3s. Consider min instances for latency-critical services.
+- **Visualization:** Line chart (cold start % and startup latency by service over time), Table (service, cold starts, %), Single value (cold start rate).
+- **CIM Models:** N/A
+
+---
+
 ## 4.4 Multi-Cloud & Cloud Management
 
 ---
@@ -2577,6 +2723,48 @@ index=cloud sourcetype="billing:daily" (provider=aws OR provider=azure OR provid
 ```
 - **Implementation:** Ingest daily (or hourly) cost by provider and service. Compute rolling mean and standard deviation per provider. Alert when daily cost exceeds 2 standard deviations. Correlate with resource inventory for top contributors.
 - **Visualization:** Line chart (cost by provider over time), Table (anomalous days), Single value (current day vs baseline).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.20 · Multi-Cloud DNS Resolution Latency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cross-provider DNS query performance comparison. Slow or failed resolution causes application timeouts and user experience degradation.
+- **App/TA:** Custom scripted input (dig, nslookup)
+- **Data Sources:** DNS query timing from multiple vantage points (AWS, Azure, GCP, on-prem)
+- **SPL:**
+```spl
+index=cloud sourcetype="dns:resolution" 
+| stats avg(resolution_ms) as avg_ms, max(resolution_ms) as max_ms, count as queries by provider, vantage_point, domain
+| where avg_ms > 200 OR max_ms > 1000
+| eval avg_ms=round(avg_ms, 1), max_ms=round(max_ms, 1)
+| table provider vantage_point domain queries avg_ms max_ms
+| sort -avg_ms
+```
+- **Implementation:** Run periodic DNS probes (dig, nslookup, or custom script) from Lambda, Azure Functions, Cloud Functions, or on-prem agents. Measure resolution time per domain. Ingest results via HEC with fields: provider, vantage_point, domain, resolution_ms, success. Alert when avg latency exceeds 200ms or failure rate > 5%. Compare providers for DNS migration decisions.
+- **Visualization:** Line chart (resolution latency by provider and domain over time), Table (provider, domain, avg ms), Heat map (provider vs domain).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.21 · Cloud Resource Tagging Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Untagged or improperly tagged resources impact cost allocation, governance, and security. Compliance gaps block chargeback and policy enforcement.
+- **App/TA:** `Splunk_TA_aws`, Azure inputs, GCP inputs
+- **Data Sources:** AWS Config rules (required-tags), Azure Policy (tag compliance), GCP Asset Inventory (resource metadata)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:config:notification" configRuleName="*required-tags*" complianceType="NON_COMPLIANT"
+| eval provider="aws", resource_type=coalesce(resourceType, configuration.resourceType)
+| stats count by provider, resource_type
+| sort -count
+```
+- **Implementation:** Enable AWS Config rule `required-tags` (or custom rule). Use Azure Policy for tag compliance. Export GCP Asset Inventory to BigQuery or Pub/Sub. Ingest compliance results in Splunk with normalized fields (provider, resource_type, compliance_status). For multi-cloud, use `index=cloud` and union searches per provider. Dashboard untagged resources by provider, resource type, and owner. Alert when critical resources (e.g. production EC2, storage) lack required tags (Environment, Owner, CostCenter).
+- **Visualization:** Table (provider, resource type, compliance count), Pie chart (compliant vs non-compliant), Bar chart (non-compliant by tag key).
 - **CIM Models:** N/A
 
 ---
