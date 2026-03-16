@@ -55,11 +55,4 @@ These match [Splunk Security Essentials](https://github.com/splunk/security_cont
 
 ### Backfilling 10.9.x from security_content
 
-The 1,988 imported ESCU use cases (UC-10.9.4 through 10.9.1990) were backfilled with Known false positives, References, MITRE ATT&CK, Detection type, and Security domain from the [security_content](https://github.com/splunk/security_content) YAMLs. To re-run the backfill after updating the clone:
-
-```bash
-cd use-cases
-python3 backfill_sse_fields.py --repo /path/to/security_content
-```
-
-See [sse-import.md](sse-import.md) for full import and merge steps.
+The imported ESCU use cases (UC-10.9.x) were backfilled with Known false positives, References, MITRE ATT&CK, Detection type, and Security domain from the [security_content](https://github.com/splunk/security_content) YAMLs.

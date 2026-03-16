@@ -206,6 +206,3 @@ sequenceDiagram
     HTML->>User: Render filters, cards, search
 ```
 
----
-
-*Generated for the Splunk Infrastructure Monitoring Use Case Repository.*

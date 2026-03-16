@@ -2,18 +2,17 @@
 
 ## Why there are more markdown files than categories
 
-The build only turns a file into a **category** if its first `# N.` or `## N.` heading is a **top-level** category (e.g. `## 10. Security Infrastructure`). Two files are intentionally **not** categories and are **skipped** by the build:
+The build only turns a file into a **category** if its first `# N.` or `## N.` heading is a **top-level** category (e.g. `## 10. Security Infrastructure`). One file is intentionally **not** a category and is **skipped** by the build:
 
-| File | Reason it’s skipped |
+| File | Reason it's skipped |
 |------|----------------------|
-| **cat-00-preamble.md** | No category heading. It’s the repo intro and legend (field descriptions). |
-| ~~**cat-10-sse-import.md**~~ | **Removed.** Its ESCU/SSE content was already present in **cat-10-security-infrastructure.md** (redistributed into subcategories 10.1–10.8). Appending it again as 10.9 would have duplicated ~1,988 use cases; the duplicate 10.9 block was removed so each use case appears once. |
+| **cat-00-preamble.md** | No category heading. It's the repo intro and legend (field descriptions). |
 
 So: **20 category files** (cat-01 through cat-20) produce the 20 categories in the dashboard; **cat-00** is the only extra markdown file that does not become a category.
 
 ---
 
-## Why markdown filenames don’t match the names in the dashboard
+## Why markdown filenames don't match the names in the dashboard
 
 The **dashboard (HTML)** shows category names like **"Server & Compute"** and **"Application Infrastructure"**.  
 The **markdown files** are named like `cat-01-server-compute.md` and `cat-08-application-infrastructure.md`.
@@ -28,7 +27,7 @@ They differ on purpose:
 - **Filenames** must be safe for every filesystem and URL (no spaces, no `&`, etc.). The slug (e.g. `application-infrastructure`) is just a stable, readable hint for which file is which.
 - **Display names** are taken from the **first line of each category file**: the `# N. Category Name` or `## N. Category Name` heading. The build never uses the filename for the label.
 
-So the “name” of the category for the UI is **whatever you put in that first heading**. If you rename the category in the markdown (e.g. change `## 8. Application Infrastructure` to `## 8. Web & Application Infrastructure`), the dashboard will show the new text after you run `build.py`. The file can stay named `cat-08-application-infrastructure.md` unless you choose to rename it for consistency.
+So the "name" of the category for the UI is **whatever you put in that first heading**. If you rename the category in the markdown (e.g. change `## 8. Application Infrastructure` to `## 8. Web & Application Infrastructure`), the dashboard will show the new text after you run `build.py`. The file can stay named `cat-08-application-infrastructure.md` unless you choose to rename it for consistency.
 
 ## Convention
 
