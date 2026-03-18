@@ -1528,3 +1528,243 @@ index=asterisk sourcetype="asterisk:cdr"
 - **CIM Models:** N/A
 
 ---
+
+### 8.7 Cisco ThousandEyes — Synthetic Web & Application Testing
+
+**Primary App/TA:** Cisco ThousandEyes App for Splunk (Splunkbase 7719) — Cisco Supported
+
+---
+
+### UC-8.7.1 · HTTP Server Availability Monitoring (ThousandEyes)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors web server availability from multiple global vantage points using ThousandEyes Cloud and Enterprise Agents. Detects regional outages that internal monitoring misses because the problem is between the user and the server.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="http-server"
+| stats avg(http.server.request.availability) as avg_availability by thousandeyes.test.name, server.address, thousandeyes.source.agent.name
+| where avg_availability < 100
+| sort avg_availability
+```
+- **Implementation:** Create HTTP Server tests in ThousandEyes targeting critical web applications and stream metrics to Splunk via the Tests Stream input. The OTel metric `http.server.request.availability` reports 100% when the HTTP request succeeds and 0% when any error occurs. The Splunk App Application dashboard includes an "HTTP Server Availability (%)" panel with permalink drilldown.
+- **Visualization:** Line chart (availability % over time), Single value (current availability), Table (test, server, agent, availability).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.2 · HTTP Server Response Time Tracking (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks Time to First Byte (TTFB) from ThousandEyes agents to web servers. Rising response times indicate backend degradation, infrastructure bottlenecks, or increased load — often visible from external vantage points before internal monitoring catches it.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="http-server"
+| timechart span=5m avg(http.client.request.duration) as avg_ttfb_s by thousandeyes.test.name
+| eval avg_ttfb_ms=round(avg_ttfb_s*1000,1)
+```
+- **Implementation:** The OTel metric `http.client.request.duration` reports TTFB in seconds. The Splunk App Application dashboard includes an "HTTP Server Request Duration (s)" line chart. Alert when TTFB exceeds your SLA threshold (e.g., 2 seconds). Correlate with `http.response.status_code` to distinguish slow responses from errors.
+- **Visualization:** Line chart (TTFB over time by test), Single value (avg TTFB), Table with drilldown to ThousandEyes.
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.3 · HTTP Server Throughput Analysis (ThousandEyes)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Measures download throughput from ThousandEyes agents to web servers, revealing bandwidth constraints or content delivery issues from the user perspective.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="http-server"
+| stats avg(http.server.throughput) as avg_throughput by thousandeyes.test.name, thousandeyes.source.agent.name
+| eval throughput_mbps=round(avg_throughput/1048576,2)
+| sort -throughput_mbps
+```
+- **Implementation:** The OTel metric `http.server.throughput` reports bytes per second. The Splunk App Application dashboard includes an "HTTP Server Throughput (MB/s)" line chart. Low throughput combined with high latency typically indicates a network bottleneck; low throughput with low latency suggests a server-side rate limit.
+- **Visualization:** Line chart (throughput MB/s over time), Table (test, agent, throughput), Column chart by agent.
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.4 · Page Load Completion Rate (ThousandEyes)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Measures whether web pages fully load from the user's perspective. Incomplete page loads indicate broken resources, blocked CDN content, or JavaScript errors that prevent users from completing tasks.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Page Load tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="page-load"
+| stats avg(web.page_load.completion) as avg_completion by thousandeyes.test.name, server.address
+| where avg_completion < 100
+| sort avg_completion
+```
+- **Implementation:** Create Page Load tests in ThousandEyes targeting critical web applications. The OTel metric `web.page_load.completion` reports 100% when the page loads successfully and 0% on error. Page Load tests automatically include underlying Agent-to-Server network tests, providing correlated network and application data.
+- **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, server, completion).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.5 · Page Load Duration Trending (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks total page load time including all resources (HTML, CSS, JS, images). Trending reveals gradual degradation from growing page weight, slow third-party resources, or backend issues.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Page Load tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="page-load"
+| timechart span=5m avg(web.page_load.duration) as avg_load_s by thousandeyes.test.name
+```
+- **Implementation:** The OTel metric `web.page_load.duration` reports total page load time in seconds. The Splunk App Application dashboard includes a "Page Load Duration (s)" line chart with permalink drilldown to ThousandEyes waterfall views. Alert when load duration exceeds your performance budget.
+- **Visualization:** Line chart (load time over time), Single value (avg load time), Table with permalink drilldown.
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.6 · API Endpoint Completion Rate (ThousandEyes)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors multi-step API test completion, ensuring that entire API workflows (authentication, data retrieval, processing) succeed end-to-end from external vantage points.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (API tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="api"
+| stats avg(api.completion) as avg_completion by thousandeyes.test.name
+| where avg_completion < 100
+| sort avg_completion
+```
+- **Implementation:** Create API tests in ThousandEyes with multi-step sequences testing your critical API workflows. The OTel metric `api.completion` reports overall completion percentage. Per-step metrics (`api.step.completion`, `api.step.duration`) are also available with the `thousandeyes.test.step` attribute. The Splunk App Application dashboard includes an "API Completion (%)" panel.
+- **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, completion).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.7 · API Response Time Monitoring (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks total API test execution duration including all steps, revealing when API performance degrades from the consumer's perspective.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (API tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="api"
+| timechart span=5m avg(api.duration) as avg_api_duration_s by thousandeyes.test.name
+```
+- **Implementation:** The OTel metric `api.duration` reports total API test execution time in seconds. For per-step analysis, use `api.step.duration` filtered by `thousandeyes.test.step`. The Splunk App Application dashboard includes an "API Request Duration (s)" line chart with permalink drilldown.
+- **Visualization:** Line chart (API duration over time), Table (test, duration), Column chart (duration by step).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.8 · Transaction Test Completion Rate (ThousandEyes)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Transaction tests execute scripted multi-step user workflows (login, navigate, submit form, verify result). Completion rate below 100% means users cannot complete critical business processes.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Transaction tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="web-transactions"
+| stats avg(web.transaction.completion) as avg_completion sum(web.transaction.errors.count) as total_errors by thousandeyes.test.name
+| where avg_completion < 100 OR total_errors > 0
+| sort avg_completion
+```
+- **Implementation:** Create Transaction tests in ThousandEyes using Selenium-based scripted workflows that simulate real user journeys. The OTel metric `web.transaction.completion` reports 100% on success and 0% on error. `web.transaction.errors.count` returns 1 when an error occurs and 0 otherwise. The Splunk App Application dashboard includes a "Transaction Completion (%)" panel.
+- **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, completion, errors).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.9 · Transaction Duration Analysis (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures end-to-end time for complex user workflows. Slow transactions directly impact user productivity and satisfaction. Trending reveals gradual degradation across the multi-step flow.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Transaction tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="web-transactions"
+| timechart span=5m avg(web.transaction.duration) as avg_transaction_s by thousandeyes.test.name
+```
+- **Implementation:** The OTel metric `web.transaction.duration` reports total transaction execution time in seconds (only reported when the transaction completes without errors). The Splunk App Application dashboard includes a "Transaction Duration (s)" line chart with permalink drilldown to ThousandEyes. ThousandEyes also supports OpenTelemetry traces for transaction tests, providing detailed span-level timing.
+- **Visualization:** Line chart (transaction duration over time), Table (test, agent, duration), Drilldown to ThousandEyes trace view.
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.10 · SaaS Application Response Time Comparison (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Compares availability and response time across business-critical SaaS applications (Microsoft 365, Salesforce, ServiceNow, etc.) from multiple office locations, enabling data-driven SaaS vendor performance management.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server / Page Load tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="http-server" OR thousandeyes.test.type="page-load"
+| search thousandeyes.test.name="*M365*" OR thousandeyes.test.name="*Salesforce*" OR thousandeyes.test.name="*ServiceNow*"
+| stats avg(http.server.request.availability) as avg_avail avg(http.client.request.duration) as avg_ttfb_s by thousandeyes.test.name, thousandeyes.source.agent.location
+| eval avg_ttfb_ms=round(avg_ttfb_s*1000,1)
+| sort thousandeyes.test.name, avg_ttfb_ms
+```
+- **Implementation:** Create HTTP Server or Page Load tests in ThousandEyes for each SaaS application, running from Enterprise Agents at each office and Cloud Agents in relevant regions. Name tests consistently (e.g., "M365 - Exchange Online", "Salesforce - Login Page"). ThousandEyes provides best-practice monitoring guides for Microsoft 365, Salesforce, and other major SaaS platforms.
+- **Visualization:** Column chart (TTFB by SaaS app per location), Table (app, location, availability, TTFB), Comparison dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.11 · Multi-Region SaaS Availability (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Monitors SaaS application reachability from multiple geographic regions using ThousandEyes Cloud Agents, identifying regional availability issues that affect specific user populations.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="http-server"
+| stats avg(http.server.request.availability) as avg_availability by thousandeyes.test.name, thousandeyes.source.agent.geo.country.iso_code, thousandeyes.source.agent.location
+| where avg_availability < 100
+| sort avg_availability
+```
+- **Implementation:** Deploy the same HTTP Server tests across ThousandEyes Cloud Agents in Americas, EMEA, and APAC regions. Use `thousandeyes.source.agent.geo.country.iso_code` and `thousandeyes.source.agent.location` attributes to group results by region. A service that is available from US agents but not from EU agents indicates a regional issue.
+- **Visualization:** Map (availability by agent location), Table (region, app, availability), Column chart (availability by region).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.12 · FTP Server Availability and Throughput (ThousandEyes)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Performance
+- **Value:** Monitors FTP/SFTP server availability and file transfer throughput from ThousandEyes agents, ensuring file transfer services are accessible and performing adequately for automated data exchange workflows.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (FTP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="ftp-server"
+| stats avg(ftp.server.request.availability) as avg_availability avg(ftp.client.request.duration) as avg_response_s avg(ftp.server.throughput) as avg_throughput by thousandeyes.test.name, server.address
+| eval avg_response_ms=round(avg_response_s*1000,1), throughput_mbps=round(avg_throughput/1048576,2)
+| sort avg_availability, -throughput_mbps
+```
+- **Implementation:** Create FTP Server tests in ThousandEyes for critical file transfer endpoints. The OTel metric `ftp.server.request.availability` reports availability, `ftp.client.request.duration` reports TTFB, and `ftp.server.throughput` reports bytes per second. The `ftp.request.command` attribute indicates the FTP command tested (GET, PUT, LS). The Splunk App Voice dashboard includes FTP panels.
+- **Visualization:** Line chart (availability and throughput over time), Table (server, availability, throughput, response time), Single value.
+- **CIM Models:** N/A
+
+---

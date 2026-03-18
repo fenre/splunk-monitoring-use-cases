@@ -786,3 +786,192 @@ index=grafana sourcetype="grafana:datasource"
 
 ---
 
+### 13.3.TE Cisco ThousandEyes — Platform Integration
+
+---
+
+### UC-13.3.15 · ThousandEyes Alert Severity Distribution
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Provides a centralized view of all ThousandEyes alerts in Splunk by severity, enabling SOC and NOC teams to prioritize response across network, application, and voice test alerts alongside other infrastructure alerts.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Alerts Stream (webhook via HEC)
+- **SPL:**
+```spl
+`stream_index` sourcetype="thousandeyes:alerts"
+| stats count by severity, alert.rule.name, alert.test.name, alert.type
+| sort severity, -count
+```
+- **Implementation:** Configure the Alerts Stream input in the Cisco ThousandEyes App for Splunk. Select the ThousandEyes user, account group, and alert rules to receive. The app automatically creates a webhook connector in ThousandEyes and associates it with selected alert rules. Alerts flow in real-time to Splunk via HEC. The Splunk App Alerts dashboard provides pre-built panels for alert severity distribution, timeline, and drilldown.
+- **Visualization:** Pie chart (alerts by severity), Bar chart (alerts by type), Table (rule, test, severity, count), Single value (active critical alerts).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.16 · ThousandEyes Alert Timeline Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Anomaly
+- **Value:** Trending alert volume over time reveals patterns — recurring issues at specific times, increasing alert frequency indicating degradation, or correlation with change windows. Helps teams move from reactive to proactive operations.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Alerts Stream (webhook via HEC)
+- **SPL:**
+```spl
+`stream_index` sourcetype="thousandeyes:alerts"
+| timechart span=1h count by severity
+```
+- **Implementation:** The Splunk App Alerts dashboard includes a "Alerts Timeline" line chart and a "Severity Distribution Trend" chart. Use these pre-built panels or customize with the `stream_index` macro. Set adaptive alerts on alert volume increases — a sudden spike in ThousandEyes alerts often precedes user-reported incidents. Correlate alert timing with change management windows.
+- **Visualization:** Line chart (alerts over time by severity), Stacked bar chart (alerts per hour), Table (trending alert rules).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.17 · ThousandEyes Activity Log Audit Trail
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Ingests ThousandEyes platform activity logs into Splunk for audit, compliance, and change tracking. Tracks who created, modified, or deleted tests, users, and alert rules — essential for troubleshooting test behavior changes and meeting compliance requirements.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Activity Log API
+- **SPL:**
+```spl
+`activity_index`
+| stats count by event, accountGroupName, aid
+| sort -count
+```
+- **Implementation:** Configure the Activity Log input in the Cisco ThousandEyes App with a ThousandEyes user and account group. Activity logs are fetched at a configurable interval via the ThousandEyes API. Update the `activity_index` macro to point to the correct index. Events include test creation/modification/deletion, user management, alert rule changes, and account group configuration changes.
+- **Visualization:** Table (event type, account group, count), Timeline (activity events), Pie chart (activity by event type).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.18 · ThousandEyes Data Collection Health Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Monitors the health of the ThousandEyes-to-Splunk data pipeline itself. Detects gaps in data collection, API errors, or HEC delivery failures that would cause blind spots in network and application monitoring.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, Splunk internal logs
+- **SPL:**
+```spl
+`stream_index`
+| timechart span=5m count as event_count
+| where event_count < 1
+```
+- **Implementation:** Monitor the data flow from ThousandEyes to Splunk by tracking event volume per collection interval. A drop to zero events indicates a pipeline failure — possible causes include expired ThousandEyes API tokens, HEC token issues, or ThousandEyes streaming configuration changes. Combine with `index=_internal sourcetype=splunkd component=HttpInputDataHandler` to monitor HEC health. The Splunk App Health dashboard provides data freshness panels.
+- **Visualization:** Line chart (event volume over time), Single value (events in last 5 min), Alert on zero events for >15 min.
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.19 · ThousandEyes ITSI Service Health (Content Pack)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** The ITSI Content Pack for Cisco ThousandEyes provides pre-built service templates, KPI base searches, entity types, and Glass Tables for service-centric monitoring. It maps ThousandEyes test results to ITSI services for unified health scoring across all monitoring domains.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719), ITSI Content Pack for Cisco ThousandEyes
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel data via ITSI KPI base searches
+- **SPL:**
+```spl
+| from datamodel:"ITSI_KPI_Summary"
+| where service_name="*ThousandEyes*"
+| stats latest(kpi_urgency) as urgency latest(alert_level) as alert_level by service_name, kpiid, itsi_kpi_id
+| sort -urgency
+```
+- **Implementation:** Install the ITSI Content Pack for Cisco ThousandEyes from the ITSI Content Library. The content pack provides: entity types (ThousandEyes Test, ThousandEyes Agent), KPI base searches (latency, loss, jitter, availability, MOS for each test type), service templates, and Glass Table templates. After installation, import the service templates and configure entity discovery to match your ThousandEyes tests. KPIs are automatically populated from the ThousandEyes data model.
+- **Visualization:** ITSI Service Tree, Glass Table, KPI cards (latency, loss, availability, MOS), Service health score.
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.20 · Splunk On-Call Incident Routing from ThousandEyes
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Routes ThousandEyes alerts directly to Splunk On-Call (formerly VictorOps) for incident management, on-call paging, and war room coordination. Ensures network and application issues detected by ThousandEyes reach the right team within seconds.
+- **App/TA:** ThousandEyes webhook integration with Splunk On-Call
+- **Data Sources:** ThousandEyes alert webhooks
+- **SPL:**
+```spl
+index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
+| stats count by incident_state, routing_key, entity_id
+| sort -count
+```
+- **Implementation:** Configure ThousandEyes to send alert notifications to Splunk On-Call via the REST API endpoint webhook integration. In ThousandEyes, create a webhook notification pointing to the Splunk On-Call REST endpoint URL with your routing key. Map ThousandEyes alert severity to Splunk On-Call incident severity (critical→critical, warning→warning, info→info). The integration supports recovery messages to automatically resolve incidents when ThousandEyes alerts clear.
+- **Visualization:** Table (incidents by state and routing key), Timeline (incident creation/resolution), Single value (active incidents from ThousandEyes).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.21 · ThousandEyes Trace Span Analysis and Drill-Down
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** ThousandEyes Transaction tests can emit OpenTelemetry traces with span-level timing for each step of the scripted workflow. Ingesting these traces into Splunk enables correlation with application traces from Splunk APM for end-to-end distributed tracing.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Traces
+- **SPL:**
+```spl
+`stream_index` sourcetype="thousandeyes:traces"
+| stats count avg(duration_ms) as avg_span_duration_ms by service.name, span.name, span.kind
+| sort -avg_span_duration_ms
+```
+- **Implementation:** Enable the Tests Stream — Traces input in the Cisco ThousandEyes App. Traces are emitted for Transaction tests and provide span-level timing for each step of the scripted workflow. The trace data follows OpenTelemetry conventions with `trace_id`, `span_id`, `parent_span_id`, `service.name`, `span.name`, `duration`, and custom attributes. Traces can be correlated with Splunk APM traces using shared context propagation.
+- **Visualization:** Table (spans by duration), Trace waterfall (via Splunk APM or custom visualization), Bar chart (avg span duration by step).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.22 · Cross-Platform Correlation (ThousandEyes Network + Splunk APM)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Anomaly
+- **Value:** Correlates ThousandEyes network path quality data with Splunk APM application traces to determine whether performance issues are caused by the network or the application. This is the core value proposition of the Splunk + ThousandEyes integration — unified observability across network and application layers.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719), Splunk APM
+- **Data Sources:** `index=thousandeyes` (network metrics), Splunk APM traces
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| stats avg(network.latency) as avg_net_latency_s avg(network.loss) as avg_net_loss by server.address, _time span=5m
+| join type=outer server.address [
+  search index=apm_traces
+  | stats avg(duration_ms) as avg_app_latency_ms p99(duration_ms) as p99_app_latency_ms by service.name, server.address, _time span=5m
+]
+| eval avg_net_latency_ms=round(avg_net_latency_s*1000,1)
+| eval root_cause=case(avg_net_latency_ms>200 AND avg_app_latency_ms<500, "Network", avg_net_latency_ms<50 AND avg_app_latency_ms>2000, "Application", avg_net_latency_ms>200 AND avg_app_latency_ms>2000, "Both", 1=1, "Normal")
+| where root_cause!="Normal"
+| table _time, server.address, service.name, avg_net_latency_ms, avg_net_loss, avg_app_latency_ms, root_cause
+```
+- **Implementation:** This correlation requires both ThousandEyes network data and Splunk APM trace data indexed in Splunk. The key join field is the server address or service endpoint. When network latency is high but application processing is fast, the network is the bottleneck. When network latency is low but application response is slow, the issue is in the application. This "network vs. app" isolation significantly reduces MTTR by directing the right team to investigate.
+- **Visualization:** Table (endpoint, network latency, app latency, root cause), Dual-axis chart (network vs app latency), Dashboard with network and app panels side-by-side.
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.23 · MTTR Reduction via Network vs Application Isolation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Anomaly
+- **Value:** Quantifies the business value of ThousandEyes + Splunk integration by measuring how quickly teams can isolate whether a performance issue is network-caused or application-caused. Tracks Mean Time to Resolution and Mean Time to Isolate metrics for incidents where ThousandEyes data was available.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes` (alerts, events), incident management system data
+- **SPL:**
+```spl
+`stream_index` sourcetype="thousandeyes:alerts"
+| stats earliest(_time) as alert_start latest(_time) as alert_end by alert.rule.name, alert.test.name
+| eval mtti_minutes=round((alert_end-alert_start)/60,1)
+| join type=outer alert.test.name [
+  search `event_index`
+  | stats earliest(_time) as event_start latest(state) as final_state by thousandeyes.test.name
+  | rename thousandeyes.test.name as alert.test.name
+]
+| eval isolation_method=if(isnotnull(event_start), "ThousandEyes Event + Alert", "ThousandEyes Alert Only")
+| stats avg(mtti_minutes) as avg_mtti count by isolation_method
+```
+- **Implementation:** This meta-analysis use case measures how ThousandEyes data accelerates incident resolution. Track the time from ThousandEyes alert trigger to resolution (MTTR). Compare MTTR for incidents where ThousandEyes data was available vs. those without. Over time, this demonstrates the ROI of the ThousandEyes + Splunk integration. Combine with ITSM data (ServiceNow, Jira Service Management) for complete MTTR tracking.
+- **Visualization:** Single value (avg MTTR with ThousandEyes), Comparison chart (MTTR with vs. without TE data), Table (incidents and isolation times), Trend line (MTTR improvement over time).
+- **CIM Models:** N/A
+
+---
+

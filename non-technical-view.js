@@ -108,7 +108,9 @@ window.NON_TECHNICAL = {
     outcomes: [
       "Know when routers, switches, or firewalls have problems.",
       "See when links go down or routing gets confused.",
-      "Spot hardware issues like bad power supplies or fans."
+      "Spot hardware issues like bad power supplies or fans.",
+      "Measure how your network performs from your users' perspective — across the internet, cloud, and SD-WAN.",
+      "Monitor carrier signaling protocols (SIP, Diameter, RADIUS) that underpin voice and mobile services."
     ],
     areas: [
       { name: "Hardware status", description: "Are your routers, switches, and firewalls healthy? We watch for failures and warnings.", ucs: [
@@ -130,6 +132,16 @@ window.NON_TECHNICAL = {
         { id: "5.6.5", why: "Alert when a DHCP pool is running out of IP addresses to hand out." },
         { id: "5.6.1", why: "Track DNS query volume — sudden changes can indicate problems or attacks." },
         { id: "5.6.2", why: "Spot spikes in 'name not found' DNS errors that could mean a misconfiguration." }
+      ]},
+      { name: "Internet & digital experience", description: "How does the network look from outside your walls? ThousandEyes tests the path from users to apps — across ISPs, cloud providers, and SD-WAN.", ucs: [
+        { id: "5.10.1", why: "Track network latency from agents to servers — slow paths mean slow apps." },
+        { id: "5.10.18", why: "Get alerted when ThousandEyes detects an internet outage affecting your services." },
+        { id: "5.10.8", why: "See BGP reachability on a map — know if your routes are being seen by the world." }
+      ]},
+      { name: "Carrier signaling (Telco)", description: "SIP, Diameter, and RADIUS signaling that powers voice calls and mobile data sessions. We watch the protocols that carriers depend on.", ucs: [
+        { id: "5.11.1", why: "Track Diameter signaling health — failures here mean subscribers can't authenticate or use data." },
+        { id: "5.11.4", why: "Monitor SIP trunk success rates — failed calls mean lost revenue and unhappy customers." },
+        { id: "5.11.5", why: "Detect registration storms that can overwhelm voice infrastructure within minutes." }
       ]}
     ]
   },
@@ -190,7 +202,8 @@ window.NON_TECHNICAL = {
     outcomes: [
       "Know when your websites or apps are slow or throwing errors.",
       "See when certificates are about to expire.",
-      "Spot when message queues or app servers are backing up."
+      "Spot when message queues or app servers are backing up.",
+      "Test your web apps and APIs from outside to see what users really experience."
     ],
     areas: [
       { name: "Web & errors", description: "HTTP errors, response times, and uptime. We help you keep sites and APIs healthy.", ucs: [
@@ -212,6 +225,11 @@ window.NON_TECHNICAL = {
         { id: "8.2.1", why: "Watch Java memory usage — when it fills up, the application slows or crashes." },
         { id: "8.2.3", why: "Detect when all worker threads are busy — new requests will be queued or dropped." },
         { id: "8.2.4", why: "Track application error rates to spot problems before they escalate." }
+      ]},
+      { name: "Synthetic testing", description: "ThousandEyes probes your websites and APIs from around the world. We show when things slow down or break.", ucs: [
+        { id: "8.7.1", why: "Track HTTP server availability and response time from multiple global vantage points." },
+        { id: "8.7.4", why: "Monitor page load completion — know when users can't fully load your site." },
+        { id: "8.7.8", why: "Run scripted transaction tests that simulate real user workflows end-to-end." }
       ]}
     ]
   },
@@ -277,7 +295,9 @@ window.NON_TECHNICAL = {
     outcomes: [
       "Know when email isn't flowing or mailboxes have issues.",
       "See suspicious logins or rule changes in email and collaboration.",
-      "Track Teams, meetings, and collaboration health."
+      "Track Teams, meetings, and collaboration health.",
+      "Know when meeting quality drops because of the network — before users complain.",
+      "Monitor voice quality and call routing at the network level — independent of any PBX platform."
     ],
     areas: [
       { name: "Mail flow & health", description: "Is email being delivered? Are mailboxes and Exchange healthy? We monitor both.", ucs: [
@@ -294,6 +314,16 @@ window.NON_TECHNICAL = {
         { id: "11.1.4", why: "Track how Teams is being used — adoption, activity, and any issues." },
         { id: "11.3.8", why: "Monitor Webex meeting quality and participation trends." },
         { id: "11.3.1", why: "Watch call quality scores — bad audio quality means poor meetings." }
+      ]},
+      { name: "Meeting & call quality (ThousandEyes)", description: "ThousandEyes monitors the network path to Webex, Teams, and Zoom. We show when the network is hurting meeting quality.", ucs: [
+        { id: "11.3.27", why: "Monitor voice quality (MOS scores) on RTP streams — scores below 3.5 mean poor calls." },
+        { id: "11.3.28", why: "See the network path to Webex data centers and pinpoint where latency or loss happens." },
+        { id: "11.3.29", why: "Check if your network is ready for Microsoft Teams — from every office location." }
+      ]},
+      { name: "Wire-level voice & carrier routing (Telco)", description: "Voice quality measured directly from network packets, emergency call tracking, and call routing KPIs — for carriers and enterprises alike.", ucs: [
+        { id: "11.3.32", why: "Measure voice quality (MOS) directly from RTP packets — works with any phone system, not just Cisco." },
+        { id: "11.3.33", why: "Track every emergency call (911/112) to make sure they all get through — a regulatory must-have." },
+        { id: "11.3.34", why: "Calculate answer seizure ratio per trunk — the number-one KPI for voice service quality." }
       ]}
     ]
   },
@@ -325,7 +355,8 @@ window.NON_TECHNICAL = {
     outcomes: [
       "Know when the monitoring system itself is overloaded or slow.",
       "See when search heads or indexers have problems.",
-      "Track forwarders and data flow so nothing is missed."
+      "Track forwarders and data flow so nothing is missed.",
+      "See ThousandEyes test health alongside your Splunk monitoring in one place."
     ],
     areas: [
       { name: "Platform health", description: "Indexer queues, search performance, and cluster status. We watch the monitoring system itself.", ucs: [
@@ -342,6 +373,11 @@ window.NON_TECHNICAL = {
         { id: "13.2.1", why: "Track the health scores of your business services — are they degrading?" },
         { id: "13.2.6", why: "Make sure the rules engine that triggers alerts and actions is working." },
         { id: "13.2.2", why: "Get notified when key performance indicators start dropping." }
+      ]},
+      { name: "ThousandEyes integration", description: "ThousandEyes data flowing into Splunk — alerts, events, and service health. We show if the integration is healthy.", ucs: [
+        { id: "13.3.15", why: "View ThousandEyes alerts by severity in Splunk — see what's critical at a glance." },
+        { id: "13.3.19", why: "Track ThousandEyes service health through ITSI — KPIs and service scores in one view." },
+        { id: "13.3.22", why: "Correlate ThousandEyes network data with Splunk APM — is it the network or the app?" }
       ]}
     ]
   },

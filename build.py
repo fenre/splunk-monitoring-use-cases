@@ -110,7 +110,7 @@ EQUIPMENT = [
         "tas": ["Splunk_TA_cisco", "Cisco", "cisco-firepower", "cisco-asa", "cisco-ios", "cisco-ise",
                 "cisco_meraki", "Meraki", "cisco:ucs", "cisco:aci", "cisco:sdwan", "cisco:ucm",
                 "cisco:wlc", "Webex", "TA-cisco_ios", "Cisco Catalyst Add-on", "Cisco Meraki Add-on",
-                "Cisco Secure Firewall"],
+                "Cisco Secure Firewall", "ThousandEyes", "Cisco ThousandEyes App"],
         "models": [
             {"id": "firepower", "label": "Cisco Firepower / Secure Firewall", "tas": ["Cisco Firepower", "cisco-firepower", "cisco:firepower", "Cisco Secure Firewall"]},
             {"id": "asa", "label": "Cisco ASA", "tas": ["Splunk_TA_cisco-asa", "Cisco ASA", "cisco-asa", "cisco:asa"]},
@@ -124,6 +124,7 @@ EQUIPMENT = [
             {"id": "ucm", "label": "Cisco UCM / Unified Communications", "tas": ["cisco:ucm", "Cisco UCM", "UCM CDR", "CUCM"]},
             {"id": "webex", "label": "Cisco Webex", "tas": ["Webex", "webex", "ta_cisco_webex"]},
             {"id": "spaces", "label": "Cisco Spaces", "tas": ["Cisco Spaces", "cisco:spaces", "cisco_spaces", "Spaces Add-On"]},
+            {"id": "thousandeyes", "label": "Cisco ThousandEyes", "tas": ["ThousandEyes", "thousandeyes", "Cisco ThousandEyes App"]},
         ],
     },
     {
@@ -678,6 +679,10 @@ def parse_category_file(filepath):
                     current_uc["premium"] = field_value
                 elif field_name == "equipment models":
                     current_uc["hw"] = field_value
+                elif field_name == "industry":
+                    current_uc["ind"] = field_value
+                elif field_name == "telco use case":
+                    current_uc["tuc"] = field_value
 
                 i += 1
                 continue

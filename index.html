@@ -546,6 +546,8 @@ html.light-mode {
 .filter-btn.advf.active { background: rgba(var(--splunk-high-rgb), 0.12); color: var(--splunk-high); }
 .filter-btn.expf { border-color: rgba(var(--splunk-critical-rgb), 0.5); }
 .filter-btn.expf.active { background: rgba(var(--splunk-critical-rgb), 0.12); color: var(--splunk-critical); }
+.filter-btn.industry-telco { border-color: rgba(52, 152, 219, 0.3); }
+.filter-btn.industry-telco.active { background: rgba(52, 152, 219, 0.12); color: #3498db; }
 
 .uc-diff-badge {
   font-size: var(--text-xs); padding: 2px var(--space-2); border-radius: var(--radius-sm);
@@ -1370,6 +1372,7 @@ let currentCat = null;
 let currentFilter = 'all';
 let currentDiffFilter = 'all';
 let currentMtypeFilter = 'all';
+let currentIndustryFilter = 'all';
 let currentSearch = '';
 let currentUCIdx = -1;
 let selectedEquipmentId = '';
@@ -1424,7 +1427,7 @@ function updateEquipmentSelect() {
   var sel = document.getElementById('equipment-select');
   if (!sel) return;
   sel.innerHTML = '<option value="">All equipment</option>';
-  (EQUIPMENT || []).forEach(function(eq) {
+  (EQUIPMENT || []).slice().sort(function(a,b) { return a.label.localeCompare(b.label); }).forEach(function(eq) {
     var opt = document.createElement('option');
     opt.value = eq.id;
     opt.textContent = eq.label;
@@ -1664,6 +1667,7 @@ let ovGroupFilter = 'all';
 
 function renderOverview() {
   var filtered = getFilteredUCs();
+  if (currentIndustryFilter !== 'all') filtered = filtered.filter(e => e.uc.ind === currentIndustryFilter);
   currentDisplayedList = filtered;
   const totalSubs = DATA.reduce((a,c) => a + c.s.length, 0);
   const quickWins = filtered.filter(e => e.uc.f==='beginner' && (e.uc.c==='critical'||e.uc.c==='high')).length;
@@ -2077,6 +2081,14 @@ function filterBtns() {
     '<button class="filter-btn' + f.cls + (currentDiffFilter===f.id?' active':'') +
     '" onclick="setDiffFilter(\'' + f.id + '\')">' + f.label + '</button>'
   ).join('');
+  var hasIndustry = DATA.some(c => c.s.some(sc => sc.u.some(u => u.ind)));
+  if (hasIndustry) {
+    html += '<div class="filter-sep"></div>';
+    html += '<button class="filter-btn industry-telco' + (currentIndustryFilter==='all'?' active':'') +
+      '" onclick="setIndustryFilter(\'all\')">All Industries</button>';
+    html += '<button class="filter-btn industry-telco' + (currentIndustryFilter==='Telecommunications'?' active':'') +
+      '" onclick="setIndustryFilter(\'Telecommunications\')">Telco</button>';
+  }
   return html;
 }
 
@@ -2143,6 +2155,7 @@ function renderCategory(catId) {
     if (currentFilter !== 'all') ucs = ucs.filter(u => u.c === currentFilter);
     if (currentDiffFilter !== 'all') ucs = ucs.filter(u => u.f === currentDiffFilter);
     if (currentMtypeFilter !== 'all') ucs = ucs.filter(u => Array.isArray(u.mtype) && u.mtype.includes(currentMtypeFilter));
+    if (currentIndustryFilter !== 'all') ucs = ucs.filter(u => u.ind === currentIndustryFilter);
     if (currentSearch) {
       const q = currentSearch.toLowerCase();
       ucs = ucs.filter(u => {
@@ -2213,6 +2226,7 @@ function renderSearchResults() {
   let results = base.filter(e => matchesSearch(ucSearchText(e), q));
   if (currentFilter !== 'all') results = results.filter(e => e.uc.c === currentFilter);
   if (currentDiffFilter !== 'all') results = results.filter(e => e.uc.f === currentDiffFilter);
+  if (currentIndustryFilter !== 'all') results = results.filter(e => e.uc.ind === currentIndustryFilter);
   const resultsBeforeMtype = results.slice();
   if (currentMtypeFilter !== 'all') results = results.filter(e => Array.isArray(e.uc.mtype) && e.uc.mtype.includes(currentMtypeFilter));
   currentDisplayedList = results;
@@ -2374,6 +2388,12 @@ function renderModal(entry) {
   if (uc.reqf) {
     html += '<div class="meta-item"><h4>Required fields</h4><p><code style="font-size:var(--text-xs)">' + escHtml(uc.reqf) + '</code></p></div>';
   }
+  if (uc.ind) {
+    html += '<div class="meta-item"><h4>Industry</h4><p><span class="uc-mtype-tag">' + escHtml(uc.ind) + '</span></p></div>';
+  }
+  if (uc.tuc) {
+    html += '<div class="meta-item"><h4>Telco Use Case</h4><p>' + escHtml(uc.tuc) + '</p></div>';
+  }
   html += '</div>';
 
   if (uc.q) {
@@ -2466,6 +2486,14 @@ function setFilter(f) {
 
 function setDiffFilter(f) {
   currentDiffFilter = f;
+  if (nonTechnicalView) return;
+  if (currentSearch) renderSearchResults();
+  else if (currentCat !== null) renderCategory(currentCat);
+  else renderOverview();
+}
+
+function setIndustryFilter(f) {
+  currentIndustryFilter = f;
   if (nonTechnicalView) return;
   if (currentSearch) renderSearchResults();
   else if (currentCat !== null) renderCategory(currentCat);

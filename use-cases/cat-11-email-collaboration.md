@@ -919,6 +919,231 @@ index=jira sourcetype="jira:jmx"
 
 ### 11.4 Cisco Spaces & Location Intelligence
 
+### 11.3.TE Cisco ThousandEyes — Voice & Collaboration Monitoring
+
+---
+
+### UC-11.3.25 · SIP Server Availability Monitoring (ThousandEyes)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors SIP server reachability from ThousandEyes agents, ensuring voice and unified communications infrastructure is responsive from the network path perspective. SIP server failures directly impact call setup for all users.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (SIP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="sip-server"
+| stats avg(sip.server.request.availability) as avg_availability by thousandeyes.test.name, server.address, thousandeyes.source.agent.name
+| where avg_availability < 100
+| sort avg_availability
+```
+- **Implementation:** Create SIP Server tests in ThousandEyes targeting your SIP proxy, session border controllers, or CUCM servers. The OTel metric `sip.server.request.availability` reports 100% when the SIP OPTIONS request succeeds. The `sip.response.status_code` attribute provides the SIP response code. The Splunk App Voice dashboard includes a "SIP Availability (%)" panel.
+- **Visualization:** Line chart (availability % over time), Single value (current availability), Table (test, server, agent, availability).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.26 · SIP Registration Time Tracking (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Slow SIP registration or response times indicate server overload, network congestion, or infrastructure issues that delay call setup and affect voice quality perception.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (SIP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="sip-server"
+| timechart span=5m avg(sip.client.request.duration) as avg_ttfb_s avg(sip.client.request.total_time) as avg_total_s by thousandeyes.test.name
+| eval avg_ttfb_ms=round(avg_ttfb_s*1000,1), avg_total_ms=round(avg_total_s*1000,1)
+```
+- **Implementation:** The OTel metric `sip.client.request.duration` reports TTFB (time to first SIP response) in seconds, and `sip.client.request.total_time` reports total SIP transaction time. The Splunk App Voice dashboard includes a "SIP Request Duration (s)" line chart. Alert when SIP response time consistently exceeds 500 ms — this adds noticeable delay to call setup.
+- **Visualization:** Line chart (TTFB and total time over time), Table (test, TTFB, total time), Single value.
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.27 · RTP MOS Score Monitoring (ThousandEyes)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Mean Opinion Score (MOS) is the standard measure of voice call quality on a scale of 1 to 5. ThousandEyes RTP tests provide MOS alongside packet loss, discards, and delay variation, enabling continuous voice quality assurance from the network perspective.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (RTP tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="rtp"
+| stats avg(rtp.client.request.mos) as avg_mos avg(rtp.client.request.loss) as avg_loss avg(rtp.client.request.pdv) as avg_pdv_s avg(rtp.client.request.discards) as avg_discards by thousandeyes.test.name, thousandeyes.source.agent.name
+| eval avg_pdv_ms=round(avg_pdv_s*1000,1)
+| where avg_mos < 3.5
+| sort avg_mos
+```
+- **Implementation:** Create RTP (Voice Layer) tests in ThousandEyes targeting voice infrastructure. RTP tests are paired with SIP Server tests. The OTel metric `rtp.client.request.mos` reports MOS (1-5), `rtp.client.request.loss` reports packet loss percentage, `rtp.client.request.pdv` reports Packet Delay Variation in seconds, and `rtp.client.request.discards` reports discarded packets percentage. The Splunk App Voice dashboard includes "RTP MOS" and "RTP Loss (%)" panels. MOS below 3.5 indicates poor call quality.
+- **Visualization:** Line chart (MOS over time), Single value (current MOS), Table (test, agent, MOS, loss, PDV, discards).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.28 · Webex Meeting Quality Assurance via ThousandEyes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Monitors the network path from offices to Webex data centers using ThousandEyes agents, providing proactive visibility into network conditions that degrade meeting quality — before users file tickets. Correlate with Webex quality data (UC-11.3.6) for end-to-end troubleshooting.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Agent-to-Server and HTTP Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| search thousandeyes.test.name="*Webex*"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| where avg_latency_ms > 150 OR avg_loss > 1 OR avg_jitter > 30
+| sort -avg_latency_ms
+```
+- **Implementation:** Create Agent-to-Server tests in ThousandEyes targeting Webex media and signaling endpoints (e.g., *.webex.com, Webex data center IPs). Name tests with "Webex" for filtering. ThousandEyes provides Webex-specific monitoring guides with recommended test configurations. Correlate network path quality with Webex meeting quality metrics from the Webex APIs for end-to-end root cause analysis.
+- **Visualization:** Line chart (latency to Webex over time), Table (agent, latency, loss, jitter), Dashboard combining TE network data with Webex meeting quality.
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.29 · Microsoft Teams Network Readiness (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Validates that each office location meets Microsoft's network quality requirements for Teams calls and meetings (latency <50ms, loss <1%, jitter <30ms). ThousandEyes tests the actual network path to Microsoft 365 endpoints.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Agent-to-Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| search thousandeyes.test.name="*Teams*" OR thousandeyes.test.name="*M365*"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| eval teams_ready=if(avg_latency_ms<50 AND avg_loss<1 AND avg_jitter<30, "Ready", "Not Ready")
+| sort teams_ready, -avg_latency_ms
+```
+- **Implementation:** Create Agent-to-Server tests targeting Microsoft Teams media relay IPs and Microsoft 365 front-door endpoints from each office Enterprise Agent. Microsoft publishes recommended network requirements: latency <50ms, loss <1%, jitter <30ms for optimal Teams quality. ThousandEyes provides Microsoft 365 monitoring best practices. Name tests with "Teams" or "M365" for easy filtering.
+- **Visualization:** Table (agent, latency, loss, jitter, readiness status), Single value (sites meeting requirements), Map (readiness by location).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.30 · Zoom Collaboration Performance (ThousandEyes)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Monitors network path quality to Zoom data centers from office locations, ensuring the network supports high-quality video conferencing. Helps distinguish between Zoom platform issues and local network problems.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Agent-to-Server tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| search thousandeyes.test.name="*Zoom*"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| where avg_latency_ms > 150 OR avg_loss > 1 OR avg_jitter > 30
+| sort -avg_latency_ms
+```
+- **Implementation:** Create Agent-to-Server tests targeting Zoom data center endpoints from each office Enterprise Agent. Zoom publishes recommended network requirements similar to Microsoft Teams. Name tests with "Zoom" for filtering. Correlate with Zoom Dashboard API data (if available) for end-to-end quality analysis.
+- **Visualization:** Line chart (latency to Zoom over time), Table (agent, latency, loss, jitter), Comparison dashboard across collaboration platforms.
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.31 · RoomOS Device Network Health via ThousandEyes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** ThousandEyes agents can be enabled on Cisco RoomOS devices (Room Kit, Board, Desk), monitoring the network path from the conference room to cloud meeting services. This provides per-room visibility into network conditions affecting meeting quality.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Enterprise Agent tests from RoomOS)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| search thousandeyes.source.agent.name="RoomOS*" OR thousandeyes.source.agent.name="Room-*"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| where avg_latency_ms > 100 OR avg_loss > 0.5
+| sort -avg_latency_ms
+```
+- **Implementation:** Enable ThousandEyes agent on Cisco RoomOS devices via Webex Control Hub or xAPI. The agent runs integrated tests from the room device itself, providing true end-to-end network quality measurement from the meeting room. Name agents with a "RoomOS-" or "Room-" prefix for filtering. Tests run from RoomOS devices provide the exact network perspective of the video endpoint.
+- **Visualization:** Table (room device, target, latency, loss, jitter), Map (room locations with quality indicators), Dashboard per building/floor.
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.32 · Wire-Level VoIP Quality (MOS from RTP Stream)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Captures Mean Opinion Score (MOS) and R-Factor directly from RTP packets on the wire, providing platform-independent voice quality measurement. Unlike UC-11.3.1 which uses Cisco CUCM CMR data (application-level), this use case captures quality at the network level regardless of the call platform — covering third-party PBX, SIP trunking providers, and carrier interconnects.
+- **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** Contact Center Analytics (50 Ways #7)
+- **Data Sources:** `sourcetype=stream:rtp`
+- **SPL:**
+```spl
+sourcetype="stream:rtp"
+| stats avg(mos_session) as avg_mos, avg(rfactor) as avg_rfactor, avg(lost) as avg_loss_pct, avg(unseq) as avg_unseq, count as streams by codec_name
+| eval quality=case(avg_mos>=4.0, "Good", avg_mos>=3.5, "Acceptable", avg_mos>=3.0, "Poor", 1==1, "Unacceptable")
+| sort avg_mos
+```
+- **Implementation:** Install Splunk App for Stream and configure it to capture RTP traffic on voice network segments. Enable the RTP protocol for full field extraction including `mos_session`, `rfactor`, `lost`, `unseq`, and `codec_name`. The MOS is calculated by Stream from RTP statistics (jitter, loss, codec type) per session. Deploy Stream forwarders on network taps or SPAN ports that see voice traffic. Alert when average MOS drops below 3.5 (ITU-T G.107 threshold for acceptable quality). Segment analysis by `codec_name` to identify if codec choice affects quality.
+- **Visualization:** Gauge (average MOS score with thresholds: green >4.0, yellow 3.5-4.0, red <3.5), Line chart (MOS trend over 24h in 15-min buckets), Table (codec_name, avg_mos, avg_rfactor, avg_loss_pct, streams — sortable), Bar chart (stream count by quality category).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.33 · Emergency Call (E911/E112) Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Security
+- **Value:** Tracks all emergency calls (911, 933 test, 112) through the telephony system to ensure regulatory compliance and rapid response. Monitors call completion rate, answer time, and any failed emergency calls — a regulatory requirement in many jurisdictions.
+- **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), or `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** Emergency Services Monitoring (50 Ways #11)
+- **Data Sources:** `sourcetype=cisco:ucm:cdr` or `sourcetype=stream:sip`
+- **SPL:**
+```spl
+sourcetype="cisco:ucm:cdr"
+| where match(calledPartyNumber, "^(911|933|112)$")
+| eval answer_time=dateTimeConnect-dateTimeOrigination
+| eval completed=if(destCause_value==16, "Yes", "No")
+| stats count as total_calls, sum(eval(if(completed=="Yes", 1, 0))) as answered, avg(answer_time) as avg_answer_sec, avg(duration) as avg_duration_sec by calledPartyNumber
+| eval answer_rate=round(answered*100/total_calls, 1)
+| table calledPartyNumber, total_calls, answered, answer_rate, avg_answer_sec, avg_duration_sec
+```
+- **Implementation:** Ingest Cisco UCM CDR data using the TA for Cisco CDR Reporting and Analytics. Emergency numbers are identified by `calledPartyNumber` matching 911 (US), 933 (US test), or 112 (EU). The `destCause_value=16` indicates normal call clearing (answered and completed). Calculate answer rate as the percentage of calls that were connected. For SIP-based tracking via Stream, filter `sourcetype="stream:sip"` where `callee_e164` matches emergency numbers and check `reply_code=200`. Create real-time alerts for ANY failed emergency call (non-16 cause value). Generate compliance reports monthly.
+- **Visualization:** Single value (emergency call answer rate — target: 100%, red if <99%), Table (calledPartyNumber, total_calls, answered, answer_rate, avg_answer_sec), Timeline (emergency calls over 30 days), Bar chart (emergency calls by hour of day).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.34 · Answer Seizure Ratio (ASR) by Route Group
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Calculates Answer Seizure Ratio — the percentage of call attempts that are successfully answered — by route group or trunk. ASR is the primary KPI for voice service quality in carrier networks. Low ASR indicates trunk failures, destination unreachable, or capacity exhaustion.
+- **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), or `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** Voice/VoIP Revenue Assurance (50 Ways #30), Real-Time Service Reporting (50 Ways #33)
+- **Data Sources:** `sourcetype=cisco:ucm:cdr` or `sourcetype=stream:sip`
+- **SPL:**
+```spl
+sourcetype="cisco:ucm:cdr"
+| eval answered=if(destCause_value==16, 1, 0)
+| stats count as total_attempts, sum(answered) as answered_calls by destDeviceName
+| eval ASR=round(answered_calls*100/total_attempts, 2)
+| where total_attempts>10
+| sort ASR
+```
+- **Implementation:** Ingest Cisco UCM CDR data. The `destCause_value=16` (Normal Call Clearing) indicates a successfully answered call. Group by `destDeviceName` (which represents the route group or gateway) to calculate ASR per trunk. Industry standard ASR benchmarks: >50% is acceptable for international routes, >70% is good for domestic routes. For SIP-based tracking via Stream, use `sourcetype="stream:sip"` with `method=INVITE` and calculate the ratio of `reply_code=200` to total INVITEs per `dest_ip`. Alert when ASR drops below historical baseline by more than 10 percentage points.
+- **Visualization:** Gauge (overall ASR with thresholds: green >70%, yellow 50-70%, red <50%), Column chart (ASR by destDeviceName/trunk), Line chart (ASR trend over 7 days), Table (destDeviceName, total_attempts, answered_calls, ASR — sortable, highlighted red below 50%).
+- **CIM Models:** N/A
+
+---
+
+### 11.4 Cisco Spaces & Location Intelligence
+
 ### UC-11.4.1 · Building Occupancy Trending and Capacity Planning
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate

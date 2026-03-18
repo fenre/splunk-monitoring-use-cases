@@ -5008,3 +5008,823 @@ index=network sourcetype=snmptrap
 
 ---
 
+## 5.10 Cisco ThousandEyes
+
+**Primary App/TA:** Cisco ThousandEyes App for Splunk (Splunkbase 7719) — Cisco Supported
+
+---
+
+### UC-5.10.1 · Network Latency Monitoring (Agent-to-Server)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks round-trip latency from ThousandEyes agents to target servers, revealing network path degradation before users report slowness.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| stats avg(network.latency) as avg_latency_s max(network.latency) as max_latency_s by thousandeyes.source.agent.name, server.address
+| eval avg_latency_ms=round(avg_latency_s*1000,1), max_latency_ms=round(max_latency_s*1000,1)
+| where avg_latency_ms > 100
+| sort -avg_latency_ms
+```
+- **Implementation:** Install the Cisco ThousandEyes App for Splunk and configure the Tests Stream — Metrics input with HEC. Select the Agent-to-Server tests to stream. Update the `stream_index` macro to point to the correct index. The OTel metric `network.latency` reports maximum round-trip time in seconds.
+- **Visualization:** Line chart (latency per agent over time), Single value (avg latency), Table (agent, server, latency).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.2 · Network Packet Loss Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Packet loss directly degrades application performance, voice quality, and video conferencing. Even 1% loss can cause noticeable user impact.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| stats avg(network.loss) as avg_loss max(network.loss) as max_loss by thousandeyes.source.agent.name, server.address
+| where avg_loss > 0.5
+| sort -avg_loss
+```
+- **Implementation:** Configure Agent-to-Server tests in ThousandEyes and stream metrics to Splunk via HEC. The OTel metric `network.loss` reports packet loss as a percentage. Alert when average loss exceeds 0.5% for critical paths.
+- **Visualization:** Line chart (loss % over time per agent/server), Single value (current loss), Table sorted by loss.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.3 · Network Jitter Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Jitter (variation in packet delay) directly affects real-time applications like VoIP and video. High jitter degrades voice quality even when latency is acceptable.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| stats avg(network.jitter) as avg_jitter_ms max(network.jitter) as max_jitter_ms by thousandeyes.source.agent.name, server.address
+| where avg_jitter_ms > 30
+| sort -avg_jitter_ms
+```
+- **Implementation:** The OTel metric `network.jitter` reports the standard deviation of round-trip times in milliseconds. Jitter above 30 ms typically degrades voice quality. Correlate with `network.latency` and `network.loss` for a complete path quality picture.
+- **Visualization:** Line chart (jitter ms over time), Combined chart (latency + jitter + loss), Table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.4 · Agent-to-Agent Latency and Throughput
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures bidirectional network performance between two ThousandEyes agents, useful for assessing site-to-site WAN link quality and SD-WAN overlay performance.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-agent"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter_ms by thousandeyes.source.agent.name, thousandeyes.target.agent.name, network.io.direction
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| sort thousandeyes.source.agent.name, network.io.direction
+```
+- **Implementation:** Create Agent-to-Agent tests in ThousandEyes between sites and stream metrics. The `network.io.direction` attribute distinguishes `transmit`, `receive`, and `round-trip` measurements. Compare forward and reverse paths to identify asymmetric routing issues.
+- **Visualization:** Table (source agent, target agent, direction, latency, loss, jitter), Line chart per direction.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.5 · Path Hop Count Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Sudden changes in the number of hops to a target can indicate routing changes, path instability, or sub-optimal traffic engineering. The Splunk App provides min-hop drilldowns on the Network dashboard.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Path Visualization data
+- **SPL:**
+```spl
+`path_viz_index` thousandeyes.test.type="agent-to-server"
+| stats min(hop_count) as min_hops max(hop_count) as max_hops by thousandeyes.source.agent.name, server.address
+| where max_hops - min_hops > 2
+| sort -max_hops
+```
+- **Implementation:** Enable "Include Network Path Data" in the Tests Stream — Metrics input configuration. Update the `path_viz_index` macro to the correct index. Path Visualization data is collected at a configurable interval via the ThousandEyes API.
+- **Visualization:** Single value (min hops per target), Table (agent, server, min hops, max hops), Line chart (hop count trending).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.6 · Network Path Change Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Anomaly
+- **Value:** Detects when the network path between an agent and a target changes, which can indicate routing instability, ISP re-routing, or failover events. Correlating path changes with latency spikes helps isolate root cause.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Path Visualization data
+- **SPL:**
+```spl
+`path_viz_index` thousandeyes.test.type="agent-to-server"
+| stats dc(path_hash) as unique_paths count by thousandeyes.source.agent.name, server.address
+| where unique_paths > 1
+| sort -unique_paths
+```
+- **Implementation:** Path Visualization data must be enabled in the Tests Stream input. This use case requires building a path fingerprint (hash of intermediate hops) over time windows to detect when routes shift. Correlate with `network.latency` from the metrics stream to identify performance-impacting path changes.
+- **Visualization:** Timeline (path changes over time), Table (agent, server, unique paths), Drilldown to ThousandEyes via `thousandeyes.permalink`.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.7 · WAN Link Quality Scoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Composite quality score derived from latency, loss, and jitter provides a single metric for WAN link health, simplifying executive reporting and SLA tracking.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server" OR thousandeyes.test.type="agent-to-agent"
+| stats avg(network.latency) as avg_lat avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, server.address
+| eval latency_score=if(avg_lat<0.05,100,if(avg_lat<0.1,80,if(avg_lat<0.2,60,if(avg_lat<0.5,40,20))))
+| eval loss_score=if(avg_loss<0.1,100,if(avg_loss<0.5,80,if(avg_loss<1,60,if(avg_loss<3,40,20))))
+| eval jitter_score=if(avg_jitter<5,100,if(avg_jitter<15,80,if(avg_jitter<30,60,if(avg_jitter<50,40,20))))
+| eval quality_score=round((latency_score*0.4 + loss_score*0.35 + jitter_score*0.25),0)
+| sort quality_score
+```
+- **Implementation:** For Endpoint agents the OTel metric `network.score` provides a pre-computed composite. For Cloud and Enterprise Agent tests, calculate a weighted score from latency, loss, and jitter as shown. Adjust weights and thresholds for your SLA requirements.
+- **Visualization:** Gauge (quality score per link), Table (all links ranked), Trend line chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.8 · BGP Reachability Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors whether BGP-advertised prefixes are reachable from global vantage points. Loss of reachability means users in affected regions cannot reach your services.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="bgp"
+| stats avg(bgp.reachability) as avg_reachability by thousandeyes.monitor.name, network.prefix
+| where avg_reachability < 100
+| sort avg_reachability
+```
+- **Implementation:** Create BGP tests in ThousandEyes for your critical prefixes and stream to Splunk. The OTel metric `bgp.reachability` reports a percentage — 100% means the prefix is reachable from that monitor. The Splunk App Network dashboard includes a BGP Reachability map panel.
+- **Visualization:** Map (BGP reachability by monitor location), Single value (overall reachability %), Table (monitor, prefix, reachability).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.9 · BGP Path Change Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Anomaly
+- **Value:** BGP path changes indicate routing instability. Frequent path changes can cause traffic to take sub-optimal routes, increasing latency or traversing unexpected transit providers.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="bgp"
+| timechart span=1h sum(bgp.path_changes.count) as path_changes by thousandeyes.monitor.name
+```
+- **Implementation:** The OTel metric `bgp.path_changes.count` tracks the number of route changes per collection interval. The Splunk App Network dashboard includes a "BGP Path Changes Count" line chart. Correlate spikes with ISP maintenance windows or upstream provider issues.
+- **Visualization:** Line chart (path changes over time per monitor), Bar chart (total changes per monitor), Table with drilldown.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.10 · BGP Update Volume Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Anomaly
+- **Value:** High BGP update volumes can indicate route flapping, peer instability, or DDoS-related route manipulation. Trending helps establish baselines and detect anomalies.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="bgp"
+| timechart span=1h sum(bgp.updates.count) as bgp_updates by thousandeyes.monitor.name
+```
+- **Implementation:** The OTel metric `bgp.updates.count` tracks the number of BGP updates. The Splunk App Network dashboard includes a "BGP Updates Count" line chart. Set alerts when update volume exceeds 3 standard deviations from baseline.
+- **Visualization:** Line chart (updates over time), Single value (current update rate), Table (monitor, prefix, update count).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.11 · BGP AS Path Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Anomaly
+- **Value:** Tracking AS path changes reveals when traffic is routed through unexpected autonomous systems, which can indicate route leaks, hijacks, or ISP peering changes.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="bgp"
+| stats dc(network.as.path) as unique_paths values(network.as.path) as as_paths by network.prefix, thousandeyes.monitor.name
+| where unique_paths > 1
+| sort -unique_paths
+```
+- **Implementation:** The OTel attribute `network.as.path` provides the full AS path as a space-separated list of ASNs. By tracking distinct AS paths over time for each prefix and monitor, you can detect when routing changes introduce new transit providers. Combine with `bgp.path_changes.count` spikes to focus investigation.
+- **Visualization:** Table (prefix, monitor, AS paths seen), Timeline of path changes, Alert on new AS path appearance.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.12 · Prefix Reachability by Region
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Comparing BGP prefix reachability across geographic regions identifies regional outages or ISP-specific routing issues that affect only certain user populations.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (BGP tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="bgp"
+| stats avg(bgp.reachability) as avg_reachability by thousandeyes.monitor.location, network.prefix
+| eval region=case(
+    match(thousandeyes.monitor.location,"US\|CA\|MX\|BR"),"Americas",
+    match(thousandeyes.monitor.location,"GB\|DE\|FR\|NL"),"EMEA",
+    match(thousandeyes.monitor.location,"JP\|SG\|AU\|IN"),"APAC",
+    1=1,"Other")
+| stats avg(avg_reachability) as regional_reachability by region, network.prefix
+| sort region, network.prefix
+```
+- **Implementation:** BGP monitors are distributed globally. Group reachability results by `thousandeyes.monitor.location` and aggregate into regions. A prefix that is 100% reachable in Americas but <80% in APAC indicates a regional routing problem.
+- **Visualization:** Map (reachability by monitor location), Table (region, prefix, reachability), Column chart comparing regions.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.13 · DNS Availability Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** DNS failures cascade into application outages — if users cannot resolve names, nothing works. ThousandEyes DNS tests monitor availability from multiple global vantage points.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="dns-server"
+| stats avg(dns.lookup.availability) as avg_availability by dns.question.name, server.address
+| where avg_availability < 100
+| sort avg_availability
+```
+- **Implementation:** Create DNS Server tests in ThousandEyes targeting critical domain names and DNS servers. The OTel metric `dns.lookup.availability` reports 100% when resolution succeeds and 0% on error. The Splunk App Network dashboard includes a "DNS Availability (%)" line chart with drilldown to ThousandEyes.
+- **Visualization:** Line chart (availability % over time), Single value (current availability), Table (question, server, availability).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.14 · DNS Resolution Time Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Slow DNS resolution adds latency to every connection. Trending resolution time helps identify degrading DNS infrastructure or inefficient recursive resolution chains.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="dns-server"
+| timechart span=5m avg(dns.lookup.duration) as avg_dns_duration_s by dns.question.name
+| eval avg_dns_duration_ms=round(avg_dns_duration_s*1000,1)
+```
+- **Implementation:** The OTel metric `dns.lookup.duration` reports DNS resolve time in seconds. The Splunk App Network dashboard includes a "DNS Duration (s)" line chart. Alert when resolution time exceeds 200 ms consistently — this adds noticeable delay to every new connection.
+- **Visualization:** Line chart (resolution time over time by domain), Table with drilldown to ThousandEyes.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.15 · DNSSEC Validity Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** DNSSEC validation failures cause hard resolution failures for DNSSEC-enforcing resolvers. Monitoring validity ensures the DNSSEC chain of trust remains intact.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNSSEC tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="dns-dnssec"
+| stats avg(dns.lookup.validity) as avg_validity by dns.question.name
+| where avg_validity < 100
+| sort avg_validity
+```
+- **Implementation:** Create DNSSEC tests in ThousandEyes for domains where you manage DNSSEC signing. The OTel metric `dns.lookup.validity` reports 100% when the DNSSEC chain validates successfully and 0% on failure. The Splunk App Network dashboard includes a "DNS Validity (%)" line chart.
+- **Visualization:** Line chart (validity % over time), Single value (current validity), Table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.16 · DNS Provider Comparison
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Comparing resolution times across DNS providers (internal recursive resolvers, external providers like Cloudflare, Google, ISP resolvers) helps optimize DNS configuration for lowest latency.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="dns-server"
+| stats avg(dns.lookup.duration) as avg_duration_s avg(dns.lookup.availability) as avg_availability by server.address, dns.question.name
+| eval avg_duration_ms=round(avg_duration_s*1000,1)
+| sort dns.question.name, avg_duration_ms
+```
+- **Implementation:** Create DNS Server tests in ThousandEyes for the same domain against multiple DNS server addresses. Each test targets a different resolver. Compare `dns.lookup.duration` and `dns.lookup.availability` across server addresses.
+- **Visualization:** Column chart (resolution time by provider), Table (provider, domain, duration, availability), Comparison dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.17 · DNS Trace Delegation Chain Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** DNS Trace tests follow the full delegation chain from root to authoritative server. Monitoring availability and duration across the chain identifies issues at specific levels of the DNS hierarchy.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (DNS Trace tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="dns-trace"
+| stats avg(dns.lookup.availability) as avg_availability avg(dns.lookup.duration) as avg_duration_s by dns.question.name, thousandeyes.source.agent.name
+| eval avg_duration_ms=round(avg_duration_s*1000,1)
+| where avg_availability < 100 OR avg_duration_ms > 500
+| sort avg_availability, -avg_duration_ms
+```
+- **Implementation:** Create DNS Trace tests in ThousandEyes for critical domains. Unlike DNS Server tests that query a specific resolver, DNS Trace tests follow the entire delegation chain from root servers. The same `dns.lookup.availability` and `dns.lookup.duration` metrics are reported.
+- **Visualization:** Line chart (duration over time), Table (domain, agent, availability, duration), Alert on failures.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.18 · Network Outage Event Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** ThousandEyes Internet Insights uses collective intelligence from billions of daily measurements to automatically detect network outages affecting your services, including outages in ISP and cloud provider networks you do not own.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Event API
+- **SPL:**
+```spl
+`event_index` type="Network Outage" OR type="Network Path Issue"
+| stats count by type, severity, state
+| sort -count
+```
+- **Implementation:** Configure the Event input in the Cisco ThousandEyes App with a ThousandEyes user and account group. Update the `event_index` macro to point to the correct index. Events are fetched at a configurable interval via the ThousandEyes API. Event types include "Network Outage", "Network Path Issue", "DNS Issue", "Server Issue", "Proxy Issue", and "Local Agent Issue".
+- **Visualization:** Events timeline, Table (type, severity, state, count), Pie chart by severity.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.19 · ISP Performance Degradation Alerts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** ThousandEyes alerts notify when ISP-level degradation is detected. Ingesting these alerts into Splunk provides a centralized view alongside other infrastructure alerts and enables correlation with internal incidents.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Alerts Stream (webhook)
+- **SPL:**
+```spl
+`stream_index` sourcetype="thousandeyes:alerts" severity="critical" OR severity="warning"
+| stats count by alert.rule.name, alert.test.name, severity
+| sort -count
+```
+- **Implementation:** Configure the Alerts Stream input in the ThousandEyes App, selecting alert rules to receive via webhook. The app automatically creates a webhook connector in ThousandEyes and associates it with the selected alert rules. Alerts flow in real-time to Splunk via HEC.
+- **Visualization:** Pie chart (alerts by severity), Bar chart (alert timeline), Table (rule, test, severity, count).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.20 · DNS Issue Event Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** ThousandEyes Internet Insights automatically detects DNS infrastructure issues that deviate from established baselines, surfacing problems in third-party DNS services before they cause widespread outages.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Event API
+- **SPL:**
+```spl
+`event_index` type="DNS Issue"
+| stats count by severity, state, thousandeyes.test.name
+| sort -count
+```
+- **Implementation:** Events with type "DNS Issue" are fetched via the Event input at the configured interval. Filter by `severity` (high, medium, low) and `state` (active, resolved) to focus on current issues. Correlate with DNS availability metrics from UC-5.10.13.
+- **Visualization:** Events timeline, Table (test, severity, state), Single value (active DNS issues).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.21 · Proxy Issue Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Detects when proxy infrastructure (forward proxies, web gateways, SASE secure edges) becomes the root cause of connectivity issues, helping teams quickly identify whether the problem is in the proxy layer or the destination.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Event API
+- **SPL:**
+```spl
+`event_index` type="Proxy Issue"
+| stats count by severity, state
+| sort -count
+```
+- **Implementation:** Events with type "Proxy Issue" indicate problems in proxy/web gateway infrastructure. These are automatically detected when ThousandEyes agents traverse proxy paths. Correlate with SASE or web security gateway logs in Splunk for root cause analysis.
+- **Visualization:** Events timeline, Table, Single value (active proxy issues).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.22 · Local Agent Issue Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Detects when the source of a test failure is the agent itself (local network, DNS, or connectivity issue at the agent location), preventing false attribution of problems to the destination service.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Event API
+- **SPL:**
+```spl
+`event_index` type="Local Agent Issue"
+| stats count by severity, state
+| sort -count
+```
+- **Implementation:** "Local Agent Issue" events indicate that the test failure originated at the agent's local environment, not the remote target. These help filter out false positives in outage detection. Correlate with agent health data to identify sites with recurring local problems.
+- **Visualization:** Events timeline, Table by agent, Single value (active local issues).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.23 · Internet Outage Correlation with Internal Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Correlating ThousandEyes outage events with internal monitoring alerts enables rapid determination of whether an issue is caused by an external internet problem or an internal infrastructure failure, significantly reducing MTTR.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes` (events), plus internal monitoring indexes
+- **SPL:**
+```spl
+`event_index` type="Network Outage" state="active"
+| rename thousandeyes.test.name as test_name
+| join type=outer test_name [
+  search index=itsi_tracked_alerts severity="critical"
+  | rename service_name as test_name
+]
+| table _time, type, severity, test_name, service_name, state
+| sort -_time
+```
+- **Implementation:** This correlation use case combines ThousandEyes outage events with internal alerting systems (ITSI episodes, Splunk alerts, or ServiceNow incidents). When a ThousandEyes "Network Outage" event is active and aligns with internal service degradation, the root cause is likely external. Adjust the join logic to match your naming conventions.
+- **Visualization:** Combined timeline (TE events + internal alerts), Table, Dashboard with dual panels.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.24 · Endpoint Experience Score Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** ThousandEyes Endpoint Agents provide a composite experience score aggregating CPU, memory, and network performance from the end-user device perspective, enabling proactive digital experience management for hybrid workforces.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint"
+| stats avg(thousandeyes.endpoint.agent.score) as avg_score avg(system.cpu.utilization) as avg_cpu avg(system.memory.utilization) as avg_mem by thousandeyes.source.agent.name
+| where avg_score < 70
+| sort avg_score
+```
+- **Implementation:** Deploy ThousandEyes Endpoint Agents on user devices and configure Endpoint Agent tests in the Tests Stream input. The OTel metric `thousandeyes.endpoint.agent.score` is a composite of CPU and memory scores. `system.cpu.utilization` and `system.memory.utilization` are reported as percentages.
+- **Visualization:** Gauge (experience score per user), Table (agent, score, CPU, memory), Trend line chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.25 · Remote Worker Connectivity Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Endpoint agents break connectivity into segments (gateway, VPN, proxy, DNS) with per-segment latency, loss, and score, enabling targeted troubleshooting of remote worker network issues without requiring on-site visits.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint local network)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type=*
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.score) as avg_score by thousandeyes.source.agent.name, target.type
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| sort thousandeyes.source.agent.name, target.type
+```
+- **Implementation:** Endpoint Experience Local Network data reports metrics per segment: `target.type` can be "dns", "proxy", "gateway", or "vpn". The `network.score` composite metric simplifies multi-segment health assessment. Identify whether connectivity problems are in the local network, VPN, proxy, or DNS layer.
+- **Visualization:** Table (agent, segment type, latency, loss, score), Heatmap by segment, Drilldown per agent.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.26 · VPN Path Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures latency, loss, and quality through VPN tunnels from endpoint agents, identifying whether the VPN concentrator or provider is the bottleneck for remote workers.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint local network)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint" target.type="vpn"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.score) as avg_score by thousandeyes.source.agent.name, vpn.vendor, server.address
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| where avg_score < 70 OR avg_loss > 1
+| sort avg_score
+```
+- **Implementation:** Endpoint agents with VPN connections report metrics with `target.type="vpn"`. The `vpn.vendor` attribute identifies the VPN client (e.g., "Cisco AnyConnect"). The `server.address` is the VPN gateway. Compare VPN segment scores with gateway and DNS segment scores to isolate whether the VPN is the bottleneck.
+- **Visualization:** Table (agent, VPN vendor, gateway, latency, loss, score), Column chart by VPN vendor, Trend line chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.27 · Endpoint Connection Type and Network Score
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Comparing network scores across connection types (Wireless, Ethernet, Modem) identifies whether WiFi or wired connectivity is a systemic issue for the workforce, informing infrastructure investment decisions.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint local network)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint"
+| stats avg(network.score) as avg_score avg(network.latency) as avg_latency avg(network.loss) as avg_loss count by thousandeyes.source.agent.connection.type
+| eval avg_latency_ms=round(avg_latency*1000,1)
+| sort avg_score
+```
+- **Implementation:** The OTel attribute `thousandeyes.source.agent.connection.type` reports "Wireless", "Ethernet", or "Modem". Group endpoint network metrics by connection type to identify whether WiFi users have systematically worse performance than wired users.
+- **Visualization:** Column chart (score by connection type), Table (connection type, avg score, latency, loss, count), Pie chart (user distribution by type).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.28 · Geographic Workforce Performance Comparison
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Comparing digital experience metrics across office locations and regions identifies sites with persistent network quality issues, enabling targeted infrastructure improvements.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Endpoint tests)
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.domain="endpoint"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.score) as avg_score count as agent_count by thousandeyes.source.agent.geo.country.iso_code, thousandeyes.source.agent.geo.region.iso_code
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| sort avg_score
+```
+- **Implementation:** Endpoint agent metrics include geographic attributes: `thousandeyes.source.agent.geo.country.iso_code` and `thousandeyes.source.agent.geo.region.iso_code`. Aggregate network quality metrics by region to identify poorly performing locations. Combine with `thousandeyes.source.agent.location` for more specific site-level analysis.
+- **Visualization:** Map (score by region), Table (region, score, latency, loss, agent count), Column chart comparing regions.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.29 · SD-WAN Overlay vs Underlay Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Compares performance metrics across SD-WAN overlay tunnels and their underlay transport paths, revealing when SD-WAN policy routing decisions are sub-optimal or when underlay degradation affects the overlay.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics, Path Visualization
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-agent" OR thousandeyes.test.type="agent-to-server"
+| search thousandeyes.test.name="*SD-WAN*" OR thousandeyes.test.name="*overlay*" OR thousandeyes.test.name="*underlay*"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.test.name, thousandeyes.source.agent.name
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| sort thousandeyes.source.agent.name, thousandeyes.test.name
+```
+- **Implementation:** Deploy ThousandEyes Enterprise Agents on Cisco Catalyst SD-WAN or Meraki MX devices via the SD-WAN Manager integration. Create paired tests — one through the overlay tunnel and one via the underlay path — and name them consistently (e.g., "Site-A Overlay", "Site-A Underlay") to enable comparison. The same `network.latency`, `network.loss`, and `network.jitter` metrics apply.
+- **Visualization:** Dual-panel comparison (overlay vs underlay), Table (test, latency, loss, jitter), Line chart side-by-side.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.30 · SASE Secure Edge Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** SASE architectures route traffic through cloud-based security edges (Zscaler, Cisco Umbrella, etc.). Monitoring latency and loss through these edges ensures the security layer does not unacceptably degrade user experience.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| search thousandeyes.test.name="*SASE*" OR thousandeyes.test.name="*Zscaler*" OR thousandeyes.test.name="*Umbrella*"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss by thousandeyes.test.name, thousandeyes.source.agent.name
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| sort -avg_latency_ms
+```
+- **Implementation:** Create Agent-to-Server tests in ThousandEyes that route through your SASE secure edge. Name tests descriptively to include the SASE provider. Compare latency with and without the secure edge to quantify the security overhead. Correlate with Endpoint Agent `target.type="proxy"` data for end-to-end visibility.
+- **Visualization:** Line chart (latency through secure edge over time), Table (agent, SASE test, latency, loss), Comparison chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.31 · Multi-Cloud Network Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures network path performance to workloads hosted across AWS, Azure, GCP, and other cloud providers, identifying which provider or region delivers the best connectivity from each user location.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="agent-to-server"
+| search thousandeyes.test.name="*AWS*" OR thousandeyes.test.name="*Azure*" OR thousandeyes.test.name="*GCP*"
+| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss by thousandeyes.test.name, thousandeyes.source.agent.name
+| eval avg_latency_ms=round(avg_latency_s*1000,1)
+| sort thousandeyes.source.agent.name, avg_latency_ms
+```
+- **Implementation:** Deploy ThousandEyes Cloud Agents in each cloud provider region and create Agent-to-Server tests targeting your workloads. ThousandEyes supports Cloud Agents in AWS, Azure, GCP, IBM Cloud, and Alibaba Cloud. Name tests with the provider and region for easy filtering.
+- **Visualization:** Column chart (latency by cloud provider), Table (agent, cloud target, latency, loss), Map (agent-to-cloud paths).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.32 · CDN Edge Network Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures latency, loss, and path characteristics to CDN edge locations, revealing when CDN performance varies by region or when edge servers are not serving content as expected.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics
+- **SPL:**
+```spl
+`stream_index` thousandeyes.test.type="http-server"
+| search thousandeyes.test.name="*CDN*"
+| stats avg(http.client.request.duration) as avg_ttfb_s avg(http.server.throughput) as avg_throughput by thousandeyes.test.name, thousandeyes.source.agent.name, server.address
+| eval avg_ttfb_ms=round(avg_ttfb_s*1000,1), throughput_mbps=round(avg_throughput/1048576,2)
+| sort thousandeyes.source.agent.name
+```
+- **Implementation:** Create HTTP Server tests targeting CDN-served URLs from multiple ThousandEyes Cloud Agents. The `server.address` will show which CDN edge server responded. Compare performance across regions by grouping by `thousandeyes.source.agent.location`. Correlate HTTP response headers (cache hit/miss) with performance differences.
+- **Visualization:** Column chart (TTFB by CDN edge), Table (agent, CDN edge, TTFB, throughput), Map.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.10.33 · Cloud Provider Path Visualization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Hop-by-hop path visualization through cloud provider backbones reveals routing decisions, peering points, and potential bottlenecks within AWS, Azure, or GCP networks that are otherwise invisible.
+- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
+- **Data Sources:** `index=thousandeyes`, ThousandEyes Path Visualization data
+- **SPL:**
+```spl
+`path_viz_index` thousandeyes.test.type="agent-to-server"
+| search thousandeyes.test.name="*AWS*" OR thousandeyes.test.name="*Azure*" OR thousandeyes.test.name="*GCP*"
+| stats count values(hop_ip) as hops by thousandeyes.test.name, thousandeyes.source.agent.name
+| sort thousandeyes.test.name
+```
+- **Implementation:** Enable "Include Network Path Data" in the Tests Stream input for cloud-targeted tests. Path Visualization data shows every hop between the agent and target. The `path_viz_index` macro must be configured. For detailed path analysis, use the `thousandeyes.permalink` to drill into the ThousandEyes UI path visualization view.
+- **Visualization:** Table (test, agent, hop list), Drilldown to ThousandEyes path viz, Network topology diagram.
+- **CIM Models:** N/A
+
+---
+
+## 5.11 Carrier and Service Provider Signaling
+
+### UC-5.11.1 · Diameter Signaling Health Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Tracks the success and failure rates of Diameter signaling messages (authentication, authorization, accounting) in the mobile core, essential for maintaining service availability and subscriber experience.
+- **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** IMS Core and VoLTE Monitoring (50 Ways #16)
+- **Data Sources:** `sourcetype=stream:diameter`
+- **SPL:**
+```spl
+sourcetype="stream:diameter"
+| stats count by command_code, result_code, origin_host, application_id
+| eval status=if(result_code==2001, "Success", "Failure")
+| stats sum(eval(if(status=="Success", 1, 0))) as successful, sum(eval(if(status=="Failure", 1, 0))) as failed by command_code, application_id
+| eval success_rate=round(successful*100/(successful+failed), 2)
+| where failed>0 OR success_rate<99
+```
+- **Implementation:** Install Splunk App for Stream and configure it to capture Diameter protocol traffic on the core network. Enable the Diameter protocol for full field extraction. Monitor `command_code` and `result_code` to detect signaling issues. Create alerts for sustained drops in success rate or spikes in failure codes such as DIAMETER_AUTHENTICATION_REJECTED (5003) or DIAMETER_UNABLE_TO_DELIVER (3002).
+- **Visualization:** Single value (overall Diameter success rate with color-coded threshold: green >99%, yellow 95-99%, red <95%), Pie chart (failure breakdown by command_code), Table (origin_host, command_code, result_code, count — sortable), Line chart (success rate trend over 24h with 15-min buckets).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.2 · Diameter Subscriber Data Accounting
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Aggregates Diameter accounting records to track data usage per subscriber and session, enabling detection of high-usage anomalies, billing reconciliation, and capacity planning.
+- **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** Broadband Service Optimization (50 Ways #17)
+- **Data Sources:** `sourcetype=stream:diameter`
+- **SPL:**
+```spl
+sourcetype="stream:diameter" command_code=271
+| eval total_bytes=acct_input_octets+acct_output_octets
+| eval total_MB=round(total_bytes/1048576, 2)
+| stats sum(total_MB) as total_data_MB, count as session_count by calling_station_id, origin_host
+| sort -total_data_MB
+| head 100
+```
+- **Implementation:** Configure Splunk App for Stream to capture Diameter Accounting-Request (ACR, command_code 271) and Accounting-Answer (ACA, command_code 271) messages. The fields `acct_input_octets` and `acct_output_octets` provide byte counts per session. Correlate with `calling_station_id` (subscriber MSISDN/IMSI) to build per-subscriber usage profiles. Set alerts for subscribers exceeding data thresholds.
+- **Visualization:** Bar chart (top 20 subscribers by data usage in MB), Table (calling_station_id, origin_host, total_data_MB, session_count — sortable), Line chart (aggregate data volume trend over 7 days), Single value (total Diameter accounting sessions).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.3 · Mobile Subscriber RADIUS Session Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Tracks active mobile subscriber sessions via RADIUS accounting, providing visibility into session duration, data volume, and SGSN/MCC-MNC distribution — critical for mobile core capacity planning and roaming analytics.
+- **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** Radio Access Network Monitoring (50 Ways #15)
+- **Data Sources:** `sourcetype=stream:radius`
+- **SPL:**
+```spl
+sourcetype="stream:radius" code="Accounting-Request"
+| eval session_secs=stop_time-start_time
+| eval session_min=round(session_secs/60, 1)
+| stats count as sessions, avg(session_min) as avg_duration_min, dc(login) as unique_subscribers by sgsn_address, sgsn_mcc_mnc
+| sort -sessions
+```
+- **Implementation:** Configure Splunk App for Stream to capture RADIUS accounting traffic from the mobile packet core (GGSN/PGW). Enable RADIUS protocol extraction including the telco-specific fields `sgsn_address` and `sgsn_mcc_mnc`. Use `code="Accounting-Request"` to filter for accounting records. Correlate `start_time` and `stop_time` for session duration. The `sgsn_mcc_mnc` field identifies the serving network (home vs. roaming). Alert on sudden drops in active sessions per SGSN.
+- **Visualization:** Column chart (active sessions by SGSN address), Table (sgsn_address, sgsn_mcc_mnc, sessions, unique_subscribers, avg_duration_min — sortable), Timechart (session count over 24h), Pie chart (session distribution by MCC-MNC for roaming analysis).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.4 · Carrier SIP Trunk Failure Analysis
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Monitors SIP response codes on carrier trunks to detect call routing failures, trunk congestion, and destination unreachable conditions — directly impacting voice service availability and revenue.
+- **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** Carrier Media Gateway PM (50 Ways #43), Enterprise Service Assurance (50 Ways #14)
+- **Data Sources:** `sourcetype=stream:sip`
+- **SPL:**
+```spl
+sourcetype="stream:sip" method="INVITE"
+| stats count as total, sum(eval(if(reply_code>=400, 1, 0))) as failures by dest_ip
+| eval failure_rate=round(failures*100/total, 2)
+| where failure_rate>5 OR failures>50
+| sort -failure_rate
+```
+- **Implementation:** Configure Splunk App for Stream to capture SIP signaling on trunk-facing interfaces. Enable SIP protocol extraction for fields `method`, `reply_code`, `caller`, `callee`, and `dest_ip`. Focus on INVITE transactions as these represent call attempts. Group by `dest_ip` to identify problematic trunks or destinations. SIP 4xx codes indicate client errors (e.g., 404 Not Found, 486 Busy Here), 5xx codes indicate server errors, and 6xx codes indicate global failures. Alert when failure rate exceeds 5% sustained over 15 minutes.
+- **Visualization:** Single value (overall SIP trunk success rate with thresholds: green >95%, yellow 90-95%, red <90%), Column chart (failure count by dest_ip), Table (dest_ip, total attempts, failures, failure_rate — sortable), Timechart (SIP 4xx/5xx/6xx responses over 24h by response code class).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.5 · SIP Registration Storm Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Security
+- **Value:** Detects sudden spikes in SIP REGISTER messages that can overwhelm IMS/SBC infrastructure — caused by mass device reboots, network flaps, or DDoS attacks. Early detection prevents cascading core failures.
+- **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** IMS Core and VoLTE Monitoring (50 Ways #16)
+- **Data Sources:** `sourcetype=stream:sip`
+- **SPL:**
+```spl
+sourcetype="stream:sip" method="REGISTER"
+| bin _time span=5m
+| stats count as register_count, dc(src_ip) as unique_sources by _time
+| eventstats avg(register_count) as baseline, stdev(register_count) as stdev_reg
+| eval threshold=baseline+(3*stdev_reg)
+| where register_count>threshold
+| eval spike_factor=round(register_count/baseline, 1)
+```
+- **Implementation:** Configure Splunk App for Stream to capture SIP REGISTER traffic on the IMS/SBC interfaces. Use a 5-minute time bucket for aggregation. Calculate a rolling baseline using `eventstats` and flag any bucket where REGISTER volume exceeds 3 standard deviations above the mean. The `dc(src_ip)` field helps distinguish between a mass re-registration event (many unique sources) vs. a single device stuck in a registration loop (few unique sources, high count). Alert the NOC immediately as registration storms can cascade into full core outages within minutes.
+- **Visualization:** Line chart (REGISTER count over time with dynamic baseline threshold line), Single value (current spike factor vs. baseline), Table (time bucket, register_count, unique_sources, baseline, threshold — highlighting rows above threshold), Area chart (unique sources over time to correlate with storms).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.6 · SIP Post-Dial Delay Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures the time between a SIP INVITE and the first ringing or answer response, directly reflecting the user experience of waiting after dialing. High post-dial delay indicates trunk congestion, routing loops, or downstream SBC issues.
+- **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
+- **Industry:** Telecommunications
+- **Telco Use Case:** Reducing SLA Violations (50 Ways #21)
+- **Data Sources:** `sourcetype=stream:sip`
+- **SPL:**
+```spl
+sourcetype="stream:sip" method="INVITE" reply_code=200
+| where isnotnull(setup_delay)
+| stats avg(setup_delay) as avg_pdd, perc95(setup_delay) as p95_pdd, max(setup_delay) as max_pdd, count as calls by dest_ip
+| eval avg_pdd_ms=round(avg_pdd*1000, 0), p95_pdd_ms=round(p95_pdd*1000, 0)
+| where p95_pdd_ms>3000
+| sort -p95_pdd_ms
+```
+- **Implementation:** Configure Splunk App for Stream to capture SIP INVITE and response transactions. The `setup_delay` field measures the time from INVITE to the first non-100 response (typically 180 Ringing or 200 OK). Monitor by `dest_ip` to identify slow destinations or trunks. ITU-T E.721 recommends post-dial delay under 3 seconds for national calls and under 5 seconds for international calls. Create tiered alerts: warning at p95 >3s, critical at p95 >5s. Trend analysis reveals degradation patterns across time of day and destination.
+- **Visualization:** Gauge (p95 post-dial delay with thresholds: green <2s, yellow 2-3s, red >3s), Line chart (average PDD trend by dest_ip over 24h), Table (dest_ip, calls, avg_pdd_ms, p95_pdd_ms, max_pdd_ms — sortable), Histogram (PDD distribution across all calls).
+- **CIM Models:** N/A
+
+---
+
