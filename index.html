@@ -796,6 +796,46 @@ html.light-mode {
   background: var(--splunk-bg-base);
   border: 1px solid var(--splunk-border-subtle);
 }
+.meta-splunk-apps { margin-top: var(--space-2); display: flex; flex-direction: column; gap: var(--space-2); }
+.splunk-app-link {
+  display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md); border: 1px solid var(--splunk-border-subtle);
+  background: var(--splunk-bg-surface); text-decoration: none; color: inherit;
+  transition: border-color 0.2s, background 0.2s;
+}
+.splunk-app-link:hover { border-color: var(--splunk-green); background: var(--splunk-bg-elevated); }
+.splunk-app-icon { flex-shrink: 0; width: 20px; height: 20px; color: var(--splunk-green); }
+.splunk-app-icon svg { width: 20px; height: 20px; }
+.splunk-app-info { flex: 1; font-size: var(--text-xs); line-height: 1.4; }
+.splunk-app-info strong { font-size: var(--text-sm); color: var(--splunk-text-primary); }
+.splunk-app-desc { color: var(--splunk-text-tertiary); }
+.splunk-app-archived { color: var(--splunk-medium); font-weight: 400; font-size: var(--text-xs); }
+.splunk-app-arrow { flex-shrink: 0; width: 16px; height: 16px; color: var(--splunk-text-tertiary); }
+.splunk-app-arrow svg { width: 16px; height: 16px; }
+.app-screenshots-section { margin-top: var(--space-4); }
+.app-screenshots-title {
+  font-size: var(--text-sm); font-weight: 600; color: var(--splunk-text-secondary);
+  margin-bottom: var(--space-3);
+}
+.app-screenshots-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+.app-screenshot-card {
+  display: block; border-radius: var(--radius-md); overflow: hidden;
+  border: 1px solid var(--splunk-border-subtle); background: var(--splunk-bg-base);
+  text-decoration: none; transition: border-color 0.2s, transform 0.15s;
+}
+.app-screenshot-card:hover { border-color: var(--splunk-green); transform: translateY(-2px); }
+.app-screenshot-card img {
+  width: 100%; height: auto; display: block;
+  aspect-ratio: 16/10; object-fit: cover;
+}
+.app-screenshot-label {
+  display: block; padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs); color: var(--splunk-text-secondary);
+  background: var(--splunk-bg-surface); text-align: center;
+}
 .meta-item h4 {
   font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--splunk-text-tertiary); margin-bottom: var(--space-1);
@@ -2373,7 +2413,20 @@ function renderModal(entry) {
   html += '<div class="modal-section"><h3>Value</h3><p>' + escHtml(uc.v) + '</p></div>';
 
   html += '<div class="modal-meta-grid">';
-  html += '<div class="meta-item"><h4>App / TA</h4><p>' + escHtml(uc.t||'—') + '</p></div>';
+  html += '<div class="meta-item"><h4>App / TA</h4><p>' + escHtml(uc.t||'—') + '</p>';
+  if (Array.isArray(uc.sapp) && uc.sapp.length) {
+    html += '<div class="meta-splunk-apps">';
+    uc.sapp.forEach(function(app) {
+      html += '<a href="' + escHtml(app.url) + '" target="_blank" rel="noopener" class="splunk-app-link">';
+      html += '<span class="splunk-app-icon">' + si('monitorChart') + '</span>';
+      html += '<span class="splunk-app-info"><strong>' + escHtml(app.name) + '</strong>';
+      if (app.archived) html += ' <span class="splunk-app-archived">(archived)</span>';
+      html += '<br><span class="splunk-app-desc">' + escHtml(app.desc) + '</span></span>';
+      html += '<span class="splunk-app-arrow">' + si('chevronRight') + '</span></a>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
   html += '<div class="meta-item"><h4>Data Sources</h4><p>' + escHtml(uc.d||'—') + '</p></div>';
   if (uc.hw) {
     html += '<div class="meta-item"><h4>Equipment Models</h4><p>' + escHtml(uc.hw) + '</p></div>';
@@ -2454,7 +2507,27 @@ function renderModal(entry) {
     html += '<div class="modal-section"><h3>References</h3><p>' + (refList.length ? refList.map(r => r.startsWith('http') ? '<a href="' + escHtml(r) + '" target="_blank" rel="noopener">' + escHtml(r) + '</a>' : escHtml(r)).join(' &nbsp;|&nbsp; ') : escHtml(uc.refs)) + '</p></div>';
   }
   if (uc.z) {
-    html += '<div class="modal-section"><h3>Visualization</h3><p>' + escHtml(uc.z) + '</p></div>';
+    html += '<div class="modal-section"><h3>Visualization</h3><p>' + escHtml(uc.z) + '</p>';
+    if (Array.isArray(uc.sapp) && uc.sapp.length) {
+      var allScreenshots = [];
+      uc.sapp.forEach(function(app) {
+        if (Array.isArray(app.screenshots) && app.screenshots.length) {
+          app.screenshots.forEach(function(s) { allScreenshots.push({src: s, app: app.name, url: app.url}); });
+        }
+      });
+      if (allScreenshots.length) {
+        html += '<div class="app-screenshots-section">';
+        html += '<h4 class="app-screenshots-title">App Dashboard Examples</h4>';
+        html += '<div class="app-screenshots-grid">';
+        allScreenshots.forEach(function(s) {
+          html += '<a href="' + escHtml(s.url) + '" target="_blank" rel="noopener" class="app-screenshot-card" title="' + escHtml(s.app) + ' — View on Splunkbase">';
+          html += '<img src="' + escHtml(s.src) + '" alt="' + escHtml(s.app) + ' dashboard screenshot" loading="lazy">';
+          html += '<span class="app-screenshot-label">' + escHtml(s.app) + '</span></a>';
+        });
+        html += '</div></div>';
+      }
+    }
+    html += '</div>';
   }
 
   // Nav

@@ -385,8 +385,108 @@ EQUIPMENT = [
     {"id": "cctv", "label": "CCTV / IP Cameras", "tas": ["NVR", "ONVIF", "Hikvision", "CCTV"]},
 ]
 
+# Splunk Apps with pre-built dashboards (companion apps for TAs).
+# Matched by substring against the UC's App/TA field, same as equipment matching.
+SPLUNK_APPS = [
+    {"name": "Splunk App for Unix and Linux", "id": 273,
+     "url": "https://splunkbase.splunk.com/app/273",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/64464cc4-75ba-11ea-9476-06676674ba60.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/7d145c32-75ba-11ea-b2cd-06676674ba60.png"],
+     "tas": ["Splunk_TA_nix"], "archived": True,
+     "desc": "Pre-built dashboards for Unix/Linux performance, capacity and alerting"},
+    {"name": "Splunk App for Windows Infrastructure", "id": 1680,
+     "url": "https://splunkbase.splunk.com/app/1680",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/9d9652a4-7499-11e3-b0c8-005056ad5c72.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/b9eee34e-c197-11e3-85b1-06550dde6d3e.png"],
+     "tas": ["Splunk_TA_windows"], "archived": True,
+     "desc": "Pre-built dashboards for Windows server and desktop management, Active Directory"},
+    {"name": "Microsoft Azure App for Splunk", "id": 4882,
+     "url": "https://splunkbase.splunk.com/app/4882",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/d55080b0-6d4d-11ec-baf2-ce06eb58cb63.jpeg", "https://cdn.splunkbase.splunk.com/media/public/screenshots/d7147ff0-6d4d-11ec-9e53-3e3d9b7eaa58.jpeg"],
+     "tas": ["Splunk_TA_microsoft-cloudservices", "Azure Monitor", "Azure Activity"],
+     "desc": "Dashboards for Azure VMs, Metrics, Storage, Security Monitoring, Billing"},
+    {"name": "Microsoft 365 App for Splunk", "id": 3786,
+     "url": "https://splunkbase.splunk.com/app/3786",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/47862910-b938-11ec-bed4-4a49cc3b8a38.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/4aa6a7a0-b938-11ec-a542-32c4f9dd13a0.jpeg"],
+     "tas": ["Splunk_TA_MS_O365", "MS_O365", "Office 365"],
+     "desc": "Dashboards for Azure AD, Defender 365, Exchange, SharePoint, Teams, Power BI"},
+    {"name": "App for Cisco Network Data", "id": 1352,
+     "url": "https://splunkbase.splunk.com/app/1352",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/47590b50-3981-11ed-807b-8e625ade07cf.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/4dc530fe-3981-11ed-b76f-8ad1f2b29da5.png"],
+     "tas": ["TA-cisco_ios", "cisco-ios", "cisco:ios"],
+     "desc": "Dashboards and data models for Cisco Switches, Routers, WLAN Controllers"},
+    {"name": "Cisco Security Cloud", "id": 7404,
+     "url": "https://splunkbase.splunk.com/app/7404",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/37673b17-99fd-4dc1-a5f6-81b9cd15cab7.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/c8eb0ce4-f7bd-412d-950c-63c8c20da0a7.png"],
+     "tas": ["cisco-firepower", "cisco-asa", "cisco-ise", "Cisco Secure Firewall", "Cisco Secure Endpoint"],
+     "desc": "Modular dashboards and health checks for Cisco Secure Firewall, Duo, Endpoint"},
+    {"name": "Cisco ThousandEyes App for Splunk", "id": 7719,
+     "url": "https://splunkbase.splunk.com/app/7719",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/1e95cd84-404f-438c-8446-0426643c49a2.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/8e5ba70f-d63f-48af-9d03-cb837f61db45.png"],
+     "tas": ["ThousandEyes", "Cisco ThousandEyes"],
+     "desc": "Pre-built dashboards for ThousandEyes agent tests, events, and activity logs"},
+    {"name": "Fortinet FortiGate App for Splunk", "id": 2800,
+     "url": "https://splunkbase.splunk.com/app/2800",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/aa2b4e52-3252-11e5-84c5-02e61222c923.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/480c26fe-3254-11e5-a6ef-063854888a19.png"],
+     "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
+     "desc": "Threat visualizations and analytics for FortiGate firewall and UTM data"},
+    {"name": "Palo Alto Networks App for Splunk", "id": 491,
+     "url": "https://splunkbase.splunk.com/app/491",
+     "screenshots": [],
+     "tas": ["Splunk_TA_paloalto", "Palo Alto"],
+     "desc": "Dashboards for Palo Alto firewall traffic, threat, and GlobalProtect data"},
+    {"name": "Veeam App for Splunk", "id": 7312,
+     "url": "https://splunkbase.splunk.com/app/7312",
+     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/033805d0-fe3c-11ee-a32e-be99bb517a22.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/0a08b346-fe3c-11ee-9b85-7afc4dbed252.png"],
+     "tas": ["Veeam", "veeam"],
+     "desc": "Monitoring and security dashboards for Veeam Backup job statuses and events"},
+    {"name": "Zscaler Splunk App", "id": 3866,
+     "url": "https://splunkbase.splunk.com/app/3866",
+     "screenshots": [],
+     "tas": ["Zscaler", "zscaler"],
+     "desc": "Dashboards for Zscaler web usage, threat intelligence, DLP, and remote access"},
+    {"name": "Splunk App for Jenkins", "id": 3332,
+     "url": "https://splunkbase.splunk.com/app/3332",
+     "screenshots": [],
+     "tas": ["Jenkins", "jenkins"],
+     "desc": "Dashboards for Jenkins job and build status, console logs, test results"},
+    {"name": "Splunk Add-on for F5 BIG-IP", "id": 2680,
+     "url": "https://splunkbase.splunk.com/app/2680",
+     "screenshots": [],
+     "tas": ["Splunk_TA_f5-bigip", "F5", "BIG-IP"],
+     "desc": "Collects network traffic, system logs and performance metrics from F5 BIG-IP"},
+    {"name": "Splunk Add-on for ServiceNow", "id": 1928,
+     "url": "https://splunkbase.splunk.com/app/1928",
+     "screenshots": [],
+     "tas": ["Splunk_TA_snow", "ServiceNow"],
+     "desc": "Collects ServiceNow incidents, events, change and CMDB data via REST APIs"},
+]
+
 # Link to the common implementation guide (apps, inputs.conf, Splunk directory)
 IMPLEMENTATION_GUIDE_LINK = "docs/implementation-guide.md"
+
+
+def apps_for_ta_string(ta_str):
+    """Given a use case's App/TA field, return list of matching SPLUNK_APPS entries."""
+    if not (ta_str or "").strip():
+        return []
+    raw = (ta_str or "").replace("`", "").strip().lower()
+    if not raw:
+        return []
+    matched = []
+    seen_ids = set()
+    for app in SPLUNK_APPS:
+        for pattern in app["tas"]:
+            if pattern.lower() in raw and app["id"] not in seen_ids:
+                seen_ids.add(app["id"])
+                matched.append({
+                    "name": app["name"],
+                    "id": app["id"],
+                    "url": app["url"],
+                    "desc": app.get("desc", ""),
+                    "screenshots": app.get("screenshots", []),
+                    "archived": app.get("archived", False),
+                })
+                break
+    return matched
 
 
 def equipment_ids_for_ta_string(ta_str):
@@ -697,6 +797,9 @@ def parse_category_file(filepath):
             eq_ids, model_ids = equipment_ids_for_ta_string(uc.get("t"))
             uc["e"] = eq_ids
             uc["em"] = model_ids
+            matched_apps = apps_for_ta_string(uc.get("t"))
+            if matched_apps:
+                uc["sapp"] = matched_apps
 
     return category
 
