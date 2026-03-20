@@ -29,6 +29,11 @@ window.NON_TECHNICAL = {
         { id: "1.1.15", why: "Spot network card errors that can cause slow or dropped connections." },
         { id: "1.1.55", why: "Detect when servers can't look up website or service addresses (DNS failures)." },
         { id: "1.1.58", why: "Know when a redundant network link fails over, which could signal a problem." }
+      ]},
+      { name: "Mac endpoints", description: "macOS laptops and desktops — encryption status, security settings, and resource usage.", ucs: [
+        { id: "1.3.2", why: "Check that disk encryption (FileVault) is turned on — unencrypted laptops are a data breach risk." },
+        { id: "1.3.1", why: "Watch CPU, memory, and disk on Mac endpoints to help IT triage user complaints." },
+        { id: "1.3.3", why: "Make sure Gatekeeper and System Integrity Protection haven't been disabled." }
       ]}
     ]
   },
@@ -53,6 +58,16 @@ window.NON_TECHNICAL = {
         { id: "2.1.1", why: "See when a physical host is running out of processing power for its VMs." },
         { id: "2.1.2", why: "Detect when memory pressure forces the host to reclaim memory from VMs." },
         { id: "2.1.12", why: "Find VMs that have been given more resources than the host can actually deliver." }
+      ]},
+      { name: "KVM, Proxmox & oVirt", description: "Open-source virtualisation — Proxmox clusters, ZFS storage, backups, and KVM daemon health.", ucs: [
+        { id: "2.3.11", why: "Check whether Proxmox backup jobs succeeded — failed backups mean no recovery point." },
+        { id: "2.3.14", why: "Watch ZFS pool health — a degraded pool means a disk failed and data is at risk." },
+        { id: "2.3.16", why: "Monitor the libvirt daemon that manages all KVM VMs — if it hangs, VMs become unmanageable." }
+      ]},
+      { name: "Across all platforms", description: "Cross-platform checks — VM density, backup coverage, and end-of-life operating systems.", ucs: [
+        { id: "2.4.3", why: "Track how many VMs run on each host — too many means you're at risk if a host fails." },
+        { id: "2.4.2", why: "Find VMs with no recent backup — a single failure could mean permanent data loss." },
+        { id: "2.4.1", why: "Spot VMs running end-of-life operating systems that no longer get security patches." }
       ]}
     ]
   },
@@ -77,6 +92,16 @@ window.NON_TECHNICAL = {
         { id: "3.1.2", why: "Catch when containers are killed because they ran out of memory." },
         { id: "3.2.4", why: "See when a team has used up their allocated share of cluster resources." },
         { id: "3.1.3", why: "Detect when containers are being throttled because they hit CPU limits." }
+      ]},
+      { name: "OpenShift", description: "Red Hat OpenShift-specific monitoring — security constraints, builds, and cluster upgrades.", ucs: [
+        { id: "3.3.4", why: "Catch pods that try to run with more permissions than allowed — could be an attack." },
+        { id: "3.3.3", why: "Track build failures that block application deployments." },
+        { id: "3.3.1", why: "Make sure OpenShift cluster upgrades don't stall mid-way." }
+      ]},
+      { name: "Container registries", description: "Where container images are stored. We monitor pushes, pulls, and security.", ucs: [
+        { id: "3.4.8", why: "Warn before a registry certificate expires — expired certs stop all image pulls." },
+        { id: "3.4.5", why: "Spot failed logins and denied pulls that may indicate credential misuse." },
+        { id: "3.4.1", why: "Audit who pushed or pulled what images — supply chain visibility." }
       ]}
     ]
   },
@@ -101,14 +126,21 @@ window.NON_TECHNICAL = {
         { id: "4.1.14", why: "Detect unexpected spikes in cloud spending before the bill arrives." },
         { id: "4.1.7", why: "Know when someone changes who can access your cloud storage buckets." },
         { id: "4.2.12", why: "Get alerts when Azure spending approaches or exceeds your budget." }
+      ]},
+      { name: "Multi-cloud overview", description: "When you use more than one cloud provider. We bring everything together in one view.", ucs: [
+        { id: "4.4.3", why: "See spending across AWS, Azure, and GCP in a single cost dashboard." },
+        { id: "4.4.14", why: "Detect when audit logging is disabled in any cloud — that's a dangerous blind spot." },
+        { id: "4.4.6", why: "Pull security findings from all clouds into one place for unified prioritization." }
       ]}
     ]
   },
   "5": {
     outcomes: [
-      "Know when routers, switches, or firewalls have problems.",
-      "See when links go down or routing gets confused.",
+      "Know when routers, switches, firewalls, or wireless access points have problems.",
+      "See when links go down, SD-WAN tunnels degrade, or routing gets confused.",
       "Spot hardware issues like bad power supplies or fans.",
+      "Track who's using bandwidth and detect suspicious traffic patterns.",
+      "Monitor Meraki cloud-managed networks from a single pane of glass.",
       "Measure how your network performs from your users' perspective — across the internet, cloud, and SD-WAN.",
       "Monitor carrier signaling protocols (SIP, Diameter, RADIUS) that underpin voice and mobile services."
     ],
@@ -132,6 +164,36 @@ window.NON_TECHNICAL = {
         { id: "5.6.5", why: "Alert when a DHCP pool is running out of IP addresses to hand out." },
         { id: "5.6.1", why: "Track DNS query volume — sudden changes can indicate problems or attacks." },
         { id: "5.6.2", why: "Spot spikes in 'name not found' DNS errors that could mean a misconfiguration." }
+      ]},
+      { name: "Load balancers", description: "The devices that spread traffic across your servers. We watch pool health and virtual server availability.", ucs: [
+        { id: "5.3.1", why: "Alert when a server drops out of the load balancer pool — less capacity for users." },
+        { id: "5.3.2", why: "Know when a virtual IP goes down — the application is completely unreachable." },
+        { id: "5.3.11", why: "See when rate limiting kicks in — reveals ongoing attacks or traffic spikes." }
+      ]},
+      { name: "Wireless", description: "WiFi access points, rogue AP detection, and RF quality. We help you keep wireless reliable and secure.", ucs: [
+        { id: "5.4.4", why: "Detect unauthorised rogue access points that could be used for eavesdropping." },
+        { id: "5.4.2", why: "Track client connection failures — frustrated users and potential auth or RF issues." },
+        { id: "5.4.6", why: "Spot radio interference events that degrade WiFi quality." }
+      ]},
+      { name: "SD-WAN", description: "Software-defined WAN links connecting your sites. We watch tunnel health and application performance.", ucs: [
+        { id: "5.5.1", why: "Monitor tunnel health — loss, latency, and jitter directly affect application experience." },
+        { id: "5.5.2", why: "Know when a remote site goes offline — the edge device has stopped responding." },
+        { id: "5.5.3", why: "Detect when business-critical apps violate their SLA over the WAN." }
+      ]},
+      { name: "Network flow & traffic", description: "NetFlow, sFlow, and IPFIX data showing who is talking to whom and how much bandwidth is used.", ucs: [
+        { id: "5.7.1", why: "Find the top bandwidth consumers on your network — essential for congestion troubleshooting." },
+        { id: "5.7.3", why: "Break down bandwidth by application so you can prioritise with QoS." },
+        { id: "5.7.5", why: "Detect unusually large outbound transfers — possible data exfiltration." }
+      ]},
+      { name: "Network management platforms", description: "DNA Center, SNMP traps, and device backups. We centralize alerts from your management tools.", ucs: [
+        { id: "5.8.1", why: "Get AI/ML-driven network alerts from DNA Center alongside everything else in Splunk." },
+        { id: "5.8.3", why: "Consolidate SNMP traps from all devices to reduce tool sprawl." },
+        { id: "5.8.5", why: "Track whether network device configs are being backed up — missing backups mean manual rebuilds." }
+      ]},
+      { name: "Cisco Meraki", description: "Cloud-managed networking — APs, switches, security appliances, and cameras. We monitor the full Meraki stack.", ucs: [
+        { id: "5.9.19", why: "Make sure all Meraki access points are online and catch unexpected outages." },
+        { id: "5.9.38", why: "Watch uplink health and failover events on your Meraki appliances." },
+        { id: "5.9.55", why: "Track internet failover events and how long it takes to recover." }
       ]},
       { name: "Internet & digital experience", description: "How does the network look from outside your walls? ThousandEyes tests the path from users to apps — across ISPs, cloud providers, and SD-WAN.", ucs: [
         { id: "5.10.1", why: "Track network latency from agents to servers — slow paths mean slow apps." },
@@ -171,6 +233,11 @@ window.NON_TECHNICAL = {
         { id: "6.2.3", why: "Alert when a cloud storage bucket is publicly accessible — a common data leak risk." },
         { id: "6.2.1", why: "Track how much data is stored in cloud buckets and how fast it's growing." },
         { id: "6.2.2", why: "Spot unusual access patterns that could indicate unauthorized use." }
+      ]},
+      { name: "File shares & services", description: "File access auditing, permission changes, and backup target capacity. We help you protect shared data.", ucs: [
+        { id: "6.4.1", why: "Full audit trail of who accessed which files — required for SOX, HIPAA, and PCI." },
+        { id: "6.4.4", why: "Detect when share permissions are changed — accidental changes can expose sensitive data." },
+        { id: "6.4.7", why: "Watch backup storage filling up — full targets mean failed backups." }
       ]}
     ]
   },
@@ -195,6 +262,20 @@ window.NON_TECHNICAL = {
         { id: "7.1.15", why: "Catch when someone gains elevated privileges in the database." },
         { id: "7.1.13", why: "Track changes to database structure — tables, columns, and indexes." },
         { id: "7.1.7", why: "Monitor failed login attempts to databases — potential breach attempts." }
+      ]},
+      { name: "NoSQL databases", description: "MongoDB, Elasticsearch, Cassandra, and similar. We watch cluster health, connections, and memory.", ucs: [
+        { id: "7.2.1", why: "Know when a node joins or leaves the cluster — unexpected changes may mean a failure." },
+        { id: "7.2.7", why: "Watch connection counts — approaching limits means new requests will be rejected." },
+        { id: "7.2.9", why: "Track memory usage — high evictions mean the cache is too small and queries slow down." }
+      ]},
+      { name: "Cloud-managed databases", description: "RDS, Aurora, Cloud SQL — managed databases where the cloud provider handles infrastructure but you still need visibility.", ucs: [
+        { id: "7.3.2", why: "Know when a managed database fails over — brief outage, but you need to check the impact." },
+        { id: "7.3.1", why: "Use cloud-native Performance Insights to find the slowest queries without installing agents." },
+        { id: "7.3.3", why: "Watch read replica lag — stale replicas mean apps could serve outdated data." }
+      ]},
+      { name: "Data warehouses", description: "Snowflake, Redshift, BigQuery, and similar analytics platforms. We track cost, performance, and scaling.", ucs: [
+        { id: "7.4.4", why: "See how much each query costs — find runaway queries burning through credits." },
+        { id: "7.4.2", why: "Track auto-scaling events to check whether scaling policies match real workload." }
       ]}
     ]
   },
@@ -225,6 +306,11 @@ window.NON_TECHNICAL = {
         { id: "8.2.1", why: "Watch Java memory usage — when it fills up, the application slows or crashes." },
         { id: "8.2.3", why: "Detect when all worker threads are busy — new requests will be queued or dropped." },
         { id: "8.2.4", why: "Track application error rates to spot problems before they escalate." }
+      ]},
+      { name: "Caching layers", description: "Redis, Memcached, and other caches that speed up your applications. We watch memory, evictions, and replication.", ucs: [
+        { id: "8.5.2", why: "Track cache memory usage — when it runs out, data gets evicted and apps slow down." },
+        { id: "8.5.3", why: "Watch eviction rates — high evictions mean the cache is too small for your workload." },
+        { id: "8.5.5", why: "Monitor Redis replication lag — stale replicas can serve outdated data." }
       ]},
       { name: "Synthetic testing", description: "ThousandEyes probes your websites and APIs from around the world. We show when things slow down or break.", ucs: [
         { id: "8.7.1", why: "Track HTTP server availability and response time from multiple global vantage points." },
@@ -266,7 +352,8 @@ window.NON_TECHNICAL = {
     outcomes: [
       "See when the firewall or security tools find something bad.",
       "Know when endpoints are isolated or threats are detected.",
-      "Track email and web security events in one place."
+      "Track email, web, and intrusion detection events in one place.",
+      "Manage certificates and catch weak cryptography before it becomes a problem."
     ],
     areas: [
       { name: "Firewall & threats", description: "Blocked traffic, malware verdicts, and security alerts from your firewall. We surface what matters.", ucs: [
@@ -284,6 +371,21 @@ window.NON_TECHNICAL = {
         { id: "10.4.2", why: "Track malicious attachments that were blocked before reaching inboxes." },
         { id: "10.4.3", why: "Know when users click on suspicious links in emails so you can respond." }
       ]},
+      { name: "Intrusion detection", description: "IDS/IPS alerts from Snort, Suricata, Firepower, and similar. We surface attack patterns and lateral movement.", ucs: [
+        { id: "10.2.1", why: "Trend IDS alerts over time to reveal attack campaigns and tuning opportunities." },
+        { id: "10.2.2", why: "Find which internal hosts are attacked the most — prioritise remediation there." },
+        { id: "10.2.5", why: "Detect lateral movement — an attacker is already inside and moving between systems." }
+      ]},
+      { name: "Web security", description: "Secure web gateways and proxies. We show blocked categories, malware downloads, and data leakage.", ucs: [
+        { id: "10.5.3", why: "Every blocked malware download is a prevented infection — see the trend." },
+        { id: "10.5.4", why: "Catch sensitive data being uploaded to unauthorized cloud services." },
+        { id: "10.5.1", why: "Track blocked web categories — spikes may indicate an infection or policy abuse." }
+      ]},
+      { name: "Certificates & PKI", description: "Internal certificate authorities, weak ciphers, and certificate lifecycle. We help you avoid outages and attacks.", ucs: [
+        { id: "10.8.2", why: "Audit who issued which certificates — rogue issuance enables man-in-the-middle attacks." },
+        { id: "10.8.3", why: "Find certificates using weak algorithms that are vulnerable to attack." },
+        { id: "10.8.39", why: "Make sure your security tools are still reporting — silence could mean tampering." }
+      ]},
       { name: "Vulnerabilities & alerts", description: "Vulnerability scans and overall alert volume. We help you prioritize and tune.", ucs: [
         { id: "10.6.1", why: "Track critical vulnerabilities across your systems — what needs patching first?" },
         { id: "10.7.1", why: "Monitor overall security alert volume — spot trends and avoid alert fatigue." },
@@ -297,7 +399,8 @@ window.NON_TECHNICAL = {
       "See suspicious logins or rule changes in email and collaboration.",
       "Track Teams, meetings, and collaboration health.",
       "Know when meeting quality drops because of the network — before users complain.",
-      "Monitor voice quality and call routing at the network level — independent of any PBX platform."
+      "Monitor voice quality and call routing at the network level — independent of any PBX platform.",
+      "Track building occupancy, environmental conditions, and asset locations."
     ],
     areas: [
       { name: "Mail flow & health", description: "Is email being delivered? Are mailboxes and Exchange healthy? We monitor both.", ucs: [
@@ -324,6 +427,11 @@ window.NON_TECHNICAL = {
         { id: "11.3.32", why: "Measure voice quality (MOS) directly from RTP packets — works with any phone system, not just Cisco." },
         { id: "11.3.33", why: "Track every emergency call (911/112) to make sure they all get through — a regulatory must-have." },
         { id: "11.3.34", why: "Calculate answer seizure ratio per trunk — the number-one KPI for voice service quality." }
+      ]},
+      { name: "Location & environment (Cisco Spaces)", description: "Building occupancy, environmental sensors, and asset tracking using Meraki and Cisco Spaces.", ucs: [
+        { id: "11.4.1", why: "See real-time and historical occupancy per building and floor — supports space planning." },
+        { id: "11.4.3", why: "Monitor temperature, humidity, and air quality using Meraki MT sensors." },
+        { id: "11.4.4", why: "Track high-value assets in real time and get alerts when they leave a geofenced area." }
       ]}
     ]
   },
@@ -331,7 +439,8 @@ window.NON_TECHNICAL = {
     outcomes: [
       "See when builds or deployments fail.",
       "Know when secrets or credentials leak into code.",
-      "Track pipeline health and security scan results."
+      "Track pipeline health and security scan results.",
+      "Audit every infrastructure-as-code change and catch policy violations."
     ],
     areas: [
       { name: "Builds & deployments", description: "Failed builds, failed deployments, and pipeline status. We help you fix things fast.", ucs: [
@@ -348,6 +457,11 @@ window.NON_TECHNICAL = {
         { id: "12.3.2", why: "Get alerts when a library your code depends on has a known vulnerability." },
         { id: "12.3.1", why: "Monitor the health of your artifact repository where packages are stored." },
         { id: "12.3.4", why: "Track software license compliance so you avoid legal surprises." }
+      ]},
+      { name: "Infrastructure as Code", description: "Terraform, Ansible, and policy-as-code. We audit every infrastructure change.", ucs: [
+        { id: "12.4.1", why: "Track every Terraform apply — know exactly what changed in your infrastructure and when." },
+        { id: "12.4.5", why: "Catch policy violations that prevent non-compliant infrastructure from being deployed." },
+        { id: "12.4.7", why: "Audit container image builds and pushes to protect the software supply chain." }
       ]}
     ]
   },
@@ -385,7 +499,8 @@ window.NON_TECHNICAL = {
     outcomes: [
       "See when building systems or industrial equipment misbehaves.",
       "Know when sensors or controllers report problems.",
-      "Spot environmental or safety-related events."
+      "Spot environmental or safety-related events.",
+      "Monitor MQTT and OPC-UA data pipelines from edge to cloud."
     ],
     areas: [
       { name: "Buildings & environment", description: "HVAC, UPS, and building systems. We monitor so you know when something's wrong.", ucs: [
@@ -402,6 +517,11 @@ window.NON_TECHNICAL = {
         { id: "14.3.1", why: "Catch temperature anomalies before they become equipment-damaging problems." },
         { id: "14.3.2", why: "Detect unusual vibration that could signal a failing motor or bearing." },
         { id: "14.4.8", why: "Spot when sensors drift out of calibration and start giving bad readings." }
+      ]},
+      { name: "MQTT & OPC-UA (Edge Hub)", description: "Industrial messaging protocols connecting sensors and PLCs to Splunk via Edge Hub and gateways.", ucs: [
+        { id: "14.5.11", why: "Catch failed MQTT logins and access denials — may indicate credential abuse or attack." },
+        { id: "14.5.5", why: "Track data backlog when Edge Hub loses cloud connectivity — 3 million points can pile up." },
+        { id: "14.5.9", why: "Warn before OPC-UA certificates expire — expired certs break secure data collection." }
       ]}
     ]
   },
@@ -450,6 +570,11 @@ window.NON_TECHNICAL = {
         { id: "16.2.1", why: "Score how accurate and complete your asset database is." },
         { id: "16.2.2", why: "Check that discovered assets match what's recorded in the CMDB." },
         { id: "16.2.3", why: "Find orphaned records — assets in the database that no longer exist." }
+      ]},
+      { name: "Business availability", description: "Service availability, escalation speed, and major incident tracking. We give you the big picture.", ucs: [
+        { id: "16.3.2", why: "See at a glance which hosts and services have been up or down — a Nagios-style heatmap." },
+        { id: "16.3.4", why: "Track how long it takes to escalate or hand off tickets — delays hurt resolution." },
+        { id: "16.3.6", why: "Make sure every major incident has a post-mortem — learning and accountability." }
       ]}
     ]
   },
