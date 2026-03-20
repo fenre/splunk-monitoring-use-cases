@@ -4,7 +4,7 @@ A curated collection of **3,000+ IT infrastructure monitoring use cases** for Sp
 
 Browse them in the **interactive dashboard** or use the **machine-readable catalog** (`catalog.json`) for automation and integrations.
 
-**Live dashboard:** [fsudmann.github.io/splunk-monitoring-use-cases](https://fsudmann.github.io/splunk-monitoring-use-cases/)
+**Live dashboard:** [fenre.github.io/splunk-monitoring-use-cases](https://fenre.github.io/splunk-monitoring-use-cases/)
 
 ---
 

@@ -29,7 +29,7 @@ OUTPUT_CATALOG_JSON = os.path.join(SCRIPT_DIR, "catalog.json")
 OUTPUT_LLMS_TXT = os.path.join(SCRIPT_DIR, "llms.txt")
 OUTPUT_LLMS_FULL_TXT = os.path.join(SCRIPT_DIR, "llms-full.txt")
 
-SITE_BASE_URL = "https://fsudmann.github.io/splunk-monitoring-use-cases"
+SITE_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases"
 
 # Emoji → value mappings
 CRITICALITY_MAP = {
