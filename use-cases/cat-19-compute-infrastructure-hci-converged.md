@@ -145,6 +145,189 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental"
 - **Visualization:** Gauge (temperature/power), Timechart (power and thermal trending), Heatmap (chassis thermal map), Single value (total power draw).
 - **CIM Models:** N/A
 
+### UC-19.1.10 · Blade Firmware Compliance
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Per-blade firmware (BIOS, adapter, storage controller) vs approved bundles — complements fleet-wide inventory (UC-19.1.3) with **per-blade** tracking for change windows.
+- **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager API
+- **Equipment Models:** Cisco UCS B-Series blades
+- **Data Sources:** `cisco:ucs:inventory`, blade FRU
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:inventory" object_type="blade"
+| stats values(running_fw) as fw by server_dn, blade_id
+| lookup ucs_blade_fw_baseline.csv blade_model OUTPUT approved_fw
+| where fw!=approved_fw
+| table server_dn, blade_id, fw, approved_fw
+```
+- **Implementation:** Normalize firmware strings per Cisco bundle naming. Report exceptions before LCM updates.
+- **Visualization:** Table (non-compliant blades), Bar chart (by chassis), Single value (non-compliant count).
+- **CIM Models:** N/A
+
+### UC-19.1.11 · Service Profile Association Failures
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed or stuck service profile associations block server bring-up and maintenance — complements compliance state (UC-19.1.2).
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Equipment Models:** Cisco UCS
+- **Data Sources:** `cisco:ucs:config`, UCS faults
+- **SPL:**
+```spl
+index=cisco_ucs (sourcetype="cisco:ucs:config" OR sourcetype="cisco:ucs:faults")
+| search assoc_state="failed" OR match(lower(descr),"(?i)association.*fail")
+| stats count by sp_name, server_dn, descr
+| sort -count
+```
+- **Implementation:** Tune search to UCS fault codes for association. Alert on any failed association in production orgs.
+- **Visualization:** Table (failed associations), Timeline, Single value (open failures).
+- **CIM Models:** N/A
+
+### UC-19.1.12 · Fault Suppression Policy Audit
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Tracks suppressed or acknowledged faults that may hide recurring hardware issues — governance for suppression rules.
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Equipment Models:** Cisco UCS
+- **Data Sources:** `cisco:ucs:faults`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:faults"
+| where match(lower(lc),"(?i)suppressed") OR acked="yes"
+| stats count by code, dn, user
+| where count>10
+| sort -count
+```
+- **Implementation:** Map `lc` and ack fields per UCSM version. Monthly review of chronic suppressions.
+- **Visualization:** Table (top suppressed codes), Bar chart (by user), Line chart (suppression trend).
+- **CIM Models:** N/A
+
+### UC-19.1.13 · FI Port Channel Member Errors and CRCs
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Per-member link errors and CRCs on FI port-channels — augments aggregate PC status (UC-19.1.5).
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Equipment Models:** Cisco UCS FI
+- **Data Sources:** `cisco:ucs:fi_stats` port members
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:fi_stats" object_type="port"
+| where crc_errors>0 OR link_state!="up"
+| stats sum(crc_errors) as crc by fi_id, pc_id, port_id
+| where crc>0
+| sort -crc
+```
+- **Implementation:** Ingest per-member counters. Alert on CRC growth or member down inside operational PC.
+- **Visualization:** Table (ports with CRCs), Heatmap (FI × port), Line chart (CRC rate).
+- **CIM Models:** N/A
+
+### UC-19.1.14 · UCS Manager Backup Validation
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Confirms scheduled all/configuration backups completed and file size is within expected bounds.
+- **App/TA:** `Splunk_TA_cisco-ucs`, backup scheduler logs
+- **Equipment Models:** Cisco UCSM
+- **Data Sources:** `cisco:ucs:backup`, syslog backup events
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:backup" earliest=-7d
+| where status!="success" OR backup_size_bytes < 1000000
+| stats latest(status) as st, latest(backup_size_bytes) as sz by ucsm_host
+| table ucsm_host, st, sz
+```
+- **Implementation:** Ingest backup job results from syslog or automation. Alert on failed job or zero-size artifact.
+- **Visualization:** Table (backup status), Single value (failed jobs), Timeline.
+- **CIM Models:** N/A
+
+### UC-19.1.15 · Chassis PSU Redundancy
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Detects loss of N+1 PSU redundancy in chassis before full power loss.
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Equipment Models:** UCS chassis
+- **Data Sources:** `cisco:ucs:environmental`, PSU inventory
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:environmental" metric_type="psu"
+| where oper_state!="ok" OR redundancy_state!="redundant"
+| stats count by chassis_id, psu_slot, oper_state, redundancy_state
+```
+- **Implementation:** Map PSU fields from API. Page on non-redundant state.
+- **Visualization:** Status grid (chassis × PSU), Table (alerts), Single value (chassis without redundancy).
+- **CIM Models:** N/A
+
+### UC-19.1.16 · IOM Uplink Utilization
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** IOM-to-FI uplink saturation causes east-west congestion for blade traffic.
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Equipment Models:** UCS IOM modules
+- **Data Sources:** `cisco:ucs:iom_stats`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:iom_stats" earliest=-1h
+| eval util_pct=round((rx_bps+tx_bps)*8/link_speed_bps*100,1)
+| where util_pct>70
+| stats max(util_pct) as peak_util by chassis_id, iom_slot, port
+| sort -peak_util
+```
+- **Implementation:** Poll IOM port counters. Alert at 70%/85%. Plan additional uplinks or rebalance servers.
+- **Visualization:** Heatmap (IOM × port util), Table (hot uplinks), Line chart (trend).
+- **CIM Models:** N/A
+
+### UC-19.1.17 · BIOS Policy Compliance
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Verifies server BIOS settings match service profile BIOS policy (VT-x, power management, boot mode).
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Equipment Models:** Cisco UCS servers
+- **Data Sources:** `cisco:ucs:bios`, service profile
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:bios"
+| lookup ucs_bios_policy.csv sp_name OUTPUT require_vt, require_boot_mode
+| where vt_enabled!=require_vt OR boot_mode!=require_boot_mode
+| table server_dn, sp_name, vt_enabled, boot_mode, require_vt, require_boot_mode
+```
+- **Implementation:** Extract BIOS tokens from inventory poll. Reconcile with expected policy per SP.
+- **Visualization:** Table (non-compliant servers), Pie chart (compliance %), Bar chart (by org).
+- **CIM Models:** N/A
+
+### UC-19.1.18 · UCS Central Registration Health
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors UCS domain registration and heartbeat to UCS Central for multi-domain governance.
+- **App/TA:** `Splunk_TA_cisco-ucs`, UCS Central syslog
+- **Equipment Models:** UCS Central, UCSM domains
+- **Data Sources:** `cisco:ucs_central:domain`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs_central:domain" earliest=-24h
+| where registration_state!="registered" OR last_heartbeat_age_sec>300
+| stats latest(registration_state) as reg, max(last_heartbeat_age_sec) as age by domain_name
+| table domain_name, reg, age
+```
+- **Implementation:** Ingest domain inventory from Central API. Alert when heartbeat stale or domain unregistered.
+- **Visualization:** Table (domain status), Single value (stale domains), Map (site).
+- **CIM Models:** N/A
+
 #### 19.1 HCI Platforms (Nutanix)
 
 ### UC-19.1.7 · Nutanix Prism Central Alert Monitoring
@@ -499,6 +682,227 @@ index=vxrail sourcetype="vxrail:cluster"
 ```
 - **Implementation:** Create a REST API modular input or scripted input that polls VxRail Manager at `https://<vxrail_manager>/rest/vxm/v1/cluster` and `https://<vxrail_manager>/rest/vxm/v1/system/cluster-hosts` every 2–5 minutes. Authenticate with VxRail Manager credentials. Parse JSON responses and index with sourcetypes `vxrail:cluster` and `vxrail:cluster_hosts`. Extract fields: `health`, `version`, `vcenter_name`, `host_state`, `cluster_id`. Optionally poll LCM status endpoints for update state. Alert on cluster health != "Healthy" or any host not in CONNECTED/Healthy state. Correlate with vCenter and ESXi events for root cause analysis.
 - **Visualization:** Status grid (cluster and host health from cluster_hosts), Table (cluster details with LCM status), Single value (unhealthy cluster count), Gauge (host connectivity percentage from cluster_hosts data).
+- **CIM Models:** N/A
+
+### UC-19.2.14 · Nutanix CVM Resource and Service Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Deep-dive CVM CPU/memory pressure and Stargate latency vs UC-19.2.7 — for capacity and noisy-neighbor triage.
+- **App/TA:** `TA-nutanix`, Prism metrics
+- **Equipment Models:** Nutanix AOS nodes
+- **Data Sources:** `nutanix:cvm:metrics`
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:cvm:metrics" earliest=-4h
+| where cpu_pct>85 OR mem_pct>90 OR stargate_latency_ms>5
+| stats max(cpu_pct) as max_cpu, max(mem_pct) as max_mem, max(stargate_latency_ms) as max_lat by node
+| sort -max_lat
+```
+- **Implementation:** Poll Prism per-CVM metrics API. Alert on sustained high latency with high CPU (investigate disk/network). Correlate with storage rebuilds.
+- **Visualization:** Table (hot CVMs), Line chart (latency vs CPU), Heatmap (node × time).
+- **CIM Models:** N/A
+
+### UC-19.2.15 · Storage Pool Rebalance Monitoring
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks Curator/Planned Outage rebalance and disk usage skew during rebalance operations on Nutanix/vSAN.
+- **App/TA:** Nutanix Prism, vSAN health
+- **Data Sources:** `nutanix:curator`, `vsan:rebalance`
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:curator" earliest=-24h
+| where status="running" OR rebalance_pct>0
+| stats latest(rebalance_pct) as pct, latest(eta_min) as eta by cluster, task_id
+| table cluster, task_id, pct, eta
+```
+- **Implementation:** Map Curator task fields. Alert when rebalance stalls or ETA exceeds policy. Report impact on I/O (UC-19.2.3).
+- **Visualization:** Gauge (rebalance %), Table (active tasks), Line chart (skew index).
+- **CIM Models:** N/A
+
+### UC-19.2.16 · HCI Node Failure Domain Risk
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Validates RF/FTM rules so critical VM replicas don’t share the same fault domain (rack/block) — risk scoring when domains are imbalanced.
+- **App/TA:** Nutanix Prism, vSAN stretched cluster APIs
+- **Data Sources:** `hci:fd`, host-to-disk mapping
+- **SPL:**
+```spl
+index=hci sourcetype="hci:fault_domain" earliest=-7d
+| stats dc(node) as nodes_in_fd by cluster, fault_domain_name
+| where nodes_in_fd>3
+| lookup hci_fd_risk.csv cluster fault_domain_name OUTPUT risk_score
+| where risk_score>70
+| table cluster, fault_domain_name, nodes_in_fd, risk_score
+```
+- **Implementation:** Build fault domain from rack metadata. Flag Tier-0 VMs without FD separation. Use for BCP testing.
+- **Visualization:** Table (risky placements), Sankey (VM → FD), Single value (violations).
+- **CIM Models:** N/A
+
+### UC-19.2.17 · vSAN Disk Group Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Disk group mount state, component health, and checksum errors for VMware vSAN.
+- **App/TA:** vSAN health API, vCenter TA
+- **Equipment Models:** vSAN ReadyNodes
+- **Data Sources:** `vsan:diskgroup`
+- **SPL:**
+```spl
+index=hci sourcetype="vsan:diskgroup" earliest=-4h
+| where state!="healthy" OR checksum_errors>0 OR component_state!="active"
+| stats latest(state) as st, sum(checksum_errors) as checksums by cluster, host, dg_name
+| sort -checksums
+```
+- **Implementation:** Ingest vSAN health JSON. Page on unhealthy disk group or rising checksums. Correlate with physical disk (UC-19.2.5).
+- **Visualization:** Status grid (DG × host), Table (issues), Timeline (events).
+- **CIM Models:** N/A
+
+### UC-19.2.18 · Cluster Expansion Events
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
+- **Value:** Audits node add/remove, disk group expand, and maintenance mode during cluster scale events.
+- **App/TA:** `TA-nutanix`, vCenter events
+- **Data Sources:** `hci:cluster_events`
+- **SPL:**
+```spl
+index=hci sourcetype="hci:cluster_events" earliest=-30d
+| search "node added" OR "add node" OR "remove node" OR "expand"
+| table _time, cluster, user, action, details
+| sort -_time
+```
+- **Implementation:** Normalize messages from Prism and vCenter. Correlate with change tickets. Alert on unplanned expansion.
+- **Visualization:** Timeline (expansion events), Table (recent changes), Bar chart (events by cluster).
+- **CIM Models:** N/A
+
+### UC-19.2.19 · Nutanix AHV Host Capacity
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** vCPU, memory, and VM density headroom on AHV hosts — for right-sizing and new workload placement.
+- **App/TA:** Prism Element API
+- **Equipment Models:** Nutanix AHV
+- **Data Sources:** `nutanix:ahv:host`
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:ahv:host" earliest=-1h
+| eval used_pct=round(100*vcpu_used/vcpu_total,1)
+| where used_pct>80
+| stats max(used_pct) as peak by host, cluster
+| sort -peak
+```
+- **Implementation:** Poll host capacity. Alert at 80% vCPU or memory. Integrate with provisioning automation.
+- **Visualization:** Bar chart (used % by host), Table (headroom), Gauge (cluster average).
+- **CIM Models:** N/A
+
+### UC-19.2.20 · SimpliVity Backup Efficiency
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Backup job success, dedupe ratio, and store utilization for HPE SimpliVity.
+- **App/TA:** HPE SimpliVity REST API
+- **Equipment Models:** HPE SimpliVity
+- **Data Sources:** `simplivity:backup`
+- **SPL:**
+```spl
+index=hci sourcetype="simplivity:backup" earliest=-7d
+| where status!="success" OR dedupe_ratio<3
+| stats latest(status) as st, latest(dedupe_ratio) as dr by cluster, policy_name
+| table cluster, policy_name, st, dr
+```
+- **Implementation:** Map OmniStack API fields. Alert on failed backup or low dedupe vs baseline.
+- **Visualization:** Table (backup status), Line chart (dedupe trend), Single value (failed jobs).
+- **CIM Models:** N/A
+
+### UC-19.2.21 · Azure Stack HCI Cluster Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Cluster validation, storage pool health, and Azure Arc connection state for Azure Stack HCI.
+- **App/TA:** Windows Admin Center, Azure Monitor connector
+- **Equipment Models:** Azure Stack HCI validated nodes
+- **Data Sources:** `azurestackhci:health`
+- **SPL:**
+```spl
+index=hci sourcetype="azurestackhci:health" earliest=-4h
+| where overall_status!="healthy" OR storage_pool_status!="ok" OR arc_connected=0
+| stats latest(overall_status) as st, latest(storage_pool_status) as pool by cluster_name
+| table cluster_name, st, pool
+```
+- **Implementation:** Ingest WAC/OMS JSON. Alert on any non-healthy or Arc disconnect. Correlate with Windows Update pauses.
+- **Visualization:** Status grid (HCI clusters), Table (issues), Timeline.
+- **CIM Models:** N/A
+
+### UC-19.2.22 · HPE dHCI Tier Health
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** HPE disaggregated HCI storage tier latency, capacity, and replication lag between compute and storage.
+- **App/TA:** HPE OneView, dHCI metrics
+- **Equipment Models:** HPE dHCI
+- **Data Sources:** `hpe:dhci:tier`
+- **SPL:**
+```spl
+index=hci sourcetype="hpe:dhci:tier" earliest=-4h
+| where tier_latency_ms>5 OR capacity_pct>85 OR repl_lag_sec>30
+| stats max(tier_latency_ms) as lat, max(repl_lag_sec) as lag by cluster, tier_name
+| sort -lat
+```
+- **Implementation:** Map vendor tier IDs. Alert on latency or replication lag SLO breach.
+- **Visualization:** Table (tier health), Line chart (latency), Gauge (capacity).
+- **CIM Models:** N/A
+
+### UC-19.2.23 · vSAN Witness Appliance Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Stretched vSAN witness availability and quorum for split-brain prevention.
+- **App/TA:** vCenter, witness VM metrics
+- **Equipment Models:** vSAN witness
+- **Data Sources:** `vsan:witness`
+- **SPL:**
+```spl
+index=hci sourcetype="vsan:witness" earliest=-24h
+| where witness_state!="connected" OR quorum!="met"
+| stats latest(witness_state) as ws, latest(quorum) as q by cluster
+| table cluster, ws, q
+```
+- **Implementation:** Poll witness health API. Page immediately if witness disconnected or quorum lost.
+- **Visualization:** Single value (witness OK), Table (clusters at risk), Timeline.
+- **CIM Models:** N/A
+
+### UC-19.2.24 · HCI Deduplication Efficiency Ratio
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Cluster-wide dedupe/compression ratio (Nutanix vs vSAN) vs baseline — efficiency regression indicates new noisy workloads or mis-tuned containers.
+- **App/TA:** `TA-nutanix`, vSAN capacity
+- **Data Sources:** `hci:storage_efficiency`
+- **SPL:**
+```spl
+index=hci sourcetype="hci:storage_efficiency" earliest=-24h
+| eval ratio=logical_tb/physical_tb
+| lookup hci_efficiency_baseline.csv cluster OUTPUT baseline_ratio
+| where ratio < baseline_ratio*0.85
+| stats latest(ratio) as r, latest(baseline_ratio) as baseline by cluster
+| table cluster, r, baseline
+```
+- **Implementation:** Define `baseline_ratio` from lookup or 30-day rolling mean. Alert on >15% drop week-over-week.
+- **Visualization:** Line chart (dedupe ratio trend), Single value (fleet average), Table (regressions).
 - **CIM Models:** N/A
 
 ---

@@ -552,6 +552,224 @@ index=database sourcetype="mongodb:server_status"
 
 ---
 
+### UC-7.2.13 · MongoDB Atlas Cluster Alerts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Fault
+- **Value:** Atlas project alerts (CPU, connections, replication) forwarded to Splunk provide a single pane with on-prem MongoDB. Rapid correlation during incidents.
+- **App/TA:** MongoDB Atlas API / Atlas App Services webhook, HEC
+- **Data Sources:** Atlas alert payloads (clusterId, alertType, status, metric values)
+- **SPL:**
+```spl
+index=database sourcetype="mongodb:atlas:alert"
+| where status="OPEN" OR severity IN ("CRITICAL","WARNING")
+| stats latest(_time) as last_alert, values(alertType) as types by cluster_name, project_id
+| sort -last_alert
+```
+- **Implementation:** Configure Atlas to send alerts to HTTPS endpoint (Splunk HEC) or poll Alerts API every minute. Normalize fields. Page on CRITICAL OPEN alerts.
+- **Visualization:** Timeline (Atlas alerts), Table (cluster, alert type, status), Single value (open critical count).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.14 · Cassandra Compaction Backlog and Throughput
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Pending compactions and compaction throughput indicate whether the cluster keeps up with writes. Complements generic compaction UC with nodetool-derived rates.
+- **App/TA:** JMX, `nodetool compactionstats` scripted input
+- **Data Sources:** `pending_tasks`, `bytes_compacted`, `compaction throughput`
+- **SPL:**
+```spl
+index=database sourcetype="cassandra:compactionstats"
+| where pending_tasks > 100 OR compaction_throughput_mbps < 5
+| timechart span=15m max(pending_tasks) as pending, avg(compaction_throughput_mbps) as tp_mbps by cluster_name
+```
+- **Implementation:** Poll nodetool every 5m per node. Alert when pending_tasks grows monotonically for 1h or throughput collapses.
+- **Visualization:** Dual-axis (pending vs throughput), Table (nodes with backlog), Line chart (pending tasks).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.15 · Redis Memory Fragmentation (Cache Tier)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** High `mem_fragmentation_ratio` on self-managed Redis (not only ElastiCache) wastes RAM and increases latency. Tracks non-cloud Redis clusters in the NoSQL section.
+- **App/TA:** redis-cli scripted input
+- **Data Sources:** `INFO memory` — `mem_fragmentation_ratio`, `used_memory_rss`
+- **SPL:**
+```spl
+index=database sourcetype="redis:info" role=master
+| where mem_fragmentation_ratio > 1.5
+| timechart span=15m avg(mem_fragmentation_ratio) as frag by host
+```
+- **Implementation:** Poll every 15m. Alert when ratio >1.5 for 24h. Recommend active defrag or restart per policy.
+- **Visualization:** Line chart (fragmentation ratio), Table (hosts over threshold), Gauge (current ratio).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.16 · DynamoDB Throttling Events
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Availability
+- **Value:** Read/write throttle events mean application retries and latency spikes. Identifies hot partitions and undersized capacity modes.
+- **App/TA:** `Splunk_TA_aws` (CloudWatch)
+- **Data Sources:** `UserErrors`, `ThrottledRequests`, `ConsumedReadCapacityUnits`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/DynamoDB" metric_name="ThrottledRequests"
+| timechart span=5m sum(Sum) as throttled by TableName, Operation
+| where throttled > 0
+```
+- **Implementation:** Enable DynamoDB metrics with table dimension. Alert on any sustained throttling. Correlate with hot key patterns from access logs if available.
+- **Visualization:** Line chart (throttled requests), Table (table, operation), Single value (throttle bursts per day).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.17 · CouchDB Replication Conflicts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Growing `_conflicts` document count indicates divergent replicas and data quality issues. Early detection prevents silent wrong reads.
+- **App/TA:** CouchDB `_stats`, `_active_tasks` API
+- **Data Sources:** Replication task errors, document conflict counts (custom view or `_changes` sampling)
+- **SPL:**
+```spl
+index=database sourcetype="couchdb:replication"
+| where conflict_count > 0 OR error IS NOT NULL
+| stats sum(conflict_count) as conflicts, latest(error) as err by database_name, source, target
+| sort -conflicts
+```
+- **Implementation:** Ingest replication task status from `_active_tasks` and periodic conflict counts from a map view. Alert on replication errors or conflict_count increase week-over-week.
+- **Visualization:** Table (DB, conflicts, error), Line chart (conflict trend), Single value (total conflicts).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.18 · MongoDB Oplog Window Sufficiency
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Validates minimum oplog window hours against replica catch-up time under peak load. Extends oplog monitoring with capacity-style thresholds per deployment class.
+- **App/TA:** mongosh scripted input
+- **Data Sources:** `getReplicationInfo()`, `rs.printReplicationInfo()`
+- **SPL:**
+```spl
+index=database sourcetype="mongodb:replication_info"
+| eval window_hrs=round(timeDiff/3600,2)
+| lookup mongo_replica_tier class OUTPUT min_oplog_window_hrs
+| where window_hrs < min_oplog_window_hrs
+| table host window_hrs min_oplog_window_hrs
+```
+- **Implementation:** Define minimum window per environment in lookup. Alert below tier minimum. Recommend oplog size change when consistently borderline.
+- **Visualization:** Line chart (oplog window hours), Table (hosts below tier min), Gauge (worst window).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.19 · Cassandra Tombstone Accumulation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** High tombstone counts per read and GC pressure slow queries and repairs. Monitoring `TombstoneHistogram` and read repair backlog prevents timeouts.
+- **App/TA:** JMX, `nodetool tablestats`
+- **Data Sources:** `Estimated droppable tombstones`, read path tombstone thresholds
+- **SPL:**
+```spl
+index=database sourcetype="cassandra:tablestats"
+| where droppable_tombstones > 100000 OR live_sstable_count > 50
+| stats latest(droppable_tombstones) as tombstones by keyspace, table, host
+| sort -tombstones
+```
+- **Implementation:** Poll tablestats weekly or daily per large tables. Alert on droppable tombstones above baseline. Correlate with TTL/schema design reviews.
+- **Visualization:** Table (KS, table, tombstones), Bar chart (top tables), Line chart (tombstone trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.20 · Redis Eviction Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Rising `evicted_keys` per second indicates memory pressure and cache miss storms. Distinct from fragmentation and hit ratio for ops response.
+- **App/TA:** redis-cli `INFO stats`
+- **Data Sources:** `evicted_keys`, `maxmemory`, `used_memory`
+- **SPL:**
+```spl
+index=database sourcetype="redis:info"
+| timechart span=1m per_second(evicted_keys) as evict_per_sec by host
+| where evict_per_sec > 10
+```
+- **Implementation:** Derive per-second evictions from counter deltas. Alert when sustained above baseline. Correlate with `maxmemory` policy and traffic.
+- **Visualization:** Line chart (evictions/sec), Table (hosts spiking), Dual-axis (evictions + memory).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.21 · HBase RegionServer Failover Events
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** RegionServer death and region reassignment cause latency spikes and possible unavailability. Log and metric correlation speeds recovery.
+- **App/TA:** HBase Master/RS logs, JMX
+- **Data Sources:** `ServerShutdownHandler`, `Regions moved`, Dead RegionServer count
+- **SPL:**
+```spl
+index=database sourcetype="hbase:master"
+| search "ServerShutdownHandler" OR "Dead RegionServer" OR "FailedServerShutdown"
+| stats count by cluster_name, host
+| where count > 0
+```
+- **Implementation:** Forward HBase master and RS logs. Alert on any dead RS or failed shutdown. Track region-in-transition duration from JMX if ingested.
+- **Visualization:** Timeline (RS failures), Table (cluster, host, events), Single value (RS down count).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.22 · CouchDB View Build Times
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Long-running view index builds block compaction and increase disk I/O. Tracks `_active_tasks` indexer progress and failures.
+- **App/TA:** CouchDB `_active_tasks`, log ingestion
+- **Data Sources:** Indexer task type, `progress`, `total_changes`
+- **SPL:**
+```spl
+index=database sourcetype="couchdb:active_tasks" type=indexer
+| eval pct=round(progress/total_changes*100,1)
+| where pct < 100 AND updated_in_sec > 3600
+| table database_name design_doc pct updated_in_sec
+```
+- **Implementation:** Poll `_active_tasks` every minute. Alert when indexer runs >1h with low progress or task errors. Correlate with data volume growth.
+- **Visualization:** Table (design doc, % complete), Line chart (indexer duration), Single value (stuck indexers).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.2.23 · MongoDB Index Inefficiency (Usage vs Size)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Indexes with near-zero `accesses.ops` and large `size` waste RAM and slow writes. Identifies candidates for drop or partial indexes.
+- **App/TA:** mongosh `$indexStats`, log export
+- **Data Sources:** `collStats`, `$indexStats` output
+- **SPL:**
+```spl
+index=database sourcetype="mongodb:index_stats"
+| eval usage=ops_since_start
+| where index_size_bytes > 104857600 AND usage < 10
+| table ns, name, index_size_bytes, usage
+| sort -index_size_bytes
+```
+- **Implementation:** Weekly job exports `$indexStats`. Flag large indexes with minimal usage. Exclude `_id` and required unique indexes via lookup.
+- **Visualization:** Table (namespace, index, size, ops), Bar chart (wasted index size), Single value (low-usage large indexes count).
+- **CIM Models:** N/A
+
+---
+
 ### 7.3 Cloud-Managed Databases
 
 **Primary App/TA:** Cloud provider TAs — `Splunk_TA_aws` (CloudWatch, RDS logs), `Splunk_TA_microsoft-cloudservices` (Azure Monitor), GCP TA.
@@ -692,6 +910,163 @@ index=database sourcetype="redis:info"
 ```
 - **Implementation:** Poll `redis-cli INFO stats` every 15 minutes. Extract `keyspace_hits` and `keyspace_misses`. Compute hit_ratio = hits/(hits+misses)*100. Alert when hit ratio drops below 90% for sustained periods. Track trend to identify cache warming after restarts or workload shifts. Correlate with eviction rate and memory usage.
 - **Visualization:** Gauge (keyspace hit ratio %), Line chart (hit ratio over time), Table (hosts with low hit ratio).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.8 · Aurora Serverless Scaling Events
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Capacity
+- **Value:** ACU (capacity unit) scale-up/down events explain latency and cost. Tracks whether scaling policy matches workload bursts.
+- **App/TA:** `Splunk_TA_aws` (RDS events, CloudWatch)
+- **Data Sources:** RDS event categories `notification`, `serverless`, CloudWatch `ServerlessDatabaseCapacity`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="ServerlessDatabaseCapacity"
+| timechart span=5m avg(Average) as acu by DBClusterIdentifier
+```
+- **Implementation:** Ingest ACU metric and RDS events for scale actions. Alert on repeated scale-to-max or throttling. Correlate with `DatabaseConnections` and CPU.
+- **Visualization:** Line chart (ACU over time), Timeline (scaling events), Table (clusters at max ACU).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.9 · Azure Cosmos DB RU Consumption
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Capacity
+- **Value:** Normalized RU/s consumption vs provisioned throughput identifies hot partitions and autoscale effectiveness.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, Azure Monitor metrics
+- **Data Sources:** `NormalizedRUConsumption`, `Total Request Units`
+- **SPL:**
+```spl
+index=azure sourcetype="mssql:azuremonitor" OR sourcetype="azure:metrics"
+| search metric_name="NormalizedRUConsumption" OR "*Cosmos*"
+| timechart span=5m avg(average) as norm_ru by DatabaseName, CollectionName
+| where norm_ru > 0.9
+```
+- **Implementation:** Map exact metric names from your Azure diagnostic settings. Alert when normalized consumption >90% sustained. Split by partition key if available in custom dimensions.
+- **Visualization:** Line chart (RU consumption %), Table (collections over threshold), Single value (hottest collection).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.10 · Cloud Spanner Instance Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** CPU utilization, hot spots, and replication delay for Spanner nodes indicate risk of write/read stalls on globally distributed data.
+- **App/TA:** GCP Monitoring TA, scripted export
+- **Data Sources:** `spanner.googleapis.com/instance/cpu/utilization`, `transaction_count`, `streaming_pull_response_count`
+- **SPL:**
+```spl
+index=gcp sourcetype="gcp:monitoring" metric_type="spanner.googleapis.com/instance/cpu/utilization"
+| timechart span=5m avg(value) as cpu_util by instance_id
+| where cpu_util > 0.65
+```
+- **Implementation:** Ingest Spanner instance metrics per project. Alert on high CPU or increasing 99p latency metrics. Use query insights export for hot keys if enabled.
+- **Visualization:** Line chart (CPU and latency), Table (instances over SLO), Heatmap (instance × region).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.11 · Managed Database Failover Events (Multi-Cloud)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Single search across RDS failover, Azure SQL failover, and Cloud SQL failover for hybrid teams. Supplements UC-7.3.2 with normalized fields.
+- **App/TA:** CloudTrail, Azure Activity Log, GCP Audit Logs
+- **Data Sources:** `Failover`, `failover`, `switchover` events
+- **SPL:**
+```spl
+(index=aws sourcetype="aws:cloudwatch:events") OR (index=azure sourcetype="azure:activity") OR (index=gcp sourcetype="gcp:audit")
+| search failover OR Failover OR switchover
+| eval cloud=case(index=="aws","AWS", index=="azure","Azure", index=="gcp","GCP",1=1,"unknown")
+| table _time, cloud, resource_name, message
+| sort -_time
+```
+- **Implementation:** Normalize resource identifiers in CIM-style fields at ingest. Route to incident workflow with application dependency tags.
+- **Visualization:** Timeline (failovers by cloud), Table (resource, cloud, time), Single value (failovers 30d).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.12 · Azure SQL Database DTU Exhaustion
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** DTU/vCore saturation causes throttling and query timeouts. Distinct from generic RDS CPU for Azure-only deployments.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `dtu_consumption_percent`, `cpu_percent`, `data_io_percent`
+- **SPL:**
+```spl
+index=azure sourcetype="azure:sql:metrics"
+| where dtu_consumption_percent > 85 OR cpu_percent > 90
+| timechart span=5m max(dtu_consumption_percent) as dtu_pct by database_name, elastic_pool_name
+```
+- **Implementation:** Enable Azure Monitor metrics for SQL DB/elastic pool. Alert on sustained high DTU%. Recommend tier upgrade or elastic pool rebalance.
+- **Visualization:** Line chart (DTU %), Gauge (current DTU), Table (databases over 85%).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.13 · Cloud SQL Storage Auto-Grow Events
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Automatic storage increases for GCP Cloud SQL (and similar) signal rapid data growth and cost impact.
+- **App/TA:** GCP audit logs, Cloud SQL Admin API events
+- **Data Sources:** `storageResize`, disk size change operations
+- **SPL:**
+```spl
+index=gcp sourcetype="gcp:audit" protoPayload.methodName="*.sql.instances.patch"
+| spath output=new_disk_gb protoPayload.request.settings.dataDiskSizeGb
+| where isnotnull(new_disk_gb)
+| table _time, resourceName, new_disk_gb, protoPayload.authenticationInfo.principalEmail
+```
+- **Implementation:** Parse patch operations that change disk size. Alert when more than one resize per week per instance. Forecast disk from `disk_utilization` metrics.
+- **Visualization:** Timeline (resize events), Table (instance, new size GB), Line chart (disk size over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.14 · Managed Backup Retention Compliance
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Verifies automated backup snapshots exist within required retention for RDS, Azure SQL LTR, and Cloud SQL backups.
+- **App/TA:** Cloud APIs (describe-db-snapshots, backup list)
+- **Data Sources:** Snapshot timestamps, backup policy metadata
+- **SPL:**
+```spl
+index=cloud sourcetype="rds:snapshot_inventory"
+| stats latest(snapshot_time) as last_snap by db_instance_identifier
+| eval days_since=round((now()-strptime(last_snap,"%Y-%m-%d %H:%M:%S"))/86400)
+| where days_since > 1
+| table db_instance_identifier last_snap days_since
+```
+- **Implementation:** Ingest daily snapshot inventory from AWS/Azure/GCP APIs. Compare to RPO policy (e.g., last snapshot <25h). Alert on missing snapshot for production tier.
+- **Visualization:** Table (instances missing recent backup), Single value (non-compliant count), Calendar (snapshot coverage).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.3.15 · Read Replica Lag Trending (Percentiles)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** p95/p99 replica lag exposes tail behavior missed by max-only dashboards. Applies to RDS, Aurora, and Azure read replicas.
+- **App/TA:** CloudWatch, Azure Monitor
+- **Data Sources:** `ReplicaLag` (seconds), `physical_replication_delay`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="ReplicaLag"
+| timechart span=5m perc95(Maximum) as p95_lag, max(Maximum) as max_lag by DBInstanceIdentifier
+| where p95_lag > 30
+```
+- **Implementation:** Set SLA based on app freshness needs. Alert on p95 > threshold for 15m. Compare primary write IOPS to replica apply lag.
+- **Visualization:** Line chart (p95/p99 replica lag), Table (replicas breaching SLA), Single value (worst p95).
 - **CIM Models:** N/A
 
 ---
@@ -862,6 +1237,130 @@ index=database sourcetype="clickhouse:query_log"
 
 ---
 
+### UC-7.4.9 · Snowflake Warehouse Credit Usage
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Capacity
+- **Value:** Credits consumed per warehouse and role drive chargeback and right-sizing. Spikes indicate runaway queries or undersized warehouses thrashing.
+- **App/TA:** Snowflake SQL via DB Connect, `ACCOUNT_USAGE` export
+- **Data Sources:** `WAREHOUSE_METERING_HISTORY`, `QUERY_HISTORY` (credits)
+- **SPL:**
+```spl
+index=datawarehouse sourcetype="snowflake:warehouse_metering"
+| stats sum(credits_used) as credits by warehouse_name, _time span=1d
+| eventstats avg(credits) as avg_c, stdev(credits) as s by warehouse_name
+| where credits > avg_c + 3*s
+| table warehouse_name credits avg_c
+```
+- **Implementation:** Daily load from `ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY`. Alert on statistical spikes. Dashboard top warehouses by credits.
+- **Visualization:** Line chart (credits per day by warehouse), Bar chart (top consumers), Single value (total credits MTD).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.10 · Databricks Cluster Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cluster DBU hours, worker counts, and idle time reveal over-provisioned pools and jobs that keep clusters alive unnecessarily.
+- **App/TA:** Databricks audit logs, cluster events API, `system.billing.usage`
+- **Data Sources:** `clusters` API events, billing export
+- **SPL:**
+```spl
+index=databricks sourcetype="databricks:cluster_event"
+| where event_type IN ("RUNNING","TERMINATED")
+| stats sum(uptime_seconds) as uptime, dc(cluster_id) as clusters by _time span=1d
+| eval dbu_estimate=uptime/3600*0.1
+```
+- **Implementation:** Ingest cluster lifecycle and DBU billing lines. Alert on clusters RUNNING >8h with low task activity (correlate with job logs). Normalize fields from your workspace audit pipeline.
+- **Visualization:** Line chart (DBU per day), Table (long-running clusters), Heatmap (cluster × hour utilization).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.11 · Redshift Query Queue Depth
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** WLM queue length and max execution time show concurrency saturation. Growing queue depth precedes disk-based spills and timeouts.
+- **App/TA:** CloudWatch, `STL_WLM_QUERY` export
+- **Data Sources:** `WLMQueueDepth`, `WLMQueriesCompletedPerSecond`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/Redshift" metric_name="WLMQueueDepth"
+| timechart span=5m max(Maximum) as queue_depth by ClusterIdentifier, QueueName
+| where queue_depth > 10
+```
+- **Implementation:** Map queue names to workload classes. Alert when queue_depth sustained above SLA. Tune WLM slots or concurrency scaling.
+- **Visualization:** Line chart (queue depth), Table (cluster, queue, depth), Single value (max depth).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.12 · BigQuery Cost Anomalies
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Sudden jumps in bytes billed or slot usage often trace to one bad query or new scheduled job. Statistical alerting limits surprise invoices.
+- **App/TA:** BigQuery `INFORMATION_SCHEMA.JOBS`, billing export to Splunk
+- **Data Sources:** `total_bytes_billed`, `total_slot_ms`, `creation_time`
+- **SPL:**
+```spl
+index=datawarehouse sourcetype="bigquery:jobs"
+| bin _time span=1d
+| stats sum(total_bytes_billed) as bytes by project_id, user_email, _time
+| eventstats avg(bytes) as avg_b, stdev(bytes) as s by project_id
+| where bytes > avg_b + 3*s
+| eval gb=round(bytes/1073741824,2)
+```
+- **Implementation:** Ingest completed jobs daily. Alert on project-day cost outliers. Drill into `job_id` for top offenders. Integrate with GCP billing export for ground truth.
+- **Visualization:** Line chart (daily bytes billed), Table (anomalous days/projects), Bar chart (top users by cost).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.13 · Snowflake Query Spillage (Bytes Spilled to Local/Remote Storage)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Spillage indicates insufficient warehouse size or poorly written queries (exploding joins). Drives warehouse tier and query tuning decisions.
+- **App/TA:** Snowflake `QUERY_HISTORY`, `QUERY_ACCELERATION_HISTORY`
+- **Data Sources:** `BYTES_SPILLED_TO_LOCAL_STORAGE`, `BYTES_SPILLED_TO_REMOTE_STORAGE`
+- **SPL:**
+```spl
+index=datawarehouse sourcetype="snowflake:query_history"
+| eval spill_bytes=BYTES_SPILLED_TO_LOCAL_STORAGE+BYTES_SPILLED_TO_REMOTE_STORAGE
+| where spill_bytes > 1073741824
+| stats sum(spill_bytes) as total_spill, count as qcount by USER_NAME, QUERY_ID
+| sort -total_spill
+```
+- **Implementation:** Poll `QUERY_HISTORY` for completed queries. Alert on spill_bytes >1GB. Join with warehouse size for context.
+- **Visualization:** Table (queries with spill), Bar chart (spill by user), Line chart (daily spill volume).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.14 · Databricks Job Failure Rate
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Failed notebook/jar jobs block downstream analytics. Failure rate by job name prioritizes fixes for critical pipelines.
+- **App/TA:** Databricks job run API, `jobs` audit
+- **Data Sources:** Job run result (`result_state`, `run_id`)
+- **SPL:**
+```spl
+index=databricks sourcetype="databricks:job_run"
+| stats count(eval(result_state="FAILED")) as failed, count as total by job_name, _time span=1d
+| eval fail_rate=round(failed/total*100,1)
+| where fail_rate > 5 OR failed > 0 AND total < 5
+| table job_name failed total fail_rate
+```
+- **Implementation:** Ingest each run completion. Alert on any failure for tier-1 jobs; use fail_rate for high-volume jobs. Include `run_page_url` in raw events for triage.
+- **Visualization:** Line chart (failure rate by job), Table (failed runs), Single value (failed jobs 24h).
+- **CIM Models:** N/A
+
+---
+
 
 ### UC-7.1.16 · Open Cursor Leak Detection
 - **Criticality:** 🟠 High
@@ -879,6 +1378,7 @@ index=database sourcetype="clickhouse:query_log"
 ```
 - **Implementation:** Use Splunk DB Connect to poll `V$OPEN_CURSOR` every 5 minutes. Join with `V$SESSION` to identify which application user or service is leaking cursors. Alert when any single session exceeds 400 open cursors (WARNING) or 800 (CRITICAL). Correlate spikes with deployment events from CI/CD logs to pinpoint root cause. For SQL Server, poll `sys.dm_exec_cursors` grouped by `login_name`. Set `OPEN_CURSORS` init parameter baseline in a lookup for dynamic threshold comparison.
 - **Visualization:** Line chart (total open cursors over time by application), Table (top sessions by cursor count), Single value (current max), Bar chart (cursors by application/service).
+- **CIM Models:** N/A
 
 ---
 
@@ -1105,3 +1605,516 @@ index=database sourcetype="dbconnect:oracle_tablespace"
 - **CIM Models:** Databases
 
 ---
+
+### UC-7.1.28 · PostgreSQL Replication Lag (Streaming)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** `pg_stat_replication` write/flush/replay lag bytes and seconds catch standby drift before read-your-writes violations. Complements generic replication UC with PostgreSQL-native metrics.
+- **App/TA:** DB Connect, `pg_stat_replication` scripted export
+- **Data Sources:** `write_lag`, `flush_lag`, `replay_lag`, `sent_lsn`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:pg_replication"
+| eval replay_lag_sec=extract(replay_lag, "(\d+)").0
+| where replay_lag_sec > 60 OR pg_wal_lsn_diff(sent_lsn, replay_lsn) > 104857600
+| table application_name client_addr replay_lag_sec state
+```
+- **Implementation:** Poll replication view every 1m. Map `application_name` to replica. Alert on replay lag > RPO seconds or LSN gap >100MB. Correlate with `archive_command` and network.
+- **Visualization:** Line chart (replay lag per standby), Table (standby, lag sec), Single value (max lag).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.29 · MySQL InnoDB Buffer Pool Hit Ratio Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Fleet-wide buffer pool hit ratio SLO for MySQL/MariaDB with per-instance drilldown. Aligns capacity reviews with read IO pressure.
+- **App/TA:** DB Connect, `SHOW GLOBAL STATUS`
+- **Data Sources:** `Innodb_buffer_pool_read_requests`, `Innodb_buffer_pool_reads`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:mysql_status"
+| eval hit_ratio=round(100*(1-Innodb_buffer_pool_reads/nullif(Innodb_buffer_pool_read_requests,0)),2)
+| stats avg(hit_ratio) as fleet_avg, min(hit_ratio) as worst by _time span=1h
+| where fleet_avg < 99 OR worst < 95
+```
+- **Implementation:** Aggregate hourly for executive view; retain per-host series for alerts. Correlate drops with large table scans or buffer pool size changes.
+- **Visualization:** Line chart (fleet avg vs worst instance), Gauge (current hit ratio), Table (instances below 99%).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.30 · Oracle Tablespace Growth Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Week-over-week growth rate per tablespace drives forecast and ASM/space procurement. Extends point-in-time utilization with trend.
+- **App/TA:** DB Connect
+- **Data Sources:** `DBA_TABLESPACE_USAGE_METRICS` (used_space, tablespace_size)
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:oracle_tablespace"
+| timechart span=1d latest(USED_SPACE) as used_bytes by TABLESPACE_NAME
+| streamstats window=7 range(used_bytes) as growth_7d by TABLESPACE_NAME
+| eval growth_gb=round(growth_7d/1073741824,2)
+| where growth_gb > 10
+```
+- **Implementation:** Daily snapshot. Alert on >10GB/week growth on critical tablespaces. Use `predict` on used_bytes for runway to maxsize.
+- **Visualization:** Line chart (used GB trend), Table (tablespace, growth GB/week), Single value (fastest growing).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.31 · SQL Server Always On AG Health and Replica Sync
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Combined view of `synchronization_health`, redo queue, and log send queue sizes for AG replicas. Operationalizes UC-7.1.12 with queue depth.
+- **App/TA:** DB Connect, `Splunk_TA_microsoft-sqlserver`
+- **Data Sources:** `sys.dm_hadr_database_replica_states`, `log_send_queue_size`, `redo_queue_size`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:ag_replica_state"
+| where synchronization_health_desc!="HEALTHY" OR log_send_queue_size > 104857600 OR redo_queue_size > 104857600
+| table ag_name replica_server_name synchronization_health_desc log_send_queue_size redo_queue_size
+```
+- **Implementation:** Poll DMVs every 5m. Alert on unhealthy sync or queue >100MB (tune threshold). Track automatic failover readiness.
+- **Visualization:** Status grid (replica × health), Line chart (queue sizes), Table (unhealthy AG databases).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.32 · Database Backup Chain Validation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** Verifies full→diff→log chain continuity (SQL Server LSN chain, Oracle archivelog sequence) to detect missing backups before restore drills fail.
+- **App/TA:** DB Connect, backup vendor logs
+- **Data Sources:** `msdb.dbo.backupset` (first_lsn, last_lsn, type), RMAN backup pieces
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:backup_chain"
+| sort database_name, backup_finish_date
+| streamstats window=2 previous(last_lsn) as prev_last by database_name
+| where isnotnull(prev_last) AND first_lsn!=prev_last AND type!=1
+| table database_name backup_finish_date type first_lsn prev_last
+```
+- **Implementation:** Custom SQL to flag LSN gaps. For Oracle, check archivelog sequence continuity. Alert on any break in chain for production databases.
+- **Visualization:** Table (broken chains), Timeline (backup types), Single value (databases with gaps).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.33 · Long-Running Query Detection (Active Sessions)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Surfaces currently running queries exceeding elapsed threshold with SQL hash and wait type—faster triage than transaction-only UC-7.1.8.
+- **App/TA:** DB Connect
+- **Data Sources:** `sys.dm_exec_requests`, `pg_stat_activity`, `V$SESSION` + `V$SQL`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:active_requests"
+| where elapsed_sec > 300 AND status="running"
+| stats max(elapsed_sec) as max_sec by session_id, database_name, sql_hash
+| table session_id database_name sql_hash max_sec wait_type
+```
+- **Implementation:** Poll every 2m. Exclude known batch accounts via lookup. Alert when max_sec >900 for OLTP. Include optional `sql_text` sampling for compliance.
+- **Visualization:** Table (long-running sessions), Line chart (count of long queries), Single value (longest elapsed sec).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.34 · Deadlock Frequency by Database
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Counts deadlocks per hour/database to detect code regressions after releases. Complements UC-7.1.2 event search with KPIs.
+- **App/TA:** Error log ingestion, extended events
+- **Data Sources:** SQL Server errorlog deadlock graph frequency, PostgreSQL `log_lock_waits`, Oracle ORA-00060
+- **SPL:**
+```spl
+index=database sourcetype="mssql:errorlog"
+| search deadlock OR "Deadlock"
+| bucket _time span=1h
+| stats count as deadlocks by database_name, _time
+| where deadlocks > 5
+```
+- **Implementation:** Parse database name from deadlock XML if available. Alert when hourly deadlocks exceed baseline. Tie to release markers.
+- **Visualization:** Line chart (deadlocks over time), Bar chart (by database), Single value (deadlocks today).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.35 · Connection Pool Exhaustion (Application vs Database Limit)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Joins app pool `activeThreads`/`waiting` with DB `session_count` to distinguish app-side pool starvation from DB `max_connections` hits.
+- **App/TA:** OpenTelemetry, DB Connect
+- **Data Sources:** HikariCP metrics, `pg_stat_activity` count, `sys.dm_exec_connections`
+- **SPL:**
+```spl
+index=application sourcetype="hikaricp:metrics"
+| eval pct=round(active_connections/max_connections*100,1)
+| where pct > 90 OR threads_awaiting_connection > 5
+| table host pool_name pct threads_awaiting_connection active_connections max_connections
+```
+- **Implementation:** Ingest both sides; use `transaction` or `join` on host+service. Alert when either side >90%. Dashboard side-by-side.
+- **Visualization:** Gauge (app pool vs DB sessions), Line chart (pct over time), Table (hosts in danger).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.36 · Index Fragmentation Maintenance Priority
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Ranks indexes by fragmentation × page_count to schedule rebuilds during maintenance windows. Extends UC-7.1.9 with prioritization score.
+- **App/TA:** DB Connect
+- **Data Sources:** `sys.dm_db_index_physical_stats` (avg_fragmentation_in_percent, page_count)
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:index_stats"
+| eval priority_score=avg_fragmentation_pct * page_count / 1000000
+| where avg_fragmentation_pct > 30 AND page_count > 1000
+| sort -priority_score
+| head 50
+```
+- **Implementation:** Weekly job. Export top 50 for DBA runbook. Exclude tiny indexes via page_count floor.
+- **Visualization:** Table (index, frag %, pages, score), Bar chart (top priority_score).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.37 · Temp Tablespace Usage (Oracle TEMP)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** High `TEMP` usage for sorts and hashes causes ORA-1652. Tracks session temp consumption vs temp tablespace limits.
+- **App/TA:** DB Connect
+- **Data Sources:** `V$TEMPSEG_USAGE`, `DBA_TEMP_FREE_SPACE`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:oracle_temp"
+| stats sum(blocks_used) as used_blocks by tablespace_name, session_addr
+| eventstats sum(used_blocks) as total_used by tablespace_name
+| lookup oracle_temp_space tablespace_name OUTPUT max_blocks
+| where total_used > max_blocks*0.85
+| table tablespace_name total_used max_blocks
+```
+- **Implementation:** Poll `V$TEMPSEG_USAGE` every 5m. Alert at 85% of temp max. Identify top SQL by `sql_id` from same view.
+- **Visualization:** Line chart (temp usage %), Table (sessions using temp), Single value (peak temp GB).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.38 · Query Plan Regression (Runtime vs Baseline)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Compares current average CPU/duration from Query Store or AWR to baselines by `query_id`/`plan_hash`. Tightens UC-7.1.14 with explicit baseline lookup.
+- **App/TA:** DB Connect, Query Store export
+- **Data Sources:** `sys.query_store_runtime_stats`, `dba_hist_sqlstat`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:query_store_runtime"
+| stats avg(avg_cpu_time) as cur_cpu by query_id, plan_id
+| lookup query_baselines query_id OUTPUT baseline_cpu_ms
+| eval regression_pct=round((cur_cpu-baseline_cpu_ms)/baseline_cpu_ms*100,1)
+| where regression_pct > 40
+```
+- **Implementation:** Refresh baseline lookup weekly from stable period. Alert on regression >40% with new `plan_id`. Consider force plan workflow.
+- **Visualization:** Table (regressed queries), Line chart (baseline vs current), Bar chart (regression %).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.39 · Database Patch Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Compares instance `@@VERSION` / `banner` / Oracle `DBA_REGISTRY_HISTORY` to approved patch levels per environment. Supports security patching SLAs.
+- **App/TA:** DB Connect, inventory scripted input
+- **Data Sources:** SQL Server `@@VERSION`, Oracle `opatch`, PostgreSQL `pg_version`
+- **SPL:**
+```spl
+index=database sourcetype="dbconnect:instance_version"
+| lookup approved_db_patch matrix_key OUTPUT approved_build
+| where build != approved_build
+| table host, engine, build, approved_build, last_patch_date
+```
+- **Implementation:** Maintain `approved_db_patch` lookup (engine, major, approved CU/RU). Daily compare. Alert on non-compliant production instances.
+- **Visualization:** Table (non-compliant hosts), Pie chart (compliant %), Single value (drift count).
+- **CIM Models:** Databases
+
+---
+
+### UC-7.1.40 · Database Audit Log Tampering Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Detects unexpected audit trail disable, audit file deletion, or Unified Audit policy changes that may indicate cover-up activity.
+- **App/TA:** OS audit, database audit, syslog
+- **Data Sources:** Oracle `V$OPTION` where parameter='Unified Auditing', `ALTER SYSTEM AUDIT`, `DROP AUDIT POLICY`, SQL Server audit shutdown events
+- **SPL:**
+```spl
+index=db_audit sourcetype=oracle_audit OR sourcetype=mssql:audit
+| search action IN ("AUDIT DISABLED","AUDIT_POLICY_DROP","AUDIT_TRAIL_OFF") OR statement="*AUDIT*FALSE*"
+| table _time, db_user, action, object_name, statement
+| sort -_time
+```
+- **Implementation:** Forward database and OS audit to tamper-evident storage. Alert on any audit disable or policy drop outside CAB. Correlate with DBA group membership.
+- **Visualization:** Timeline (audit config changes), Table (privileged actions), Single value (critical audit events 24h).
+- **CIM Models:** Databases
+
+---
+
+### 7.5 Search & Analytics Platforms
+
+**Primary App/TA:** Custom scripted input or HTTP Event Collector against Elasticsearch/OpenSearch REST APIs (`_cluster/health`, `_cat`, `_nodes/stats`), Splunk Add-on for Elasticsearch where applicable; Apache Solr `metrics` API and Solr logs; Filebeat/Metricbeat modules for Elastic Stack.
+
+---
+
+### UC-7.5.1 · Elasticsearch Cluster Health (Red / Yellow)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Yellow or red cluster status means primary/replica shards are not fully allocated; search and indexing can fail or degrade. Catching status changes early limits user impact.
+- **App/TA:** Custom REST scripted input (Elasticsearch `_cluster/health`)
+- **Data Sources:** `sourcetype=elasticsearch:cluster_health`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:cluster_health"
+| where status IN ("yellow","red")
+| eval severity=if(status="red",3,2)
+| timechart span=5m max(severity) as severity by cluster_name
+```
+- **Implementation:** Poll `GET _cluster/health` every 1–2 minutes and index `status`, `active_primary_shards`, `unassigned_shards`, `number_of_nodes`. Alert immediately on `red` and on sustained `yellow`. Correlate with node loss and disk events.
+- **Visualization:** Single value or status indicator (cluster status), Line chart (status over time), Table (clusters not green).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.2 · Elasticsearch Shard Allocation Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Unassigned or stuck relocating shards leave data unavailable or at risk; allocation explain output points to disk, routing, or settings issues before outages spread.
+- **App/TA:** Custom REST scripted input (`_cluster/allocation/explain`, `_cat/shards`)
+- **Data Sources:** `sourcetype=elasticsearch:shard_allocation`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:shard_allocation"
+| where state="UNASSIGNED" OR allocation_decision="NO"
+| stats latest(deciders) as deciders, count by index, shard, prirep
+| sort -count
+```
+- **Implementation:** Ingest `_cat/shards` with `state` filter and, for unassigned primaries, poll `POST _cluster/allocation/explain` on a schedule. Parse `allocate_explanation` and decider names. Alert when any primary shard is unassigned >5 minutes or replica unassigned count exceeds policy.
+- **Visualization:** Table (index, shard, state, reason), Single value (unassigned shard count), Timeline of allocation events.
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.3 · OpenSearch Index Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Slow merges, refresh intervals, and segment counts drive query latency and heap use; tracking per-index stats keeps search SLAs achievable.
+- **App/TA:** Custom scripted input (OpenSearch `_stats`, `_cat/indices`)
+- **Data Sources:** `sourcetype=opensearch:index_stats`
+- **SPL:**
+```spl
+index=database sourcetype="opensearch:index_stats"
+| eval merge_ms=primaries.merges.total_time_in_millis
+| eval search_qps=primaries.search.query_total / nullif(uptime_sec,0)
+| where merge_ms > 600000 OR primaries.refresh.total_time_in_millis > 300000
+| table index, merge_ms, primaries.refresh.total_time_in_millis, store.size_in_bytes
+```
+- **Implementation:** Poll `GET /<index>/_stats` or per-index `_stats` every 15 minutes. Extract merges, refresh, indexing, and store size. Compare against baselines; alert when merge or refresh time spikes without matching traffic increase. Review ILM/ISM policies for hot indices.
+- **Visualization:** Line chart (merge and refresh time by index), Table (top indices by merge cost), Bar chart (segment count if extracted).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.4 · OpenSearch Search Latency
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** P95/P99 query latency directly affects application UX; separating queue time from query time narrows tuning to thread pools vs. mappings and shards.
+- **App/TA:** Custom scripted input (`_nodes/stats` search, slow log), OpenSearch slow search log
+- **Data Sources:** `sourcetype=opensearch:search_latency`, `sourcetype=opensearch:slowlog`
+- **SPL:**
+```spl
+index=database sourcetype="opensearch:search_latency" OR sourcetype="opensearch:slowlog"
+| eval took_ms=coalesce(took_ms, took)
+| where took_ms > 500
+| timechart span=5m perc95(took_ms) as p95_ms, perc99(took_ms) as p99_ms by cluster_name
+```
+- **Implementation:** Ingest node-level search metrics (`primaries.search.query_time_in_millis` / `query_total`) for derived latency, and/or enable slow search logging and forward with a dedicated sourcetype. Baseline p95 per cluster; alert when p95 exceeds threshold for 15+ minutes. Correlate with heap GC and segment merges.
+- **Visualization:** Line chart (p95/p99 search latency), Table (slow queries from slowlog), Histogram of `took_ms`.
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.5 · Elasticsearch Indexing Rate Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** A sudden drop in docs/s indexed can signal pipeline failures, bulk rejections, or cluster overload; sustained spikes may require scaling or throttling.
+- **App/TA:** Custom scripted input (`_nodes/stats` indexing)
+- **Data Sources:** `sourcetype=elasticsearch:indexing_stats`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:indexing_stats"
+| timechart span=1m per_second(indexing.index_total) as index_rate by node_name
+```
+- **Implementation:** Poll `GET _nodes/stats` every minute; extract `indices.indexing.index_total`, `index_time_in_millis`, and `index_current`. Store prior sample to compute rate of change. Set dynamic or static baselines; alert on drops below expected ingest or on `indexing` rejections from bulk thread pool.
+- **Visualization:** Line chart (documents indexed per second by node), Single value (cluster aggregate rate), Area chart (indexing time vs. count).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.6 · Solr Query Cache Hit Ratio
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Low filter/query cache hit rates increase CPU and latency; tuning caches and queries improves headroom without adding nodes.
+- **App/TA:** Custom scripted input (Solr `metrics` API), Solr log ingestion
+- **Data Sources:** `sourcetype=solr:metrics`
+- **SPL:**
+```spl
+index=database sourcetype="solr:metrics"
+| where like(metric_path,"%queryResultCache%") OR like(metric_path,"%filterCache%")
+| eval hit_ratio=lookup_hits / nullif(lookup_hits+lookup_misses,0)
+| where hit_ratio < 0.7
+| timechart span=15m avg(hit_ratio) as cache_hit_ratio by core, metric_path
+```
+- **Implementation:** Poll `GET /solr/admin/metrics` (or per-core metrics) every 5 minutes. Map `QUERY.queryResultCache` and `FILTER.filterCache` hits/misses. Compute hit ratio; alert below team-defined threshold (e.g., 0.7). Correlate with query pattern changes and deployments.
+- **Visualization:** Gauge (cache hit ratio per core), Line chart (hit ratio trend), Table (cores below threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.7 · Solr Replication Lag
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Followers lagging behind leaders serve stale results and extend recovery time; catching replication gaps protects read consistency and failover readiness.
+- **App/TA:** Custom scripted input (Solr Cloud `CLUSTERSTATUS`, replica stats)
+- **Data Sources:** `sourcetype=solr:replication`
+- **SPL:**
+```spl
+index=database sourcetype="solr:replication"
+| eval lag_bytes=leader_version - replica_version
+| where lag_bytes > 1048576 OR index_version_lag > 100
+| stats max(lag_bytes) as max_lag, max(replication_time_ms) as max_rep_ms by collection, shard, replica
+| sort -max_lag
+```
+- **Implementation:** Ingest Solr Cloud replica state (version, generation, replication timing) from admin API or `REPLICATION` metrics. For standalone Solr, use master/slave `fetch` lag fields. Alert when replica index version lags leader beyond SLA (bytes or generations). Investigate network, disk, and TLog backlog.
+- **Visualization:** Line chart (replication lag over time), Table (replicas over SLA), Single value (max lag per collection).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.8 · Elasticsearch Disk Watermark Alerts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Elasticsearch blocks shard allocation when flood-stage watermarks are hit; proactive disk alerts prevent read-only indices and cluster yellow/red states.
+- **App/TA:** Custom scripted input (`_cat/allocation`, node stats fs)
+- **Data Sources:** `sourcetype=elasticsearch:disk_watermark`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:disk_watermark"
+| eval used_pct=round(disk_used_bytes/disk_total_bytes*100,1)
+| where used_pct >= watermark_low_pct OR blocks.has_read_only_allow_delete=="true"
+| timechart span=5m max(used_pct) as used_pct by node_name
+```
+- **Implementation:** Poll `GET _cat/allocation?bytes=b&h=node,disk.avail,disk.total` or `_nodes/stats/fs` for each data node. Compare `disk.used_percent` to `cluster.routing.allocation.disk.watermark` settings. Alert at low/high/flood thresholds before Elasticsearch enforces blocks. Trigger capacity or ILM actions when trending toward limits.
+- **Visualization:** Gauge (disk % per node), Table (nodes near watermark), Line chart (free space trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.9 · Elasticsearch JVM Heap Pressure
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** High heap usage and frequent GC pause search and indexing and can trigger circuit breakers; JVM trends predict node instability before restarts.
+- **App/TA:** Custom scripted input (`_nodes/stats/jvm`)
+- **Data Sources:** `sourcetype=elasticsearch:jvm`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:jvm"
+| eval heap_used_pct=round(mem.heap_used_in_bytes/mem.heap_max_in_bytes*100,1)
+| where heap_used_pct > 85 OR gc.collectors.old.collection_time_in_millis > 30000
+| timechart span=5m avg(heap_used_pct) as heap_pct, max(gc.collectors.old.collection_time_in_millis) as old_gc_ms by node_name
+```
+- **Implementation:** Poll JVM stats every 1–2 minutes. Track `heap_used_percent`, young/old GC collection time and count. Alert when heap consistently >85% or old GC time spikes. Correlate with fielddata, merges, and heap dumps policy.
+- **Visualization:** Line chart (heap % and GC time), Area chart (heap used vs. max), Table (nodes over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.10 · OpenSearch Snapshot / Backup Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed or missing snapshots break restore and compliance RPO; monitoring repository and snapshot completion protects against silent backup gaps.
+- **App/TA:** Custom scripted input (`_snapshot/_status`, `_cat/snapshots`)
+- **Data Sources:** `sourcetype=opensearch:snapshot`
+- **SPL:**
+```spl
+index=database sourcetype="opensearch:snapshot"
+| eval end_epoch=if(isnotnull(end_time), end_time, _time)
+| eval stale=if(state="SUCCESS" AND end_epoch < relative_time(now(),"-25h"),1,0)
+| where state IN ("FAILED","PARTIAL") OR stale=1
+| table repository, snapshot, state, end_epoch, stale
+```
+- **Implementation:** Ingest snapshot completion events from `_snapshot/<repo>/_all` or SLM/ISM policy history. Alert on `FAILED` or `PARTIAL` snapshots. Verify last successful snapshot per policy is within SLA (e.g., 24h). Monitor repository connectivity and `read_only` state.
+- **Visualization:** Table (repository, last snapshot, state), Timeline (snapshot jobs), Single value (hours since last success).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.11 · Elasticsearch Circuit Breaker Trips
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Circuit breaker exceptions stop requests to protect the cluster; repeated trips indicate oversized aggregations, mapping issues, or undersized heap.
+- **App/TA:** Elasticsearch slow logs / server logs forwarded to Splunk, JMX or `_nodes/stats` breaker fields
+- **Data Sources:** `sourcetype=elasticsearch:server`, `sourcetype=elasticsearch:circuit_breaker`
+- **SPL:**
+```spl
+index=database (sourcetype="elasticsearch:server" OR sourcetype="elasticsearch:circuit_breaker")
+| search "CircuitBreakingException" OR breaker_tripped=1
+| stats count by breaker_name, node_name, index
+| where count > 0
+| sort -count
+```
+- **Implementation:** Forward Elasticsearch logs with circuit breaker messages, or poll `_nodes/stats/breaker` and alert when `tripped` is true or estimated size exceeds limit. Group by `breaker_name` (parent, fielddata, request). Tie alerts to offending queries from slow logs.
+- **Visualization:** Bar chart (trips by breaker type), Table (node, breaker, count), Line chart (breaker estimated size vs. limit).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.12 · Solr Core Admin Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Core-level errors (recovery failures, corrupt index flags, leader election issues) degrade search for specific collections; admin health checks catch per-core problems early.
+- **App/TA:** Custom scripted input (`/admin/cores?action=STATUS`), Solr logs
+- **Data Sources:** `sourcetype=solr:core_status`
+- **SPL:**
+```spl
+index=database sourcetype="solr:core_status"
+| where state!="active" OR isnotnull(error_msg)
+| stats latest(state) as state, latest(index_version) as index_version by core, collection, node_name
+| sort state
+```
+- **Implementation:** Poll `STATUS` for all cores on a schedule; capture `instanceDir`, `dataDir`, `uptime`, replication/Cloud role fields. Ingest ERROR lines from `solr.log`. Alert when core state is not active, recovery fails, or leader/replica roles mismatch expectations.
+- **Visualization:** Status grid (core × healthy), Table (cores with errors), Single value (unhealthy core count).
+- **CIM Models:** N/A

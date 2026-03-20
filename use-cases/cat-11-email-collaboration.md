@@ -378,6 +378,247 @@ index=gws sourcetype="gws:token" event_name="authorize"
 
 ---
 
+### UC-11.2.7 · Drive External Sharing Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Alerts on files and folders shared outside the primary domain or with `anyone with link`—complements anomaly baselines (UC-11.2.3).
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Drive audit log (`change_user_access`, `shared_drive_settings_change`)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:drive" event_name="change_user_access"
+| where new_value="people_with_link" OR NOT match(target_user_email, ".*@yourdomain\\.com")
+| table _time, actor.email, doc_title, target_user_email, new_value
+| sort -_time
+```
+- **Implementation:** Tune domain pattern via lookup. Alert on shares to competitor domains or public links on confidential folders (path regex).
+- **Visualization:** Table (external shares), Bar chart (domains), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-11.2.8 · Admin Console Audit (Security Settings)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Focused on security-sensitive admin events (2SV, SSO, API keys)—extends general admin audit (UC-11.2.1).
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Admin audit (`CHANGE_APPLICATION_SETTING`, `CHANGE_TWO_STEP_VERIFICATION_ENROLLMENT`, `CREATE_ROLE`, `ASSIGN_ROLE`)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:admin"
+| search event_name IN ("CHANGE_APPLICATION_SETTING","CHANGE_TWO_STEP_VERIFICATION_ENROLLMENT","CREATE_ROLE","ASSIGN_ROLE","AUTHORIZE_API_CLIENT_ACCESS")
+| table _time, actor.email, event_name, target_user, setting_name
+| sort -_time
+```
+- **Implementation:** Alert on SSO IdP changes, 2SV exemptions, and new OAuth client authorizations. Correlate actor with known break-glass accounts.
+- **Visualization:** Timeline (security admin events), Table (actor, event), Single value (critical events 24h).
+- **CIM Models:** Change
+
+---
+
+### UC-11.2.9 · Gmail Suspicious Forwarding
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Detects auto-forwarding and delegation to external addresses—common post-compromise behavior.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Email settings audit (`CHANGE_EMAIL_SETTING`, Gmail routing / forwarding flags in Reports API export)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:admin" event_name="CHANGE_EMAIL_SETTING"
+| search forward OR delegate OR filter
+| where NOT match(setting_value, ".*@yourdomain\\.com")
+| table _time, actor.email, target_user, setting_name, setting_value
+```
+- **Implementation:** Ingest email settings changes. Alert on new forwarding to non-corporate domains. Weekly report of active forwards from `gmail:user_settings` export.
+- **Visualization:** Table (forwarding changes), Single value (external forwards), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-11.2.10 · Chrome Management Policy Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Managed Chrome browsers should enforce updates, extensions allowlists, and safe browsing; drift indicates unmanaged or tampered clients.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`, Chrome Browser Cloud Management events
+- **Data Sources:** Chrome policy audit events, device reports (`chromeosdevices` / `managed_browser`)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:chrome_management" OR sourcetype="gws:admin" event_name="CHROME_DEVICES_POLICY_UPDATE"
+| stats latest(policy_version) as ver, latest(compliance_state) as state by device_id, org_unit
+| where state!="COMPLIANT" OR isnull(ver)
+| table device_id, org_unit, state, ver
+```
+- **Implementation:** Ingest Chrome Enterprise Connector or admin audit for policy pushes. Alert on devices not checking in >7 days. Map OUs to sensitivity.
+- **Visualization:** Table (non-compliant browsers), Bar chart (by OU), Line chart (compliance %).
+- **CIM Models:** Endpoint
+
+---
+
+### UC-11.2.11 · Google Vault Hold Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Hold creation, release, and matter changes affect legal preservation; errors risk spoliation findings.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Vault audit (`CREATE_HOLD`, `DELETE_HOLD`, `UPDATE_HOLD`, `CREATE_MATTER`)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:vault" OR (sourcetype="gws:admin" event_name="VAULT_*")
+| table _time, actor.email, event_name, matter_id, hold_name
+| sort -_time
+```
+- **Implementation:** Forward Vault audit to Splunk. Restrict alerts to legal-team actors; flag hold deletions without ticket ID in custom field.
+- **Visualization:** Timeline (hold changes), Table (matters affected), Single value (hold deletions 90d).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.2.12 · Workspace Marketplace App Review
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** New marketplace app installs can expose Drive/Gmail data; tracks installs and OAuth scopes.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Token audit (`authorize`), admin audit (`ADD_APPLICATION`, `INSTALL_MARKETPLACE_APP`)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:token" event_name="authorize"
+| stats values(scope) as scopes by app_name, actor.email
+| mvexpand scopes
+| search scopes="https://www.googleapis.com/auth/drive*" OR scopes="*gmail*"
+| sort app_name
+```
+- **Implementation:** Maintain allowlist of approved apps. Alert on new apps with sensitive scopes. Quarterly access review with app owners.
+- **Visualization:** Table (high-risk grants), Bar chart (apps by user count), Pie chart (scope categories).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.2.13 · Groups Membership Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Sensitive Google Groups (all-staff, external partners) membership changes can broadly expose mail and Drive.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Groups audit (`ADD_GROUP_MEMBER`, `REMOVE_GROUP_MEMBER`, `CREATE_GROUP`)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:groups" OR (sourcetype="gws:admin" event_name="GROUP_*")
+| search event_name IN ("ADD_GROUP_MEMBER","REMOVE_GROUP_MEMBER","CREATE_GROUP")
+| lookup sensitive_groups.csv group_email OUTPUT tier
+| where tier="high" OR like(group_email,"*external*")
+| table _time, actor.email, event_name, group_email, member_email
+```
+- **Implementation:** Tag high-impact groups in lookup. Alert on adds to groups with external posting or shared drives.
+- **Visualization:** Table (membership changes), Timeline, Bar chart (changes by group).
+- **CIM Models:** Change
+
+---
+
+### UC-11.2.14 · Cloud Identity Device Management
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Endpoint visibility for mobile and desktop enrolled in Endpoint Verification / MDM—lost devices and OS drift.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Endpoint audit (`REGISTER_DEVICE`, `SYNC_DEVICE`), Reports API mobile devices
+- **SPL:**
+```spl
+index=gws sourcetype="gws:endpoint" OR sourcetype="gws:mobile"
+| where compliance_state!="COMPLIANT" OR device_compromised="true" OR status="LOST"
+| stats count by device_id, user_email, compliance_state
+| sort -count
+```
+- **Implementation:** Ingest device inventory daily. Alert on lost/stolen, rooted/jailbroken, or encryption-off. Integrate with Chrome management (UC-11.2.10).
+- **Visualization:** Table (non-compliant devices), Map (last sync location if available), Line chart (fleet compliance %).
+- **CIM Models:** Endpoint
+
+---
+
+### UC-11.2.15 · Google Meet Quality Metrics
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Meet quality telemetry (packet loss, jitter, RTT) for troubleshooting conferencing issues—extends UC-11.2.5 with org-level rollups.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Meet quality tool export / BigQuery (`conference_records`, participant `score` metrics)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:meet_quality"
+| where packet_loss_pct > 2 OR round_trip_time_ms > 300 OR jitter_ms > 35
+| stats avg(packet_loss_pct) as avg_loss, avg(round_trip_time_ms) as avg_rtt by conference_id, organizer_email
+| sort -avg_loss
+```
+- **Implementation:** Enable Meet quality logging in Admin. Ingest via BigQuery export or Reports API. Baseline per office ASN. Alert when median MOS proxy metrics exceed SLA.
+- **Visualization:** Table (worst conferences), Line chart (loss/jitter trend), Bar chart (by network location).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.2.16 · Gmail Phishing Report Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** User-reported phishing provides ground-truth for tuning secure links and awareness; volume spikes indicate campaigns.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Email log (`PHISHING_REPORT`, user report button events in audit)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:gmail" event_name="PHISHING_REPORT"
+| bin _time span=1h
+| stats count by reporter, _time
+| where count > 5
+| sort -count
+```
+- **Implementation:** Ingest reported-message metadata (no body in Splunk if policy requires). Correlate with Postini/Workspace security dashboards. Feed SOC for IOC extraction.
+- **Visualization:** Line chart (reports per hour), Table (top reporters), Bar chart (campaign hash if extracted).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.2.17 · Workspace DLP Rule Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** Google Workspace DLP incidents for Drive, Gmail, Chat—centralized for compliance trending.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** DLP incident export (`rule_name`, `triggered_action`, `resource_type`)
+- **SPL:**
+```spl
+index=gws sourcetype="gws:dlp"
+| stats count by rule_name, severity, actor_email, data_source
+| where severity IN ("HIGH","CRITICAL") OR count > 3
+| sort -count
+```
+- **Implementation:** Schedule DLP API or BigQuery export of incidents. Map rules to data classes. Alert on exfiltration-blocked events to external domains.
+- **Visualization:** Bar chart (violations by rule), Table (repeat offenders), Line chart (incident trend).
+- **CIM Models:** DLP
+
+---
+
+### UC-11.2.18 · Google Takeout Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Takeout requests export large user datasets—strong indicator of insider risk or compromised account.
+- **App/TA:** `Splunk_TA_GoogleWorkspace`
+- **Data Sources:** Admin audit (`REQUEST_DATA_EXPORT`, `DOWNLOAD_DATA_EXPORT`), login audit for takeout.google.com
+- **SPL:**
+```spl
+index=gws sourcetype="gws:admin" event_name="REQUEST_DATA_EXPORT"
+| table _time, actor.email, target_user, export_size_bytes, services_included
+| sort -_time
+```
+- **Implementation:** Alert on any Takeout request for privileged users. Require HR/legal approval lookup for departing employees. Block self-service takeout for high-risk OUs via policy.
+- **Visualization:** Table (export requests), Single value (exports 7d), Timeline.
+- **CIM Models:** N/A
+
+---
+
 ### 11.3 Unified Communications
 
 **Primary App/TA:** Cisco UCM TA, Webex TA, custom CDR/CMR inputs for voice platforms.
@@ -1294,3 +1535,166 @@ index=cisco_spaces sourcetype="cisco:spaces:workspace"
 
 ---
 
+### 11.5 Video Conferencing & Collaboration Analytics
+
+**Primary App/TA:** Splunk Connect for Zoom, `ta_cisco_webex_add_on_for_splunk` (Webex TA), Splunk Add-on for Microsoft Cloud Services / Microsoft 365 Add-on for Teams meeting quality.
+
+---
+
+### UC-11.5.1 · Zoom Meeting Quality Metrics (Jitter, Packet Loss, Latency)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Poor jitter, loss, or latency directly degrades audio/video MOS and drives support tickets; trending these metrics isolates client, ISP, or Zoom POP issues before executive calls fail.
+- **App/TA:** Splunk Connect for Zoom
+- **Data Sources:** `sourcetype=zoom:metrics`, Zoom dashboard quality API / meeting QoS events
+- **SPL:**
+```spl
+index=zoom sourcetype="zoom:metrics"
+| where avg_jitter_ms > 30 OR packet_loss_pct > 2 OR avg_rtt_ms > 300
+| timechart span=5m avg(avg_jitter_ms) as jitter_ms, avg(packet_loss_pct) as loss_pct, avg(avg_rtt_ms) as rtt_ms by meeting_id
+```
+- **Implementation:** Ingest Zoom meeting quality or participant QoS feeds via the official connector. Normalize per-participant jitter, loss, and RTT. Baseline by region and device type. Alert when thresholds exceed SLA for sustained intervals. Correlate with ISP and VPN indicators.
+- **Visualization:** Line chart (jitter, loss, RTT over time), Heatmap (participant × metric), Table (worst meetings in window).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.2 · Zoom Call Drop Rate Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Elevated drop rates signal network instability, client bugs, or capacity limits; tracking drops by geography and client version prioritizes fixes.
+- **App/TA:** Splunk Connect for Zoom
+- **Data Sources:** `sourcetype=zoom:meetings`, meeting end / participant disconnect events
+- **SPL:**
+```spl
+index=zoom sourcetype="zoom:meetings"
+| eval er=lower(end_reason)
+| eval dropped=if(like(er,"%drop%") OR like(er,"%disconnect%") OR like(er,"%lost%"),1,0)
+| bin _time span=1h
+| stats sum(dropped) as drops, count as meetings by _time
+| eval drop_rate_pct=if(meetings>0, round(drops/meetings*100,2), 0)
+| where drop_rate_pct > 5
+```
+- **Implementation:** Ingest meeting lifecycle events with end reason and duration. Compute hourly drop rate = meetings ended abnormally / total meetings. Segment by account, data center, or client version. Alert when drop rate exceeds baseline (e.g., >5%).
+- **Visualization:** Line chart (drop rate % over time), Bar chart (drops by region), Single value (drop rate last hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.3 · Zoom Participant Join Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Join failures block users from hearings and classes; clustering failures by error code reveals SSO, licensing, or capacity misconfigurations.
+- **App/TA:** Splunk Connect for Zoom
+- **Data Sources:** `sourcetype=zoom:participant`, join attempt logs
+- **SPL:**
+```spl
+index=zoom sourcetype="zoom:participant" join_result!="success"
+| stats count by error_code, join_result, client_type
+| sort -count
+```
+- **Implementation:** Capture join attempts with result, error code, meeting type, and IdP correlation if SAML. Alert on spikes in specific codes (e.g., 3000-series). Compare with Okta/Azure AD sign-in success for the same window.
+- **Visualization:** Table (error_code, count), Line chart (failed joins over time), Bar chart (failures by client type).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.4 · Webex Device Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Room devices with high CPU, thermal, or firmware errors degrade meetings; proactive health reduces onsite truck rolls and VIP room incidents.
+- **App/TA:** `ta_cisco_webex_add_on_for_splunk`
+- **Data Sources:** `sourcetype=webex:device`, Webex Control Hub device telemetry
+- **SPL:**
+```spl
+index=webex sourcetype="webex:device"
+| where health_state!="ok" OR cpu_pct > 85 OR temperature_c > 45
+| stats latest(health_state) as state, max(cpu_pct) as max_cpu, max(temperature_c) as max_temp by device_id, product
+| sort -max_cpu
+```
+- **Implementation:** Ingest Control Hub device inventory and health APIs. Poll or stream alerts for offline, warning, or error states. Track firmware version drift. Alert on sustained high CPU or temperature before automatic thermal throttling.
+- **Visualization:** Status grid (device × health), Table (devices over threshold), Line chart (CPU/temperature trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.5 · Webex Room System Uptime
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Room system availability underpins executive and boardroom SLAs; uptime trending supports hardware refresh and network path decisions.
+- **App/TA:** `ta_cisco_webex_add_on_for_splunk`
+- **Data Sources:** `sourcetype=webex:device`, device online/offline events
+- **SPL:**
+```spl
+index=webex sourcetype="webex:device"
+| eval up=if(connection_state="connected",1,0)
+| timechart span=1h avg(up) as uptime_ratio by device_id
+| where uptime_ratio < 0.99
+```
+- **Implementation:** Derive online state from heartbeat or Control Hub connectivity. Compute rolling uptime per room vs. expected business hours. Alert on devices below 99% weekly uptime or prolonged offline spans.
+- **Visualization:** Line chart (uptime ratio by room), Single value (fleet uptime %), Table (rooms below SLA).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.6 · Video Conferencing License Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Underused licenses waste budget; near-capacity entitlements risk meeting blocks during peaks—utilization guides true-up and consolidation across Zoom/Webex/Teams.
+- **App/TA:** Splunk Connect for Zoom, Webex TA, Microsoft 365 licensing inputs
+- **Data Sources:** `sourcetype=zoom:account`, `sourcetype=webex:license`, `sourcetype=m365:license`
+- **SPL:**
+```spl
+index=saas (sourcetype="zoom:account" OR sourcetype="webex:license" OR sourcetype="m365:license")
+| eval used_pct=round(assigned_licenses/nullif(total_licenses,0)*100,1)
+| where used_pct > 90 OR used_pct < 60
+| table platform, sku, assigned_licenses, total_licenses, used_pct
+```
+- **Implementation:** Ingest license counts and active assignments from each vendor’s admin API on a daily schedule. Map SKUs to collaboration products. Alert above 90% utilization and report under-60% for reclamation. Normalize multi-platform duplicates where possible via email identity.
+- **Visualization:** Bar chart (utilization % by platform), Table (SKU detail), Line chart (assigned licenses over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.7 · Meeting Recording Storage Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Cloud recording storage grows with retention policies; trending consumption avoids surprise overages and informs lifecycle rules for compliance vs. cost.
+- **App/TA:** Splunk Connect for Zoom, Webex TA, Microsoft Graph / Teams recording metadata
+- **Data Sources:** `sourcetype=zoom:recording`, `sourcetype=webex:recording`, `sourcetype=m365:teams_recording`
+- **SPL:**
+```spl
+index=saas (sourcetype="zoom:recording" OR sourcetype="webex:recording" OR sourcetype="m365:teams_recording")
+| eval size_gb=round(storage_bytes/1073741824,2)
+| timechart span=1d sum(size_gb) as daily_gb by platform
+```
+- **Implementation:** Ingest recording completion events with byte size and retention class. Sum daily growth per platform. Project growth with linear regression or `predict` on a single series for 30-day forecast. Alert when projected storage crosses budget tiers. Pair with legal hold tags where applicable.
+- **Visualization:** Area chart (storage growth by platform), Line chart (daily_gb trend), Table (largest tenants or sites).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.8 · Teams Meeting Quality Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Teams Call Quality Dashboard (CQD) data exposes poor Wi‑Fi, VPN, or PSTN legs; Splunk rollups unify CQD with org context for targeted network fixes.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services, Microsoft 365 Add-on
+- **Data Sources:** `sourcetype=m365:teams_cqd`, Call Records / CQD feed
+- **SPL:**
+```spl
+index=m365 sourcetype="m365:teams_cqd"
+| where avg_video_frame_loss_pct > 5 OR avg_round_trip_time_ms > 300 OR poor_stream_pct > 10
+| stats avg(avg_video_frame_loss_pct) as avg_loss, avg(avg_round_trip_time_ms) as avg_rtt, avg(poor_stream_pct) as poor_pct by user_principal_name, building_name
+| sort -poor_pct
+```
+- **Implementation:** Ingest CQD or Call Records via Graph / data export. Join subnet or building names from network inventory. Baseline per site. Alert when poor stream percentage or packet loss exceeds SLA. Feed top offenders to network ops.
+- **Visualization:** Table (users/sites with worst quality), Line chart (poor stream % trend), Map or bar chart (quality by building).
+- **CIM Models:** N/A

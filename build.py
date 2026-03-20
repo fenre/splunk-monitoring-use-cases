@@ -56,6 +56,24 @@ CAT_GROUPS = {
     "app":      [7, 8, 11, 12, 13, 14, 16],
 }
 
+# Splunk two-pillar strategy: Security / Observability
+# Categories that default to "security" when no heuristic matches
+PILLAR_SECURITY_CATS = {9, 10, 17}
+# Title keywords that indicate a security-relevant use case (matched case-insensitively)
+PILLAR_SECURITY_WORDS = [
+    "attack", "malware", "threat", "vulnerability", "exploit", "breach",
+    "intrusion", "phishing", "ransomware", "unauthorized", "suspicious",
+    "abuse", "brute force", "privilege escalation", "ddos", "exfiltration",
+    "credential", "compromise", "trojan", "botnet", "backdoor", "rootkit",
+    "spyware", "injection", "evasion", "lateral movement", "reconnaissance",
+    "command and control", "c2", "data theft", "fraud", "tampering",
+    "insider threat", "rogue", "anomalous login", "impossible travel",
+    "kerberoasting", "golden ticket", "pass-the-hash", "mimikatz",
+    "zero day", "apt", "nation-state", "wiper", "ransomware",
+]
+# Monitoring type values that indicate observability
+PILLAR_OBS_MTYPES = {"performance", "availability", "capacity", "fault", "configuration"}
+
 # Equipment (IT assets) → TA patterns. Used to filter use cases by "what equipment do you have?"
 # Each entry: id (slug), label (user-facing), tas (substrings; if any appears in UC's App/TA field, UC is relevant).
 # Matching is case-insensitive substring: pattern.lower() in app_ta_field.lower()
@@ -474,6 +492,50 @@ SPLUNK_APPS = [
 IMPLEMENTATION_GUIDE_LINK = "docs/implementation-guide.md"
 
 
+def assign_pillar(uc, cat_id):
+    """Auto-assign Splunk pillar (security/observability/both) based on UC fields and heuristics.
+    If the UC already has a manually-set pillar field, respect it."""
+    existing = uc.get("pillar", "")
+    if existing:
+        return existing
+
+    is_security = False
+    is_observability = False
+
+    if uc.get("sdomain") or uc.get("mitre") or uc.get("dtype"):
+        is_security = True
+
+    if cat_id in PILLAR_SECURITY_CATS:
+        is_security = True
+
+    mtypes = uc.get("mtype", [])
+    mtypes_lower = {m.lower() for m in mtypes}
+    if "security" in mtypes_lower:
+        is_security = True
+    if mtypes_lower & PILLAR_OBS_MTYPES:
+        is_observability = True
+
+    title_lower = uc.get("n", "").lower()
+    value_lower = uc.get("v", "").lower()
+    text_to_check = title_lower + " " + value_lower
+    for word in PILLAR_SECURITY_WORDS:
+        if word in text_to_check:
+            is_security = True
+            break
+
+    if not is_security and not is_observability:
+        if cat_id in PILLAR_SECURITY_CATS:
+            is_security = True
+        else:
+            is_observability = True
+
+    if is_security and is_observability:
+        return "both"
+    if is_security:
+        return "security"
+    return "observability"
+
+
 def apps_for_ta_string(ta_str):
     """Given a use case's App/TA field, return list of matching SPLUNK_APPS entries."""
     if not (ta_str or "").strip():
@@ -793,13 +855,22 @@ def parse_category_file(filepath):
                     current_uc["ind"] = field_value
                 elif field_name == "telco use case":
                     current_uc["tuc"] = field_value
+                elif field_name == "splunk pillar":
+                    val = field_value.lower().strip()
+                    if "security" in val and "observability" in val:
+                        current_uc["pillar"] = "both"
+                    elif "security" in val:
+                        current_uc["pillar"] = "security"
+                    elif "observability" in val:
+                        current_uc["pillar"] = "observability"
 
                 i += 1
                 continue
 
         i += 1
 
-    # Fill detailed implementation and equipment tags for every UC
+    # Fill detailed implementation, equipment tags, and pillar for every UC
+    cat_id = category.get("i", 0)
     for sub in category.get("s", []):
         for uc in sub.get("u", []):
             if not (uc.get("md") or "").strip():
@@ -810,6 +881,7 @@ def parse_category_file(filepath):
             matched_apps = apps_for_ta_string(uc.get("t"))
             if matched_apps:
                 uc["sapp"] = matched_apps
+            uc["pillar"] = assign_pillar(uc, cat_id)
 
     return category
 

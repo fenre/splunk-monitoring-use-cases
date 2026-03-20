@@ -180,6 +180,214 @@ index=fabric sourcetype="fabric:latency"
 - **Visualization:** Heatmap (latency by switch pair), Timechart (latency trending), Table (high-latency paths), Single value (fabric P99 latency).
 - **CIM Models:** N/A
 
+### UC-18.1.9 · ACI Contract Hit/Miss Ratio Analysis
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** Complements raw contract hits (UC-18.1.4) with **permit vs deny/miss** ratios over time to catch mis-tuned filters and unexpected drops before workloads fail.
+- **App/TA:** `TA_cisco-ACI`, APIC contract statistics
+- **Equipment Models:** Cisco APIC, Nexus 9000 (ACI mode)
+- **Data Sources:** `sourcetype=cisco:aci:contracts` or APIC API contract stats
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:contracts"
+| timechart span=1h sum(permit_count) as permit sum(deny_count) as deny by contract_name
+| eval miss_ratio=round(100*deny/(deny+permit+0.001),2)
+```
+- **Implementation:** Poll contract counters on the same interval as UC-18.1.4. Alert when `miss_ratio` jumps vs 24h baseline for business-critical contracts. Map `contract_name` to owning team.
+- **Visualization:** Line chart (permit vs deny), Single value (miss ratio %), Table (worst contracts).
+- **CIM Models:** N/A
+
+### UC-18.1.10 · ACI Endpoint Group (EPG) Health
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Aggregates fault and health indicators per EPG (endpoint count, contract violations, BD binding) for application-centric status.
+- **App/TA:** `TA_cisco-ACI`
+- **Equipment Models:** Cisco APIC, ACI fabric
+- **Data Sources:** `cisco:aci:faults`, `cisco:aci:endpoint`, EPG MO
+- **SPL:**
+```spl
+index=cisco_aci (sourcetype="cisco:aci:faults" OR sourcetype="cisco:aci:endpoint")
+| rex field=affected "epg-(?<epg>[^/]+)"
+| stats count(eval(severity IN ("critical","major"))) as sev_count, dc(mac) as ep_count by tenant, epg
+| eval epg_health=if(sev_count>0 OR ep_count=0,"Degraded","OK")
+| where epg_health!="OK"
+| table tenant, epg, sev_count, ep_count
+```
+- **Implementation:** Normalize `affected` DN parsing to your naming. Enrich with APIC EPG API for expected EP counts. Alert on EPG with faults or zero endpoints when baseline >0.
+- **Visualization:** Status table (EPG health), Heatmap (tenant × EPG), Single value (degraded EPG count).
+- **CIM Models:** N/A
+
+### UC-18.1.11 · ACI Fault Lifecycle Tracking
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Tracks fault `lc` (lifecycle: raising, active, retaining, resolved) and time-to-clear — beyond raw fault counts (UC-18.1.2).
+- **App/TA:** `TA_cisco-ACI`
+- **Equipment Models:** Cisco APIC
+- **Data Sources:** `sourcetype=cisco:aci:faults`
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:faults"
+| eval cleared=if(match(lower(lc),"(?i)resolved|retaining"),1,0)
+| stats earliest(_time) as first_seen latest(_time) as last_seen max(cleared) as ever_cleared by code, dn
+| eval duration_hrs=round((last_seen-first_seen)/3600,2)
+| where duration_hrs>24 AND ever_cleared=0
+| table code, dn, duration_hrs, first_seen
+```
+- **Implementation:** Map `lc` per APIC version. Join clear events if streamed separately. Report MTTR for critical faults.
+- **Visualization:** Table (long-lived faults), Bar chart (avg clear time by code), Timeline.
+- **CIM Models:** N/A
+
+### UC-18.1.12 · Fabric Node Decommission Events
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
+- **Value:** Audits leaf/spine/APIC removal or disable operations for change control and capacity reconciliation.
+- **App/TA:** `TA_cisco-ACI`, APIC audit/syslog
+- **Equipment Models:** Cisco APIC, Nexus 9000
+- **Data Sources:** `cisco:aci:audit`, APIC syslog
+- **SPL:**
+```spl
+index=cisco_aci (sourcetype="cisco:aci:audit" OR sourcetype="cisco:aci:system")
+| search decommission OR "node-remove" OR "unregister" OR "fabricDecommission"
+| table _time, user, affected, descr
+| sort -_time
+```
+- **Implementation:** Tune search terms to APIC messages when nodes are drained from fabric. Correlate with maintenance windows.
+- **Visualization:** Table (decommission events), Timeline, Single value (events / month).
+- **CIM Models:** N/A
+
+### UC-18.1.13 · Bridge Domain Subnet Utilization
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Tracks IP usage vs subnet size per BD to prevent exhaustion of gateway pools and VM mobility issues.
+- **App/TA:** `TA_cisco-ACI`, APIC BD API
+- **Equipment Models:** Cisco ACI
+- **Data Sources:** `cisco:aci:bd_stats` or scripted API
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:bd_stats"
+| eval used_pct=round(100*ip_in_use/total_ips,1)
+| where used_pct > 85
+| table tenant, bd, subnet, used_pct, ip_in_use, total_ips
+| sort -used_pct
+```
+- **Implementation:** Ingest BD statistics from periodic API poll (`fvBD` subnets vs endpoint counts). Alert at 85%/95% thresholds.
+- **Visualization:** Table (full BDs), Bar chart (used % by BD), Gauge (worst BD).
+- **CIM Models:** N/A
+
+### UC-18.1.14 · L3Out Prefix Monitoring
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Monitors advertised/ learned prefixes on L3Outs (BGP/OSPF) for flapping, withdrawal storms, and unexpected route loss.
+- **App/TA:** `TA_cisco-ACI`, APIC L3ExtInstP events
+- **Equipment Models:** Cisco ACI, external routers
+- **Data Sources:** APIC syslog, `cisco:aci:bgp` or route telemetry
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:bgp" earliest=-24h
+| where match(lower(message),"(?i)withdraw|flap|prefix|l3out")
+| stats count by l3out_name, peer, prefix
+| where count>20
+| sort -count
+```
+- **Implementation:** Map peer and L3Out from your TA. Correlate with northbound link monitoring. Alert on withdrawal burst.
+- **Visualization:** Table (noisy prefixes), Line chart (events / hour), Timeline.
+- **CIM Models:** N/A
+
+### UC-18.1.15 · APIC Policy CAM Utilization
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** Tracks TCAM/CAM-style resource use for contracts and security policies on leaf nodes — exhaustion causes policy install failures.
+- **App/TA:** `TA_cisco-ACI`, leaf diagnostics
+- **Equipment Models:** Nexus 9300/9500 ACI leafs
+- **Data Sources:** `cisco:aci:policy_resource`, CLI snapshot via scripted input
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:policy_resource"
+| where resource_type="policy_cam" OR match(lower(metric_name),"(?i)tcam|cam")
+| eval used_pct=round(100*used/total,1)
+| where used_pct>80
+| table node_id, used_pct, used, total
+| sort -used_pct
+```
+- **Implementation:** Field names vary by NX-OS/ACI release; use vendor doc for exact OID/API. Alert before hardware policy scale limits.
+- **Visualization:** Bar chart (CAM % by leaf), Table (top nodes), Line chart (trend).
+- **CIM Models:** N/A
+
+### UC-18.1.16 · ACI Tenant Configuration Compliance Audit
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Checks tenants for required objects (vzAny restrictions, monitoring policies, SNMP/Syslog) — extends change audit (UC-18.1.5) with **policy completeness** scoring.
+- **App/TA:** `TA_cisco-ACI`
+- **Equipment Models:** Cisco APIC
+- **Data Sources:** APIC config export or `cisco:aci:audit`
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:tenant_summary"
+| eval has_mon=isnotnull(mon_policy)
+| eval has_snmp=isnotnull(snmp_group)
+| where has_mon=0 OR has_snmp=0
+| table tenant, has_mon, has_snmp
+```
+- **Implementation:** Build `tenant_summary` from scheduled API pulls (`fvTenant` + children). Adjust required attributes to your standards.
+- **Visualization:** Table (non-compliant tenants), Pie chart (compliance %), Bar chart (missing controls).
+- **CIM Models:** N/A
+
+### UC-18.1.17 · ACI Multisite Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Monitors inter-site control-plane sync, spine proxy, and state for Cisco ACI Multi-Site / Multi-Pod deployments.
+- **App/TA:** `TA_cisco-ACI`, MSO/APIC cross-site events
+- **Equipment Models:** APIC, NDO/MSO (if used)
+- **Data Sources:** `cisco:aci:multisite`, APIC syslog
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:multisite" earliest=-24h
+| where match(lower(status),"(?i)out.of.sync|isolated|failed|degraded")
+| stats count by site_name, peer_site, component
+| sort -count
+```
+- **Implementation:** Ingest MSO/NDO or per-APIC multisite diagnostics. Alert on any site not `in-sync`. Runbook for partition scenarios.
+- **Visualization:** Status grid (site × peer), Table (active issues), Single value (sites degraded).
+- **CIM Models:** N/A
+
+### UC-18.1.18 · APIC Cluster Replication Latency
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Complements UC-18.1.7 with **database replication delay** and inter-APIC consensus metrics for split-brain prevention.
+- **App/TA:** `TA_cisco-ACI`
+- **Equipment Models:** Cisco APIC cluster
+- **Data Sources:** APIC `avictrl` / cluster diagnostics API
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:cluster_diag" earliest=-24h
+| where repl_delay_ms>500 OR match(lower(message),"(?i)split|partition|lag")
+| table _time, apic_id, repl_delay_ms, message
+| sort -_time
+```
+- **Implementation:** Map fields from your APIC release; some metrics require Cisco DC Networking App. Alert on sustained replication lag.
+- **Visualization:** Line chart (repl delay), Table (alerts), Single value (max lag ms).
+- **CIM Models:** N/A
+
 ---
 
 ### 18.2 VMware NSX
@@ -284,6 +492,170 @@ index=vmware sourcetype="vmware:nsx:transport_node"
 ```
 - **Implementation:** Poll NSX Manager for transport node status every 30 seconds. Monitor TEP (Tunnel Endpoint) reachability between all transport nodes. Alert immediately on tunnel DOWN state. Track tunnel flapping (frequent UP/DOWN cycles). Correlate with physical network events (link failures, MTU issues).
 - **Visualization:** Status grid (transport node map), Table (degraded nodes), Timechart (tunnel status changes), Single value (healthy tunnel percentage).
+- **CIM Models:** N/A
+
+### UC-18.2.6 · Distributed Firewall Rule Hit Rate Analysis
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Baselines hits per DFW rule and flags sudden drops (unused or bypassed) or spikes (attack or misconfiguration) — complements UC-18.2.1 volume view.
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** NSX-T Data Center
+- **Data Sources:** `sourcetype=vmware:nsx:dfw`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:dfw" earliest=-7d
+| bin _time span=1d
+| stats count by _time, rule_id, rule_name
+| eventstats avg(count) as baseline by rule_id
+| where count < baseline*0.2 OR count > baseline*5
+| table _time, rule_id, rule_name, count, baseline
+```
+- **Implementation:** Requires ≥7 days of data for baseline. Exclude ephemeral rules by lookup. Alert on zero-hit critical allow rules.
+- **Visualization:** Line chart (hits per rule), Table (anomalies), Heatmap (rule × day).
+- **CIM Models:** N/A
+
+### UC-18.2.7 · Micro-Segmentation Policy Drift
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Compares published DFW policy revision to approved baseline (lookup) to detect unauthorized rule changes between change windows.
+- **App/TA:** `vmware_nsx_addon`, NSX policy export
+- **Data Sources:** `vmware:nsx:policy_revision`, config snapshots
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:policy_revision" earliest=-24h
+| stats latest(revision_id) as rev by domain_name
+| lookup nsx_policy_baseline.csv domain_name OUTPUT approved_revision
+| where rev!=approved_revision
+| table domain_name, rev, approved_revision
+```
+- **Implementation:** Populate baseline from last CAB-approved export. Run after each change window; alert on drift.
+- **Visualization:** Table (drifted domains), Single value (drift count), Timeline.
+- **CIM Models:** N/A
+
+### UC-18.2.8 · NSX Edge Gateway Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Service status for Tier-0/Tier-1 SR components (BGP, NAT, LB service) on Edge nodes — complements CPU metrics (UC-18.2.4).
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** NSX Edge VM/BM
+- **Data Sources:** `vmware:nsx:edge_status`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:edge_status" earliest=-4h
+| where overall_status!="UP" OR bgp_status!="Established"
+| stats latest(overall_status) as st, latest(bgp_status) as bgp by edge_node, lr_name
+| table edge_node, lr_name, st, bgp
+```
+- **Implementation:** Map status fields from NSX Manager API. Alert on any non-UP gateway service. Correlate with northbound ISP events.
+- **Visualization:** Status grid (edge × LR), Table (down services), Timeline.
+- **CIM Models:** N/A
+
+### UC-18.2.9 · NSX-T Transport Node Overlay Path Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Validates GENEVE overlay between TNs (packet loss, MTU) beyond simple UP/DOWN (UC-18.2.5).
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** ESXi KVM transport nodes
+- **Data Sources:** `vmware:nsx:tn_diag`, traceflow results
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:tn_diag" earliest=-24h
+| where pkt_loss_pct>1 OR mtu_issue=1
+| stats max(pkt_loss_pct) as max_loss by src_tn, dst_tn
+| sort -max_loss
+| head 50
+```
+- **Implementation:** Ingest Traceflow or TN diagnostic jobs on schedule. Alert on loss >1% between any TN pair in same pool.
+- **Visualization:** Heatmap (TN × TN loss), Table (worst pairs), Line chart (loss trend).
+- **CIM Models:** N/A
+
+### UC-18.2.10 · Load Balancer Pool Health
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors NSX Advanced Load Balancer / LB pool member up/down and health check failures for published apps.
+- **App/TA:** `vmware_nsx_addon`, Avi if integrated
+- **Equipment Models:** NSX ALB, LB service on Edge
+- **Data Sources:** `vmware:nsx:lb_pool`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:lb_pool" earliest=-24h
+| where member_status!="UP" OR health_check_failures>0
+| stats count by pool_name, member_ip, member_status
+| sort -count
+```
+- **Implementation:** Map Avi or NSX LB API fields. Alert when active members < minimum for pool.
+- **Visualization:** Table (unhealthy pools), Bar chart (failures by pool), Single value (pools in critical state).
+- **CIM Models:** N/A
+
+### UC-18.2.11 · NAT Rule Utilization
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Tracks NAT session and port allocation per rule — prevents exhaustion on busy Edge gateways.
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** NSX Edge NAT
+- **Data Sources:** `vmware:nsx:nat_stats`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:nat_stats" earliest=-1h
+| eval used_pct=round(100*active_sessions/session_limit,1)
+| where used_pct>85
+| table edge_node, rule_id, active_sessions, session_limit, used_pct
+| sort -used_pct
+```
+- **Implementation:** Session limits depend on Edge form factor; load from capacity sheet via lookup. Alert at 85%.
+- **Visualization:** Bar chart (NAT % by rule), Table (top consumers), Gauge.
+- **CIM Models:** N/A
+
+### UC-18.2.12 · T0/T1 Gateway Failover Events
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Captures active/standby transitions for Tier-0/Tier-1 logical routers for incident correlation and HA validation.
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** NSX-T LR HA
+- **Data Sources:** `vmware:nsx:lr_events`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:lr_events" earliest=-7d
+| search failover OR "HA switch" OR "role change"
+| stats latest(_time) as last_seen, count by lr_name, prev_role, new_role, edge_node
+| sort -last_seen
+```
+- **Implementation:** Normalize syslog/API messages for HA events. Alert on any unplanned failover. Pager for T0.
+- **Visualization:** Timeline (failovers), Table (events), Single value (failovers / month).
+- **CIM Models:** N/A
+
+### UC-18.2.13 · NSX Manager Cluster Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Cluster quorum, Corfu/RAFT health, and API reachability for NSX Manager appliance cluster.
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** NSX Manager cluster (3-node)
+- **Data Sources:** `vmware:nsx:manager_cluster`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:manager_cluster" earliest=-24h
+| where cluster_status!="STABLE" OR offline_nodes>0
+| stats latest(cluster_status) as st latest(offline_nodes) as off by cluster_id
+| table cluster_id, st, off
+```
+- **Implementation:** Map NSX version-specific cluster health API. Alert immediately if not STABLE or any node offline.
+- **Visualization:** Status grid (manager nodes), Single value (cluster OK), Timeline.
 - **CIM Models:** N/A
 
 ### 18.3 Other SDN
@@ -505,6 +877,154 @@ index=network sourcetype="evpn:route_summary"
 ```
 - **Implementation:** Deploy scripted input to run `show bgp l2vpn evpn summary` or equivalent (e.g., `show bgp evpn summary` on Arista) on each leaf every 5–15 minutes via SSH or eAPI. Parse route counts by type: Type-2 (MAC/IP), Type-3 (IMET), Type-5 (IP prefix). Ingest into Splunk with host, route_type, count, and timestamp. Baseline normal growth rates per VNI/tenant. Alert on sudden spikes (>20% in 1 hour) or sustained growth exceeding hardware limits. Report on top VNIs by route count for cleanup and capacity planning.
 - **Visualization:** Timechart (route count by type over time), Table (current counts by host and type), Single value (total EVPN routes), Bar chart (route growth rate by type).
+- **CIM Models:** N/A
+
+### UC-18.3.11 · EVPN/VXLAN Tunnel Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Unified view of BGP EVPN tunnel state and VXLAN encapsulation errors per VNI — bridges overlay protocols (complements UC-18.3.4 and UC-18.3.9).
+- **App/TA:** NX-OS/EOS syslog, BGP telemetry
+- **Equipment Models:** Cisco Nexus, Arista
+- **Data Sources:** `evpn:bgp`, `vxlan:tunnel`
+- **SPL:**
+```spl
+index=network (sourcetype="evpn:bgp" OR sourcetype="vxlan:tunnel") earliest=-24h
+| eval bad=if(match(lower(state),"(?i)down|idle") OR error_count>0,1,0)
+| where bad=1
+| stats latest(state) as st, sum(error_count) as err by vni, peer_ip, leaf
+| table leaf, peer_ip, vni, st, err
+```
+- **Implementation:** Normalize peer and VNI from vendor logs. Alert on any down EVPN session carrying VXLAN for production VNIs.
+- **Visualization:** Table (unhealthy tunnels), Geo/leaf map, Line chart (error count).
+- **CIM Models:** N/A
+
+### UC-18.3.12 · SDN Controller High Availability
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Quorum, leader election, and data-store sync for controller clusters — extends generic health (UC-18.3.3) with **HA-specific** failover signals.
+- **App/TA:** `sdn:controller`, OpenDaylight, ONOS (custom)
+- **Equipment Models:** SDN controller cluster
+- **Data Sources:** `sdn:controller_ha`
+- **SPL:**
+```spl
+index=sdn sourcetype="sdn:controller_ha" earliest=-24h
+| where quorum_ok=0 OR leader_id!=expected_leader
+| stats latest(quorum_ok) as q, latest(leader_id) as leader by cluster_name
+| table cluster_name, q, leader
+```
+- **Implementation:** Map `expected_leader` from static config lookup. Alert on quorum loss or rogue leader.
+- **Visualization:** Status grid (cluster), Timeline (failover events), Single value (cluster up).
+- **CIM Models:** N/A
+
+### UC-18.3.13 · Fabric Upgrade Compliance
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Tracks switch OS / ACI firmware versions against approved upgrade wave — identifies stragglers and unsupported trains.
+- **App/TA:** Inventory scripted input, SNMP
+- **Equipment Models:** Leaf/spine switches
+- **Data Sources:** `network:inventory`
+- **SPL:**
+```spl
+index=inventory sourcetype="network:inventory" role IN ("leaf","spine")
+| lookup fabric_target_version.csv platform OUTPUT target_version
+| where os_version!=target_version
+| stats count by site, os_version, target_version
+| sort -count
+```
+- **Implementation:** Refresh inventory daily. Drive remediation campaigns for nodes not on target.
+- **Visualization:** Table (non-compliant nodes), Pie chart (compliance %), Bar chart (by site).
+- **CIM Models:** N/A
+
+### UC-18.3.14 · Spine-Leaf Topology Anomalies
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Detects unexpected BGP neighbor loss, missing spine links, or asymmetric ECMP paths in Clos topology.
+- **App/TA:** BGP syslog, LLDP
+- **Data Sources:** `bgp:neighbor`, `lldp:topology`
+- **SPL:**
+```spl
+index=network sourcetype="bgp:neighbor" earliest=-4h
+| where state!="Established"
+| lookup expected_bgp_peers.csv local_host peer_ip OUTPUT 1 as expected
+| where isnotnull(expected)
+| stats count by local_host, peer_ip, state, reason
+| sort -count
+```
+- **Implementation:** Maintain `expected_peers.csv` from design. Alert on any spine-leaf session not Established.
+- **Visualization:** Graph (topology violations), Table (bad neighbors), Timeline.
+- **CIM Models:** N/A
+
+### UC-18.3.15 · BGP EVPN Route Table Convergence
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Measures time-to-stable route count after churn events (link bounce, leaf reboot) — complements route count trending (UC-18.3.10).
+- **App/TA:** BGP monitor, `evpn:route_summary`
+- **Equipment Models:** EVPN/VXLAN leafs
+- **Data Sources:** `evpn:route_summary`
+- **SPL:**
+```spl
+index=network sourcetype="evpn:route_summary" earliest=-24h
+| sort 0 host _time
+| streamstats global=f last(total_routes) as prev_routes by host
+| eval churn=abs(total_routes-prev_routes)
+| where churn>500
+| table _time, host, total_routes, prev_routes, churn
+```
+- **Implementation:** Simplify: alert on `total_routes` delta spikes; use scripted convergence test after maintenance. Tune thresholds to fabric size.
+- **Visualization:** Line chart (total routes), Table (churn events), Bar chart (max churn by leaf).
+- **CIM Models:** N/A
+
+### UC-18.3.16 · VTEP Reachability and Loss
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Packet loss and latency between VTEP peers — augments UC-18.3.9 state-only checks.
+- **App/TA:** `Splunk_TA_nix`, ICMP probes, SNMP
+- **Equipment Models:** VXLAN-capable switches
+- **Data Sources:** `vtep:probe` or synthetic tests
+- **SPL:**
+```spl
+index=network sourcetype="vtep:probe" earliest=-24h
+| where loss_pct>2 OR latency_ms>10
+| stats avg(loss_pct) as avg_loss, avg(latency_ms) as avg_lat by src_vtep, dst_vtep
+| sort -avg_loss
+| head 20
+```
+- **Implementation:** Run periodic probes between TEP IPs from automation. Correlate with underlay QoS drops.
+- **Visualization:** Heatmap (VTEP × VTEP loss), Table (worst pairs), Line chart (loss trend).
+- **CIM Models:** N/A
+
+### UC-18.3.17 · Leaf Switch Resource Utilization
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** CPU, memory, and forwarding table use on leaf switches — prevents control-plane overload and FIB exhaustion.
+- **App/TA:** SNMP modular input, NX-API
+- **Equipment Models:** Cisco/Arista leafs
+- **Data Sources:** `snmp:cpu`, `snmp:mem`, `hw:forwarding`
+- **SPL:**
+```spl
+index=snmp sourcetype="snmp:cpu" role="leaf" earliest=-1h
+| eval use=cpu_pct
+| append [ search index=snmp sourcetype="snmp:mem" role="leaf" earliest=-1h | eval use=mem_pct ]
+| stats avg(use) as avg_use max(use) as peak by host
+| where peak>85
+| table host, avg_use, peak
+```
+- **Implementation:** Add FIB/ARP scale via `show forwarding` scripted input. Alert on sustained high CPU with EVPN churn.
+- **Visualization:** Heatmap (leaf × metric), Table (top peaks), Line chart (utilization).
 - **CIM Models:** N/A
 
 ---

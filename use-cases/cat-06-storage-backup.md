@@ -350,6 +350,185 @@ index=storage sourcetype="raid:rebuild"
 
 ---
 
+### UC-6.1.18 · NetApp ONTAP Performance Counters
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Counter-based throughput, latency, and queue depth from ONTAP complement volume-level views. Trending counters catches node or aggregate saturation before user-visible latency spikes.
+- **App/TA:** `TA-netapp_ontap`, REST API scripted input
+- **Data Sources:** ONTAP REST `/api/cluster/counter/tables/*` or ZAPI `perf-object-get-list`
+- **SPL:**
+```spl
+index=storage sourcetype="netapp:ontap:counter"
+| where object_name="volume" OR object_name="lun"
+| timechart span=5m avg(read_latency) as read_ms, avg(write_latency) as write_ms, avg(total_ops) as iops by instance_name
+| where read_ms > 15 OR write_ms > 15
+```
+- **Implementation:** Enable performance counter polling (15m) for volumes/LUNs. Map instance to SVM and export. Baseline p95 latency and IOPS; alert on sustained deviation from baseline.
+- **Visualization:** Line chart (latency and IOPS by object), Table (top latency contributors), Single value (max read/write ms).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.19 · Pure Storage Array Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Pure FA/FB controller, component, and capacity health events indicate hardware or software risk. Unified visibility supports proactive replacement and support cases.
+- **App/TA:** Pure REST API (scripted input), Pure TA if deployed
+- **Data Sources:** Pure REST `/api/2.x/arrays`, `/hardware`, `/alerts`
+- **SPL:**
+```spl
+index=storage sourcetype="pure:array"
+| search status!="healthy" OR component_status!="ok" OR severity IN ("critical","warning")
+| stats latest(_time) as last_event, values(message) as messages by array_name, component
+| sort -last_event
+```
+- **Implementation:** Poll array health and open alerts every 5–15 minutes. Ingest critical/warning alerts with component ID. Correlate with support bundle generation workflows.
+- **Visualization:** Single value (open critical alerts), Table (array, component, status), Timeline (health transitions).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.20 · iSCSI Session Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Dropped or flapping iSCSI sessions cause path loss and I/O errors. Session count and login state trending validates host-to-array connectivity after network or firmware changes.
+- **App/TA:** Vendor TA, Linux `iscsiadm` scripted input, array iSCSI session API
+- **Data Sources:** Host `iscsiadm -m session`, array iSCSI session list
+- **SPL:**
+```spl
+index=storage sourcetype="iscsi:session"
+| stats dc(session_id) as sessions by host, target_iqn, _time span=5m
+| eventstats avg(sessions) as baseline by host, target_iqn
+| where sessions < baseline OR sessions=0
+```
+- **Implementation:** Scripted input on hosts or array API export of active sessions every 5m. Alert on session count drop to zero or vs baseline. Correlate with NIC/link events.
+- **Visualization:** Line chart (sessions per host/target), Table (hosts with zero sessions), Single value (total active sessions).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.21 · Multipath Failover Events
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Path failovers indicate cable, SFP, HBA, or array port issues. Rapid detection limits prolonged single-path exposure and data loss risk.
+- **App/TA:** Linux `multipathd` journal, Windows MPIO events, syslog
+- **Data Sources:** `multipathd` logs, `mpathadm` status (Solaris), OS MPIO event logs
+- **SPL:**
+```spl
+index=os (sourcetype=linux_syslog OR sourcetype=syslog) (multipath OR "path failed" OR "switching path" OR mpio)
+| rex "(?i)path (?<path_id>\S+).*failed|(?i)switching.*path"
+| stats count by host, path_id, _time span=1h
+| where count > 0
+```
+- **Implementation:** Forward multipath daemon logs from all SAN-attached hosts. Tag events for failback/failover. Alert on any path down >5m or repeated failovers per hour.
+- **Visualization:** Timeline (failover events), Table (host, path, count), Single value (failovers last 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.22 · Fibre Channel Port Error Rate (Array)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Array-side FC port CRCs, signal loss, and link failures differ from switch-only views. Port error rate trending isolates HBA/cable issues at the storage attachment point.
+- **App/TA:** Vendor TA, SNMP FC port MIB
+- **Data Sources:** Array FC port statistics (CRC, enc_in, enc_out, link_fail)
+- **SPL:**
+```spl
+index=storage sourcetype="storage:fc_port"
+| eval err_rate=crc_errors + link_failures + signal_loss
+| timechart span=15m sum(err_rate) as errors by array_name, port_id
+| where errors > 0
+```
+- **Implementation:** Poll FC port counters per array port every 15m. Baseline error rate; alert on non-zero sustained errors or step changes after maintenance.
+- **Visualization:** Bar chart (errors by port), Line chart (error rate trend), Table (ports with errors).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.23 · LUN Latency Trending
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Per-LUN latency separates noisy neighbors and misaligned workloads from array-wide issues. Supports QoS and datastore placement decisions.
+- **App/TA:** Vendor TA, VMware vSphere performance (if LUN mapped)
+- **Data Sources:** Array LUN performance API, VMware `disk.latency` per datastore
+- **SPL:**
+```spl
+index=storage sourcetype="storage:lun_perf"
+| timechart span=5m perc95(read_latency_ms) as p95_read, perc95(write_latency_ms) as p95_write by lun_id, array_name
+| where p95_read > 20 OR p95_write > 20
+```
+- **Implementation:** Ingest per-LUN latency at 5m granularity. Set SLA thresholds (e.g., p95 >20ms). Split by workload tier. Correlate with IOPS saturation.
+- **Visualization:** Line chart (p95 read/write per LUN), Heatmap (LUN × hour), Table (worst LUNs).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.24 · Aggregate Space Forecasting
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** Forecasting aggregate free space prevents sudden write failures on thin-provisioned pools. Supports procurement and volume migration planning.
+- **App/TA:** Vendor TA, REST API
+- **Data Sources:** Aggregate used/total bytes, snapshot reserve
+- **SPL:**
+```spl
+index=storage sourcetype="netapp:ontap:aggregate"
+| timechart span=1d latest(physical_used_pct) as used_pct by aggregate_name
+| predict used_pct as forecast future_timespan=30
+```
+- **Implementation:** Daily snapshot of aggregate utilization. Use `predict` or linear regression for 30/60-day runway. Alert when forecast crosses 85% within 30 days.
+- **Visualization:** Line chart (used % with forecast band), Table (aggregates by days-to-full), Single value (soonest full date).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.25 · Snapshot Schedule Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Missed snapshot schedules break backup and rollback expectations. Verifying snapshot recency per policy supports operational and audit requirements.
+- **App/TA:** Vendor TA, API
+- **Data Sources:** Snapshot list with create time, policy name
+- **SPL:**
+```spl
+index=storage sourcetype="storage:snapshot"
+| stats latest(snapshot_time) as last_snap by volume_name, policy_name
+| eval hours_since=round((now()-snapshot_time)/3600,1)
+| lookup snapshot_policy_expected policy_name OUTPUT expected_hours_max
+| where hours_since > expected_hours_max
+```
+- **Implementation:** Maintain lookup of expected max age per policy. Compare latest snapshot timestamp to policy. Alert on volumes with no snapshot within SLA window.
+- **Visualization:** Table (non-compliant volumes), Single value (policy violations count), Timeline (snapshot completions).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.26 · Deduplication Savings Ratio
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Deduplication ratio trending validates efficiency features and detects anomalies (sudden ratio drop may indicate new data types or misconfiguration).
+- **App/TA:** Vendor TA (NetApp, Dell, Pure)
+- **Data Sources:** Logical vs physical used, dedupe savings API fields
+- **SPL:**
+```spl
+index=storage sourcetype="storage:dedupe"
+| eval savings_ratio=round((logical_used_bytes-physical_used_bytes)/nullif(logical_used_bytes,0)*100,1)
+| timechart span=1d avg(savings_ratio) as ratio by aggregate_name
+| where ratio < 30
+```
+- **Implementation:** Poll dedupe stats weekly or daily. Baseline savings ratio per aggregate. Alert on significant drop vs 30-day average (e.g., >20% relative drop).
+- **Visualization:** Line chart (savings ratio over time), Table (aggregate, logical, physical, ratio), Single value (fleet average ratio).
+- **CIM Models:** N/A
+
+---
+
 ### 6.2 Object Storage
 
 **Primary App/TA:** Cloud provider TAs (`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`), MinIO webhook inputs, custom REST API inputs.
@@ -449,6 +628,147 @@ index=aws sourcetype="aws:cloudwatch" metric_name="ReplicationLatency"
 ```
 - **Implementation:** Enable S3 replication metrics in CloudWatch. Ingest and alert when replication latency or pending operations exceed thresholds. Correlate with data ingestion spikes that may cause temporary lag.
 - **Visualization:** Line chart (replication lag over time), Single value (max lag), Table (buckets with lag exceeding SLA).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.2.6 · S3 and Azure Blob Lifecycle Policy Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Configuration
+- **Value:** Confirms lifecycle rules exist per bucket/container and that transitions match tagging/age rules. Reduces cost leakage from objects stuck in hot tiers.
+- **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, Config/Policy inventory
+- **Data Sources:** S3 bucket lifecycle XML inventory, Azure Blob management policy JSON, AWS Config
+- **SPL:**
+```spl
+index=aws sourcetype="aws:s3:lifecycle_inventory"
+| stats values(rule_id) as rules, latest(has_expiration) as exp by bucket_name, region
+| where mvcount(rules)=0 OR exp=0
+| table bucket_name region rules exp
+```
+- **Implementation:** Export bucket lifecycle configurations via API/Config daily. For Azure, ingest policy definitions from Activity/Resource Graph. Alert on production buckets missing lifecycle or expiration actions.
+- **Visualization:** Table (buckets without compliant lifecycle), Pie chart (compliant vs non-compliant), Single value (non-compliant count).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.2.7 · Cross-Region Replication Lag (SLA)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Tracks replication backlog and oldest replicated object age for S3 CRR and Azure geo-replication. Complements byte-level lag with time-based SLA views.
+- **App/TA:** Cloud TAs, CloudWatch, Azure Monitor
+- **Data Sources:** S3 `OperationsPendingReplication`, Azure `GeoReplicationLag` (where available)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" metric_name="OperationsPendingReplication"
+| timechart span=1h max(Maximum) as pending_ops by bucket_name
+| where pending_ops > 100000
+```
+- **Implementation:** Set thresholds from RPO (e.g., pending operations or max lag minutes). Alert when backlog grows for >1h. For Azure Blob, ingest replication health metrics from Monitor diagnostics.
+- **Visualization:** Line chart (pending replication / lag), Table (buckets breaching SLA), Single value (max lag minutes).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.2.8 · Bucket Policy Change Audit
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Unexpected bucket policy or IAM policy changes can expose data. Audit trail supports SOC2/PCI evidence and fast rollback.
+- **App/TA:** `Splunk_TA_aws` (CloudTrail), Azure Activity Log
+- **Data Sources:** `PutBucketPolicy`, `DeleteBucketPolicy`, `SetContainerAcl` (Azure equivalents)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudtrail" eventName IN ("PutBucketPolicy","DeleteBucketPolicy","PutBucketAcl")
+| table _time, requestParameters.bucketName, userIdentity.arn, sourceIPAddress, eventName
+| sort -_time
+```
+- **Implementation:** Ingest CloudTrail S3 and IAM policy events. Enrich with CMDB owner. Alert on changes outside change windows or from non-break-glass principals.
+- **Visualization:** Timeline (policy changes), Table (bucket, user, action), Single value (changes last 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.2.9 · Pre-Signed URL Abuse Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Unusual volume of pre-signed GET/PUT or access from unexpected IPs may indicate credential theft or insider abuse.
+- **App/TA:** `Splunk_TA_aws` (S3 access logs), CloudTrail data events
+- **Data Sources:** S3 server access logs with `queryString` containing `X-Amz-`, `Signature`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:s3:accesslogs"
+| search query_string="*X-Amz-*" OR query_string="*Signature*"
+| stats count by bucket_name, requester, remote_ip
+| eventstats avg(count) as avg_c, stdev(count) as stdev_c by bucket_name
+| where count > avg_c + 3*stdev_c
+```
+- **Implementation:** Parse query string for presigned parameters. Baseline requests per requester/IP. Alert on spikes or geo anomalies. Correlate with IAM changes.
+- **Visualization:** Table (top presigned requesters), Line chart (presigned request rate), Map (remote_ip).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.2.10 · Storage Class Transition Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Cost
+- **Value:** Validates that objects move to IA/Glacier/Archive per policy. Stalled transitions indicate rule gaps or unsupported objects.
+- **App/TA:** S3 Inventory, Azure Blob inventory, CloudWatch storage class metrics
+- **Data Sources:** S3 Inventory reports (CSV), `BucketSizeBytes` by `StorageType`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:s3:inventory" OR sourcetype="aws:cloudwatch" metric_name="BucketSizeBytes"
+| stats sum(size_bytes) as bytes by bucket_name, storage_class
+| eventstats sum(bytes) as total by bucket_name
+| eval pct=round(bytes/total*100,1)
+| where storage_class="STANDARD" AND pct > 40
+```
+- **Implementation:** Ingest periodic inventory or CloudWatch breakdown. Compare STANDARD % vs policy targets. Report buckets with excessive STANDARD after expected transition age.
+- **Visualization:** Stacked bar (storage class % per bucket), Table (buckets with high STANDARD %), Line chart (class mix over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.2.11 · Object Versioning Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Configuration
+- **Value:** Buckets without versioning risk unrecoverable overwrites. Monitoring ensures critical buckets remain versioned per data policy.
+- **App/TA:** AWS Config, Azure Policy compliance states
+- **Data Sources:** `GetBucketVersioning`, Config rule compliance
+- **SPL:**
+```spl
+index=aws sourcetype="aws:config:rule"
+| search configRuleName="*s3-bucket-versioning*" OR resourceType="AWS::S3::Bucket"
+| spath output=versioning resource.configuration.versioning.status
+| where versioning!="Enabled" AND complianceType="NON_COMPLIANT"
+| table resourceId, complianceType, versioning
+```
+- **Implementation:** Map critical buckets via lookup. Alert when versioning is suspended or never enabled on tagged buckets. Include MFA delete status in extended implementation.
+- **Visualization:** Table (non-compliant buckets), Single value (buckets without versioning), Status grid (bucket × region).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.2.12 · Object Lock Integrity
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** WORM/immutability protects against ransomware and deletion. Verifies Object Lock retention mode and legal hold on regulated buckets.
+- **App/TA:** AWS Config, S3 API inventory
+- **Data Sources:** `GetObjectLockConfiguration`, Config compliance, S3 Inventory `ObjectLockEnabled`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:s3:object_lock_audit"
+| where object_lock_enabled!=1 OR retention_mode="null" OR compliance_gap=1
+| stats latest(_time) as last_check by bucket_name, region
+| table bucket_name region object_lock_enabled retention_mode compliance_gap
+```
+- **Implementation:** Scripted audit comparing required lock settings from lookup to actual API responses. Alert on drift or disabled lock. Log tamper-evident checksum of policy JSON if stored in Splunk.
+- **Visualization:** Table (buckets failing lock check), Single value (drift count), Timeline (audit runs).
 - **CIM Models:** N/A
 
 ---
@@ -662,6 +982,173 @@ index=backup sourcetype="veeam:repository" OR sourcetype="backup:repository"
 ```
 - **Implementation:** Poll backup repository capacity via vendor API (Veeam, Commvault, etc.) or scripted input (filesystem df, REST endpoint). Collect used_bytes and capacity_bytes per repository daily. Index to Splunk. Use `predict` or `trendline` for 30/60/90-day forecasts. Alert when projected full date is within 90 days. Correlate growth rate with backup job data volume trends.
 - **Visualization:** Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.11 · Veeam Backup Job Status Summary
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Roll-up of last job result per workload (Success/Warning/Failed/Running) for executive and NOC dashboards. Complements session-level detail with a single row per protected entity.
+- **App/TA:** Veeam App for Splunk, Enterprise Manager API
+- **Data Sources:** `veeam:job` or `veeam:job_session` with `job_name`, `status`, `end_time`
+- **SPL:**
+```spl
+index=backup sourcetype="veeam:job_session"
+| stats latest(_time) as last_end, latest(status) as status, latest(duration_sec) as duration by job_name
+| where status IN ("Failed","Warning") OR duration > 28800
+| table job_name last_end status duration
+```
+- **Implementation:** Schedule hourly. Map Warning to ticket for review. Escalate Failed immediately. Track Running jobs exceeding expected window as Warning.
+- **Visualization:** Status grid (job × last status), Single value (failed count), Table (jobs needing attention).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.12 · Commvault Job Completion
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Failed or incomplete Commvault backup jobs leave subclients unprotected. Job-level success tracking is required for audit and restore confidence.
+- **App/TA:** Commvault Splunk App, Commvault REST/CLI export
+- **Data Sources:** Commvault job history (subclient, status, error code)
+- **SPL:**
+```spl
+index=backup sourcetype="commvault:job"
+| where status!="Completed" OR job_status="Failed"
+| stats latest(_time) as last_run, latest(error_code) as err by job_name, subclient_name
+| table job_name subclient_name last_run err
+```
+- **Implementation:** Ingest completed job events from Commvault. Normalize status values. Alert on Failed; report Partial with same severity as policy dictates.
+- **Visualization:** Table (failed jobs), Single value (failed jobs 24h), Bar chart (failures by error code).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.13 · Backup RPO and RTO Compliance
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** Compares actual backup completion time and restore test duration against business RPO/RTO targets per application tier.
+- **App/TA:** Backup TA + CMDB lookup
+- **Data Sources:** Last successful backup time, last restore test duration
+- **SPL:**
+```spl
+| inputlookup cmdb_systems.csv WHERE backup_tier=*
+| join system_name max=0
+    [search index=backup sourcetype="veeam:job" status="Success" earliest=-7d
+     | stats latest(_time) as last_ok by system_name]
+| eval hours_since_ok=round((now()-last_ok)/3600,1)
+| lookup backup_rpo_hours tier OUTPUT rpo_hours
+| where hours_since_ok > rpo_hours
+| table system_name tier hours_since_ok rpo_hours
+```
+- **Implementation:** Maintain lookup of RPO hours per tier. Join to last successful backup. Alert when hours_since_ok exceeds RPO. Add parallel search for restore drill duration vs RTO.
+- **Visualization:** Table (systems breaching RPO), Gauge (% RPO compliant), Line chart (hours since backup by tier).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.14 · Tape Library Robotics and Drive Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Mechanical faults, barcode read errors, and drive cleaning states cause failed backups before media errors. Dedicated robotics metrics reduce MTTR for tape operations.
+- **App/TA:** Vendor SNMP, backup software tape events
+- **Data Sources:** Library element status, picker errors, drive cleaning required flags
+- **SPL:**
+```spl
+index=backup sourcetype="tape_library:robot"
+| search (robot_error OR slot_unavailable OR "inventory failed" OR cleaning_required="true")
+| stats count by library_name, component, error_code
+| where count > 0
+```
+- **Implementation:** Augment generic tape syslog with SNMP polls for robotics status. Alert on inventory failures or slot errors. Schedule cleaning when `cleaning_required` is set.
+- **Visualization:** Table (library, component, errors), Timeline (robotics faults), Single value (libraries with open faults).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.15 · DR Rehearsal Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Tabletop and technical DR tests must occur on schedule. Tracking rehearsal outcomes and dates supports audit and readiness scoring.
+- **App/TA:** Custom (ITSM, spreadsheet ingest, HEC)
+- **Data Sources:** DR test results, DR runbook completion events
+- **SPL:**
+```spl
+index=backup sourcetype="dr_rehearsal"
+| stats latest(test_date) as last_test, latest(result) as result by system_name, scenario
+| eval days_since=round((now()-strptime(last_test,"%Y-%m-%d"))/86400)
+| where days_since > 365 OR result!="Pass"
+| table system_name scenario last_test result days_since
+```
+- **Implementation:** Log each rehearsal with scenario, duration, pass/fail. Alert when annual test is overdue or result is not Pass. Correlate with actual restore tests from backup tools.
+- **Visualization:** Table (overdue systems), Calendar (scheduled tests), Single value (% scenarios current).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.16 · Backup Window Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Jobs that consume most of the backup window risk overlap with production or fail to finish. Utilization % guides schedule tuning and parallel job limits.
+- **App/TA:** Vendor job logs
+- **Data Sources:** Job start/end, defined backup window start/end per policy
+- **SPL:**
+```spl
+index=backup sourcetype="veeam:job" status="Success"
+| eval duration_min=(end_time-start_time)/60
+| lookup backup_policy job_name OUTPUT window_start_hour window_end_hour
+| eval window_min=(window_end_hour-window_start_hour)*60
+| eval util_pct=round(duration_min/window_min*100,1)
+| where util_pct > 85
+| table job_name duration_min window_min util_pct
+```
+- **Implementation:** Define backup window per policy in lookup. Compare job duration to window length. Alert when utilization >85% or job end exceeds window end.
+- **Visualization:** Bar chart (utilization % by job), Line chart (duration trend vs window), Table (jobs at risk of overrun).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.17 · Incremental Backup Chain Integrity
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** Broken increment chains (missing full or corrupted metadata) make restores impossible. Vendor-specific checks detect chain gaps before a failure at restore time.
+- **App/TA:** Veeam/Commvault verification APIs, catalog exports
+- **Data Sources:** Backup chain metadata, `Verify` job results
+- **SPL:**
+```spl
+index=backup sourcetype="backup:chain_verify"
+| where chain_ok=0 OR missing_restore_point=1 OR verify_status="Failed"
+| stats latest(_time) as last_check by job_name, vm_name
+| table job_name vm_name chain_ok missing_restore_point verify_status last_check
+```
+- **Implementation:** Ingest synthetic full verification or chain validation jobs. Alert on any `chain_ok=0`. Weekly full verification of random samples for large environments.
+- **Visualization:** Table (broken chains), Single value (VMs with integrity issues), Timeline (verify jobs).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.18 · Backup Data Growth Trending by Workload
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Per-workload front-end bytes backed up trend identifies data sprawl, VM growth, or unexpected database growth before repository exhaustion.
+- **App/TA:** Vendor TA
+- **Data Sources:** Job statistics `data_transferred_bytes` or `processed_size` per job/run
+- **SPL:**
+```spl
+index=backup sourcetype="veeam:job" status="Success"
+| timechart span=1d sum(data_transferred_gb) as daily_gb by job_name
+| predict daily_gb as forecast future_timespan=30
+```
+- **Implementation:** Sum data per job daily. Use `predict` for growth. Alert when week-over-week growth exceeds threshold (e.g., 25%). Compare to repository free space.
+- **Visualization:** Line chart (daily GB with forecast per job), Table (fastest-growing jobs), Top values (growth %).
 - **CIM Models:** N/A
 
 ---
@@ -894,6 +1381,147 @@ index=backup sourcetype="tape_library:capacity"
 ```
 - **Implementation:** Poll tape library via SNMP (MIB-II, vendor-specific MIBs for slot counts) or vendor REST/CLI API. Collect total_slots, slots_used, and optionally media expiration dates. Run scripted input every 1–4 hours. Index to Splunk. Alert when slot utilization exceeds 85% or when media expiring within 30 days is detected. Maintain lookup of media barcodes and expiration for lifecycle tracking.
 - **Visualization:** Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.12 · DFS Replication Backlog and Connectivity Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Backlog size and partner connectivity state predict replication stalls before user-visible file divergence. Complements event-only monitoring with quantitative backlog trending.
+- **App/TA:** `Splunk_TA_windows`, scripted `dfsrdiag` / WMI
+- **Data Sources:** DFS-R backlog metrics per replicated folder, Event ID 4012/5002
+- **SPL:**
+```spl
+index=storage sourcetype="dfsr:backlog"
+| where backlog_files > 100 OR connected=0
+| timechart span=15m max(backlog_files) as backlog by replication_group, member
+| where backlog > 500
+```
+- **Implementation:** Ingest backlog count from PowerShell `Get-DfsrState` or scheduled dfsrdiag output every 15m. Alert on rising backlog trend or disconnected partners.
+- **Visualization:** Line chart (backlog files over time), Table (RG, member, backlog), Single value (max backlog).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.13 · NFS Export Capacity and Client Load
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Export-level capacity and NFS operations/sec highlight hot exports and approaching full filesystems on NAS heads.
+- **App/TA:** NetApp/Isilon API, Linux `nfsstat`, `exportfs -v` metrics
+- **Data Sources:** Per-export bytes used, NFS op counters
+- **SPL:**
+```spl
+index=storage sourcetype="nas:nfs_export"
+| eval used_pct=round(used_bytes/capacity_bytes*100,1)
+| timechart span=5m sum(ops_per_sec) as ops, avg(used_pct) as pct by export_path, host
+| where pct > 85 OR ops > 10000
+```
+- **Implementation:** Poll export statistics from NAS API or aggregated nfsd metrics. Alert on high used % or abnormal ops vs baseline.
+- **Visualization:** Table (export, used %, ops/s), Line chart (ops and capacity trend), Bar chart (top exports by ops).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.14 · SMB Share Access Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Summarizes successful and denied access to sensitive shares for insider threat and access reviews. Extends object-level 4663 views with share-level rollups.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Security Event ID 5140 (share accessed), 4663 for sensitive paths
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=5140
+| stats count by Share_Name, Account_Name, ComputerName
+| where count > 1000
+| sort -count
+```
+- **Implementation:** Enable share auditing on critical shares. Tune volume to avoid noise; focus on privileged groups. Alert on access to “restricted” shares from unexpected subnets via lookup.
+- **Visualization:** Table (share, user, count), Bar chart (top shares by access count), Heatmap (share × hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.15 · File Server Capacity Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Volume-level free space trending on Windows file servers prevents user and application outages from full disks.
+- **App/TA:** `Splunk_TA_windows` (PerfDisk), scripted `Get-Volume`
+- **Data Sources:** Logical disk free MB/%, WMI volume metrics
+- **SPL:**
+```spl
+index=os sourcetype="Perfmon:LogicalDisk" counter="% Free Space"
+| timechart span=1h latest(InstanceValue) as free_pct by host, instance
+| where free_pct < 15
+```
+- **Implementation:** Collect % Free Space every 5–15m. Alert at 15% (warning) and 10% (critical). Use `predict` on large shares for procurement lead time.
+- **Visualization:** Line chart (free % trend), Gauge (current free %), Table (volumes below threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.16 · Ransomware File Extension Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Detects mass renames or creates with known ransomware extensions (e.g., `.locked`, `.encrypted`) faster than generic mass-modify heuristics in some campaigns.
+- **App/TA:** `Splunk_TA_windows`, EDR feeds
+- **Data Sources:** File create/rename events 4663 with ObjectName ending in suspicious extensions
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663
+| rex field=ObjectName "(?i)\.(locked|encrypted|crypt|ryuk|lockbit)(\"|$)"
+| stats dc(ObjectName) as files count by Account_Name, host
+| where files > 20
+```
+- **Implementation:** Maintain lookup of ransomware extensions from threat intel. Combine with mass-delete and entropy signals. Integrate SOAR for host isolation.
+- **Visualization:** Table (user, host, files affected), Timeline (detection), Single value (distinct suspicious files).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.17 · CIFS Connection Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Tracks concurrent SMB sessions and failed session setups per file server. Spikes may indicate brute force, misconfigured apps, or server resource limits.
+- **App/TA:** `Splunk_TA_windows`, SMB server audit
+- **Data Sources:** Event ID 5140/5145, Perfmons `Server Sessions`, `Server Rejects`
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=5140 OR EventCode=5145
+| bucket _time span=5m
+| stats count as sessions by ComputerName, _time
+| eventstats avg(sessions) as avg_s by ComputerName
+| where sessions > avg_s * 3
+```
+- **Implementation:** Baseline sessions per 5m window per server. Alert on 3× baseline or on SMB error events (551, 552) if enabled. Correlate with auth failures.
+- **Visualization:** Line chart (session rate per server), Table (spike windows), Single value (current sessions).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.4.18 · File Deletion Volume Anomaly
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Sudden spike in delete operations may indicate ransomware preparation, malicious insider, or script error. Complements mass-modify ransomware use cases.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Event ID 4660 (object deleted), 4663 with Delete access
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4660,4663) AccessMask="*DELETE*"
+| bucket _time span=1m
+| stats count as deletes by Account_Name, ShareName, _time
+| eventstats avg(deletes) as avg_d, stdev(deletes) as stdev_d by Account_Name
+| where deletes > avg_d + 4*stdev_d AND deletes > 50
+```
+- **Implementation:** Enable auditing on delete for sensitive trees. Baseline deletes per user/share. Alert on statistical outliers. Exclude known maintenance accounts via lookup.
+- **Visualization:** Timeline (delete bursts), Table (user, share, delete count), Line chart (deletes per minute).
 - **CIM Models:** N/A
 
 ---

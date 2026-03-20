@@ -211,7 +211,233 @@ index=infrastructure (sourcetype="df" OR sourcetype="disk" OR sourcetype="Perfmo
 - **Visualization:** Timechart (usage with forecast overlay), Table (volumes approaching exhaustion with risk status), Gauge (current utilization), Single value (volumes at risk).
 - **CIM Models:** N/A
 
----
+### UC-20.1.10 · Reserved Instance Coverage Gaps
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Highlights on-demand spend in families/regions that could be covered by additional RIs/Savings Plans — complements utilization of existing commitments (UC-20.1.3).
+- **App/TA:** `Splunk Add-on for AWS`, billing TAs
+- **Data Sources:** CUR with `lineItem_LineItemType`, usage type, instance family
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+| eval cost=tonumber(lineItem_UnblendedCost)
+| eval on_demand=if(isnull(reservation_ReservationARN) AND match(lineItem_UsageType,"BoxUsage"),cost,0)
+| stats sum(on_demand) as od_spend by lineItem_ProductCode, lineItem_UsageType, lineItem_AvailabilityZone
+| sort -od_spend
+| head 30
+```
+- **Implementation:** Top on-demand spend by family/AZ drives RI buying decisions. Join with coverage reports from Cost Explorer export if available.
+- **Visualization:** Table (coverage gap candidates), Bar chart (on-demand by family), Single value (total addressable OD spend).
+- **CIM Models:** N/A
+
+### UC-20.1.11 · Spot Instance Interruption Rate
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Cost, Performance
+- **Value:** Interruptions per 1,000 instance-hours by pool and AZ — extends raw event counts (UC-20.1.7) with a **rate** for SLO tracking.
+- **App/TA:** `Splunk Add-on for AWS`, CloudTrail
+- **Data Sources:** `aws:cloudtrail` Spot events, instance-hours from CUR
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudtrail" earliest=-30d
+| search eventName="SpotInstanceInterruption"
+| stats count as intr
+| append [ search index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+  | search lineItem_UsageType="*SpotUsage*"
+  | stats sum(lineItem_NormalizedUsageAmount) as instance_hours ]
+| stats sum(intr) as interruptions sum(instance_hours) as ih
+| eval intr_per_1k=round(1000*interruptions/nullif(ih,0),2)
+```
+- **Implementation:** Align instance-hour denominator from CUR `NormalizedUsageAmount`. Alert when `intr_per_1k` exceeds baseline for stateful tiers.
+- **Visualization:** Single value (interruptions per 1k hours), Line chart (rate trend), Table (by AZ).
+- **CIM Models:** N/A
+
+### UC-20.1.12 · FinOps Budget Alert Correlation
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Joins AWS Budgets / Azure budget notifications with resource change events and anomaly searches to explain **why** a threshold fired.
+- **App/TA:** Cloud billing TAs, CloudTrail
+- **Data Sources:** Budget alert SNS/email logs, `cost:daily`, CloudTrail
+- **SPL:**
+```spl
+index=finops sourcetype="aws:budget:alert" earliest=-7d
+| eval budget_name=coalesce(budget_name,BudgetName)
+| join type=left budget_name [ search index=cloud_cost sourcetype="cost:daily" earliest=-7d | stats sum(cost) as daily_cost by account_id, _time span=1d ]
+| table _time, budget_name, threshold_type, daily_cost
+```
+- **Implementation:** Ingest budget notifications via HEC or Lambda. Drill down to service cost change same day. Link to change tickets.
+- **Visualization:** Timeline (budget alerts overlaid with spend), Table (alert + cost delta), Sankey (alert → service).
+- **CIM Models:** N/A
+
+### UC-20.1.13 · Cost Anomaly by Cloud Service
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
+- **Value:** z-score or median-absolute-deviation of **daily cost per `lineItem_ProductCode`** — tighter scope than account-level UC-20.1.2.
+- **App/TA:** Billing export TAs
+- **Data Sources:** CUR, Azure cost export
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-60d
+| eval cost=tonumber(lineItem_UnblendedCost)
+| timechart span=1d sum(cost) as daily by lineItem_ProductCode
+| untable _time lineItem_ProductCode daily
+| eventstats median(daily) as med, stdev(daily) as sd by lineItem_ProductCode
+| eval z=if(sd>0, (daily-med)/sd, 0)
+| where abs(z)>3
+| table _time, lineItem_ProductCode, daily, med, z
+```
+- **Implementation:** Requires 60d history. Exclude credits via `lineItem_LineItemType`. Page on |z|>3 for top services.
+- **Visualization:** Table (service anomalies), Line chart (daily vs median), Single value (open anomalies).
+- **CIM Models:** N/A
+
+### UC-20.1.14 · Savings Plan Utilization and Hourly Burn
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Savings Plan utilization % and unused commitment hours — operational view for FinOps reviews (related to UC-20.2.9).
+- **App/TA:** AWS Cost Explorer export, `aws:savings_plan` sourcetype
+- **Data Sources:** Savings Plans utilization report
+- **SPL:**
+```spl
+index=cloud_cost sourcetype="aws:savings_plan" earliest=-7d
+| stats latest(utilization_pct) as util, latest(unused_commitment_hrs) as unused by savings_plan_arn
+| where util < 90 OR unused>100
+| table savings_plan_arn, util, unused
+```
+- **Implementation:** Schedule daily SP utilization CSV from S3. Alert when utilization <90% for 3+ days. Recommend exchange/modify.
+- **Visualization:** Gauge (SP utilization), Table (underutilized plans), Line chart (util trend).
+- **CIM Models:** N/A
+
+### UC-20.1.15 · Data Transfer Cost Attribution by Tag
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Allocates data transfer line items to `resourceTags_user_*` for chargeback — extends aggregate transfer analysis (UC-20.1.8).
+- **App/TA:** CUR with resource tags
+- **Data Sources:** `aws:billing:cur`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur"
+| search lineItem_ProductCode="AmazonEC2" (lineItem_UsageType="*DataTransfer*" OR lineItem_UsageType="*Bytes*")
+| eval cost=tonumber(lineItem_UnblendedCost)
+| eval app=coalesce(resourceTags_user_Application,"untagged")
+| stats sum(cost) as xfer_cost by app, lineItem_UsageType
+| sort -xfer_cost
+```
+- **Implementation:** Requires tags on resources generating egress; untagged flows appear as `untagged`. Reconcile with VPC Flow to owners.
+- **Visualization:** Stacked bar (transfer $ by app), Table (top untagged), Pie chart (egress by tag).
+- **CIM Models:** N/A
+
+### UC-20.1.16 · Container Workload Right-Sizing Cost
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Correlates EKS/AKS/GKE namespace CPU/memory requests vs actuals with allocated node cost for rightsizing recommendations.
+- **App/TA:** Kubernetes metrics, cloud billing
+- **Data Sources:** Prometheus metrics, CUR container cost allocation (Kubecost-style)
+- **SPL:**
+```spl
+index=kubernetes sourcetype="kube:metrics" earliest=-7d
+| stats avg(container_cpu_usage_cores) as use, avg(container_cpu_request_cores) as req by namespace, cluster
+| eval oversize=if(req>use*2,1,0)
+| where oversize=1
+| lookup kube_namespace_monthly_cost namespace cluster OUTPUT monthly_cost
+| table namespace, cluster, use, req, monthly_cost
+```
+- **Implementation:** Ingest kube-state-metrics or vendor. Join cost from Kubecost export or tag-based CUR. Drive requests/limits changes.
+- **Visualization:** Table (oversized namespaces), Bar chart (waste $), Scatter (request vs use).
+- **CIM Models:** N/A
+
+### UC-20.1.17 · Serverless Invocation Cost Trending
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Cost
+- **Value:** Daily Lambda/Azure Functions/Google Cloud Functions cost and invocation count — detects runaway retries and bad deploys.
+- **App/TA:** Cloud billing with serverless product codes
+- **Data Sources:** CUR, Azure meter export
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+| search lineItem_ProductCode IN ("AWSLambda","AmazonSNS") OR lineItem_UsageType="*Lambda*"
+| eval cost=tonumber(lineItem_UnblendedCost)
+| timechart span=1d sum(cost) as serverless_cost sum(lineItem_UsageAmount) as units
+```
+- **Implementation:** Map usage types to invocations vs GB-sec. Alert when daily cost > 2× 7d average.
+- **Visualization:** Line chart (serverless $ and invocations), Table (top functions from resource tags), Single value (day-over-day %).
+- **CIM Models:** N/A
+
+### UC-20.1.18 · Orphaned Cloud Resource Detection
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Unattached volumes, unused elastic IPs, old snapshots without volume — **inventory-driven** waste beyond idle CPU (UC-20.1.4).
+- **App/TA:** AWS Config snapshot, resource inventory
+- **Data Sources:** `aws:config:inventory`, cost
+- **SPL:**
+```spl
+index=cloud_inventory sourcetype="aws:config:inventory" earliest=-1d
+| where status="available" AND resource_type="AWS::EC2::Volume" AND attachments=0
+| lookup monthly_storage_rate region OUTPUT rate_gb_mo
+| eval waste=size_gb*rate_gb_mo
+| stats sum(waste) as monthly_waste by account_id, region
+| sort -monthly_waste
+```
+- **Implementation:** Refresh Config aggregator daily. Include unattached EIP and old snapshots in companion searches. Route to owners via account tags.
+- **Visualization:** Table (orphan waste $), Bar chart (by account), Single value (total orphan monthly $).
+- **CIM Models:** N/A
+
+### UC-20.1.19 · Cost Allocation Tag Compliance
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Percentage of monthly spend that is **untagged** or missing required keys (`Application`, `CostCenter`, `Environment`).
+- **App/TA:** CUR
+- **Data Sources:** `aws:billing:cur`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+| eval cost=tonumber(lineItem_UnblendedCost)
+| eval has_app=isnotnull(resourceTags_user_Application) AND resourceTags_user_Application!=""
+| eval has_cc=isnotnull(resourceTags_user_CostCenter) AND resourceTags_user_CostCenter!=""
+| stats sum(eval(if(has_app AND has_cc,cost,0))) as tagged_cost sum(cost) as total_cost
+| eval tag_compliance_pct=round(100*tagged_cost/total_cost,1)
+```
+- **Implementation:** Expand required keys per policy. Break down by OU/account. Drive tagging enforcement at CI/CD.
+- **Visualization:** Single value (tag compliance %), Pie chart (tagged vs untagged $), Table (worst accounts).
+- **CIM Models:** N/A
+
+### UC-20.1.20 · Idle Resource Identification by Account
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Cost
+- **Value:** Rolls up idle candidates (UC-20.1.4) to **account and owner** for FinOps accountability — same theme, executive view.
+- **App/TA:** Cloud metrics, CUR, CMDB
+- **Data Sources:** Idle detection output, `lineItem_UsageAccountId`
+- **SPL:**
+```spl
+index=summary sourcetype="cloud:idle_candidates" earliest=-1d
+| stats sum(estimated_monthly_savings) as idle_dollars by lineItem_UsageAccountId
+| lookup aws_account_owner account_id AS lineItem_UsageAccountId OUTPUT owner_email
+| sort -idle_dollars
+| head 25
+```
+- **Implementation:** Populate `cloud:idle_candidates` from scheduled UC-20.1.4 logic. Monthly email to top account owners.
+- **Visualization:** Bar chart (idle $ by account), Table (owner, idle $), Single value (fleet idle $).
+- **CIM Models:** N/A
 
 ### 20.2 Capacity Planning
 
@@ -487,7 +713,7 @@ index=cloud_cost sourcetype="cost:forecast"
 
 ---
 
-### UC-20.2.14 · License Utilization Tracking
+### UC-20.2.14 · Software License Compliance Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Cost, Compliance
@@ -566,6 +792,322 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Gauge (coverage percentage), Timechart (coverage trend with forecast), Table (accounts with low coverage), Bar chart (uncovered cost by account).
 - **CIM Models:** N/A
 
+### UC-20.2.17 · Storage Capacity Forecast by Tier
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Forecast days-to-full per storage tier (flash vs capacity) — extends pool forecasting (UC-20.2.2) with **tier** dimension for procurement.
+- **App/TA:** Storage TA, SNMP
+- **Data Sources:** `storage:capacity` with `tier`
+- **SPL:**
+```spl
+index=storage sourcetype="storage:capacity" earliest=-90d
+| timechart span=1d latest(used_pct) as used_pct by storage_system, tier
+| predict used_pct algorithm=LLP5 future_timespan=60
+```
+- **Implementation:** Map array vendor tiers. Alert when 60d forecast crosses 90% for any tier.
+- **Visualization:** Line chart (used % by tier), Table (at-risk systems), Gauge.
+- **CIM Models:** N/A
+
+### UC-20.2.18 · Compute Cluster Scaling Headroom
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Remaining vCPU and RAM in VMware/vSphere clusters and AWS ASG max — for **provisioning headroom** beyond host forecast (UC-20.2.1).
+- **App/TA:** vCenter TA, AWS API
+- **Data Sources:** `vmware:cluster`, `aws:compute:capacity`
+- **SPL:**
+```spl
+index=virtualization sourcetype="vmware:cluster" earliest=-1h
+| eval headroom_pct=round(100*(cpu_capacity_mhz-cpu_used_mhz)/cpu_capacity_mhz,1)
+| where headroom_pct < 15
+| table cluster_name, headroom_pct, cpu_used_mhz, cpu_capacity_mhz
+```
+- **Implementation:** Poll cluster aggregate capacity. Alert when headroom <15% or policy threshold. Trigger scale-out or new hardware.
+- **Visualization:** Gauge (headroom %), Table (clusters at risk), Bar chart (by datacenter).
+- **CIM Models:** N/A
+
+### UC-20.2.19 · Network Bandwidth Utilization Trending (Site Interconnect)
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Site-to-site and DCI link utilization trend with 95th percentile — complements interface forecast (UC-20.2.3).
+- **App/TA:** SNMP, NetFlow summary
+- **Data Sources:** `snmp:interface`, `netflow:site`
+- **SPL:**
+```spl
+index=network sourcetype="netflow:site" earliest=-30d
+| timechart span=1d perc95(utilization_pct) as p95_util by link_name
+| where p95_util > 75
+| table link_name, p95_util
+```
+- **Implementation:** Aggregate flows per DCI link daily. Alert on sustained high p95. Plan circuit upgrades.
+- **Visualization:** Line chart (p95 util by link), Table (saturated links), Heatmap.
+- **CIM Models:** N/A
+
+### UC-20.2.20 · Seasonal Capacity Planning Baseline
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** YoY same-week CPU/RPS comparison for retail/event peaks — extends UC-20.2.7 with **automated peak week** flagging.
+- **App/TA:** `perf:summary`, MLTK optional
+- **Data Sources:** Weekly rollups per app
+- **SPL:**
+```spl
+index=infrastructure sourcetype="perf:summary" earliest=-400d
+| eval week=strftime(_time,"%V")
+| stats avg(cpu_pct) as cpu by app, week
+| eventstats avg(cpu) as fleet_week_avg by week
+| where cpu > fleet_week_avg*1.25
+| table app, week, cpu, fleet_week_avg
+```
+- **Implementation:** Simplify with `timewrap` if available. Use for pre-peak scale plans.
+- **Visualization:** Line chart (YoY overlay), Table (apps with growth), Calendar heatmap.
+- **CIM Models:** N/A
+
+### UC-20.2.21 · CPU and Memory Right-Sizing (Host and VM)
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5).
+- **App/TA:** VMware perf, Hyper-V
+- **Data Sources:** `vmware:host:perf`
+- **SPL:**
+```spl
+index=virtualization sourcetype="vmware:host:perf" earliest=-7d
+| stats avg(cpu_used_pct) as cpu, avg(mem_used_pct) as mem by host
+| eval overcommit_risk=if(cpu>85 OR mem>90,1,0)
+| where overcommit_risk=1
+| table host, cpu, mem
+```
+- **Implementation:** Combine with cluster headroom (UC-20.2.18). Alert on chronic host saturation.
+- **Visualization:** Table (hot hosts), Heatmap (host × day), Gauge.
+- **CIM Models:** N/A
+
+### UC-20.2.22 · Disk IOPS Saturation Trending
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Time-series of `iops_utilization_pct` or latency vs IOP limit for SAN/NVMe — storage performance bottleneck before capacity full.
+- **App/TA:** Storage TA
+- **Data Sources:** `storage:performance`, array metrics
+- **SPL:**
+```spl
+index=storage sourcetype="storage:performance" earliest=-7d
+| timechart span=1h avg(iops_util_pct) as iops_util avg(read_latency_ms) as lat by volume_id
+| where iops_util>80 OR lat>10
+```
+- **Implementation:** Map vendor IOPS cap. Alert on sustained >80% util or latency SLO breach. Scale pool or move workload.
+- **Visualization:** Line chart (IOPS util and latency), Table (hot volumes), Single value (volumes in saturation).
+- **CIM Models:** N/A
+
+### UC-20.2.23 · VM Sprawl Detection
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.
+- **App/TA:** vCenter inventory
+- **Data Sources:** `vmware:inv:vm`
+- **SPL:**
+```spl
+index=virtualization sourcetype="vmware:inv:vm" earliest=-1d
+| where power_state="poweredOn"
+| stats count as vm_count by folder, owner
+| eventstats avg(vm_count) as fleet_avg
+| where vm_count > fleet_avg*3 AND vm_count>50
+| sort -vm_count
+```
+- **Implementation:** Map `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).
+- **Visualization:** Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).
+- **CIM Models:** N/A
+
+---
+
+### 20.3 License & Subscription Management
+
+**Primary App/TA:** Microsoft 365 / Entra ID reporting add-ons, Salesforce Splunk Connector, Flexera / ServiceNow SAM exports, `license:usage` HEC, cloud marketplace billing (AWS/Azure/GCP subscription lines).
+
+---
+
+### UC-20.3.1 · SaaS License Utilization (Assigned vs Active)
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Compliance
+- **Value:** Paying for assigned-but-unused seats wastes budget; comparing entitlements to real sign-in or activity highlights reclaim and right-size opportunities before renewals.
+
+- **App/TA:** Microsoft Entra ID Add-on, Okta Splunk App, Salesforce TA
+- **Data Sources:** `sourcetype=license:usage`, `sourcetype=o365:reporting`
+- **SPL:**
+```spl
+index=saas sourcetype="license:usage"
+| eval assigned=coalesce(licenses_assigned,0), active=coalesce(active_users_30d,0)
+| eval utilization_pct=round(100*active/nullif(assigned,0),1)
+| where utilization_pct < 70 OR active < assigned*0.5
+| stats latest(assigned) as assigned latest(active) as active latest(utilization_pct) as util_pct by product, sku, cost_center
+| sort util_pct
+```
+- **Implementation:** Ingest monthly license assignment exports and last-sign-in or 30-day active user counts from IdP or vendor admin APIs. Schedule weekly jobs; join on `sku`/`product`. Alert when utilization drops below policy thresholds. Feed reclamation workflows with user lists.
+- **Visualization:** Bar chart (utilization % by product), Table (reclaim candidates), Single value (wasted seat estimate).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.2 · Software Audit Readiness Reporting
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Audit-ready evidence of installs, purchases, and usage reduces true-up penalties and speeds vendor true-up negotiations.
+
+- **App/TA:** Flexera / Snow SAM export, ServiceNow SAM, Splunk Universal Forwarder inventory
+- **Data Sources:** `sourcetype=license:usage`, `sourcetype=inventory:software`
+- **SPL:**
+```spl
+index=software (sourcetype="license:usage" OR sourcetype="inventory:software")
+| eval publisher=coalesce(publisher,vendor), edition=coalesce(edition,product_name)
+| stats dc(host) as install_count sum(entitlement_count) as purchased by publisher, edition
+| eval gap=install_count-purchased
+| where gap>0 OR isnull(purchased)
+| table publisher, edition, install_count, purchased, gap
+```
+- **Implementation:** Normalize discovery data from endpoints and purchase records from procurement. Refresh entitlements from contract system. Dashboard shows install vs entitlement gap by publisher. Export CSV for auditor quarterly.
+- **Visualization:** Table (gap by title), Bar chart (over-deployed publishers), Single value (total gap count).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.3 · Subscription Renewal Forecasting
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Forecasting renewal cash-out dates and contract values avoids surprise budget hits and gives procurement time to negotiate or consolidate vendors.
+
+- **App/TA:** Contract repository export (ServiceNow SPM, Ariba), marketplace billing
+- **Data Sources:** `sourcetype=license:usage`, `sourcetype=aws:billing:cur`
+- **SPL:**
+```spl
+(index=contracts sourcetype="license:usage") OR (index=cloud_billing sourcetype="aws:billing:cur")
+| eval renewal_epoch=strptime(renewal_date,"%Y-%m-%d"), amount=tonumber(annual_cost_usd)
+| where renewal_epoch > relative_time(now(),"+30d@d") AND renewal_epoch < relative_time(now(),"+365d@d")
+| eval days_until=round((renewal_epoch-now())/86400,0)
+| stats sum(amount) as renewal_spend by vendor, renewal_date, cost_center
+| sort renewal_date
+```
+- **Implementation:** Load subscription end dates and annual amounts from CLM or reseller exports; for AWS/Azure/GCP, tag marketplace subscriptions. Alert 90/60/30 days before renewal. Combine with utilization metrics to decide downgrade options before signing.
+- **Visualization:** Timeline (renewals by quarter), Table (upcoming renewals), Single value (12-month renewal liability).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.4 · License Compliance Gap Detection
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Unlicensed use of enterprise software creates legal and financial exposure; continuous gap detection supports proactive remediation.
+
+- **App/TA:** SAM inventory, Adobe/Microsoft portal exports
+- **Data Sources:** `sourcetype=inventory:software`, `sourcetype=license:usage`
+- **SPL:**
+```spl
+index=software sourcetype="inventory:software"
+| search is_licensed="false" OR compliance_status="unlicensed"
+| stats count by host, software_name, version, last_seen
+| lookup license_entitlements software_name OUTPUT entitlement_qty
+| eval breach=if(count>entitlement_qty OR isnull(entitlement_qty),1,0)
+| where breach=1
+| sort -count
+```
+- **Implementation:** Flag installs without matching entitlement rows in a KV store refreshed from purchases. Reconcile named-user products with IdP group membership. Alert on new breaches weekly; assign owners by `cost_center`.
+- **Visualization:** Table (compliance gaps), Single value (open violations), Bar chart (gaps by department).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.5 · Multi-Year Contract Consumption Trending
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity, Cost
+- **Value:** Enterprise agreements with committed spend need burn-down tracking; falling behind consumption risks leaving value on the table, while overspending early risks true-up shocks.
+
+- **App/TA:** AWS/GCP/Azure EA billing, custom commitment tracker
+- **Data Sources:** `sourcetype=aws:billing:cur`, `sourcetype=license:usage`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur"
+| eval spend=tonumber(lineItem_UnblendedCost)
+| eval contract_id=coalesce(agreement_id,license_pool_id)
+| bin _time span=1mon
+| stats sum(spend) as monthly_spend by contract_id, _time
+| sort contract_id, _time
+| streamstats sum(monthly_spend) as ytd_spend by contract_id
+| lookup contract_commitments contract_id OUTPUT commit_total_usd
+| eval pct_consumed=round(100*ytd_spend/nullif(commit_total_usd,0),1)
+| table contract_id, _time, ytd_spend, pct_consumed
+```
+- **Implementation:** Map invoices and usage lines to enterprise agreement IDs. Compare cumulative spend to committed totals and contract term. Project end-of-term position with linear or seasonal fit. Alert if consumption is off pace vs. expected curve.
+- **Visualization:** Line chart (% consumed vs time), Gauge (YTD vs commit), Table (contract status).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.6 · License Pool Allocation Optimization
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Shifting unused pool capacity between departments or regions avoids buying new seats while one pool sits idle.
+
+- **App/TA:** ServiceNow SAM, custom pool allocator
+- **Data Sources:** `sourcetype=license:usage`
+- **SPL:**
+```spl
+index=saas sourcetype="license:usage"
+| stats sum(assigned) as assigned sum(consumed) as consumed by pool_id, org_unit
+| eval slack=assigned-consumed
+| eventstats sum(slack) as total_slack by pool_id
+| where slack < 0 OR (slack > 50 AND total_slack > 0)
+| sort pool_id, slack
+```
+- **Implementation:** Ingest per–cost-center assignments against shared enterprise pools. Identify negative slack (overallocation) and large positive slack (reclaimable). Recommend transfers using simple optimization rules in a lookup updated monthly.
+- **Visualization:** Heatmap (org × pool utilization), Table (rebalance suggestions), Bar chart (slack by pool).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.7 · Auto-Renewal Risk Detection
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Cost
+- **Value:** Unwanted auto-renewals lock spend for another term; early visibility lets legal and procurement opt out or renegotiate within notice windows.
+
+- **App/TA:** CLM webhook, calendar export, `license:usage` metadata
+- **Data Sources:** `sourcetype=license:usage`, `sourcetype=contracts:events`
+- **SPL:**
+```spl
+index=contracts (sourcetype="license:usage" OR sourcetype="contracts:events")
+| eval opt_out_deadline=strptime(cancellation_deadline,"%Y-%m-%d")
+| eval auto_renew=if(match(lower(renewal_terms),"auto"),1,0)
+| where auto_renew=1 AND opt_out_deadline > now() AND opt_out_deadline < relative_time(now(),"+90d@d")
+| eval days_to_opt_out=round((opt_out_deadline-now())/86400,0)
+| table vendor, product, renewal_date, cancellation_deadline, days_to_opt_out, owner
+| sort days_to_opt_out
+```
+- **Implementation:** Capture `auto_renew` flags and contractual opt-out dates from vendor metadata or CLM. Alert owners at 90/60/30 days before the cancellation window closes. Track completion of opt-out tickets in ITSM.
+- **Visualization:** Table (upcoming opt-out deadlines), Single value (contracts at risk), Timeline (deadlines).
+- **CIM Models:** N/A
+
 ---
 
 ## Summary Statistics
@@ -583,16 +1125,16 @@ index=cloud_billing sourcetype="aws:billing:cur"
 | 9. Identity & Access Management | 4 | 29 |
 | 10. Security Infrastructure | 8 | 47 |
 | 11. Email & Collaboration | 3 | 24 |
-| 12. DevOps & CI/CD | 4 | 23 |
-| 13. Observability & Monitoring | 3 | 28 |
+| 12. DevOps & CI/CD | 5 | 33 |
+| 13. Observability & Monitoring | 4 | 40 |
 | 14. IoT & OT | 4 | 74 |
 | 15. DC Physical Infrastructure | 3 | 16 |
-| 16. Service Management & ITSM | 2 | 15 |
+| 16. Service Management & ITSM | 3 | 23 |
 | 17. Network Security & Zero Trust | 3 | 22 |
 | 18. Data Center Fabric & SDN | 3 | 15 |
 | 19. Compute Infrastructure (HCI) | 2 | 13 |
-| 20. Cost & Capacity Management | 2 | 20 |
-| **TOTAL** | **72** | **1005** |
+| 20. Cost & Capacity Management | 3 | 27 |
+| **TOTAL** | **76** | **1042** |
 
 ---
 

@@ -200,6 +200,263 @@ index=containers sourcetype="docker:info"
 
 ---
 
+### UC-3.1.10 · Container Image Vulnerability Scanning Results
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Centralizing scanner output (severity, package, image digest) proves compliance and speeds remediation when new CVEs hit production images.
+- **App/TA:** Custom HEC (Trivy, Grype, Snyk JSON), CI pipeline artifacts
+- **Data Sources:** `sourcetype=trivy:scan`, `sourcetype=grype:scan`
+- **SPL:**
+```spl
+index=containers (sourcetype="trivy:scan" OR sourcetype="grype:scan")
+| stats latest(Severity) as sev, values(VulnerabilityID) as cves, dc(VulnerabilityID) as vuln_count by image_name, image_digest, Target
+| where mvfind(sev, "CRITICAL") OR mvfind(sev, "HIGH")
+| sort -vuln_count
+```
+- **Implementation:** Forward CI and registry scan JSON to Splunk with stable fields (`image_name`, `image_digest`, `Target`). Deduplicate on digest+CVE. Alert when CRITICAL/HIGH appears on images referenced by running tags.
+- **Visualization:** Table (image, digest, vuln count, severities), Treemap by repo, Trend (open vulns over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.11 · Docker Daemon Resource Limits Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Host-level CPU, memory, and storage pressure on the Docker engine starves containers before per-container limits trigger; early detection avoids fleet-wide slowdowns.
+- **App/TA:** Splunk Connect for Docker, host metrics (Telegraf/OTel)
+- **Data Sources:** `sourcetype=docker:info`, `sourcetype=docker:system`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:info"
+| eval mem_total_gb=round(MemTotal/1073741824, 2)
+| eval mem_avail_gb=round(MemAvailable/1073741824, 2)
+| eval mem_used_pct=round((MemTotal-MemAvailable)/MemTotal*100, 1)
+| where mem_used_pct > 85 OR NCPU < 2
+| table _time host mem_total_gb mem_avail_gb mem_used_pct NCPU
+| sort -mem_used_pct
+```
+- **Implementation:** Ingest `docker info` JSON (or `docker system df`) on an interval plus host memory/CPU from the node. Correlate with `docker:events` throttling and OOM. Alert when host memory used >85% or CPU saturation sustained >10 minutes.
+- **Visualization:** Line chart (mem %, CPU load), Table (host, limits), Single value (hosts over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.12 · Compose Service Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Docker Compose stacks power dev/stage and edge; tracking service `healthcheck` state and replica counts catches bad releases before they reach Kubernetes.
+- **App/TA:** Custom script (docker compose ps --format json), vector/file collector
+- **Data Sources:** `sourcetype=docker:compose:ps`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:compose:ps"
+| eval healthy=if(Health=="healthy",1,0)
+| stats latest(Health) as health, latest(State) as state, values(Service) as services by project, Name
+| where health=0 OR match(state, "^(exited|restarting)")
+| table project Name health state services
+```
+- **Implementation:** Scheduled `docker compose -f <file> ps --format json` per project; parse `Health`, `State`, `Service`. Ship to HEC. Alert on unhealthy or restarting services for >5 minutes.
+- **Visualization:** Status grid by service, Table (project, service, health), Timeline of state changes.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.13 · Container Restart Loop Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Rapid start/die cycles burn CPU and obscure root cause; detecting loops early isolates bad images or bad configs before cascading failures.
+- **App/TA:** Splunk Connect for Docker
+- **Data Sources:** `sourcetype=docker:events`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:events" action="die" OR action="start"
+| bin _time span=5m
+| stats dc(action) as actions, count by _time, container_name, host
+| where actions>=2 AND count>=6
+| sort -count
+```
+- **Implementation:** Track paired start/die bursts per container in sliding windows. Alert when >3 restart cycles in 15 minutes. Enrich with `exitCode` from die events.
+- **Visualization:** Timeline (start/die), Table (container, cycles, host), Single value (looping containers).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.14 · Docker Network Overlay Issues
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Overlay plugins (VXLAN, weave, custom bridges) failures cause intermittent connectivity between containers on different hosts.
+- **App/TA:** Docker daemon logs, syslog
+- **Data Sources:** `sourcetype=docker:daemon`, `sourcetype=syslog`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:daemon" (network OR overlay OR iptables OR vxlan)
+| search (level="error" OR level="warn")
+| stats count by host, msg
+| sort -count
+
+| comment "Host network stack"
+index=os sourcetype=syslog (docker OR "br-" OR "vxlan")
+| search fail OR error OR unreachable
+| stats count by host, _raw
+```
+- **Implementation:** Forward daemon logs with network driver context. Pattern-match overlay create/delete errors, IPAM failures, and iptables sync issues. Correlate multi-host with timestamps.
+- **Visualization:** Table (host, error signature, count), Timeline, Bar chart by error type.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.15 · Image Layer Bloat Analysis
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Large layer stacks slow pulls and increase attack surface; trending layer count and size guides image slimming and base image updates.
+- **App/TA:** Custom input (`docker history --no-trunc`, `docker image inspect`)
+- **Data Sources:** `sourcetype=docker:image:history`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:image:history"
+| stats sum(layer_size_bytes) as total_bytes, dc(layer_id) as layer_count by image_id, repository
+| eval total_mb=round(total_bytes/1048576,1)
+| where layer_count>25 OR total_mb>800
+| sort -total_mb
+```
+- **Implementation:** Nightly job exports `docker history` JSON per promoted image. Store per-layer size and count. Report images exceeding policy thresholds.
+- **Visualization:** Bar chart (image vs MB), Table (image, layers, total MB), Trend (average image size).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.16 · Docker Volume Usage Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Named volumes grow with databases and caches; trending usage prevents write failures and emergency disk expansion.
+- **App/TA:** Custom scripted input (`docker system df -v`)
+- **Data Sources:** `sourcetype=docker:volumes`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:volumes"
+| eval used_pct=if(SizeGB>0, round(UsedGB/SizeGB*100,1), null())
+| timechart span=1d avg(UsedGB) as used_gb by volume_name
+```
+- **Implementation:** Parse `docker system df -v` or volume inspect into Splunk daily. Alert when volume used GB grows >20% week-over-week or host filesystem backing the volume >85%.
+- **Visualization:** Line chart (used GB over time), Table (volume, host, used %), Single value (largest volume).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.17 · Container Resource Limit Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Verifying cgroup limits match declared `docker run`/`compose` settings catches silent misconfigurations that allow noisy neighbors or false capacity plans.
+- **App/TA:** Splunk Connect for Docker
+- **Data Sources:** `sourcetype=docker:inspect`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:inspect"
+| eval mem_limit_bytes=tonumber(HostConfig.Memory)
+| eval nano_cpus=tonumber(HostConfig.NanoCpus)
+| eval cpu_quota=tonumber(HostConfig.CpuQuota)
+| where isnull(mem_limit_bytes) OR mem_limit_bytes=0 OR (nano_cpus=0 AND cpu_quota<=0)
+| table container_name image host mem_limit_bytes nano_cpus cpu_quota
+```
+- **Implementation:** Periodically ingest `docker inspect` for running containers. Flag production workloads with unlimited memory or CPU when policy requires limits. Cross-check with `docker:stats` actual usage.
+- **Visualization:** Table (container, mem limit, CPU), Compliance single value (% with limits), Bar chart by host.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.18 · Docker Build Cache Efficiency
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Poor cache reuse lengthens CI pipelines and increases registry churn; measuring cache hits guides Dockerfile ordering and BuildKit settings.
+- **App/TA:** CI log forwarding (BuildKit, docker build --progress=plain)
+- **Data Sources:** `sourcetype=docker:build`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:build"
+| eval cache_hit=if(match(_raw, "(?i)CACHED"),1,0)
+| stats sum(cache_hit) as hits, count as steps by build_id, image_name
+| eval hit_rate=round(100*hits/steps,1)
+| where hit_rate < 30 AND steps>10
+| sort hit_rate
+```
+- **Implementation:** Ship structured build logs to Splunk. Parse CACHED vs executed steps. Dashboard average cache hit rate per repo branch. Alert on sustained drop after Dockerfile changes.
+- **Visualization:** Line chart (hit rate over builds), Table (repo, hit rate), Bar chart (CI duration vs hit rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.19 · Container Log Driver Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** When the logging driver backs up or errors, application logs are dropped—blinding security and operations during incidents.
+- **App/TA:** Docker daemon logs, Splunk Connect for Docker
+- **Data Sources:** `sourcetype=docker:daemon`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:daemon" ("log driver" OR "failed to log" OR "splunk" OR "fluentd")
+| search (level="error" OR level="warn")
+| stats count by host, msg
+| sort -count
+```
+- **Implementation:** Monitor daemon for log driver write failures, buffer overflow, and remote endpoint timeouts. Correlate with missing log volume in Splunk for the same container IDs.
+- **Visualization:** Table (host, error, count), Timeline, Single value (log driver errors/hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.20 · Docker Registry Mirror Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Registry mirrors reduce pull latency and hub rate limits; a stale or failing mirror causes random image pull delays across the fleet.
+- **App/TA:** Docker daemon config audit, mirror HTTP checks
+- **Data Sources:** `sourcetype=docker:info`, `sourcetype=docker:daemon`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:daemon" ("mirror" OR "registry-mirror" OR "connection refused")
+| stats count by host, msg
+| sort -count
+
+| comment "Mirror reachability synthetic"
+index=containers sourcetype="http:check" check_type="registry_mirror"
+| where status!=200 OR response_time_ms>2000
+| table _time mirror_url host status response_time_ms
+```
+- **Implementation:** Log `Registry Mirrors` from `docker info` and probe mirror `/v2/` with auth-less ping where allowed. Alert on daemon errors referencing mirrors or failed probes.
+- **Visualization:** Table (mirror, status, latency), Map or bar by region, Timeline of failures.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.21 · Container Runtime Security Events
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Falco/sysdig/Falco-sidekick style rules surface unexpected shells, sensitive mounts, and syscall anomalies at runtime—complementing image scanning for zero-day behavior.
+- **App/TA:** Falco (JSON to HEC), Sysdig Secure
+- **Data Sources:** `sourcetype=falco:alert`, `sourcetype=sysdig:secure`
+- **SPL:**
+```spl
+index=containers sourcetype="falco:alert" priority="Critical" OR priority="Error"
+| stats count by rule, container.name, k8s.pod.name, proc.name
+| sort -count
+```
+- **Implementation:** Forward Falco JSON with `rule`, `priority`, container/k8s metadata. Tune noise with allowlists. Page on Critical; dashboard top rules by container image.
+- **Visualization:** Table (rule, container, count), Timeline, Heatmap (rule vs namespace).
+- **CIM Models:** N/A
+
+---
+
 ## 3.2 Kubernetes
 
 **Primary App/TA:** Splunk OpenTelemetry Collector for Kubernetes, Splunk Connect for Kubernetes — Free
@@ -650,6 +907,584 @@ index=k8s sourcetype="kube:apiserver" metric_name="apiserver_admission_webhook_a
 
 ---
 
+### UC-3.2.22 · Pod Security Admission Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** PSA denials block risky pods at admission; tracking them exposes misconfigured workloads and policy gaps before they reach production namespaces.
+- **App/TA:** Kubernetes audit log forwarding
+- **Data Sources:** `sourcetype=kube:audit`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:audit" objectRef.resource="pods"
+| search "PodSecurity" OR "pod-security.kubernetes.io" OR "denied the request"
+| stats count by user.username, objectRef.namespace, objectRef.name, responseStatus.reason
+| sort -count
+```
+- **Implementation:** Enable audit policy capturing Pod create/update denials. Parse PSA-specific messages. Alert on spikes in a namespace or repeated denials for the same workload pattern.
+- **Visualization:** Table (namespace, user, count), Bar chart by namespace, Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.23 · RBAC Audit Log Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** ClusterRoleBinding changes and cluster-admin paths are high-risk; structured audit analysis supports least-privilege reviews and incident response.
+- **App/TA:** Kubernetes audit to Splunk (HEC)
+- **Data Sources:** `sourcetype=kube:audit`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:audit" verb="create" OR verb="patch" OR verb="update"
+| where objectRef.resource="clusterroles" OR objectRef.resource="clusterrolebindings" OR objectRef.resource="roles" OR objectRef.resource="rolebindings"
+| stats count by user.username, objectRef.resource, objectRef.name, verb
+| sort -count
+```
+- **Implementation:** Retain audit JSON with `user`, `verb`, `objectRef`. Scheduled reports for RBAC mutations; alert on non-break-glass users attaching `cluster-admin` bindings.
+- **Visualization:** Table (user, resource, object), Timeline of changes, Bar chart by user.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.24 · HPA Scale-Out Event Correlation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Correlating HPA decisions with replica metrics explains surprise scale-outs and validates max replica settings under load.
+- **App/TA:** Splunk OTel Collector, kube-state-metrics
+- **Data Sources:** `sourcetype=kube:objects:events`, `sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:objects:events" involvedObject.kind="HorizontalPodAutoscaler"
+| stats latest(message) as msg, count by namespace, involvedObject.name, reason
+| sort -count
+
+| comment "Current replicas"
+index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_status_current_replicas"
+| stats latest(_value) as current by namespace, horizontalpodautoscaler
+| join type=left namespace horizontalpodautoscaler [
+    search index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_spec_max_replicas"
+    | stats latest(_value) as max_rep by namespace, horizontalpodautoscaler
+]
+| where current>=max_rep AND max_rep>0
+| table namespace horizontalpodautoscaler current max_rep
+```
+- **Implementation:** Ingest HPA events and kube-state-metrics HPA series. Join current replicas with event stream for postmortems. Alert when scaling messages repeat while replicas stay at max.
+- **Visualization:** Line chart (replicas over time), Table (HPA, events), Single value (scale events/hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.25 · PV/PVC Capacity Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Proactive free-space visibility on bound PVs avoids read-only filesystems and database corruption across the cluster.
+- **App/TA:** Splunk OTel Collector (kubelet metrics)
+- **Data Sources:** `sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:metrics" metric_name="kubelet_volume_stats_used_bytes"
+| stats latest(_value) as used by namespace, persistentvolumeclaim, node
+| join type=left namespace persistentvolumeclaim node [
+    search index=k8s sourcetype="kube:metrics" metric_name="kubelet_volume_stats_capacity_bytes"
+    | stats latest(_value) as cap by namespace, persistentvolumeclaim, node
+]
+| eval used_pct=if(cap>0, round(used/cap*100,1), null())
+| where used_pct>85
+| table namespace persistentvolumeclaim node used_pct used cap
+| sort -used_pct
+```
+- **Implementation:** Scrape kubelet volume stats with PVC labels. Dashboard all namespaces; alert at 85%/95% tiers. Include storage class in lookup tables for business priority.
+- **Visualization:** Gauge per PVC, Table (namespace, PVC, used %), Heatmap (node × PVC).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.26 · etcd Health and Latency
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** etcd request latency and raft health predict API slowness and split-brain risk; early warning preserves control plane stability.
+- **App/TA:** Splunk OTel Collector
+- **Data Sources:** `sourcetype=kube:etcd`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:etcd"
+| timechart span=5m avg(etcd_network_peer_round_trip_time_seconds) as rtt, avg(etcd_disk_backend_commit_duration_seconds) as commit
+| where rtt>0.05 OR commit>0.1
+```
+- **Implementation:** Scrape etcd `/metrics` from members (managed clusters: use cloud metrics export if direct scrape is blocked). Alert on rising commit duration, peer RTT, or leader election counters.
+- **Visualization:** Line chart (latency, DB size), Single value (leader changes), Table (member ID, health).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.27 · Ingress Controller Error Rates
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Controller-level 5xx and upstream errors isolate bad ingress classes, TLS backends, and canary routes before user-facing SLO breach.
+- **App/TA:** Ingress controller log pipeline (NGINX, Traefik, HAProxy)
+- **Data Sources:** `sourcetype=kube:ingress:nginx`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:ingress:nginx"
+| eval err=if(status>=500,1,0)
+| bin _time span=5m
+| stats sum(err) as e, count as n by ingress_class, upstream, _time
+| eval err_rate=if(n>0, round(100*e/n,2), 0)
+| where err_rate>2
+| sort -err_rate
+```
+- **Implementation:** Standardize access log JSON with `ingress_class`, `upstream`, `status`. Baseline per ingress. Alert on error rate versus 7-day same-hour baseline.
+- **Visualization:** Line chart (5xx rate by class), Table (upstream, err %), Single value (global ingress 5xx/min).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.28 · Node Pressure Conditions (Disk/Memory/PID)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Kubelet pressure conditions drive evictions; monitoring them reduces surprise pod kills and scheduling failures.
+- **App/TA:** Splunk OTel Collector, node exporter
+- **Data Sources:** `sourcetype=kube:node:meta`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:node:meta"
+| where condition_memory_pressure="True" OR condition_disk_pressure="True" OR condition_pid_pressure="True"
+| table _time node condition_memory_pressure condition_disk_pressure condition_pid_pressure
+
+| comment "Related events"
+index=k8s sourcetype="kube:events" (reason="EvictionThresholdMet" OR reason="FreeDiskSpaceFailed")
+| stats count by involvedObject.kind, involvedObject.name, message
+```
+- **Implementation:** Ingest node conditions from kube-state-metrics or OTel node receiver. Correlate with eviction events and node `Allocatable` vs usage. Page on any pressure True >2 minutes.
+- **Visualization:** Node heatmap (pressure flags), Timeline (evictions), Table (node, condition).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.29 · CronJob Failure Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Missed batch jobs break SLAs for reporting and cleanup; tracking last successful run and Job failures closes blind spots.
+- **App/TA:** Splunk OTel Collector
+- **Data Sources:** `sourcetype=kube:events`, `sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:events" involvedObject.kind="Job" (reason="BackoffLimitExceeded" OR reason="Failed")
+| stats count by namespace, involvedObject.name, message
+| sort -count
+
+| comment "Stale CronJob schedule"
+index=k8s sourcetype="kube:metrics" metric_name="kube_cronjob_status_last_schedule_time"
+| eval hours_since=(now()-_value)/3600
+| where hours_since>24
+| table namespace cronjob hours_since
+```
+- **Implementation:** Combine event-based failures with `kube_cronjob_status_last_schedule_time` staleness versus expected schedule. Alert when no successful Job completion in expected window.
+- **Visualization:** Table (cronjob, last schedule, failures), Line chart (failure count), Single value (failed jobs 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.30 · Init Container Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Failed inits block app containers entirely; fast detection shortens MTTR for migrations and secret-fetch steps.
+- **App/TA:** Kubernetes events, container status JSON
+- **Data Sources:** `sourcetype=kube:objects:events`, `sourcetype=kube:container:meta`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:objects:events" "*init container*" (Failed OR Error)
+| stats count by namespace, involvedObject.name, message
+| sort -count
+
+| comment "Init container state"
+index=k8s sourcetype="kube:container:meta" init="true"
+| where exit_code!=0 OR state="waiting"
+| table namespace pod_name container_name state exit_code
+```
+- **Implementation:** Forward events mentioning init containers; optionally ingest pod status subresource via exporter. Alert on non-zero init exit or ImagePull errors on init images.
+- **Visualization:** Table (pod, init container, reason), Timeline, Single value (failed inits/hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.31 · Sidecar Injection Validation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Ensures service mesh or security sidecars are present where policy requires—avoiding accidental unencrypted east-west traffic.
+- **App/TA:** kube-state-metrics, policy controller (optional)
+- **Data Sources:** `sourcetype=kube:pod:meta`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:pod:meta"
+| eval has_proxy=if(match(container_names, "(istio-proxy|linkerd-proxy|envoy)"),1,0)
+| where namespace_injection_enabled=1 AND has_proxy=0
+| table namespace pod_name container_names
+```
+- **Implementation:** Periodically snapshot pod container lists and namespace labels (`istio-injection`, etc.). Flag mismatches. Integrate with CI to fail deploys that skip injection in labeled namespaces.
+- **Visualization:** Table (namespace, pod, missing sidecar), Compliance %, Bar chart by team.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.32 · Namespace Quota Utilization Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Namespaces hitting CPU/memory/object quotas block rollouts; trending utilization prevents deployment freezes during releases.
+- **App/TA:** Splunk OTel Collector
+- **Data Sources:** `sourcetype=kube:resourcequota:meta`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:resourcequota:meta"
+| eval used_pct = round(used / hard * 100, 1)
+| where used_pct > 90
+| table namespace resource used hard used_pct
+| sort -used_pct
+```
+- **Implementation:** Same quota feed as UC-3.2.4; use a stricter 90% threshold for release windows. Split alerts by resource type (cpu, memory, pods).
+- **Visualization:** Stacked bar (used vs hard), Gauge per quota, Table.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.33 · Node Drain Events
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Draining nodes for maintenance evicts workloads; correlating drains with pod disruption helps explain transient unavailability.
+- **App/TA:** Kubernetes audit, controller logs
+- **Data Sources:** `sourcetype=kube:audit`, `sourcetype=kube:objects:events`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:audit" objectRef.resource="nodes" (verb="patch" OR verb="update")
+| search "unschedulable" OR "NoSchedule"
+| stats count by user.username, objectRef.name
+| sort -count
+
+| comment "Drain-related events"
+index=k8s sourcetype="kube:objects:events" "*drain*" OR reason="NodeSchedulable"
+| table _time involvedObject.name message
+```
+- **Implementation:** Capture cordon/drain API calls via audit. Dashboard maintenance windows. Alert on unexpected uncordon outside change windows.
+- **Visualization:** Timeline (drain/cordon), Table (user, node), Map of affected nodes.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.34 · Cluster DNS Resolution Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** CoreDNS failures cause widespread `SERVFAIL` and intermittent app errors; monitoring query errors and upstream timeouts is essential.
+- **App/TA:** CoreDNS log forwarding, Prometheus metrics
+- **Data Sources:** `sourcetype=kube:coredns`, `sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:coredns" (SERVFAIL OR timeout OR "i/o timeout")
+| stats count by qname, rcode, pod_name
+| sort -count
+
+| comment "Response codes"
+index=k8s sourcetype="kube:metrics" metric_name="coredns_dns_responses_total"
+| stats sum(_value) as responses by rcode
+| where rcode!="NOERROR" AND rcode!="NXDOMAIN"
+```
+- **Implementation:** Forward CoreDNS logs with response code. Scrape `coredns_dns_responses_total` by rcode. Alert on SERVFAIL spike or upstream forward errors.
+- **Visualization:** Line chart (errors by rcode), Table (qname, count), Single value (SERVFAIL/min).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.35 · Pod Anti-Affinity Violations
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
+- **Value:** Scheduling cannot always satisfy anti-affinity; detecting pending pods or topology spread skew avoids accidental single-AZ concentration.
+- **App/TA:** kube-scheduler logs, Kubernetes events
+- **Data Sources:** `sourcetype=kube:scheduler`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:events" reason="FailedScheduling"
+| search "affinity" OR "anti-affinity" OR "topology spread"
+| stats count by namespace, involvedObject.name, message
+| sort -count
+```
+- **Implementation:** Capture scheduler `FailedScheduling` messages with affinity terms. Optional: compare replica distribution by zone label versus `topologySpreadConstraints`. Alert when scheduling failures mention anti-affinity for >10 minutes.
+- **Visualization:** Table (pod, message), Bar chart by zone (replica counts), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.36 · Namespace Resource Limit Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** `LimitRange` defaults and max per-container caps prevent one pod from consuming a whole namespace budget; violations indicate chart misconfigurations.
+- **App/TA:** Kubernetes events, admission audit
+- **Data Sources:** `sourcetype=kube:objects:events`, `sourcetype=kube:audit`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:objects:events" "*LimitRange*" OR "*exceeds limit*"
+| stats count by namespace, involvedObject.name, message
+| sort -count
+
+| comment "Admission denied"
+index=k8s sourcetype="kube:audit" objectRef.resource="pods" responseStatus.code=422
+| stats count by objectRef.namespace, user.username
+```
+- **Implementation:** Track events when requests exceed LimitRange. Use audit 422 responses. Dashboard per namespace against documented standards.
+- **Visualization:** Table (namespace, workload, reason), Timeline, Single value (limit violations/day).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.37 · Pod Disruption Budget Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** PDBs protect availability during voluntary disruptions; monitoring expected vs healthy pods avoids accidental full service outages during drains.
+- **App/TA:** kube-state-metrics
+- **Data Sources:** `sourcetype=kube:metrics`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:metrics" metric_name="kube_poddisruptionbudget_status_expected_pods"
+| stats latest(_value) as expected by namespace, poddisruptionbudget
+| join type=left namespace poddisruptionbudget [
+    search index=k8s sourcetype="kube:metrics" metric_name="kube_poddisruptionbudget_status_current_healthy"
+    | stats latest(_value) as healthy by namespace, poddisruptionbudget
+]
+| where isnotnull(healthy) AND healthy<expected
+| table namespace poddisruptionbudget expected healthy
+```
+- **Implementation:** Scrape PDB status metrics; correlate with `Cannot evict pod` events during drains. Alert when healthy < expected minimum for PDB.
+- **Visualization:** Table (PDB, healthy vs expected), Timeline (blocked evictions), Status panel.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.38 · Vertical Pod Autoscaler Recommendations
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** VPA recommendation divergence from actual requests drives right-sizing and prevents CPU starvation when recommendations are not applied.
+- **App/TA:** VPA metrics export, `kubectl describe vpa` JSON job
+- **Data Sources:** `sourcetype=kube:metrics`, `sourcetype=kube:vpa:status`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:metrics" metric_name="vpa_recommendation_target_cpu"
+| stats latest(_value) as target_millicores by namespace, verticalpodautoscaler
+| join type=left namespace verticalpodautoscaler [
+    search index=k8s sourcetype="kube:metrics" metric_name="kube_pod_container_resource_requests" resource="cpu"
+    | stats latest(_value) as request_millicores by namespace, pod
+]
+| eval gap_m=abs(target_millicores-request_millicores)
+| where gap_m>500
+| table namespace verticalpodautoscaler target_millicores request_millicores gap_m
+```
+- **Implementation:** Ingest VPA recommendation metrics (or periodic JSON status). Compare recommendation to live requests. Alert on large sustained gaps for tier-1 workloads.
+- **Visualization:** Table (workload, target vs request), Line chart (recommendation drift), Bar chart (gap).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.39 · Kubernetes Events Anomaly Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Sudden `Warning` event storms often precede control plane or network incidents; statistical baselines catch abnormal rates per namespace.
+- **App/TA:** Splunk ML Toolkit (optional) or scheduled analytics
+- **Data Sources:** `sourcetype=kube:objects:events`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:objects:events" type="Warning"
+| bin _time span=15m
+| stats count as warn_count by _time, namespace
+| eventstats avg(warn_count) as avg_w stdev(warn_count) as sd by namespace
+| eval z=if(sd>0 AND sd!=null, (warn_count-avg_w)/sd, 0)
+| where abs(z)>3 AND warn_count>10
+| table _time namespace warn_count avg_w z
+| sort -warn_count
+```
+- **Implementation:** Baseline Warning rate per namespace with rolling stdev. Tune thresholds for chatty namespaces. Optional: replace with `anomalydetection` or MLTK for seasonality.
+- **Visualization:** Timechart with overlay, Table (namespace, spike z-score), Single value (anomaly intervals).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.40 · Persistent Volume Snapshot Status
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Failed or stale snapshots break restore RPO; monitoring `VolumeSnapshot` and CSI driver status supports backup verification.
+- **App/TA:** Kubernetes events, CSI driver metrics
+- **Data Sources:** `sourcetype=kube:objects:events`, `sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:objects:events" involvedObject.kind="VolumeSnapshot" (Failed OR Error)
+| stats count by namespace, involvedObject.name, message
+| sort -count
+
+| comment "Snapshot not ready"
+index=k8s sourcetype="kube:metrics" metric_name="kube_volume_snapshot_ready"
+| where _value=0
+| table namespace volumesnapshot _time
+```
+- **Implementation:** Forward VolumeSnapshot events and optional readiness gauge from CSI. Alert on failed snapshot jobs or readiness stuck false >1 hour.
+- **Visualization:** Table (snapshot, status), Timeline, Single value (failed snapshots 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.41 · Service Endpoint Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Services with zero ready endpoints drop traffic for ClusterIP clients; fast detection isolates label selector and readiness probe issues.
+- **App/TA:** kube-state-metrics
+- **Data Sources:** `sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:metrics" metric_name="kube_endpoint_address_available"
+| stats latest(_value) as avail by namespace, service
+| join type=left namespace service [
+    search index=k8s sourcetype="kube:metrics" metric_name="kube_endpoint_address_not_ready"
+    | stats latest(_value) as not_ready by namespace, service
+]
+| where avail=0 OR not_ready>0
+| table namespace service avail not_ready
+```
+- **Implementation:** Scrape EndpointSlice metrics (`kube_endpoint_*`). Exclude headless where appropriate. Alert when `available==0` for production Services.
+- **Visualization:** Table (service, endpoints), Status grid, Line chart (ready endpoints).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.42 · Kubelet Certificate Rotation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Kubelet client/server cert expiry breaks node registration and pod lifecycle; tracking rotation events prevents surprise NotReady storms.
+- **App/TA:** kubelet logs, node cert exporter
+- **Data Sources:** `sourcetype=kube:kubelet`, `sourcetype=kube:node:cert`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:kubelet" ("certificate" OR "x509" OR "rotate")
+| search fail OR error OR expired
+| stats count by host, message
+| sort -count
+
+| comment "Structured notAfter"
+index=k8s sourcetype="kube:node:cert" role="kubelet"
+| eval days_left=round((not_after-now())/86400,0)
+| where days_left<30
+| table host role days_left
+```
+- **Implementation:** Forward kubelet logs and optional script exporting kubelet cert `NotAfter`. Alert at 30/14 days for self-managed rotation.
+- **Visualization:** Table (node, days left), Timeline (rotation success), Single value (nodes expiring <30d).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.43 · Container Probe Failure Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Repeated readiness/liveness probe failures indicate dependency outages or mis-tuned thresholds before user-visible errors dominate.
+- **App/TA:** kubelet logs, Kubernetes events
+- **Data Sources:** `sourcetype=kube:kubelet`, `sourcetype=kube:objects:events`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:kubelet" ("Probe failed" OR "Liveness probe failed" OR "Readiness probe failed")
+| stats count by host, pod, container
+| sort -count
+
+| comment "Unhealthy events"
+index=k8s sourcetype="kube:objects:events" reason="Unhealthy"
+| stats count by namespace, involvedObject.name, message
+```
+- **Implementation:** Collect kubelet probe log lines. Bucket by container. Alert on sustained probe failure rate after deployments.
+- **Visualization:** Table (pod, container, count), Timeline, Bar chart by workload.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.44 · Node Pool Auto-Repair Events
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Managed Kubernetes auto-replace unhealthy nodes; tracking repairs explains brief capacity dips and correlates with hardware or image issues.
+- **App/TA:** Cloud cluster logs (EKS, GKE, AKS) to Splunk
+- **Data Sources:** `sourcetype=aws:eks:node`, `sourcetype=gcp:gke:operation`, `sourcetype=azure:aks:node`
+- **SPL:**
+```spl
+index=cloud (sourcetype="aws:eks:node" OR sourcetype="gcp:gke:operation" OR sourcetype="azure:aks:node")
+| search repair OR replace OR recreate OR "auto repair"
+| stats count by cluster_name, node_pool, _raw
+| sort -_time
+```
+- **Implementation:** Export node pool operations via cloud add-ons or EventBridge/Activity Log. Tag auto-repair operations. Alert on repair rate spike versus baseline.
+- **Visualization:** Timeline (repairs), Table (pool, message), Single value (repairs/day).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.45 · Admission Webhook Latency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** P95/P99 webhook latency drives API server tail latency; isolating slow validating/mutating hooks prevents global API degradation.
+- **App/TA:** Splunk OTel Collector (apiserver metrics)
+- **Data Sources:** `sourcetype=kube:apiserver`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:apiserver" metric_name="apiserver_admission_webhook_admission_duration_seconds"
+| bin _time span=5m
+| stats perc95(_value) as p95, perc99(_value) as p99 by name, operation, _time
+| where p95>0.25 OR p99>1
+| sort -p99
+```
+- **Implementation:** Same histogram as UC-3.2.21; emphasize percentile SLOs per webhook `name` and `operation`. Page on P99 >1s for production webhooks.
+- **Visualization:** Line chart (p95/p99 by webhook), Table (webhook, p99), Heatmap.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.2.46 · Cluster Autoscaler Pending Pods
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Cluster autoscaler unable to scale out leaves pods pending during traffic spikes; monitoring pending duration and CA logs protects scale-out SLAs.
+- **App/TA:** cluster-autoscaler logs, Kubernetes events
+- **Data Sources:** `sourcetype=kube:cluster-autoscaler`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:cluster-autoscaler" ("scale-up" OR "failed" OR "NotTriggeredScaleUp")
+| stats count by cluster_name, _raw
+| sort -count
+
+| comment "Long-pending pods"
+index=k8s sourcetype="kube:events" reason="FailedScheduling"
+| eval age_sec=now()-_time
+| where age_sec>300
+| stats max(age_sec) as max_pending by namespace, involvedObject.name, message
+| sort -max_pending
+```
+- **Implementation:** Forward cluster-autoscaler Deployment logs. Correlate `NotTriggeredScaleUp` with max node pool size and quotas. Alert when scheduling failures persist >5 minutes while CA reports scale blocked.
+- **Visualization:** Table (reason, count), Timeline (scale-up), Single value (pending pods).
+- **CIM Models:** N/A
+
+---
+
 ## 3.3 OpenShift
 
 **Primary App/TA:** OpenTelemetry Collector, OpenShift audit log forwarding
@@ -757,6 +1592,132 @@ index=k8s (sourcetype="helm:list" OR sourcetype="gitops:desired")
 ```
 - **Implementation:** Scripted input: `helm list -A -o json` (all namespaces). Parse name, namespace, chart (includes version), app_version, status, updated. Run every 600 seconds. Optionally ingest GitOps desired state (Argo CD, Flux) from API or Git. Compare deployed chart version to desired. Alert when drift detected (deployed != desired). Useful for detecting manual changes or failed syncs.
 - **Visualization:** Table (namespace, release, chart, version, status), Drift indicator (deployed vs desired), Timeline of updates.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.3.6 · Operator Health Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** OpenShift operators reconcile cluster components; tracking Available/Progressing/Degraded across the full operator set surfaces partial failures before user-facing symptoms.
+- **App/TA:** Custom API input (`oc get clusteroperator -o json`)
+- **Data Sources:** `sourcetype=openshift:clusteroperator`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:clusteroperator"
+| where progressing="True" OR degraded="True" OR available="False"
+| stats values(available) as avail, values(degraded) as deg, values(progressing) as prog by cluster, operator
+| sort cluster, operator
+```
+- **Implementation:** Ingest ClusterOperator status on a 5-minute cadence. Build a health matrix per cluster. Alert when any operator is `Degraded=True` or `Available=False` beyond the remediation SLA.
+- **Visualization:** Operator matrix (green/yellow/red), Table (operator, conditions), Timeline of flapping.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.3.7 · Build Config Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** `BuildConfig` runs power S2I and Docker builds; failed builds block image promotion and rollouts tied to CI/CD.
+- **App/TA:** OpenShift event forwarding
+- **Data Sources:** `sourcetype=kube:objects:events`
+- **SPL:**
+```spl
+index=openshift sourcetype="kube:objects:events" involvedObject.kind="Build" (reason="BuildFailed" OR reason="Error" OR reason="Failed")
+| stats count by namespace, involvedObject.name, reason, message
+| sort -count
+```
+- **Implementation:** Ensure build events include `BuildConfig` correlation. Group by namespace and builder image. Alert on repeated failures for the same `BuildConfig` within 1 hour.
+- **Visualization:** Table (build, namespace, message), Line chart (failure rate), Bar chart by builder image.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.3.8 · Route TLS Expiry Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** OpenShift Routes terminate TLS for apps; expiring certs on edge or re-encrypt routes cause sudden browser and API client failures.
+- **App/TA:** cert-manager, `oc get route -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:route`, `sourcetype=certmanager:metrics`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:route"
+| eval days_left=round((strptime(tls_not_after,"%Y-%m-%dT%H:%M:%SZ")-now())/86400,0)
+| where days_left < 30 OR isnull(days_left)
+| table namespace name host tls_not_after days_left
+| sort days_left
+
+| comment "cert-manager Certificate"
+index=openshift sourcetype="certmanager:metrics" metric_name="certmanager_certificate_expiration_timestamp_seconds"
+| eval days_left=round((_value-now())/86400,0)
+| where days_left < 30
+| table namespace name days_left
+```
+- **Implementation:** Periodically export Route TLS `notAfter` from `oc` or ingress controller. If using cert-manager, scrape expiration metrics. Alert at 30/14/7 days; page inside 7 days for customer-facing hostnames.
+- **Visualization:** Table (route, hostname, days left), Single value (soonest expiry), Gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.3.9 · Cluster Version Upgrade Status
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Long-running or failing upgrades leave clusters on unsupported versions; monitoring `ClusterVersion` conditions and history pins down stuck machine-config or operator prerequisites.
+- **App/TA:** Custom API input (`oc get clusterversion version -o json`)
+- **Data Sources:** `sourcetype=openshift:clusterversion`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:clusterversion"
+| stats latest(version) as version, latest(progressing) as upgrading, latest(available) as available, latest(failing) as failing by cluster
+| where upgrading="True" OR failing="True" OR available="False"
+| table cluster version upgrading failing available
+```
+- **Implementation:** Parse `status.conditions` (Failing, Progressing, Available) and `status.history[]` from JSON into indexed fields. Alert when `progressing` remains true >2 hours or `Failing=True`. Complements UC-3.3.1 with failure messages from `status.history[].message`.
+- **Visualization:** Upgrade timeline per cluster, Table (version, phase, message), Single value (clusters not on target channel).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.3.10 · Image Stream Tag Drift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
+- **Value:** ImageStreams can point to unexpected digests after imports or mirroring; drift from expected tags breaks reproducible builds and compliance baselines.
+- **App/TA:** `oc get imagestream -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:imagestream`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:imagestream"
+| where isnotnull(expected_digest) AND isnotnull(digest) AND digest!=expected_digest
+| table namespace name tag digest expected_digest source
+| sort namespace, name
+```
+- **Implementation:** Scripted input emits `digest` per tag plus `expected_digest` from GitOps/CMDB (or use `| lookup` against a KV store). Alert on mismatch for `latest` and release tags used in production pipelines.
+- **Visualization:** Table (imagestream, tag, digests), Drift count single value, Timeline of tag updates.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.3.11 · Operator Subscription Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** OLM subscriptions deliver operator upgrades; unhealthy subscriptions block security patches and CRD updates for platform add-ons.
+- **App/TA:** `oc get subscription -A -o json` scripted input
+- **Data Sources:** `sourcetype=openshift:subscription`
+- **SPL:**
+```spl
+index=openshift sourcetype="openshift:subscription"
+| where state!="AtLatestKnown" OR match(_raw,"InstallPlanPending|CatalogSourcesUnhealthy")
+| stats latest(state) as state, latest(message) as msg by namespace, name, channel
+| sort namespace, name
+```
+- **Implementation:** Parse Subscription `status.state` and conditions. Alert on `CatalogSourcesUnhealthy`, `InstallPlanPending` beyond SLA, or repeated upgrade failures. Correlate with CatalogSource pod health.
+- **Visualization:** Table (subscription, state, message), Status grid by namespace, Timeline.
 - **CIM Models:** N/A
 
 ---
@@ -951,4 +1912,274 @@ index=containers (sourcetype="trivy:scan" OR sourcetype="grype:scan" OR sourcety
 - **CIM Models:** N/A
 
 ---
+
+## 3.5 Service Mesh & Serverless Containers
+
+**Primary App/TA:** Splunk OpenTelemetry Collector (Istio/Envoy metrics and access logs), `Splunk_TA_aws` (ECS/Fargate), `Splunk_TA_microsoft-cloudservices` (Azure Monitor), `Splunk_TA_google-cloudplatform` (Cloud Run / Cloud Monitoring)
+
+---
+
+### UC-3.5.1 · Istio Mesh Traffic Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Baseline and anomaly detection on east-west traffic prevents silent degradation and helps isolate failing workloads before user impact spreads.
+- **App/TA:** Splunk OTel Collector (Prometheus receiver scraping Istio sidecar `15090`), `istio-mixer`/`istio` telemetry
+- **Data Sources:** `sourcetype=otel:metrics` or `sourcetype=prometheus:istio`
+- **SPL:**
+```spl
+index=containers (sourcetype="otel:metrics" OR sourcetype="prometheus:istio")
+| where like(metric_name, "istio_requests_total%") OR like(name, "istio_requests_total%")
+| eval rc=tonumber(response_code)
+| stats sum(value) as requests by destination_service_name, reporter, rc
+| eval is_error=if(rc>=500 OR rc=0 OR isnull(rc), 1, 0)
+| stats sum(requests) as total, sum(eval(if(is_error=1, requests, 0))) as err by destination_service_name
+| eval err_rate=round(100*err/total, 2)
+| where err_rate > 1
+| sort -err_rate
+```
+- **Implementation:** Deploy the OTel Collector with a Prometheus receiver targeting Istio workload and ingress scrape configs (per Istio observability docs). Forward metrics to Splunk via OTLP or Splunk HEC. Normalize `destination_service_name` and `response_code` labels into dimensions. Build baselines per service pair and alert on sustained error-rate spikes versus historical traffic.
+- **Visualization:** Time chart (requests and 5xx by destination), Table (top error rates by service), Single value (mesh-wide error %).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.2 · Sidecar Proxy Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Unhealthy Envoy sidecars drop or misroute traffic; catching not-ready or crash-looping proxies avoids cascading failures across the mesh.
+- **App/TA:** Splunk OTel Collector (kubelet/cAdvisor or Prometheus kube-state-metrics), Kubernetes metadata
+- **Data Sources:** `sourcetype=kube:metrics` or `sourcetype=otel:metrics`
+- **SPL:**
+```spl
+index=containers (sourcetype="kube:metrics" OR sourcetype="otel:metrics")
+| where match(pod, ".*-istio-proxy$") OR container_name="istio-proxy"
+| stats latest(ready) as ready, latest(restarts) as restarts, latest(phase) as phase by pod, namespace, node
+| where ready=0 OR restarts>3 OR phase!="Running"
+| sort namespace, pod
+```
+- **Implementation:** Ingest pod/container metrics from Prometheus or OTel Kubernetes receiver so `istio-proxy` containers expose readiness and restart counts. Correlate with kube-state-metrics `kube_pod_container_status_restarts_total` where available. Alert when sidecars are not ready or restart churn exceeds threshold after mesh upgrades.
+- **Visualization:** Table (namespace, pod, ready, restarts), Timeline (restarts), Single value (unhealthy sidecar count).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.3 · mTLS Certificate Expiry
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Expired Istio workload or gateway certs break mTLS between services; proactive expiry tracking avoids sudden mesh-wide authentication failures.
+- **App/TA:** Custom script or `istioctl proxy-config secret` output to HEC, optional cert-manager logs
+- **Data Sources:** `sourcetype=istio:cert_status` or `sourcetype=kubernetes:audit`
+- **SPL:**
+```spl
+index=containers sourcetype="istio:cert_status"
+| eval days_left=round((strptime(not_after, "%Y-%m-%dT%H:%M:%SZ")-now())/86400, 0)
+| where days_left < 30 OR isnull(days_left)
+| stats min(days_left) as soonest_expiry by workload_name, namespace, serial
+| sort soonest_expiry
+```
+- **Implementation:** Schedule `istioctl proxy-config secret` or Citadel/istiod cert status exports and send JSON to Splunk (HEC). Include `not_after` for each SPIFFE identity. Alternatively parse cert-manager Certificate resources’ status. Alert at 30/14/7 days and page on any cert already expired.
+- **Visualization:** Table (workload, namespace, soonest expiry days), Single value (minimum days to expiry), Gauge per cluster.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.4 · AWS Fargate Task Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Fargate tasks are the unit of scale; tracking stopped tasks and resource limits surfaces platform issues before services miss SLAs.
+- **App/TA:** `Splunk_TA_aws` (CloudWatch Logs/Metrics)
+- **Data Sources:** `sourcetype=aws:cloudwatch:metric` or `sourcetype=aws:cloudwatchlogs`
+- **SPL:**
+```spl
+index=cloud sourcetype="aws:cloudwatch:metric" Namespace="AWS/ECS" MetricName="CPUUtilization"
+| stats avg(Average) as cpu_avg, max(Maximum) as cpu_max by ServiceName, ClusterName
+| where cpu_max>90
+| sort -cpu_max
+```
+- **Implementation:** Enable CloudWatch Container Insights for ECS on Fargate and pull metrics via `Splunk_TA_aws` CloudWatch metric input. Ship task and service logs to Splunk (FireLens, Lambda, or direct subscription) and run a companion search on `sourcetype=aws:cloudwatchlogs` for `Task stopped` / error patterns. Map dimensions `ClusterName`, `ServiceName`, `TaskId`. Alert on sustained high CPU/memory, task stop reasons, and log error bursts.
+- **Visualization:** Time chart (CPU/memory by service), Table (stopped tasks with reason), Single value (running task count).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.5 · Azure Container Instances Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** ACI containers are short-lived and opaque without platform metrics; monitoring restarts and resource exhaustion preserves burst workloads and integrations.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` or `sourcetype=azure:diagnostics`
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.containerinstance/containergroups"
+| stats avg(average) as cpu_avg, max(maximum) as cpu_peak by resource_name, resource_group
+| join type=left resource_name [
+    search index=cloud sourcetype="azure:diagnostics" Category="ContainerInstanceLog"
+    | where match(_raw, "(?i)error|fail|OOM")
+    | stats count as log_errors by resource_name
+]
+| where cpu_peak>85 OR log_errors>0
+| sort -cpu_peak
+```
+- **Implementation:** Route Azure Monitor metrics for Container Instances to Splunk using the Azure Add-on (Event Hub or metrics export). Enable diagnostic logs for container groups. Normalize `resource_name` to container group. Alert on CPU/memory threshold breaches, exit code non-zero patterns in logs, and restart counts from platform events.
+- **Visualization:** Line chart (CPU/memory over time), Table (container group, region, state), Bar chart (events by group).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.6 · GCP Cloud Run Task Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cloud Run scales to zero and on demand; tracking request latency, instance count, and error ratio catches cold-start and quota issues before customers notice.
+- **App/TA:** `Splunk_TA_google-cloudplatform` (Pub/Sub logging/metrics) or OTel export from Cloud Ops
+- **Data Sources:** `sourcetype=google:gcp:pubsub:message` or `sourcetype=gcp:monitoring:timeseries`
+- **SPL:**
+```spl
+index=cloud sourcetype="gcp:monitoring:timeseries"
+| where like(metric.type, "run.googleapis.com%")
+| stats avg(value) as val_avg, max(value) as val_max by metric.type
+| where match(metric.type, "(?i)request|latency|instance|container")
+| sort -val_max
+```
+- **Implementation:** Export Cloud Run request, latency, and instance metrics via GCP monitoring sink to Pub/Sub and ingest with `Splunk_TA_google-cloudplatform`, or forward OpenTelemetry from a sidecar/collector if you run hybrid instrumentation. Ensure `service_name` and `revision_name` are extracted. Alert on elevated `server_request_latencies` and `5xx` ratio versus SLO.
+- **Visualization:** Time chart (p95 latency, request rate), Table (service, revision, error rate), Single value (active instances).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.7 · Envoy Proxy Error Rates
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Envoy aggregates L7 failures; trending 4xx/5xx and upstream errors isolates bad clusters and config rollouts quickly.
+- **App/TA:** Splunk OTel Collector (Envoy admin `/stats` or access log pipeline), `envoy.access_log`
+- **Data Sources:** `sourcetype=envoy:access` or `sourcetype=otel:metrics`
+- **SPL:**
+```spl
+index=containers sourcetype="envoy:access"
+| eval status=tonumber(response_code)
+| eval is_err=if(status>=400 OR upstream_cluster="-" , 1, 0)
+| stats count as total, sum(is_err) as err by route_name, upstream_cluster, cluster_name
+| eval err_pct=round(100*err/total, 2)
+| where err_pct>1 AND total>100
+| sort -err_pct
+```
+- **Implementation:** Configure Envoy access logs (JSON) to stdout and collect via OTel filelog receiver or Fluent Bit to Splunk. Include `response_code`, `route_name`, `upstream_cluster`, `duration`. Optionally scrape `envoy_cluster_upstream_rq_xx` from Prometheus. Baseline error percentages per route and alert on spikes after deployments.
+- **Visualization:** Time chart (4xx/5xx rate by route), Table (top routes by error %), Heatmap (cluster vs status).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.8 · Circuit Breaker Trips
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Reliability
+- **Value:** Outlier detection and open circuits protect the mesh; frequent trips signal upstream saturation or bad health checks that need capacity or code fixes.
+- **App/TA:** Splunk OTel Collector (Envoy/Istio Prometheus metrics)
+- **Data Sources:** `sourcetype=prometheus:istio` or `sourcetype=otel:metrics`
+- **SPL:**
+```spl
+index=containers (sourcetype="prometheus:istio" OR sourcetype="otel:metrics")
+| where match(metric_name, "envoy_cluster_upstream_rq_pending_overflow") OR match(metric_name, "circuit_breakers.*overflow")
+| stats sum(value) as trips by cluster_name, destination_service_name
+| where trips>0
+| sort -trips
+```
+- **Implementation:** Scrape Istio/Envoy Prometheus endpoints (port 15090) with OTel Prometheus receiver. Map overflow and ejection counters to Splunk metrics. Correlate trips with deploy times and upstream latency. Alert when overflow rate accelerates versus steady-state for a cluster.
+- **Visualization:** Time chart (overflow counters by cluster), Table (cluster, trips, destination), Bar chart (trips per namespace).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.9 · Service Mesh Control Plane Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** istiod and validating webhook outages block config pushes and sidecar updates; early detection prevents a widening blast radius across namespaces.
+- **App/TA:** Splunk OTel Collector, Kubernetes metrics/logs
+- **Data Sources:** `sourcetype=kube:logs` or `sourcetype=otel:logs`
+- **SPL:**
+```spl
+index=containers (sourcetype="kube:logs" OR sourcetype="otel:logs") (istiod OR "istiod-")
+| stats count(eval(match(_raw, "(?i)error|panic|failed"))) as err_count, count as line_count by pod, namespace
+| eval err_rate=round(100*err_count/line_count, 2)
+| where err_rate>5 OR err_count>50
+| sort -err_count
+```
+- **Implementation:** Collect istiod container logs and kube-state-metrics for Deployment replicas (`istiod` available vs desired). Ingest admission webhook failure events from API server audit if enabled. Alert on istiod pod restarts, gRPC push errors in logs, and replica mismatch.
+- **Visualization:** Single value (istiod ready replicas), Timeline (pod restarts), Table (error snippets by pod).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.10 · Ingress Gateway Latency
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** North-south latency reflects TLS, auth, and routing at the edge; regressions here affect every external client before internal mesh metrics move.
+- **App/TA:** Splunk OTel Collector (Istio ingress gateway metrics), Envoy access logs
+- **Data Sources:** `sourcetype=otel:metrics` or `sourcetype=envoy:access`
+- **SPL:**
+```spl
+index=containers sourcetype="envoy:access"
+| where like(gateway_workload, "istio-ingress%") OR like(kubernetes_pod_name, "istio-ingress%")
+| eval dur_ms=tonumber(duration_ms)
+| timechart span=5m perc95(dur_ms) as p95_ms, perc99(dur_ms) as p99_ms by route_name
+```
+- **Implementation:** Label ingress gateway access logs with `gateway_workload` or filter Kubernetes workload name. Export histogram or timer metrics (`istio_request_duration_milliseconds`) via OTel. Set SLO windows on p95/p99 per host and route. Compare canary vs stable gateway revisions during rollouts.
+- **Visualization:** Time chart (p95/p99 latency by route), Geographic or by-AZ breakdown if multi-region, Single value (SLO burn).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.11 · Sidecar Injection Validation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Pods without injection bypass mesh policy and mTLS; continuous validation enforces namespace labels and mutating webhook coverage.
+- **App/TA:** Kubernetes API audit or controller logs, `kube:objects` snapshot
+- **Data Sources:** `sourcetype=kubernetes:audit` or `sourcetype=kube:objects`
+- **SPL:**
+```spl
+index=containers sourcetype="kubernetes:audit" objectRef.resource="pods"
+| eval has_sidecar=if(match(_raw, "istio-proxy"), 1, 0)
+| join type=left objectRef.namespace [
+    search index=containers sourcetype="kube:objects" kind="Namespace"
+    | eval inject=if(match(_raw, "istio-injection=enabled"), 1, 0)
+    | stats max(inject) as should_inject by metadata.name
+    | rename metadata.name as objectRef.namespace
+]
+| where should_inject=1 AND has_sidecar=0
+| stats count by objectRef.namespace, objectRef.name
+```
+- **Implementation:** Periodically inventory pods in `istio-injection=enabled` namespaces (CI job or Splunk scheduled search against cached object JSON). Flag workloads missing `istio-proxy`. Optionally parse audit logs for pod create with webhook bypass. Integrate with policy-as-code to fail builds that skip mesh membership.
+- **Visualization:** Table (namespace, pod, missing sidecar), Single value (non-compliant pod count), Trend (compliance %).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.12 · Rate Limiting and Traffic Policy Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Confirms quotas and Istio `RateLimitService`/Local rate limit configs actually throttle abuse; drift between policy and observed denials indicates misconfiguration or bypass attempts.
+- **App/TA:** Splunk OTel Collector (Envoy local rate limit / RLS metrics), Envoy access logs
+- **Data Sources:** `sourcetype=envoy:access` or `sourcetype=otel:metrics`
+- **SPL:**
+```spl
+index=containers sourcetype="envoy:access"
+| eval denied=if(response_code=429 OR match(response_flags, "RL"), 1, 0)
+| stats count as total, sum(denied) as rate_limited by route_name, cluster_name
+| eval rl_pct=round(100*rate_limited/total, 3)
+| where rate_limited>0
+| sort -rate_limited
+```
+- **Implementation:** Ensure access logs include `response_code` 429 and Envoy `response_flags` (e.g. `RL` for rate limited). For global RLS, scrape `ratelimit_service_*` or service metrics. Dashboard expected 429 share per route against policy (e.g. per-API key). Alert on unexpected absence of throttling during attacks or sudden spikes in 429s indicating config errors.
+- **Visualization:** Time chart (429 rate by route), Table (routes with throttle events), Stacked bar (allowed vs rate-limited volume).
+- **CIM Models:** N/A
 

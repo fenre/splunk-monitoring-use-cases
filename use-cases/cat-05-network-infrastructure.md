@@ -710,7 +710,7 @@ index=network sourcetype=snmp:qos
 
 ---
 
-### UC-5.1.33 · Duplex Mismatch Detection
+### UC-5.1.33 · Half-Duplex Negotiation Anomaly
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -5824,6 +5824,223 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 ```
 - **Implementation:** Configure Splunk App for Stream to capture SIP INVITE and response transactions. The `setup_delay` field measures the time from INVITE to the first non-100 response (typically 180 Ringing or 200 OK). Monitor by `dest_ip` to identify slow destinations or trunks. ITU-T E.721 recommends post-dial delay under 3 seconds for national calls and under 5 seconds for international calls. Create tiered alerts: warning at p95 >3s, critical at p95 >5s. Trend analysis reveals degradation patterns across time of day and destination.
 - **Visualization:** Gauge (p95 post-dial delay with thresholds: green <2s, yellow 2-3s, red >3s), Line chart (average PDD trend by dest_ip over 24h), Table (dest_ip, calls, avg_pdd_ms, p95_pdd_ms, max_pdd_ms — sortable), Histogram (PDD distribution across all calls).
+- **CIM Models:** N/A
+
+---
+
+### 5.12 Telecommunications & CDR Analytics
+
+**Primary App/TA:** SBC/softswitch CDR feeds, IMS core TAs, `Cisco CDR` / `asterisk:cdr`, Splunk App for Stream (`stream:sip`).
+
+---
+
+### UC-5.12.1 · CDR Call Failure Statistics
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Aggregates release causes, SIP response codes, and ISUP cause values from CDRs to spot trunk, routing, or peer outages early.
+- **App/TA:** SBC CDR CSV/JSON ingestion, custom props
+- **Data Sources:** `sourcetype="cdr:voip"`, `sourcetype="broadworks:cdr"`
+- **SPL:**
+```spl
+index=voip sourcetype="cdr:voip"
+| eval is_fail=if(call_status!="answered" OR match(lower(call_status),"fail"),1,0)
+| timechart span=15m sum(is_fail) as fails count as total
+| eval fail_pct=if(total>0, round(100*fails/total,2), 0)
+```
+- **Implementation:** Normalize vendor-specific cause codes to Q.850 / SIP mapping table; baseline by destination prefix (emergency, international).
+- **Visualization:** Stacked area (causes over time), Pie chart (cause mix), Single value (fail %).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.2 · Call Volume Trending by Destination
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Traffic engineering for trunk groups and geographic hot spots — detects flash crowds or fraud-driven spikes to premium destinations.
+- **App/TA:** CDR aggregation
+- **Data Sources:** `sourcetype="cdr:voip"` with `called_number`, `route_label`
+- **SPL:**
+```spl
+index=voip sourcetype="cdr:voip"
+| eval dest_prefix=substr(called_number,1,6)
+| timechart span=1h sum(duration_sec) as minutes count as calls by dest_prefix
+| sort -calls
+```
+- **Implementation:** Mask PANI for privacy dashboards; use HMAC of full number for drilldown in secured role.
+- **Visualization:** Line chart (calls by prefix), Map (if geo-lookup on prefix), Table (top routes).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.3 · Call Duration Distribution Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fraud
+- **Value:** Shifts toward very short or very long holds may indicate robocall, modem, or toll fraud vs. normal conversational distribution.
+- **App/TA:** CDR
+- **Data Sources:** `sourcetype="cdr:voip"` `duration_sec`
+- **SPL:**
+```spl
+index=voip sourcetype="cdr:voip" call_status="answered"
+| bucket duration_sec span=30 as dur_bin
+| stats count by dur_bin
+| eventstats sum(count) as tot
+| eval pct=round(100*count/tot,2)
+| sort dur_bin
+```
+- **Implementation:** Compare to historical histogram; alert on >2× share in `<6s` buckets (wangiri / scanners).
+- **Visualization:** Histogram (duration), Line chart (percentile trend via `eventstats perc*`).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.4 · SIP Trunk Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Concurrent session counts or peg counts vs. licensed trunk capacity — prevents preemptive blocking at peak.
+- **App/TA:** SBC SNMP, CDR-derived concurrency, Stream SIP
+- **Data Sources:** `sourcetype="snmp:sbc"`, `sourcetype="stream:sip"`
+- **SPL:**
+```spl
+index=voip sourcetype="stream:sip" OR sourcetype="snmp:sbc"
+| eval concurrent=if(isnotnull(active_calls), active_calls, curr_sess)
+| timechart span=1m max(concurrent) as peak_sess by trunk_group
+| lookup trunk_capacity trunk_group OUTPUT licensed_sess
+| eval util_pct=round(100*peak_sess/licensed_sess,1)
+| where util_pct>85
+```
+- **Implementation:** Separate inbound vs. outbound if asymmetric licensing; forecast with `predict` for capacity planning.
+- **Visualization:** Area chart (concurrency), Gauge (utilization %), Table (trunk groups at risk).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.5 · VoIP MOS Score Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — user-perceived VoLTE/VoIP quality.
+- **App/TA:** SBC QoE records, Poly/Vendor QoS feeds
+- **Data Sources:** `sourcetype="qos:rtcp"`, `sourcetype="cdr:voip"` with `mos` field
+- **SPL:**
+```spl
+index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip")
+| where isnotnull(mos)
+| timechart span=5m avg(mos) as avg_mos perc5(mos) as worst_mos by codec
+| where avg_mos < 3.8 OR worst_mos < 3.0
+```
+- **Implementation:** ITU-T G.107 E-model targets; correlate with jitter/loss from same leg_id; segment by radio access (VoLTE) vs. Wi-Fi.
+- **Visualization:** Line chart (MOS trend), Scatter (loss vs. MOS), Table (worst calls).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.6 · Signaling Storm Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Security
+- **Value:** Bursts of SIP OPTIONS, REGISTER, or diameter requests can indicate reflection DDoS or misconfigured endpoints — complements UC-5.11.5 with cross-layer view.
+- **App/TA:** Splunk App for Stream, STP/Diameter capture
+- **Data Sources:** `sourcetype="stream:sip"`, `sourcetype="diameter:cap"`
+- **SPL:**
+```spl
+index=signaling (sourcetype="stream:sip" OR sourcetype="diameter:cap")
+| bin _time span=1m
+| stats count by method, cmd_code, _time
+| eventstats avg(count) as mu, stdev(count) as s by method
+| where count > mu+5*s
+| sort -count
+```
+- **Implementation:** Whitelist health-check sources; coordinate with peer ops when storm targets upstream interconnect.
+- **Visualization:** Timeline (spike detection), Table (method × source ASN), Single value (peak RPS).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.7 · IMS Registration Failure Rate
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** HSS/UDM or P-CSCF failures show up as elevated 401/403/timeout on REGISTER — impacts VoLTE attach and VoWiFi.
+- **App/TA:** P-CSCF logs, IMS CDR
+- **Data Sources:** `sourcetype="ims:sip"` `method=REGISTER`, `sourcetype="stream:sip"`
+- **SPL:**
+```spl
+index=ims sourcetype="ims:sip" method="REGISTER"
+| eval fail=if(match(reply_code,"^(401|403|408|5..)$"),1,0)
+| timechart span=5m sum(fail) as fails, count as attempts
+| eval fail_rate=round(100*fails/attempts,2)
+| where fail_rate > 5
+```
+- **Implementation:** Break out by `visited_network` for roaming; correlate with certificate expiry on IPSec for VoWiFi.
+- **Visualization:** Line chart (fail rate), Bar chart (SIP reason by S-CSCF), Table (IMSI hash top failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.8 · Number Portability Request Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operations
+- **Value:** LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs.
+- **App/TA:** NP/BSS extracts, SOA APIs
+- **Data Sources:** `sourcetype="lnp:order"`, `sourcetype="npac:soa"`
+- **SPL:**
+```spl
+index=telco sourcetype="lnp:order"
+| where order_status IN ("PENDING","REJECTED","TIMEOUT")
+| stats count, avg((now()-submitted_epoch)/86400) as age_days by tn_range, losing_carrier
+| sort -age_days
+```
+- **Implementation:** SLA alerts for orders >72h in PENDING; root-cause codes joined to carrier contact list.
+- **Visualization:** Funnel (order states), Table (aging ports), Bar chart (reject reasons).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.9 · Roaming Usage Anomaly
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fraud, Revenue Assurance
+- **Value:** Sudden data/voice roaming volume from HLR/VLR or TAP records may indicate SIM box, cloned IMSI, or billing leakage.
+- **App/TA:** TAP files (TD.35), roaming analytics
+- **Data Sources:** `sourcetype="tap:cdr"`, `sourcetype="roaming:usage"`
+- **SPL:**
+```spl
+index=telco sourcetype="roaming:usage"
+| bin _time span=1d
+| stats sum(charge_units) as units, sum(charge_amount) as rev by imsi_hash, visited_country, _time
+| eventstats avg(units) as baseline by visited_country
+| where units > 10*baseline
+| sort -units
+```
+- **Implementation:** Privacy: only hashed IMSI in Splunk; correlate with HLR IMEI change for SIM swap fraud.
+- **Visualization:** Map (visited countries), Table (suspicious subscribers), Line chart (roaming $ trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.12.10 · Toll Fraud Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fraud, Security
+- **Value:** Premium-rate, international, or short-duration high-cost patterns from compromised PBX or SIP credentials — classic CDR analytics use case.
+- **App/TA:** SBC CDR, fraud scoring apps
+- **Data Sources:** `sourcetype="cdr:voip"` with `rate_class`, `destination`
+- **SPL:**
+```spl
+index=voip sourcetype="cdr:voip"
+| lookup premium_and_high_risk_prefixes called_number OUTPUT risk_tier
+| where risk_tier IN ("premium","satellite","high_cost_geo")
+| stats sum(toll_charge) as cost, count, dc(calling_party) as sources by src_ip, hour
+| where cost>500 OR count>100
+| sort -cost
+```
+- **Implementation:** Hotline to NOC + auto-block high-risk destinations on SBC after threshold; require PIN for international on suspect trunks.
+- **Visualization:** Table (top fraud legs), Map (destination countries), Timeline (attack window).
 - **CIM Models:** N/A
 
 ---

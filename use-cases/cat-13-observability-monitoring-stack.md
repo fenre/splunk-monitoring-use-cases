@@ -302,6 +302,610 @@ index=_internal sourcetype=splunkd "certificate" ("expire" OR "expiration" OR "n
 - **Visualization:** Table (certificates with expiry), Single value (days until nearest expiry), Status grid (component × cert status).
 - **CIM Models:** N/A
 
+
+---
+
+### UC-13.1.16 · Parsing Queue Health (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** A saturated parsing queue delays ingestion and increases `_indextime` lag. Tracking fill ratio and blocked state isolates pipeline bottlenecks before data loss.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` `group=queue` (parsingqueue)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd group=queue name=*parsing*
+| eval fill_pct=if(max_size>0, round(current_size/max_size*100,1), null())
+| where fill_pct > 70 OR is_blocked=1
+| timechart span=5m max(fill_pct) as max_fill by host, name
+```
+- **Implementation:** Filter `metrics.log` queue metrics for parsing queue names. Alert on sustained fill >70% or `is_blocked`. Correlate with new sourcetypes, regex-heavy props, or indexer CPU.
+- **Visualization:** Gauge (parsing fill %), Line chart (fill by host), Table (queues above threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.17 · Merging Queue Health (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Merging queue backlog delays structured indexing and can block hot buckets. Monitoring prevents silent pipeline stall on heavy merge workloads.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` `group=queue` (merging / agg queues)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd group=queue name=*merge*
+| eval fill_pct=if(max_size>0, round(current_size/max_size*100,1), null())
+| where fill_pct > 70
+| stats latest(fill_pct) as fill_pct, latest(current_size) as depth by host, name
+| sort -fill_pct
+```
+- **Implementation:** Track merging-related queue names per indexer. Alert on high fill or rapid growth. Correlate with index volume, replication, and disk I/O.
+- **Visualization:** Line chart (merge queue depth over time), Table (top merging queues).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.18 · Typing Queue Health (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** The typing queue applies rules to parsed events; backlog here delays field extraction and routing to indexes.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` `group=queue` (typingqueue)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd group=queue name=*typing*
+| eval fill_pct=if(max_size>0, round(current_size/max_size*100,1), null())
+| timechart span=5m max(fill_pct) as max_fill by host
+| where max_fill > 65
+```
+- **Implementation:** Monitor typing queue fill and blocked state. Tune props/transforms if chronic backlog. Correlate with high-cardinality lookups or expensive `EVAL` in transforms.
+- **Visualization:** Area chart (typing queue fill), Single value (worst host).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.19 · TCP Output Connection Failures (_internal)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Forwarders and intermediate tiers rely on TCP out to indexers. Connection failures mean data is queued or dropped at the source.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (TcpOutputProc, `group=tcpout_connections`)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (TcpOutputProc OR group=tcpout_connections)
+| search "connection" AND ("failed" OR "refused" OR "timed out" OR "broken pipe")
+| stats count by host, destIp, destPort
+| sort -count
+```
+- **Implementation:** Forward `splunkd` logs with TCP output connection events. Alert on rising failure counts per destination. Verify indexer reachability, certificates, and firewall paths.
+- **Visualization:** Table (failures by destination), Line chart (failure rate), Status grid (forwarder × output group).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.20 · Modular Input Errors (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Scripted and modular inputs drive critical ingestion; errors stop or corrupt data collection without obvious UI failure.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (ModularInputs, ExecProcessor)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (component=ModularInputs OR component=ExecProcessor)
+| search log_level=ERROR OR log_level=FATAL
+| stats count by host, stanza, message
+| sort -count
+```
+- **Implementation:** Alert on ERROR/FATAL from modular inputs. Map `stanza` to `inputs.conf`. Verify script paths, credentials, and API rate limits.
+- **Visualization:** Table (modular input errors), Timeline (error bursts).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.21 · Data Model Acceleration Status (_internal)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Failed or lagging accelerations break pivot searches, ES views, and app dashboards that depend on `tstats`.
+- **App/TA:** Monitoring Console, Data Model Editor
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (AccelerationManager, DataModel)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (AccelerationManager OR "Data Model")
+| search ("failed" OR "rebuild" OR "lag" OR log_level=ERROR)
+| stats count by host, object, message
+| sort -count
+```
+- **Implementation:** Monitor acceleration build/rebuild failures and backlogs. Alert when acceleration is disabled unexpectedly or rebuild exceeds SLA. Review high-cardinality datasets.
+- **Visualization:** Table (data models with issues), Single value (models not accelerated).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.22 · Summary Indexing Failures (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Summary index population jobs feed exec and compliance reports; silent failures skew metrics and dashboards.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=scheduler` (summary-index saved searches)
+- **SPL:**
+```spl
+index=_internal sourcetype=scheduler status IN ("failed","skipped")
+| search savedsearch_name="*summary*" OR savedsearch_name="*si_*"
+| stats count by savedsearch_name, reason, status
+| sort -count
+```
+- **Implementation:** Tag SI-populating searches and alert on failed/skipped runs. Verify disk space on summary indexers and search concurrency.
+- **Visualization:** Table (failed summary searches), Line chart (SI job success rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.23 · Indexer Disk Space Utilization (_internal)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Full indexer volumes stop writes and break replication; proactive disk monitoring avoids cascading cluster failure.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunk_disk_objects` / `splunkd` disk metrics
+- **SPL:**
+```spl
+index=_internal sourcetype=splunk_disk_objects OR (sourcetype=splunkd "disk usage")
+| eval pct_used=if(total_kb>0, round(used_kb/total_kb*100,1), null())
+| where pct_used > 85
+| stats latest(pct_used) as pct_used, latest(used_kb) as used_kb by host, mount_point
+| sort -pct_used
+```
+- **Implementation:** Normalize mount paths for hot/warm/cold. Alert at 85% and 90%. Include frozen path and SmartStore cache volumes where applicable.
+- **Visualization:** Gauge (disk % per indexer), Table (mounts at risk), Heatmap (host × volume).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.24 · SmartStore Cache Hit/Miss Ratio (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
+- **Value:** Low cache hit rates increase S3/API latency and search cost. Trending hit/miss guides cache sizing and bucket locality.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (SmartStore, remote storage metrics)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (SmartStore OR "remote_storage" OR S2Bucket)
+| search ("cache" OR "download" OR "hit" OR "miss")
+| rex "(?<metric>hit|miss|download)_count=(?<cnt>\d+)"
+| stats sum(eval(if(match(metric,"hit"),cnt,0))) as hits, sum(eval(if(match(metric,"miss"),cnt,0))) as misses by host
+| eval hit_ratio=if((hits+misses)>0, round(100*hits/(hits+misses),2), null())
+| where hit_ratio < 70 OR isnull(hit_ratio)
+```
+- **Implementation:** Parse vendor-specific SmartStore metrics or use `metrics.log` patterns for remote fetch vs cache serve. Baseline hit ratio per indexer. Alert on sustained drops after upgrades or index changes.
+- **Visualization:** Line chart (hit ratio over time), Single value (cluster avg hit %).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.25 · Cluster Bundle Push Failures (_internal)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Failed bundle distribution leaves indexers with stale `indexes.conf`, apps, or peer configs, causing search/replication skew.
+- **App/TA:** Monitoring Console, Cluster Manager
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (CM, bundle replication)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (bundle OR BundleReplication)
+| search (log_level=ERROR OR "bundle.*fail" OR "Failed to apply")
+| stats count by host, peer, message
+| sort -count
+```
+- **Implementation:** Monitor CM and peer logs for bundle apply failures. Alert immediately. Verify disk space on peers and CM connectivity.
+- **Visualization:** Table (peers with bundle errors), Timeline (bundle events).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.26 · splunkd Unexpected Restart Detection (_internal)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Unplanned `splunkd` restarts interrupt searches, replication, and ingestion. Correlating restarts speeds root cause (OOM, crash, admin).
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (startup, shutdown, watchdog)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd
+| search ("Splunkd starting" OR "Shutting down" OR "splunkd restarted" OR "detected unexpected")
+| stats count by host, _time span=1h
+| where count > 3
+```
+- **Implementation:** Tune for crash loops; join with OOM killer logs on the OS if forwarded. Alert when hourly restart count exceeds threshold.
+- **Visualization:** Table (restart count by host), Timeline (restart events).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.27 · Splunk Web UI Errors (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Web UI 5xx/timeout errors block analysts during incidents. Tracking errors isolates SHC vs load balancer vs app issues.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunk_web_access` / `splunkd_ui` / `splunkd` Web UI
+- **SPL:**
+```spl
+index=_internal sourcetype IN ("splunk_web_access","splunkd_ui","splunkd") uri_path="*"
+| search status>=500 OR match(_raw,"(?i)(error|exception|timeout)")
+| stats count by status, uri_path, clientip
+| sort -count
+```
+- **Implementation:** Ensure access logs include HTTP status. Alert on 5xx rate above baseline. Correlate with KV Store and SHC captain during UI-wide failures.
+- **Visualization:** Line chart (5xx rate), Table (top failing URIs).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.28 · SHC Configuration Replication Lag (_internal)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Lagging conf replication causes inconsistent searches and failed lookups across members.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd component=*SHC* OR component=*shcluster*
+| search ("replication" OR "bundle" OR "lag") AND (log_level=WARN OR log_level=ERROR)
+| stats count by host, message
+| sort -count
+```
+- **Implementation:** Prefer REST `| rest /services/shcluster/member/members` for `last_conf_replication` where available. Alert on WARN/ERROR about replication lag or failed bundles.
+- **Visualization:** Table (members with replication issues), Single value (max lag seconds).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.29 · Ingest Actions Pipeline Status (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Ingest actions (routing, filtering, streaming) failures drop or misroute security and operational data.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (IngestActions, `ingest_actions`)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (IngestActions OR "ingest.action")
+| search log_level=ERROR OR "failed" OR "dropped"
+| stats count by host, pipeline, rule_id, message
+| sort -count
+```
+- **Implementation:** Map errors to `props`/`transforms` ingest action stanzas. Alert on any sustained error rate. Verify HEC and indexer tier compatibility.
+- **Visualization:** Table (failing ingest actions), Line chart (error trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.30 · Timestamp Parsing Accuracy (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Mis-parsed timestamps break RT searches, compliance, and `_indextime` lag metrics.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (DateParser, `could not use strptime`)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (DateParser OR "strptime" OR "could not")
+| search (log_level=WARN OR log_level=ERROR)
+| stats count by host, sourcetype_extracted, message
+| sort -count
+```
+- **Implementation:** Track DATE_CONFIG failures and warnings. Join with sample events from the same sourcetype in data tier. Fix `TIME_FORMAT`/`MAX_TIMESTAMP_LOOKAHEAD`.
+- **Visualization:** Table (sourcetypes with parse warnings), Line chart (warning rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.31 · Workload Management Pool Saturation (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
+- **Value:** WLM pools prevent search starvation; saturation delays critical searches and alerts.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (WorkloadManager, `workload_pool`)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd (WorkloadManager OR "workload_pool")
+| search ("saturated" OR "rejected" OR "queue" OR log_level=ERROR)
+| stats count by host, pool_name, message
+| sort -count
+```
+- **Implementation:** Define pool limits per SLA. Alert on rejections or sustained queue depth. Correlate with ad-hoc search storms.
+- **Visualization:** Table (pools with rejections), Gauge (pool utilization %).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.32 · Search Scheduler Fill Ratio (_internal)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Scheduler at capacity skips searches—blind spots for alerts and summaries.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=scheduler` / `splunkd` `group=scheduler`
+- **SPL:**
+```spl
+index=_internal sourcetype=scheduler
+| stats count(eval(status="skipped")) as skipped, count as total
+| eval fill_skip_pct=round(100*skipped/total,2)
+| where fill_skip_pct > 5
+```
+- **Implementation:** Track skipped vs completed over sliding windows. Break down by app and user. Add concurrency or split heavy searches when fill ratio grows.
+- **Visualization:** Line chart (scheduler skip %), Table (top skipped searches).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.33 · Knowledge Bundle Size Monitoring (_internal)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Oversized knowledge bundles slow search distribution and SHC replication.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` (bundles, `KnowledgeBundle`)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd "bundle" ("MB" OR "KB" OR "size")
+| rex "(?<bundle_mb>\d+(\.\d+)?)\s*MB"
+| where bundle_mb > 200
+| stats count by host, user, app
+| sort -bundle_mb
+```
+- **Implementation:** Prefer REST or scripted checks of bundle sizes on search heads. Alert when bundle size exceeds policy. Audit large lookups and unused apps.
+- **Visualization:** Table (largest bundles), Bar chart (size by app).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.34 · Real-Time Search Resource Consumption (_internal)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Real-time searches reserve cores and memory; runaway RT jobs degrade interactive and scheduled workload.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_internal` `sourcetype=splunkd` `group=search_concurrency` / `search_process`
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd group=search_concurrency
+| stats max(active_rt_searches) as rt_active, max(active_hist_searches) as hist by host
+| eval rt_ratio=if((rt_active+hist)>0, round(100*rt_active/(rt_active+hist),1), null())
+| where rt_active > 20 OR rt_ratio > 40
+```
+- **Implementation:** Baseline RT search counts per SH. Alert on unusual RT concurrency. Identify dashboards or users with many concurrent RT panels.
+- **Visualization:** Line chart (RT vs historical searches), Table (hosts with high RT).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.35 · User Search Activity Audit (_audit)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Auditing who ran which searches supports insider-threat investigations and segregation of duties.
+- **App/TA:** Audit trail (built-in)
+- **Data Sources:** `index=_audit` `action=search`
+- **SPL:**
+```spl
+index=_audit action=search info=started
+| stats count, dc(search) as distinct_searches by user, app
+| sort -count
+```
+- **Implementation:** Retain per policy. Report on after-hours or high-volume search users. Exclude known service accounts via lookup.
+- **Visualization:** Table (users by search volume), Heatmap (hour × user).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.36 · Configuration File Change Tracking (_audit)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unauthorized `.conf` edits change data access and ingestion behavior; rapid detection limits blast radius.
+- **App/TA:** Audit trail
+- **Data Sources:** `index=_audit` (`action` for config changes)
+- **SPL:**
+```spl
+index=_audit action IN ("edit_*","update")
+| search file_path="*.conf" OR object_path="*local*"
+| table _time, user, action, file_path, object_path
+| sort -_time
+```
+- **Implementation:** Map `action` types to your Splunk version. Alert on changes outside change windows. Route to SecOps for prod SH/CM.
+- **Visualization:** Timeline (config changes), Table (recent edits by user).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.37 · Knowledge Object Modification Audit (_audit)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Dashboard and alert tampering can hide attacks or exfiltration; object-level audit supports SOC and GRC.
+- **App/TA:** Audit trail
+- **Data Sources:** `index=_audit` (knowledge object CRUD)
+- **SPL:**
+```spl
+index=_audit object_type IN ("savedsearch","dashboard","lookup","macro")
+| stats count by user, object_type, action
+| sort -count
+```
+- **Implementation:** Tune `object_type` values for your version. Alert on delete or ACL change for critical objects. Use lookups for approved admins.
+- **Visualization:** Table (changes by object type), Bar chart (actions by user).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.38 · REST API Access Pattern Analysis (_audit)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Automated token abuse and reconnaissance often appear as unusual REST paths or volumes.
+- **App/TA:** Audit trail / `splunkd_access`
+- **Data Sources:** `index=_audit` `action=rest` OR `index=_internal` `sourcetype=splunkd_access`
+- **SPL:**
+```spl
+(index=_audit action=rest) OR (index=_internal sourcetype=splunkd_access)
+| stats count by user, uri_path, status
+| where count > 500 OR status>=400
+| sort -count
+```
+- **Implementation:** Baseline normal automation. Alert on new `uri_path` clusters or HTTP 401/403 bursts. Correlate with token ID if logged.
+- **Visualization:** Table (top REST paths), Line chart (4xx/5xx rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.39 · Role and Capability Change Detection (_audit)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Privilege escalation via new roles/capabilities must be detected in minutes, not days.
+- **App/TA:** Audit trail
+- **Data Sources:** `index=_audit` (authentication/authorization changes)
+- **SPL:**
+```spl
+index=_audit object_type IN ("user","role","capabilities")
+| search action IN ("create","update","delete","edit_user","edit_role")
+| table _time, user, action, object, target_user, roles_added
+| sort -_time
+```
+- **Implementation:** Field names vary by version—verify with `| metadata type=sourcetypes index=_audit`. Alert on any `admin` role grant or `edit_user` outside IT hours.
+- **Visualization:** Timeline (privilege changes), Table (recent role mappings).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.40 · Per-Process CPU and Memory Trending (_introspection)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** `splunkd` child processes (search, indexer, pipeline) resource trends predict OOM and slowdown before user impact.
+- **App/TA:** Monitoring Console
+- **Data Sources:** `index=_introspection` `sourcetype=splunk_resource_usage` / `splunk_disk_objects`
+- **SPL:**
+```spl
+index=_introspection sourcetype=splunk_resource_usage
+| timechart span=5m avg(data.cpu_pct) as cpu, avg(data.mem_used) as mem_kb by data.process_type, host
+```
+- **Implementation:** Enable introspection generators on all tiers. Alert when `cpu_pct` or memory for `search`/`indexing` exceeds baseline. Use `predict` for week-over-week growth.
+- **Visualization:** Line chart (CPU/memory by process class), Heatmap (host × process).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.41 · Dispatch Directory Size (_introspection)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Large dispatch directories fill disk and slow search teardown—common after runaway searches or stuck jobs.
+- **App/TA:** Monitoring Console, scripted disk check
+- **Data Sources:** Scripted input / HEC: `sourcetype=splunk:dispatch_stats` on `index=main` (dispatch dir size MB per SH)
+- **SPL:**
+```spl
+index=main sourcetype="splunk:dispatch_stats"
+| eval size_gb=round(dispatch_dir_size_mb/1024,2)
+| where size_gb > 50
+| stats max(size_gb) as max_gb by host
+```
+- **Implementation:** Nightly scripted input: `du -sm` on `$SPLUNK_HOME/var/run/splunk/dispatch`, emit JSON. Alert on rapid growth. Automate cleanup of orphaned jobs per support guidance.
+- **Visualization:** Gauge (dispatch GB per SH), Line chart (growth trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.42 · I/O Wait Bottleneck Detection (_introspection)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** High I/O wait on indexers correlates with slow searches, bucket replication, and ingestion lag.
+- **App/TA:** Monitoring Console, OTel/node_exporter
+- **Data Sources:** `index=_introspection` `sourcetype=splunk_resource_usage` (disk I/O fields) / host metrics
+- **SPL:**
+```spl
+index=_introspection sourcetype=splunk_resource_usage
+| where data.io_wait_pct > 25 OR data.disk_busy_pct > 80
+| timechart span=5m avg(data.io_wait_pct) by host
+```
+- **Implementation:** Field names depend on platform; normalize in `props`. Correlate with storage latency metrics from SAN/NVMe. Alert when sustained `io_wait` exceeds threshold.
+- **Visualization:** Line chart (iowait %), Table (hosts with disk saturation).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.43 · Splunk Version Compliance (operational inventory)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Drift across Splunk Enterprise versions breaks feature parity and support eligibility.
+- **App/TA:** Monitoring Console, REST inventory
+- **Data Sources:** `| rest /services/server/info` (scripted aggregate), `sourcetype=splunk:version_inventory`
+- **SPL:**
+```spl
+index=inventory sourcetype="splunk:version_inventory"
+| stats dc(version) as version_count, values(version) as versions by group
+| where version_count > 1
+| table group, versions
+```
+- **Implementation:** Nightly scheduled search hits `server/info` on all peers via SH with credentials or forwarder-side scripted input. Compare to approved matrix. Report non-compliant hosts.
+- **Visualization:** Table (hosts × version), Pie chart (version distribution).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.44 · App Version Consistency Across SHC (operational inventory)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Mixed app versions on SHC members cause bundle skew and intermittent UI or search errors.
+- **App/TA:** SHC, REST
+- **Data Sources:** `| rest /services/apps/local` per member, `sourcetype=splunk:shc_app_inventory`
+- **SPL:**
+```spl
+index=inventory sourcetype="splunk:shc_app_inventory"
+| stats values(app_version) as ver by app_name, member
+| eventstats dc(ver) as ver_count by app_name
+| where ver_count > 1
+| table app_name, member, ver
+```
+- **Implementation:** Push inventory script via `runshellscript` or external job. Alert on mismatch for production apps. Exclude dev-only apps via lookup.
+- **Visualization:** Matrix (app × member version), Table (mismatched apps).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.45 · Forwarder Version Compliance (operational inventory)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Old universal forwarders miss TLS fixes and acknowledgment behaviors required by security policy.
+- **App/TA:** Deployment Server, `splunkd` phone-home
+- **Data Sources:** `index=_internal` `group=deploymentclient` / `sourcetype=splunk:forwarder_inventory`
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd group=deploymentclient
+| stats latest(version) as uf_version by hostname
+| lookup approved_uf_versions.csv version OUTPUT approved
+| where isnull(approved)
+| table hostname, uf_version
+```
+- **Implementation:** Maintain CSV of approved forwarder builds. Supplement with DS client list. Drive upgrades via DS server classes.
+- **Visualization:** Bar chart (forwarders by version), Single value (% compliant).
+- **CIM Models:** N/A
+
+
 ---
 
 ### 13.2 Splunk ITSI (Premium)
@@ -452,8 +1056,11 @@ index=itsi_summary service_name="Production Web"
 - **App/TA:** Splunk ITSI Glass Tables
 - **Data Sources:** ITSI service/KPI data
 - **SPL:**
-```
-N/A — Glass Tables are configured via ITSI UI, not SPL
+```spl
+| rest /servicesNS/-/-/data/ui/views
+| search label="Glass*" OR label="NOC*"
+| table title label author updated
+| sort -updated
 ```
 - **Implementation:** Design Glass Tables representing logical infrastructure views (network topology, service dependency map, data center layout). Map ITSI services and KPIs to visual elements. Deploy on NOC screens with auto-refresh.
 - **Visualization:** ITSI Glass Table (custom visual layout with service health indicators, KPI widgets, and status icons).
@@ -499,6 +1106,180 @@ index=fluent sourcetype IN ("fluentd:plugins", "fluentbit:metrics")
 - **Implementation:** For Fluentd, enable monitoring agent and poll `/api/plugins.json` (or use `in_monitor_agent`). For Fluent Bit, enable HTTP server and poll `/api/v1/metrics`. Ingest buffer_queue_length, buffer_total_limit, retry_count, and emit_count. Alert when buffer usage exceeds 80% or when retries spike. Correlate with downstream (Elasticsearch, Splunk) ingestion latency. Tune buffer size, flush interval, or add more workers.
 - **Visualization:** Table (plugins with high buffer usage), Gauge (buffer fill % per output), Line chart (buffer depth over time), Bar chart (retries by plugin).
 - **CIM Models:** N/A
+
+
+---
+
+### UC-13.2.11 · KPI Threshold Violation Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Trending KPI breaches over time shows chronic vs transient service issues and validates threshold tuning.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk ITSI
+- **Data Sources:** `index=itsi_summary`, `itsi_notable:audit`
+- **SPL:**
+```spl
+index=itsi_summary severity_value>=3
+| timechart span=1h count by service_name, kpi_name
+| streamstats window=24 avg(count) as baseline by kpi_name
+| where count > baseline * 2
+```
+- **Implementation:** Baseline breach counts per KPI with `streamstats` or `predict`. Alert on sustained elevation vs one-off spikes. Feed results into Episode Review for service owners.
+- **Visualization:** Line chart (breaches per KPI), Heatmap (service × hour), Table (KPIs above baseline).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.12 · Episode Correlation Accuracy
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
+- **Value:** Measuring false merges and missed splits improves aggregation policies and reduces analyst rework.
+- **App/TA:** Splunk ITSI Event Analytics
+- **Data Sources:** `index=itsi_grouped_alerts`, analyst disposition (ServiceNow/Splunk On-Call)
+- **SPL:**
+```spl
+index=itsi_grouped_alerts
+| lookup episode_feedback episode_id OUTPUT disposition
+| stats count by disposition, severity
+| eval pct=round(100*count/sum(count),2)
+```
+- **Implementation:** Ingest manual episode disposition (false positive, wrong merge, should split) from ticketing or a KV store. Monthly review of `pct` by policy. Tune aggregation and similarity thresholds.
+- **Visualization:** Pie chart (disposition mix), Bar chart (accuracy by policy), Table (episodes with poor feedback).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.13 · Maintenance Window Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Alerts on services in maintenance flood Episode Review; verifying `is_service_in_maintenance` usage reduces noise and false escalations.
+- **App/TA:** Splunk ITSI
+- **Data Sources:** `index=itsi_summary`, maintenance windows via REST
+- **SPL:**
+```spl
+index=itsi_summary is_service_in_maintenance=0
+| join type=left service_name [
+  | rest /servicesNS/nobody/SA-ITOA/maintenance_services
+  | table title, service_name
+]
+| where severity_value>=4
+| stats count by service_name
+```
+- **Implementation:** Compare active alerts against scheduled maintenance windows. Alert when KPIs fire outside declared windows for critical services (possible misconfiguration). Report on % of alerts during maintenance windows.
+- **Visualization:** Table (services alerting outside window), Single value (non-compliant alert %).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.14 · Glass Table SLA Breaches
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Glass Tables for NOC must reflect SLA-backed KPIs; breaches on the wallboard drive incident prioritization.
+- **App/TA:** Splunk ITSI Glass Tables
+- **Data Sources:** ITSI KPIs, `itsi_summary`, SLA lookup
+- **SPL:**
+```spl
+index=itsi_summary
+| lookup sla_targets service_name OUTPUT kpi_name, sla_target
+| where health_score < sla_target OR severity_value>=4
+| stats count by service_name, kpi_name
+| sort -count
+```
+- **Implementation:** Maintain `sla_targets` lookup with minimum health score or max severity per service. Drive Glass Table color thresholds from the same search. Alert when executive-facing services breach SLA for >15 minutes.
+- **Visualization:** Glass Table (SLA status), KPI ticker (breached services), Table (breach duration).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.15 · Service Dependency Health Propagation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Upstream dependency failure should roll up to dependent services; missing links cause wrong prioritization.
+- **App/TA:** Splunk ITSI Service Analyzer
+- **Data Sources:** ITSI service topology, `itsi_summary`
+- **SPL:**
+```spl
+| inputlookup itsi_services
+| search is_enabled=1
+| join type=left service_name [
+  search index=itsi_summary is_service_in_maintenance=0
+  | stats latest(health_score) as health by service_name
+]
+| where health < 50
+| table service_name, health, dependent_services
+```
+- **Implementation:** Validate service dependencies in ITSI. When a dependency drops below threshold, confirm dependent service health reflects impact (or use entity rules). Run weekly health of dependency graph completeness.
+- **Visualization:** Service Analyzer tree, Sankey (dependency impact), Table (dependency × health).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.16 · ITSI Backup Set Integrity
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Corrupt or incomplete KV Store / ITSI backup objects prevent disaster recovery after SH loss.
+- **App/TA:** Splunk ITSI, backup automation
+- **Data Sources:** Backup job logs, `sourcetype=itsi:backup`
+- **SPL:**
+```spl
+index=_internal OR index=main sourcetype="itsi:backup"
+| search status IN ("failed","partial","corrupt") OR match(_raw,"(?i)(checksum|verify failed)")
+| stats count by backup_job, host, message
+| sort -count
+```
+- **Implementation:** Log ITSI backup jobs (scheduled exports, `kvstore` backup). Verify checksum after write. Alert on any non-success. Test restore quarterly to a lab SH.
+- **Visualization:** Table (failed backups), Timeline (backup jobs), Single value (last successful backup age).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.17 · Notable Event Suppression Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Over-suppression hides incidents; audit ensures suppress rules and analyst actions are justified.
+- **App/TA:** Splunk ITSI, ES correlation (if linked)
+- **Data Sources:** `index=itsi_notable:audit` / notable audit logs
+- **SPL:**
+```spl
+index=itsi_notable:audit OR index=notable sourcetype="itsi:notable_audit"
+| search action IN ("suppress","close","suppress_episode")
+| stats count by user, rule_id, reason
+| sort -count
+```
+- **Implementation:** Ingest notable audit events with user, rule, and reason. Alert on high-volume suppression by single user or new rule. Review monthly for policy compliance.
+- **Visualization:** Table (top suppressors), Bar chart (suppressions by rule), Timeline (suppression events).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.18 · Adaptive Thresholding Effectiveness
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Adaptive thresholds reduce false positives; tracking effectiveness shows when to retrain or fall back to static limits.
+- **App/TA:** Splunk ITSI (adaptive thresholds)
+- **Data Sources:** `index=itsi_summary`, KPI threshold history
+- **SPL:**
+```spl
+index=itsi_summary is_service_in_maintenance=0
+| timechart span=1d count(eval(severity_value>=3)) as breaches by kpi_name
+| join kpi_name [
+  search index=itsi_summary kpi_threshold_type="adaptive"
+  | stats dc(kpi_name) as adaptive_kpis by kpi_name
+]
+| where breaches > 10
+```
+- **Implementation:** Tag KPIs using adaptive vs static thresholds. Compare breach rate and analyst disposition before/after ML enablement. Retrain when seasonal drift causes misses.
+- **Visualization:** Line chart (breaches per adaptive KPI), Table (KPIs needing threshold review).
+- **CIM Models:** N/A
+
 
 ---
 
@@ -975,3 +1756,264 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 
 ---
 
+### 13.4 AI & LLM Observability
+
+**Primary App/TA:** Splunk OpenTelemetry Collector, Azure OpenAI / OpenAI log exports, custom HEC for LLM gateways, ESCU (Splunk Enterprise Security Content Update), Microsoft 365 / Copilot audit connectors.
+
+---
+
+### UC-13.4.1 · LLM API Latency and Error Rate (OpenAI, Azure OpenAI)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** High latency or error rates on managed LLM endpoints directly impact user experience and SLOs; tracking both by model and region isolates provider issues versus client misuse.
+- **App/TA:** Azure Monitor Add-on, custom OpenAI proxy logs, HEC
+- **Data Sources:** `sourcetype=openai:api`, `sourcetype=azure:openai`
+- **SPL:**
+```spl
+index=ai_ops (sourcetype="openai:api" OR sourcetype="azure:openai")
+| eval failed=if(status>=400 OR isnotnull(error_code),1,0)
+| timechart span=5m avg(latency_ms) as avg_latency p99(latency_ms) as p99_latency sum(failed) as errors count as calls
+| eval error_rate_pct=round(100*errors/calls,2)
+```
+- **Implementation:** Ingest REST proxy or provider diagnostic logs with HTTP status, `latency_ms`, model id, deployment, and region. Normalize field names across OpenAI and Azure OpenAI. Alert when p99 latency or error rate exceeds baselines. Track 429 separately if you manage quota.
+- **Visualization:** Line chart (latency p99, error rate), Single value (SLO burn), Table (top failing models/regions).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.2 · Token Usage and Cost per Model and Application
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Compliance
+- **Value:** Token spend ties directly to budget and chargeback; per-application and per-model views prevent surprise bills and highlight inefficient prompts or runaway automation.
+- **App/TA:** Custom billing export, OpenAI Usage API → HEC
+- **Data Sources:** `sourcetype=openai:api`, `sourcetype=azure:openai`
+- **SPL:**
+```spl
+index=ai_ops (sourcetype="openai:api" OR sourcetype="azure:openai")
+| eval prompt_tokens=coalesce(prompt_tokens,0), completion_tokens=coalesce(completion_tokens,0)
+| eval total_tokens=prompt_tokens+completion_tokens
+| eval est_cost_usd=round((total_tokens/1000)*coalesce(price_per_1k_tokens,0.002),4)
+| stats sum(total_tokens) as tokens sum(est_cost_usd) as cost_usd by app_id, model
+| sort -cost_usd
+```
+- **Implementation:** Ensure each request carries `app_id` or API key alias. Ingest usage records with token counts; join a lookup table for price per model per 1k tokens (refresh monthly). Schedule daily cost reports and threshold alerts for tenants or apps.
+- **Visualization:** Bar chart (cost by app), Treemap (cost by model), Table (tokens and cost detail).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.3 · GPU and TPU Utilization for Inference Workloads
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Underutilized accelerators waste capex; saturated GPUs increase queue time and latency for inference—utilization guides autoscaling and instance right-sizing.
+- **App/TA:** Splunk OTel Collector, NVIDIA DCGM exporter, Kubernetes metrics
+- **Data Sources:** `sourcetype=otel:metrics`
+- **SPL:**
+```spl
+index=infra sourcetype="otel:metrics" (metric_name="gpu.utilization" OR metric_name="dcgm.gpu.utilization")
+| bin _time span=1m
+| stats avg(value) as gpu_util by _time, host, gpu_id
+| where gpu_util > 90 OR gpu_util < 15
+| timechart span=15m avg(gpu_util) by host
+```
+- **Implementation:** Scrape DCGM or cloud TPU metrics via OTel Prometheus receiver. Tag by cluster, pool, and model deployment. Alert on sustained high utilization (queue risk) or chronic low utilization (oversized nodes). Correlate with inference request rate from gateway logs if present.
+- **Visualization:** Timechart (GPU %), Heatmap (GPU × host), Single value (cluster avg utilization).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.4 · Model Version Deployment Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Change, Compliance
+- **Value:** Knowing which model revision serves production supports rollback, audit, and safety reviews when behavior or cost shifts after a rollout.
+- **App/TA:** CI/CD webhooks, Kubernetes labels, LLM gateway config audit
+- **Data Sources:** `sourcetype=openai:api`, `sourcetype=k8s:deployment`
+- **SPL:**
+```spl
+(index=ai_ops sourcetype="openai:api") OR (index=platform sourcetype="k8s:deployment")
+| eval model_id=coalesce(model, model_name, image_tag)
+| stats latest(_time) as last_seen, latest(model_id) as current_model by deployment, namespace, environment
+| sort environment, deployment
+```
+- **Implementation:** Log model id from inference gateway on each request; for self-hosted models, ingest deployment events with image tag or `MODEL_ID` env. Maintain a lookup of approved model versions per environment. Alert on requests referencing undeployed or deprecated model strings.
+- **Visualization:** Table (environment × model version), Timeline (version changes), Single value (unapproved model calls).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.5 · AI Gateway Rate Limiting and Quota Management
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** Gateway limits protect backends and budgets; monitoring 429s and quota headers prevents one client from starving others and validates limit tuning.
+- **App/TA:** Kong, Azure API Management, Envoy access logs → Splunk
+- **Data Sources:** `sourcetype=openai:api`, `sourcetype=haproxy:access`
+- **SPL:**
+```spl
+index=ai_ops sourcetype="openai:api"
+| eval throttled=if(status=429 OR match(_raw,"(?i)rate.?limit"),1,0)
+| stats sum(throttled) as throttled_reqs count as total by client_id, route
+| eval throttle_pct=round(100*throttled_reqs/total,2)
+| where throttle_pct > 5
+| sort -throttle_pct
+```
+- **Implementation:** Centralize LLM traffic through an API gateway and log client identity, route, status, and optional `X-RateLimit-*` headers. Alert on rising 429 share per key or app. Feed quota resets into a small KV store for dashboards if headers are present.
+- **Visualization:** Bar chart (429% by client), Line chart (throttled requests over time), Table (top limited routes).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.6 · Ollama Local LLM Abuse Detection (ESCU)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Self-hosted Ollama endpoints can be probed or misused for bulk generation; correlating ESCU-style analytics with local logs catches abuse before resource exhaustion or data leakage.
+- **App/TA:** ESCU (Analytic Story: Local LLM abuse patterns), Ollama HTTP logs
+- **Data Sources:** `sourcetype=ollama:logs`
+- **SPL:**
+```spl
+index=ai_ops sourcetype="ollama:logs"
+| search path IN ("/api/generate","/api/chat")
+| eventstats count as reqs_per_src by src_ip
+| where status>=400 OR duration_ms>60000 OR reqs_per_src>100
+| eval suspicious=if(reqs_per_src>100,"high_volume",if(match(user_agent,"curl|python-requests"),"scripted","normal"))
+| stats count, dc(path) as paths, values(user_agent) as ua by src_ip, host, suspicious
+| where count>50 OR match(ua,"(?i)(scanner|masscan)")
+```
+- **Implementation:** Forward Ollama access logs with client IP, path, model, duration, and status. Tune ESCU detections for unusual volume, off-hours spikes, and known scanner user agents. Block or rate-limit at the network edge based on Splunk alerts. Enrich with asset and identity lookups where available.
+- **Visualization:** Map (source IPs), Table (suspicious sessions), Timeline (request bursts).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.7 · MCP Server Suspicious Activity Detection (ESCU)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Model Context Protocol servers expose tools and data to agents; anomalous tool invocation or auth patterns may indicate compromise or prompt-driven misuse.
+- **App/TA:** ESCU (custom correlation searches), MCP server audit logs
+- **Data Sources:** `sourcetype=mcp:audit`
+- **SPL:**
+```spl
+index=security sourcetype="mcp:audit"
+| search tool_name IN ("filesystem.write","shell.exec","secrets.read") OR result="denied"
+| eval risk=case(match(tool_name,"shell|filesystem|secrets"),"high",result="denied","medium",true(),"low")
+| stats count by session_id, principal, tool_name, risk
+| where risk="high" AND count>10
+| sort -count
+```
+- **Implementation:** Emit structured MCP events: session, tool, args hash (not raw secrets), allow/deny, latency. Map to ESCU-compatible data models and run threshold and rare-process detections. Alert on denied high-risk tools, impossible travel for sessions, or burst tool calls from a single agent identity.
+- **Visualization:** Table (high-risk tool calls), Sankey (tool flow), Timeline (session anomalies).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.8 · Microsoft 365 Copilot Data Exfiltration Risk (ESCU)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Value:** Copilot can surface sensitive content; monitoring risky prompts and large exports supports insider-threat and DLP alignment with Microsoft’s recommended logging.
+- **App/TA:** Microsoft 365 Add-on, Microsoft Graph audit, ESCU (Microsoft Cloud content)
+- **Data Sources:** `sourcetype=o365:audit`
+- **SPL:**
+```spl
+index=o365 sourcetype="o365:audit" Workload="Copilot"
+| search (Operation="CopilotInteraction" OR Operation="Search") AND (match(SensitivityLabel,"Highly Confidential") OR match(ObjectId,"(?i)export|download"))
+| stats count by UserId, Operation, ObjectId
+| where count>20
+| sort -count
+```
+- **Implementation:** Ingest Copilot-related audit events and sensitivity labels from Purview where available. Tune for bulk retrieval, unusual Copilot sessions after privilege changes, and interactions with restricted sites. Align alerts with ESCU Microsoft 365 analytic stories and incident response playbooks.
+- **Visualization:** Table (users and operations), Bar chart (events by label), Timeline (Copilot activity spikes).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.9 · LLM Prompt Injection Attempt Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Injection attempts try to override system instructions or exfiltrate context; logging and alerting limits abuse before secrets or policies are bypassed.
+- **App/TA:** LLM gateway with prompt logging (redacted), DLP on egress
+- **Data Sources:** `sourcetype=openai:api`, `sourcetype=azure:openai`
+- **SPL:**
+```spl
+index=ai_ops sourcetype IN ("openai:api","azure:openai")
+| search match(lower(prompt_preview),"(ignore|disregard|system prompt|jailbreak|sudo mode|base64)")
+| eval severity=if(match(prompt_preview,"(?i)(password|secret|api[_-]?key)"),"critical","high")
+| stats count by user_id, app_id, severity
+| where count>=3
+| sort -count
+```
+- **Implementation:** Log truncated or hashed prompts server-side only (privacy review required). Use regex and optional ML classifiers for injection patterns. Route critical hits to SOC. Do not index full PII-heavy prompts without policy. Pair with response policy blocks.
+- **Visualization:** Table (injection attempts), Single value (daily blocked prompts), Timeline (repeat offenders).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.10 · AI Model API Key Rotation Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Stale API keys increase breach impact; proving rotation cadence supports security policy and vendor audits.
+- **App/TA:** Secret manager audit (Vault, AWS Secrets Manager), key metadata sync
+- **Data Sources:** `sourcetype=vault:audit`, `sourcetype=aws:cloudtrail`
+- **SPL:**
+```spl
+index=security (sourcetype="vault:audit" OR sourcetype="aws:cloudtrail")
+| search (operation="rotate" OR eventName="RotateSecret") AND match(_raw,"(?i)openai|azure.?openai|llm")
+| stats latest(_time) as last_rotate by secret_path
+| eval key_age_days=round((now()-last_rotate)/86400,0)
+| where key_age_days > 90
+| table secret_path, key_age_days
+```
+- **Implementation:** Track last rotation timestamp per logical key from your secret store. Join usage logs to key id if you issue per-app keys. Alert when age exceeds policy (e.g., 90 days since last rotation) or rotation job fails. Dashboard compliance percentage by business unit.
+- **Visualization:** Table (keys past due), Single value (% compliant), Bar chart (age distribution).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.11 · LLM Output Content Policy Violation Logging
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Provider and organizational safety filters block harmful content; logging violations supports red-teaming, policy tuning, and audit trails for regulated use cases.
+- **App/TA:** Azure OpenAI content filter logs, OpenAI moderation API results
+- **Data Sources:** `sourcetype=azure:openai`, `sourcetype=openai:api`
+- **SPL:**
+```spl
+index=ai_ops (sourcetype="azure:openai" OR sourcetype="openai:api")
+| search content_filter_result="blocked" OR finish_reason="content_filter" OR moderation_flagged="true"
+| stats count by filter_category, model, app_id
+| sort -count
+```
+- **Implementation:** Capture moderation and content-filter outcomes from API responses (categories, severity). Avoid storing blocked text; store hashes or length only if needed. Review spikes by app or model after prompt changes. Feed executive summary dashboards for AI governance.
+- **Visualization:** Bar chart (violations by category), Line chart (trend), Table (top apps).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.12 · AI Inference Pipeline Error Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** End-to-end inference includes preprocess, model call, and postprocess; pipeline-level error rates catch failures that raw HTTP 200s miss (e.g., empty generations, schema errors).
+- **App/TA:** Application logs, OpenTelemetry traces
+- **Data Sources:** `sourcetype=otel:metrics`
+- **SPL:**
+```spl
+index=ai_ops sourcetype="otel:metrics" metric_name IN ("inference.pipeline.errors","inference.pipeline.requests")
+| bin _time span=5m
+| stats sum(eval(if(metric_name="inference.pipeline.errors",value,0))) as errors,
+        sum(eval(if(metric_name="inference.pipeline.requests",value,0))) as reqs by _time, service.name
+| eval err_rate=round(100*errors/nullif(reqs,0),3)
+| where err_rate > 1
+| timechart span=5m avg(err_rate) by service.name
+```
+- **Implementation:** Instrument each pipeline stage with OTel counters or structured logs (`stage`, `error_class`). Emit `inference.pipeline.errors` and `inference.pipeline.requests` counters per service. Alert on SLO burn for error rate. Correlate with deployments and model version changes.
+- **Visualization:** Line chart (pipeline error rate), Table (errors by stage), Single value (SLO status).
+- **CIM Models:** N/A

@@ -157,6 +157,244 @@ index=devops sourcetype="github:actions_billing"
 
 ---
 
+### UC-12.1.9 · Branch Protection Bypass Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Complements UC-12.1.2 by correlating audit `protected_branch.policy_override` with push events for investigation packs.
+- **App/TA:** GitHub audit log, webhook HEC
+- **Data Sources:** `github:audit` policy_override, `github:webhook` push
+- **SPL:**
+```spl
+index=devops sourcetype="github:audit" action="protected_branch.policy_override"
+| join type=left repo [search index=devops sourcetype="github:webhook" event="push" | fields repository, ref, pusher, _time]
+| table _time, actor, repo, branch, action, pusher
+```
+- **Implementation:** Require GitHub Advanced Security audit stream. Alert on any override; require VP approval ticket in lookup. Weekly report of overrides vs zero target.
+- **Visualization:** Table (overrides), Timeline, Single value (count — target 0).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.10 · Force Push to Protected Branches
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Narrows UC-12.1.6 to default/release branches where history rewrite has highest impact.
+- **App/TA:** GitHub/GitLab webhooks
+- **Data Sources:** Push events with `forced=true` and `ref` matching protected branch patterns
+- **SPL:**
+```spl
+index=devops sourcetype="github:webhook" event="push" forced="true"
+| where match(ref,"refs/heads/(main|master|release/.*|production)")
+| table _time, repository, ref, pusher, forced
+| sort -_time
+```
+- **Implementation:** Maintain lookup of protected ref regex per org. Page on-call for production branch force pushes. Exclude documented release bot service accounts.
+- **Visualization:** Table (force pushes), Timeline, Bar chart (by branch).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.11 · Sensitive File Commit Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Paths such as `.env`, `id_rsa`, `kubeconfig`, and `*.pem` in commits indicate credential sprawl even before secret scanning fires.
+- **App/TA:** GitHub `push` webhook payload (commits[].modified/added)
+- **Data Sources:** Push webhook with file path arrays, or GitHub compare API
+- **SPL:**
+```spl
+index=devops sourcetype="github:webhook" event="push"
+| mvexpand commits{}.modified
+| where match(commits{}.modified,"(\.env|id_rsa|kubeconfig|\.pem|credentials\.xml)$")
+| table _time, repository, commits{}.author.username, commits{}.modified
+```
+- **Implementation:** Expand commit file lists in ingestion. Alert on first match; auto-open rotation ticket. Pair with secret scanning (UC-12.1.4).
+- **Visualization:** Table (sensitive paths), Bar chart (repos), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.12 · Repository Permission Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Team `maintain`/`admin` grants and visibility changes to `public` are higher risk than member adds (UC-12.1.5).
+- **App/TA:** GitHub audit log
+- **Data Sources:** `repo.update`, `team.add_repository`, `org.update_member`
+- **SPL:**
+```spl
+index=devops sourcetype="github:audit" action IN ("repo.update","team.add_repository","repo.access")
+| where visibility="public" OR permission IN ("admin","maintain")
+| table _time, actor, repo, action, permission, visibility
+```
+- **Implementation:** Alert on public visibility toggles and admin grants. Quarterly access review export.
+- **Visualization:** Table (high-risk changes), Timeline, Single value (public repos).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.13 · PR Review Bypass Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Merges with zero approvals or with only self-approval violate four-eyes policies.
+- **App/TA:** GitHub GraphQL / pull_request webhook
+- **Data Sources:** `pull_request` `closed` merged=true with `review_count`, `merge_method`
+- **SPL:**
+```spl
+index=devops sourcetype="github:pull_request" action="closed" merged="true"
+| where review_count=0 OR (review_count=1 AND merger=author)
+| search base_ref IN ("main","master","production")
+| table _time, repository, author, merger, review_count, base_ref
+```
+- **Implementation:** Ingest PR merged payload with review tally from API enrichment. Exclude bots via label. Alert in Splunk as backstop to branch protection.
+- **Visualization:** Table (bypass merges), Bar chart (by author), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.14 · Fork Network Suspicious Activity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Sudden stars/forks from new accounts or geo clusters can precede supply-chain attacks or leaked-token cloning.
+- **App/TA:** GitHub audit + Events API
+- **Data Sources:** `fork`, `create` events; `WatchEvent` bursts
+- **SPL:**
+```spl
+index=devops sourcetype="github:meta" event_type IN ("ForkEvent","WatchEvent")
+| bin _time span=1h
+| stats dc(actor_id) as unique_actors, count by repo_name, _time
+| where unique_actors > 50 OR count > 200
+| sort -count
+```
+- **Implementation:** Ingest public repo events for crown-jewel repositories. Correlate with token scope changes. Feed threat intel on abusive ASNs.
+- **Visualization:** Line chart (fork/star rate), Table (spikes), Geo map (actor country).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.15 · CODEOWNERS File Modification Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Attackers may weaken review requirements by editing `CODEOWNERS` or `.github/CODEOWNERS`.
+- **App/TA:** GitHub pull_request webhook
+- **Data Sources:** PR `files[]` paths
+- **SPL:**
+```spl
+index=devops sourcetype="github:pull_request" action IN ("opened","synchronize")
+| where mvjoin(commit_files{},",") LIKE "%CODEOWNERS%"
+| table _time, repository, author, title, commit_files
+```
+- **Implementation:** Parse file lists from PR payloads. Require CODEOWNER approval for CODEOWNERS changes via branch rules; alert on any edit pending rule rollout.
+- **Visualization:** Table (PRs touching CODEOWNERS), Timeline, Single value (changes per quarter).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.16 · Large File Commit Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Security
+- **Value:** Large blobs bloat repos, bypass review in diff viewers, and may hide embedded data.
+- **App/TA:** GitHub `push` hook with size, Git LFS audit
+- **Data Sources:** Commit statistics (`size`, `distinct_size`), LFS upload events
+- **SPL:**
+```spl
+index=devops sourcetype="github:webhook" event="push"
+| where commits{}.size > 5242880 OR commits{}.distinct_size > 5242880
+| table _time, repository, commits{}.id, commits{}.size, pusher
+```
+- **Implementation:** Threshold 5MB default; tune per repo. Require LFS for binaries. Alert on repeated violations.
+- **Visualization:** Table (large commits), Bar chart (by repo), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.17 · Signed Commit Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Unsigned commits on protected branches weaken non-repudiation; verify GPG/SSH sig status.
+- **App/TA:** GitHub commit signature API, push webhook enrichment
+- **Data Sources:** Commit `verification.status` != `verified`
+- **SPL:**
+```spl
+index=devops sourcetype="github:commit_status"
+| where verification_status!="verified" AND branch IN ("main","master","production")
+| stats count by repository, author, verification_status
+| sort -count
+```
+- **Implementation:** Enrich push SHAs via API in pipeline. Alert on unverified commits after enforcement date. Whitelist bots with documented keys.
+- **Visualization:** Table (unsigned commits), Line chart (compliance %), Pie chart (verified vs not).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.18 · Stale Branch Cleanup Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** Long-lived branches accumulate merge debt and stale code; tracking supports automated deletion policies.
+- **App/TA:** GitHub GraphQL / repos API
+- **Data Sources:** Branch `updated_at`, open PR linkage
+- **SPL:**
+```spl
+index=devops sourcetype="github:branch_inventory"
+| eval age_days=round((now()-strptime(updated_at,"%Y-%m-%dT%H:%M:%SZ"))/86400,1)
+| where age_days > 180 AND protected="false"
+| stats max(age_days) as max_age by repository, ref
+| sort -max_age
+```
+- **Implementation:** Nightly job lists branches. Join with Jira for linked tickets. Auto-PR stale branch report to teams channel.
+- **Visualization:** Table (stale branches), Bar chart (count by repo), Single value (branches >180d).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.19 · Repository Webhook Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Failed webhook deliveries break CI, security scanning, and Splunk ingestion—monitor delivery logs and HTTP status.
+- **App/TA:** GitHub Webhook deliveries API, Splunk HEC receiver logs
+- **Data Sources:** `delivery` records with `status_code`, `error_message`
+- **SPL:**
+```spl
+index=devops sourcetype="github:webhook_delivery"
+| where status_code>=400 OR delivered="false"
+| stats count by repository, hook_id, status_code
+| where count > 5
+| sort -count
+```
+- **Implementation:** Poll recent deliveries or ingest GitHub Enterprise audit. Alert on sustained 4xx/5xx to Splunk HEC. Verify TLS cert on endpoint.
+- **Visualization:** Table (failing hooks), Line chart (failure rate), Single value (open incidents).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.1.20 · Code Scanning Alert Trends
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** GitHub Advanced Security CodeQL/code scanning alert open/close rates show remediation velocity and new debt.
+- **App/TA:** GitHub `code_scanning_alert` webhooks, API
+- **Data Sources:** `alert` created, fixed, reopened events
+- **SPL:**
+```spl
+index=devops sourcetype="github:code_scanning"
+| timechart span=1w sum(eval(action="created")) as opened, sum(eval(action="fixed")) as fixed by rule_severity
+| eval net_debt=opened-fixed
+```
+- **Implementation:** Ingest SARIF-related alert events. Track MTTR for Critical. Executive dashboard: net debt per language.
+- **Visualization:** Line chart (opened vs fixed), Bar chart (by severity), Single value (open Critical alerts).
+- **CIM Models:** N/A
+
+---
+
 ### 12.2 CI/CD Pipelines
 
 **Primary App/TA:** Jenkins TA (`TA-jenkins`), custom webhook receivers for GitHub Actions/GitLab CI/ArgoCD.
@@ -416,6 +654,298 @@ index=cicd sourcetype="controlm:job"
 
 ---
 
+### UC-12.2.14 · Jenkins Agent Offline Alerts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Operational paging when executors disappear—complements UC-12.2.10 with severity tiers and agent labels (prod vs dev).
+- **App/TA:** Splunk App for Jenkins, Jenkins API
+- **Data Sources:** `/computer/api/json` `offline=true`, agent heartbeat
+- **SPL:**
+```spl
+index=cicd sourcetype="jenkins:computer" (offline="true" OR offline=true)
+| lookup jenkins_agent_tier displayName OUTPUT tier
+| where tier="production"
+| table _time, displayName, offline, labels, numExecutors
+| sort -_time
+```
+- **Implementation:** Tag agents in lookup. Page immediately for production-labeled offline agents. Auto-create incident if >30% of pool offline.
+- **Visualization:** Table (offline prod agents), Single value (count), Status grid (agent × tier).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.15 · Pipeline Stage Duration Regression
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Stage-level regression (e.g., `test` stage) surfaces before overall job duration crosses SLA (UC-12.2.2).
+- **App/TA:** Jenkins Blue Ocean / GitLab job trace, GitHub Actions job logs
+- **Data Sources:** Stage start/end timestamps per pipeline run
+- **SPL:**
+```spl
+index=cicd sourcetype="cicd:stage"
+| eval stage_duration_sec=duration_ms/1000
+| eventstats median(stage_duration_sec) as med by stage_name, pipeline
+| where stage_duration_sec > med*1.5 AND stage_duration_sec > 60
+| table _time, pipeline, stage_name, stage_duration_sec, med
+```
+- **Implementation:** Emit structured stage events from CI. Baseline weekly medians. Alert on regression >50% vs median.
+- **Visualization:** Line chart (stage duration trend), Table (regressions), Heatmap (stage × pipeline).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.16 · Build Artifact Integrity Verification
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Compares published artifact checksums/Sigstore signatures against CI-recorded values to detect tampering at rest.
+- **App/TA:** Cosign, Jenkins archive, S3/GCS object metadata
+- **Data Sources:** Build record with `sha256`, registry manifest digest
+- **SPL:**
+```spl
+index=cicd sourcetype="artifact:integrity"
+| where expected_sha256!=actual_sha256 OR signature_valid="false"
+| table _time, artifact_name, pipeline, expected_sha256, actual_sha256
+```
+- **Implementation:** CI stores expected hash in Splunk; registry poll compares. Alert on any mismatch before prod promotion.
+- **Visualization:** Table (mismatches — target empty), Timeline, Single value (failed verifications).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.17 · Deploy Approval Bypass Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Production deploys without change ticket or approval group in CD system (Spinnaker, Argo Rollouts, Harness).
+- **App/TA:** CD platform audit logs
+- **Data Sources:** Deployment events with `approval_id`, `change_ticket`
+- **SPL:**
+```spl
+index=cicd sourcetype="deployment_event" environment="production"
+| where isnull(approval_id) OR isnull(change_ticket)
+| search user!="svc_cd_bot"
+| table _time, application, user, version, environment
+```
+- **Implementation:** Enforce required fields in CD templates. Alert on nulls. Correlate with Entra/Okta for human actors.
+- **Visualization:** Table (unapproved deploys), Timeline, Single value (violations 30d).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.18 · Parallel Build Resource Contention
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Many concurrent jobs on shared runners cause CPU steal and flaky tests—correlate job concurrency with duration outliers.
+- **App/TA:** Jenkins metrics, Kubernetes node metrics
+- **Data Sources:** Active executor count, node CPU utilization, overlapping job IDs
+- **SPL:**
+```spl
+index=cicd sourcetype="jenkins:metrics"
+| eval utilization_pct=round(busy_executors/total_executors*100,1)
+| join type=left _time [search index=infra sourcetype="kube:node" | stats avg(cpu_usage) as node_cpu by _time]
+| where utilization_pct>90 AND node_cpu>85
+| table _time, computer, utilization_pct, node_cpu
+```
+- **Implementation:** Align timestamps between CI and Kubernetes. Alert when high utilization coincides with p95 build time spike. Scale runner pool.
+- **Visualization:** Line chart (utilization vs build time), Table (contention windows), Bar chart (by node pool).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.19 · Flaky Test Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Tests that pass/fail without code changes waste time and hide real failures; quarantine candidates identified by pass rate variance.
+- **App/TA:** JUnit XML ingest, Buildkite/GitHub Actions annotations
+- **Data Sources:** Test case name, suite, result per run
+- **SPL:**
+```spl
+index=cicd sourcetype="junit:result"
+| stats count(eval(result="SUCCESS")) as pass, count(eval(result="FAILURE")) as fail, count as runs by test_case, class_name
+| eval flake_rate=round(fail/runs*100,1)
+| where runs>10 AND flake_rate>10 AND flake_rate<90
+| sort -flake_rate
+```
+- **Implementation:** Minimum 10 runs for statistics. File Jira for quarantine when flake_rate >25%. Track fix SLA.
+- **Visualization:** Table (flaky tests), Bar chart (flake rate), Line chart (trend after fix).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.20 · Deployment Frequency Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** DORA dashboard slice—deployments per service per day with team and application tags (extends UC-12.2.3).
+- **App/TA:** `deployment_event` HEC
+- **Data Sources:** Normalized deploy events with `service`, `team`
+- **SPL:**
+```spl
+index=cicd sourcetype="deployment_event" environment="production"
+| bin _time span=1d
+| stats count as deploys by _time, team, service
+| sort -deploys
+```
+- **Implementation:** Tag all deploy pipelines. Weekly report to leadership. Compare to DORA elite thresholds (on-demand per day).
+- **Visualization:** Line chart (deploys per day by team), Bar chart (by service), Single value (deploys 7d).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.21 · Lead Time for Changes (Percentile)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** p95 lead time exposes tail latency hiding in averages (UC-12.2.4).
+- **App/TA:** Git + deployment correlation
+- **Data Sources:** First commit SHA timestamp → prod deploy time
+- **SPL:**
+```spl
+index=cicd sourcetype="deployment_event" environment="production"
+| eval lead_hours=(deploy_time_epoch-commit_time_epoch)/3600
+| stats avg(lead_hours) as avg_lt, p95(lead_hours) as p95_lt by application
+| where p95_lt > 168
+| sort -p95_lt
+```
+- **Implementation:** Require deploy events to carry commit SHA. Alert when p95 exceeds one week. Segment by monorepo vs microservice.
+- **Visualization:** Histogram (lead time), Table (p95 by app), Line chart (p95 trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.22 · Mean Time to Recovery (MTTR)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Time from incident detection or deploy failure to successful restore—core DORA metric.
+- **App/TA:** PagerDuty/Opsgenie, deployment events
+- **Data Sources:** Incident `created_at`, `resolved_at`; rollback `deploy_time`
+- **SPL:**
+```spl
+index=itsm sourcetype="pagerduty:incident"
+| eval mttr_min=(resolved_epoch-ack_epoch)/60
+| stats avg(mttr_min) as avg_mttr, p95(mttr_min) as p95_mttr by service
+| where avg_mttr > 60
+| sort -avg_mttr
+```
+- **Implementation:** Correlate PD incidents with service. For deploy failures, measure time to healthy deploy. Executive review monthly.
+- **Visualization:** Table (MTTR by service), Line chart (avg MTTR trend), Gauge (vs SLA).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.23 · Change Failure Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Ratio of failed deployments or hotfix-required releases to total deployments—DORA metric.
+- **App/TA:** Deployment + incident linkage
+- **Data Sources:** `deployment_event` outcome, post-deploy incident within 1h
+- **SPL:**
+```spl
+index=cicd sourcetype="deployment_event" environment="production"
+| eval failed=if(status="failed" OR incident_within_1h="true",1,0)
+| stats sum(failed) as fails, count as total by application
+| eval cfr=round(fails/total*100,2)
+| where cfr > 15
+| sort -cfr
+```
+- **Implementation:** Flag incidents linked to version within 1h window. Target CFR <15% for mature teams. Review outliers in postmortems.
+- **Visualization:** Bar chart (CFR by app), Line chart (CFR trend), Single value (org CFR).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.24 · Pipeline Secret Rotation Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** CI/CD credentials (vault tokens, cloud API keys) approaching expiry without rotation break builds and create risk.
+- **App/TA:** Vault audit, cloud IAM credential reports
+- **Data Sources:** Secret `expires_at`, `last_rotated`
+- **SPL:**
+```spl
+index=secrets sourcetype="vault:audit" OR sourcetype="ci:credential_inventory"
+| eval days_left=(expiry_epoch-now())/86400
+| where days_left < 14 AND days_left > 0
+| table secret_name, pipeline, days_left, owner
+| sort days_left
+```
+- **Implementation:** Export CI secret inventory from Vault or sealed secrets metadata. Alert at 14/7/1 days. Block pipeline if expired.
+- **Visualization:** Table (expiring secrets), Gauge (compliance %), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.25 · Build Queue Wait Time SLA
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** SLA-focused view of queue delay—% of jobs waiting >5 min (extends UC-12.2.6).
+- **App/TA:** Jenkins queue API, GitLab pending jobs
+- **Data Sources:** `queue_wait_ms`, `queued_at`, `started_at`
+- **SPL:**
+```spl
+index=cicd sourcetype="jenkins:build"
+| eval wait_min=queue_wait_ms/60000
+| stats count(eval(wait_min>5)) as slow_queued, count as total
+| eval pct_slow=round(slow_queued/total*100,2)
+| where pct_slow > 10
+```
+- **Implementation:** Emit wait time per build. Alert if >10% of builds exceed 5 min queue in 1h window. Scale agents.
+- **Visualization:** Line chart (p95 wait time), Histogram (wait distribution), Single value (% >5min).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.26 · Test Coverage Regression
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** PRs that reduce line coverage vs main branch—visibility for governance (pair with CI gates).
+- **App/TA:** Cobertura/JaCoCo XML to HEC
+- **Data Sources:** `coverage_pct` per branch, PR number
+- **SPL:**
+```spl
+index=cicd sourcetype="test_coverage" branch=main
+| eventstats latest(coverage_pct) as main_cov by project
+| join project [search index=cicd sourcetype="test_coverage" branch!=main | fields project, coverage_pct, pr]
+| eval delta=coverage_pct-main_cov
+| where delta < -1
+| table project, pr, coverage_pct, main_cov, delta
+```
+- **Implementation:** Compare PR coverage to main on each build. Alert on >1% drop. Block merge in CI when integrated.
+- **Visualization:** Table (regressions), Bar chart (delta by project), Line chart (main coverage trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.2.27 · Pipeline Resource Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** CPU/memory per runner job—right-sizing and spot vs on-demand mix.
+- **App/TA:** Kubernetes metrics, Jenkins Prometheus plugin
+- **Data Sources:** `container_cpu_usage_seconds`, `job_duration`, resource requests
+- **SPL:**
+```spl
+index=infra sourcetype="kube:pod_metrics" label_app="ci-runner"
+| bin _time span=5m
+| stats avg(cpu_cores) as avg_cpu by pod_name
+| join pod_name [search index=cicd sourcetype="jenkins:build" | stats avg(duration) as job_dur by executor_pod]
+| table pod_name, avg_cpu, job_dur
+```
+- **Implementation:** Correlate runner pods with jobs. Identify over-provisioned runners. Recommend requests/limits tuning.
+- **Visualization:** Table (utilization by runner), Bar chart (avg CPU per job type), Line chart (efficiency trend).
+- **CIM Models:** N/A
+
+---
+
 ### 12.3 Artifact & Package Management
 
 **Primary App/TA:** Custom API inputs (Artifactory, Nexus), webhook receivers.
@@ -519,6 +1049,144 @@ index=iac sourcetype="terraform:plan_json"
 ```
 - **Implementation:** Run `terraform plan -json` in CI or on schedule. Parse JSON output for resource_changes (add, change, destroy). Ingest to Splunk via HEC. Alert on any unexpected changes (drift) in detect-only runs. Track planned vs. applied resource counts per workspace. Correlate drift events with cloud provider change logs. Enforce drift remediation SLA and report on compliance.
 - **Visualization:** Table (drift events with resource details), Single value (workspaces with drift), Bar chart (add/change/destroy by workspace), Timeline (drift detection events).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.6 · Container Image Vulnerability Scan Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** CI gate failures when Trivy/Grype/ECR scanning cannot pull image or scanner errors—distinct from found CVEs (UC-12.3.2).
+- **App/TA:** Trivy JSON output, Harbor webhook
+- **Data Sources:** Scan exit code, `Status: ERROR` in SARIF
+- **SPL:**
+```spl
+index=devops sourcetype="container:scan"
+| where scan_status!="SUCCESS" OR match(_raw,"(?i)(timeout|failed to pull|manifest unknown)")
+| stats count by image_ref, scanner, error_message
+| sort -count
+```
+- **Implementation:** Alert on scanner infrastructure failures separately from policy violations. Retry with backoff; page platform team on registry outages.
+- **Visualization:** Table (failed scans), Line chart (failure rate), Single value (open scan errors).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.7 · Package Dependency Audit Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** New AGPL/GPL or typosquat package names in lockfiles—policy engine output beyond CVE severity.
+- **App/TA:** FOSSA, `npm audit` JSON, OSV
+- **Data Sources:** Policy violation events `license_policy`, `dependency_policy`
+- **SPL:**
+```spl
+index=devops sourcetype="sca:policy"
+| where policy_result="violation" OR risk="blocked"
+| stats count by project, package_name, policy_name
+| sort -count
+```
+- **Implementation:** Map policies to Splunk alerts. Weekly license review for new copyleft in commercial products.
+- **Visualization:** Table (violations), Bar chart (by policy), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.8 · Artifact Retention Policy Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Capacity
+- **Value:** Verifies cleanup jobs deleted snapshots per policy; stale artifacts past retention indicate failed garbage collection.
+- **App/TA:** Artifactory/Nexus repository metadata API
+- **Data Sources:** Artifact `last_downloaded`, `created`, retention rule ID
+- **SPL:**
+```spl
+index=devops sourcetype="artifactory:artifact_age"
+| eval age_days=(now()-created_epoch)/86400
+| where age_days > retention_days + 7
+| stats count by repository, path
+| sort -count
+```
+- **Implementation:** Compare artifact age to configured retention. Alert on drift >7 days past policy. Audit quarterly for legal hold exceptions.
+- **Visualization:** Table (over-retained artifacts), Bar chart (by repo), Single value (non-compliant count).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.9 · SBOM Generation Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** CycloneDX/SPDX missing for release builds breaks supply-chain attestation requirements (EO 14028).
+- **App/TA:** Syft, build pipeline attestations
+- **Data Sources:** `sbom_generated=true`, artifact `sbom_path`
+- **SPL:**
+```spl
+index=cicd sourcetype="release:build"
+| where sbom_present="false" AND environment="release"
+| table _time, application, version, build_id
+| sort -_time
+```
+- **Implementation:** Fail release stage if SBOM not uploaded to blob store. Track SBOM format version (CycloneDX 1.5).
+- **Visualization:** Table (missing SBOM), Single value (compliance %), Line chart (trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.10 · Artifact Signing Verification
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cosign/Notary verification results at deploy time—signature missing or wrong key.
+- **App/TA:** Cosign, Sigstore Rekor
+- **Data Sources:** Verify command JSON `verified`, `issuer`
+- **SPL:**
+```spl
+index=cicd sourcetype="cosign:verify"
+| where verified="false" OR issuer NOT IN ("oidc://token.actions.githubusercontent.com","https://kubernetes.io/...")
+| table _time, image, issuer, reason
+```
+- **Implementation:** Ingest verification from CD pipeline. Block deploy on false. Rotate keys per runbook.
+- **Visualization:** Table (failed verifications), Timeline, Single value (failed count).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.11 · Package Provenance Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** SLSA provenance predicate links artifact digest to git source SHA and builder ID—detects builds not from trusted pipelines.
+- **App/TA:** SLSA provenance JSON, GitHub attestations
+- **Data Sources:** `predicate.buildDefinition`, `subject.digest`
+- **SPL:**
+```spl
+index=cicd sourcetype="slsa:provenance"
+| where builder_id!="https://github.com/org/trusted-workflow" OR commit_ref!=expected_git_sha
+| table _time, artifact_digest, builder_id, commit_ref, expected_git_sha
+```
+- **Implementation:** Store expected builder allowlist. Alert on provenance mismatch for prod images.
+- **Visualization:** Table (mismatches), Bar chart (by builder), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-12.3.12 · Registry Storage Growth
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Daily growth rate of container/NPM registry—forecast disk exhaustion (extends UC-12.3.1).
+- **App/TA:** Harbor/ECR/Artifactory storage API
+- **Data Sources:** Total bytes, per-repo breakdown
+- **SPL:**
+```spl
+index=devops sourcetype="registry:storage"
+| timechart span=1d sum(size_bytes) as total by registry_name
+| predict total as forecast
+```
+- **Implementation:** Alert when weekly growth >20% or forecast crosses 85% capacity in <90 days. Recommend GC tuning.
+- **Visualization:** Line chart (storage growth), Area chart (by project), Single value (days to full).
 - **CIM Models:** N/A
 
 ---
@@ -747,3 +1415,317 @@ index=devops sourcetype="argocd:application"
 
 ---
 
+### UC-12.4.12 · Terraform Plan Drift Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Scheduled CI `terraform plan` runs that show changes when no pipeline apply occurred—focused operational view vs UC-12.4.2.
+- **App/TA:** Terraform CLI in CI, Terraform Cloud
+- **Data Sources:** Plan JSON `resource_changes`, `plan_mode=scheduled`
+- **SPL:**
+```spl
+index=iac sourcetype="terraform:plan_ci"
+| where plan_mode="scheduled" AND (changes_add>0 OR changes_change>0 OR changes_destroy>0)
+| table _time, workspace, changes_add, changes_change, changes_destroy, run_url
+| sort -_time
+```
+- **Implementation:** Nightly plan-only workflow for prod workspaces. Alert on any change. Auto-create drift remediation ticket.
+- **Visualization:** Table (drift plans), Timeline, Bar chart (by workspace).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.13 · CloudFormation Stack Drift
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Compliance
+- **Value:** AWS `DetectStackDrift` results show live resources diverging from template—essential for CloudFormation-centric teams.
+- **App/TA:** AWS CloudFormation API, CloudTrail
+- **Data Sources:** `StackDriftStatus`, `StackResourceDriftStatus`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudformation:drift"
+| where StackDriftStatus="DRIFTED" OR DetectionStatus="DETECTION_FAILED"
+| stats latest(_time) as last_check, values(LogicalResourceId) as drifted_resources by StackName, region
+| sort -last_check
+```
+- **Implementation:** Schedule drift detection after stack updates. Alert on DRIFTED. Optionally ingest full drift detail JSON.
+- **Visualization:** Table (drifted stacks), Bar chart (by account), Timeline.
+- **CIM Models:** Change
+
+---
+
+### UC-12.4.14 · Ansible Playbook Failure Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Failure rate per playbook and run—trending layer on top of UC-12.4.3 outcomes.
+- **App/TA:** Ansible Splunk callback, ARA
+- **Data Sources:** Per-play `failed`, `unreachable`, `playbook`
+- **SPL:**
+```spl
+index=iac sourcetype="ansible:result"
+| stats sum(failed) as fails, sum(unreachable) as unreach, count as runs by playbook
+| eval fail_rate=round((fails+unreach)/runs*100,2)
+| where fail_rate > 5
+| sort -fail_rate
+```
+- **Implementation:** Alert when fail_rate >5% over 24h. Page for security baseline playbooks. Host-level drilldown from same data.
+- **Visualization:** Line chart (fail rate trend), Table (worst playbooks), Bar chart (by team).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.15 · Policy-as-Code Violation Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** OPA, Sentinel, or Conftest denials over time—spikes after new policy rollout (extends UC-12.4.5).
+- **App/TA:** OPA decision logs, Terraform Cloud policy sets
+- **Data Sources:** `result="fail"`, `policy_path`, `namespace`
+- **SPL:**
+```spl
+index=iac sourcetype="opa:decision"
+| where result="fail"
+| timechart span=1d count by policy_name
+```
+- **Implementation:** Baseline failures per policy. Alert on 3× week-over-week spike. Run education before switching to hard-fail.
+- **Visualization:** Line chart (violations over time), Bar chart (by policy), Table (top namespaces).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.4.16 · IaC Module Version Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Terraform module sources below approved minimum semver—reduces stale or vulnerable module usage.
+- **App/TA:** `terraform-config-inspect`, CI parse of resolved modules
+- **Data Sources:** Module `name`, `version` from `terraform init -json`
+- **SPL:**
+```spl
+index=iac sourcetype="terraform:modules"
+| lookup terraform_module_allowed module_name OUTPUT min_version
+| where semver_compare(module_version, min_version) < 0
+| table workspace, module_name, module_version, min_version
+```
+- **Implementation:** Weekly compliance report. Enforce minimum via Sentinel/OPA in pipeline. Pair with private registry pinning.
+- **Visualization:** Table (non-compliant modules), Bar chart (version lag), Line chart (compliance %).
+- **CIM Models:** N/A
+
+---
+
+### 12.5 GitOps & Deployment Automation
+
+**Primary App/TA:** Splunk Add-on for Argo CD, Splunk Add-on for Kubernetes, GitHub Actions log forwarder, GitLab CI integration, Splunk Connect for Helm/Flux metrics, custom HEC for GitOps APIs.
+
+---
+
+### UC-12.5.1 · ArgoCD Sync Status Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Configuration
+- **Value:** Failed or stuck sync operations leave clusters diverging from Git and block releases; surfacing them quickly limits blast radius and restores desired state.
+- **App/TA:** Splunk Add-on for Argo CD, custom ArgoCD API/audit input
+- **Data Sources:** `sourcetype=argocd:application`, `sourcetype=argocd:audit`
+- **SPL:**
+```spl
+index=devops (sourcetype="argocd:application" OR sourcetype="argocd:audit")
+| search sync_status IN ("OutOfSync","Unknown") OR operation_state="Error" OR phase="Failed"
+| stats latest(_time) as last_seen, values(message) as messages by name, namespace, project
+| sort -last_seen
+```
+- **Implementation:** Ingest Argo CD application CR status and controller/audit logs via add-on or HEC. Normalize `sync_status`, `operation_state`, and error messages. Alert when sync fails or remains in Error/Failed beyond a short window. Correlate with Git commits and cluster events.
+- **Visualization:** Table (failed apps), Single value (apps in failed sync), Timeline (sync operations), Status grid by project.
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.2 · ArgoCD Drift Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Live cluster drift from Git-defined manifests risks untracked changes and audit gaps; detecting drift prioritizes reconciliation before incidents or compliance findings.
+- **App/TA:** Splunk Add-on for Argo CD
+- **Data Sources:** `sourcetype=argocd:application`
+- **SPL:**
+```spl
+index=devops sourcetype="argocd:application"
+| where sync_status="OutOfSync" OR health_status="Degraded"
+| eval drift_indicator=if(sync_status="OutOfSync","manifest_drift","health_degraded")
+| stats count by name, namespace, sync_status, health_status, drift_indicator
+| sort -count
+```
+- **Implementation:** Poll or stream Argo CD application objects so `sync_status` and `health_status` are current. Treat sustained `OutOfSync` as drift unless an approved sync window applies. Alert with application, revision, and diff summary fields when available.
+- **Visualization:** Table (drifted apps), Bar chart (drift by cluster/namespace), Line chart (drift count over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.3 · Flux Reconciliation Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Unhealthy Flux `Kustomization`/`HelmRelease` resources stop automated delivery; monitoring reconciliation ensures continuous GitOps and catches controller or source errors early.
+- **App/TA:** Custom (Flux logs/metrics), Splunk OTel Collector for Kubernetes
+- **Data Sources:** `sourcetype=fluxcd:controller`, `sourcetype=kube:container_flux`
+- **SPL:**
+```spl
+index=devops (sourcetype="fluxcd:controller" OR sourcetype="kube:container_flux")
+| search (status="False" AND type="Ready") OR level="error" OR msg="*reconciliation*failed*"
+| stats count by namespace, name, kind, message
+| sort -count
+```
+- **Implementation:** Forward Flux source-controller, kustomize-controller, and helm-controller logs (or scrape status conditions from CRDs) into Splunk. Parse Ready=False conditions and error strings. Alert on reconciliation failures or backlog growth. Group by cluster and tenant.
+- **Visualization:** Table (failed resources), Single value (failed reconciliations), Timeline (controller errors), Bar chart (failures by kind).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.4 · GitHub Actions Workflow Failure Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Fault
+- **Value:** A rising workflow failure rate signals flaky pipelines, bad merges, or infra issues that slow delivery and can block production paths.
+- **App/TA:** GitHub Audit Log / webhook forwarder, Splunk HTTP Event Collector
+- **Data Sources:** `sourcetype=github:workflow_run`, `sourcetype=github:webhook`
+- **SPL:**
+```spl
+index=devops sourcetype="github:workflow_run"
+| eval failed=if(conclusion IN ("failure","cancelled","timed_out"),1,0)
+| timechart span=1h sum(failed) as failures, count as runs
+| eval failure_rate=round(100*failures/runs,2)
+| fields _time, failure_rate, failures, runs
+```
+- **Implementation:** Ingest workflow_run events with conclusion, workflow, branch, and repository. Compute failure rate over sliding windows per repo or default branch. Alert when failure_rate exceeds baseline or a fixed threshold. Exclude expected flaky jobs via labels when possible.
+- **Visualization:** Line chart (failure rate), Stacked bar (conclusions), Single value (last 24h failure %), Table (top failing workflows).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.5 · GitHub Actions Runner Queue Depth
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Deep job queues delay CI feedback and releases; tracking queue depth distinguishes runner capacity problems from workflow volume spikes.
+- **App/TA:** GitHub Enterprise Server / self-hosted runner scripts, custom metrics via Actions API
+- **Data Sources:** `sourcetype=github:runner_metrics`, `sourcetype=github:workflow_job`
+- **SPL:**
+```spl
+index=devops (sourcetype="github:workflow_job" OR sourcetype="github:runner_metrics")
+| eval queued=if(status="queued",1,0)
+| bin _time span=5m
+| stats sum(queued) as queued_jobs, dc(runner_name) as active_runners by _time, organization
+| sort _time
+```
+- **Implementation:** Emit periodic queue depth from self-hosted runner APIs or poll workflow jobs in `queued` state. For hosted runners, approximate backlog using queued job counts and wait times. Alert when queued_jobs or wait time p95 exceeds SLO. Plan runner pool scaling from trends.
+- **Visualization:** Area chart (queued jobs), Line chart (queue wait p95), Single value (current queue depth), Table (repos with longest waits).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.6 · GitLab CI Pipeline Duration Regression
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Sudden pipeline duration increases waste compute budgets and slow merges; regression detection isolates stages, runners, or dependencies that changed.
+- **App/TA:** GitLab webhook / API integration, Splunk Add-on for GitLab (custom)
+- **Data Sources:** `sourcetype=gitlab:pipeline`
+- **SPL:**
+```spl
+index=devops sourcetype="gitlab:pipeline" status="success"
+| eval duration_min=round(duration_sec/60,2)
+| eventstats median(duration_min) as baseline_med by project_id, ref
+| eval regression=if(duration_min > baseline_med * 1.5, 1, 0)
+| where regression=1
+| table _time, project, ref, duration_min, baseline_med, pipeline_id
+| sort -_time
+```
+- **Implementation:** Ingest pipeline completion events with duration, project, ref, and stage timings if available. Establish rolling median baseline per project/branch. Alert when duration exceeds threshold multiplier or absolute cap. Drill into job-level logs for the slow stage.
+- **Visualization:** Line chart (median duration trend), Table (regression events), Box plot (duration distribution by pipeline).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.7 · Deployment Rollback Frequency Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Change
+- **Value:** Frequent rollbacks indicate release quality or progressive-delivery issues; tracking frequency supports blameless review and release process tuning.
+- **App/TA:** Argo Rollouts, Flagger, Kubernetes audit, CI/CD webhook
+- **Data Sources:** `sourcetype=kube:events`, `sourcetype=argocd:application`
+- **SPL:**
+```spl
+index=devops (sourcetype="kube:events" OR sourcetype="argocd:application")
+| search rollback="true" OR reason="Rollback" OR message="*rollback*"
+| timechart span=1d count by namespace
+```
+- **Implementation:** Tag rollback events from Argo Rollouts/Flagger, deployment controllers, or GitOps sync history. Deduplicate by deployment and revision. Report rollbacks per service and environment. Correlate with failed health checks or error spikes.
+- **Visualization:** Line chart (rollbacks per day), Bar chart (rollbacks by service), Table (recent rollbacks with revision).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.8 · Helm Release Health Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Configuration
+- **Value:** Failed or pending Helm releases leave workloads partially updated or broken; monitoring release status prevents silent partial deploys.
+- **App/TA:** Helm CLI / Flux helm-controller logs, `splunk-otel-collector` for cluster metrics
+- **Data Sources:** `sourcetype=helm:release`, `sourcetype=fluxcd:controller`
+- **SPL:**
+```spl
+index=devops (sourcetype="helm:release" OR (sourcetype="fluxcd:controller" AND kind="HelmRelease"))
+| where status IN ("failed","pending-upgrade","pending-rollback") OR info_status!="deployed"
+| stats latest(_time) as last_event, values(message) as notes by release, namespace, chart, status
+| sort -last_event
+```
+- **Implementation:** Ingest Helm release status from `helm list -o json` jobs, Flux HelmRelease conditions, or controller logs. Map statuses to deployed/failed/pending. Alert on non-deployed steady states. Include chart version and values hash for change correlation.
+- **Visualization:** Table (unhealthy releases), Single value (non-deployed count), Timeline (release operations).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.9 · Kustomize Build Error Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Configuration
+- **Value:** Kustomize build failures block manifests from applying; early detection shortens fix time for overlay, patch, or base reference mistakes.
+- **App/TA:** CI pipeline logs, Flux kustomize-controller
+- **Data Sources:** `sourcetype=gitlab:job`, `sourcetype=github:workflow_job`, `sourcetype=fluxcd:controller`
+- **SPL:**
+```spl
+index=devops (sourcetype="fluxcd:controller" OR sourcetype="gitlab:job" OR sourcetype="github:workflow_job")
+| search kustomize_build OR "kustomize build" OR "error building kustomize"
+| rex field=_raw "(?<err_msg>kustomize:.*|error:.*)"
+| stats count by project, pipeline_id, err_msg
+| sort -count
+```
+- **Implementation:** Capture stderr from CI jobs and Flux kustomize-controller when `kustomize build` runs. Extract file paths and duplicate key errors. Alert on any build failure on protected branches or for production overlays. Feed counts back to repo owners.
+- **Visualization:** Table (build errors), Bar chart (errors by repo), Timeline (failure events).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.5.10 · GitOps Deployment Lead Time
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Measuring Git commit-to-production lead time exposes bottlenecks in review, CI, and sync so teams can optimize end-to-end delivery speed.
+- **App/TA:** Git + ArgoCD/Flux correlation (custom), DORA metrics scripts
+- **Data Sources:** `sourcetype=github:webhook`, `sourcetype=argocd:application`
+- **SPL:**
+```spl
+index=devops (sourcetype="github:webhook" OR sourcetype="argocd:application")
+| eval commit_ts=if(sourcetype="github:webhook", strptime(commit_time,"%Y-%m-%dT%H:%M:%SZ"), null())
+| eval sync_ts=if(sourcetype="argocd:application", _time, null())
+| stats earliest(commit_ts) as first_commit, latest(sync_ts) as last_sync by repository, revision
+| eval lead_time_sec=last_sync-first_commit
+| where isnotnull(lead_time_sec) AND lead_time_sec > 0
+| eval lead_time_min=round(lead_time_sec/60,1)
+| table repository, revision, lead_time_min
+| sort -lead_time_min
+```
+- **Implementation:** Correlate Git merge or push timestamps with Argo CD successful sync or Flux `LastAppliedRevision` time for the same revision. Use lookup or transaction across indexes if needed. Report p50/p95 lead time by team and service. Exclude hotfix channels with tags if required.
+- **Visualization:** Histogram (lead time distribution), Line chart (p95 lead time trend), Bar chart (lead time by service).
+- **CIM Models:** N/A

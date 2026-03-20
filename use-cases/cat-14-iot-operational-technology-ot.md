@@ -183,6 +183,112 @@ index=ot sourcetype="opcua:diagnostics" OR sourcetype="opcua:server"
 - **Visualization:** Gauge (session utilization %), Table (servers with subscription failures), Line chart (session count and subscription health trend), Single value (OPC-UA servers healthy).
 - **CIM Models:** N/A
 
+
+#### 14.1 SNMP & Network Devices
+
+**Primary App/TA:** SNMP Modular Input (TA), SNMP trap receiver (syslog/HEC), vendor NMS exports.
+
+---
+
+### UC-14.1.10 · SNMP Trap Storm Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
+- **Value:** Trap floods overwhelm collectors and obscure real faults; rapid detection enables rate limiting and upstream device triage.
+- **App/TA:** SNMP trap receiver, `snmptrapd` → syslog
+- **Data Sources:** `index=network` `sourcetype="snmp:trap"` or `snmptrapd:syslog`
+- **SPL:**
+```spl
+index=network sourcetype IN ("snmp:trap","snmptrapd:syslog")
+| timechart span=1m count as trap_rate by device_ip
+| where trap_rate > 500
+```
+- **Implementation:** Baseline traps/min per agent IP. Alert when rate exceeds 5× baseline or absolute threshold. Correlate with link flaps or misconfigured threshold on managed device.
+- **Visualization:** Line chart (trap rate by device), Single value (peak traps/min), Table (top storm sources).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.11 · Device MIB Polling Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Failed GET/GETNEXT/WALK cycles mean stale metrics and blind spots in capacity management.
+- **App/TA:** SNMP TA (modular input), polling audit logs
+- **Data Sources:** `sourcetype="snmp:poll_status"` or `sourcetype="snmp:ta:log"`
+- **SPL:**
+```spl
+index=network sourcetype="snmp:poll_status"
+| where status!="success" OR timeout_ms > 3000
+| stats count by host, device_ip, oid_tree, error_code
+| sort -count
+```
+- **Implementation:** Emit structured poll result per target (success, timeout, auth error). Alert on sustained failure rate >5% or SNMP timeout storms. Verify SNMP community/v3 creds and ACLs on device.
+- **Visualization:** Table (devices with poll failures), Line chart (failure % trend), Status grid (device × OID family).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.12 · Firmware Version Compliance Across Fleet
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Known-bad IOS/NX-OS/IOS-XE builds expose the network to CVEs; compliance reporting supports change windows.
+- **App/TA:** SNMP TA (ENTITY-MIB, vendor OIDs), SolarWinds/Prime export
+- **Data Sources:** `sourcetype="snmp:inventory"` (sysDescr, entPhysicalFirmwareRev)
+- **SPL:**
+```spl
+index=network sourcetype="snmp:inventory"
+| stats latest(firmware_version) as fw by device_name, model
+| lookup approved_network_firmware.csv model OUTPUT approved_fw
+| where fw!=approved_fw
+| table device_name, model, fw, approved_fw
+```
+- **Implementation:** Poll ENTITY-MIB / vendor firmware revision OIDs on a weekly schedule. Maintain CSV of approved builds per platform. Drive remediation tickets for non-compliant devices.
+- **Visualization:** Table (non-compliant devices), Pie chart (compliance %), Bar chart (by site).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.13 · Environmental Sensor Threshold Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Rack intake temperature and humidity from SNMP sensors protect IT and edge equipment from thermal damage.
+- **App/TA:** SNMP TA (UPS-MIB, custom sensor MIBs)
+- **Data Sources:** `sourcetype="snmp:env_sensor"` (tempC, humidityPct)
+- **SPL:**
+```spl
+index=environment sourcetype="snmp:env_sensor"
+| where temp_c > 30 OR temp_c < 10 OR humidity_pct > 70 OR humidity_pct < 20
+| table _time, device_ip, sensor_id, temp_c, humidity_pct, location
+```
+- **Implementation:** Map OIDs to sensor labels. Alert per ASHRAE/site policy. Correlate with HVAC/BMS where available.
+- **Visualization:** Heatmap (rack × temp), Line chart (sensor trend), Table (exceedances).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.14 · SNMPv3 Authentication Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Auth failures indicate credential rotation gaps, brute force, or misconfigured collectors.
+- **App/TA:** Device syslog, SNMP engine logs
+- **Data Sources:** `sourcetype="snmp:auth"` or `sourcetype="cisco:ios"` (SNMPv3 usmStats)
+- **SPL:**
+```spl
+index=network sourcetype IN ("snmp:auth","cisco:ios")
+| search "authentication failure" OR "Unknown user name" OR "usmStatsUnknownUserNames"
+| stats count by src_ip, device_name, user_name
+| where count > 10
+| sort -count
+```
+- **Implementation:** Forward device-side SNMPv3 error counters to Splunk. Alert on burst from single IP or new engine ID. Correlate with NetOps change tickets.
+- **Visualization:** Table (top sources of auth failures), Timeline (failure bursts), Map (geo of source IPs if routed).
+- **CIM Models:** N/A
+
+
 ---
 
 ### 14.2 Industrial Control Systems (ICS/SCADA)
@@ -305,6 +411,465 @@ index=ot sourcetype="ics_firewall"
 ```
 - **Implementation:** Monitor access to ICS networks from all sources. Alert on connections from non-whitelisted IPs. Track engineering workstation access sessions. Correlate with physical access to control rooms. Report for ICS cybersecurity compliance.
 - **Visualization:** Table (access events), Timeline (unauthorized attempts), Bar chart (blocked connections by source).
+- **CIM Models:** N/A
+
+
+---
+
+### UC-14.2.7 · Modbus TCP Anomaly Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
+- **Value:** Unusual read/write rates or register ranges can indicate process upset or malicious manipulation.
+- **App/TA:** Splunk OT Intelligence, Modbus TA
+- **Data Sources:** `sourcetype="modbus:traffic"` or `modbus:gateway`
+- **SPL:**
+```spl
+index=ot sourcetype="modbus:traffic"
+| bin _time span=5m
+| stats count by _time, unit_id, function_code, src_ip
+| eventstats median(count) as med by unit_id, function_code
+| where count > med * 5 AND count > 100
+```
+- **Implementation:** Baseline requests per 5m per unit and function code. Use MLTK or `eventstats` for median. Alert on spikes without corresponding maintenance window.
+- **Visualization:** Line chart (Modbus req rate), Table (anomalous unit × function), Heatmap (time × unit).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.8 · OPC-UA Session Abuse
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Excessive sessions or anonymous binds from new clients can indicate scanning or unauthorized access.
+- **App/TA:** OPC-UA server audit logs, Edge Hub
+- **Data Sources:** `sourcetype="opcua:session"` (server audit events)
+- **SPL:**
+```spl
+index=ot sourcetype="opcua:session"
+| where event_type IN ("CreateSession","ActivateSession") AND (is_anonymous=1 OR rejected=1)
+| stats dc(session_id) as sessions, dc(client_ip) as clients by server_endpoint, _time span=1h
+| where sessions > 50 OR clients > 10
+```
+- **Implementation:** Ingest OPC-UA audit events. Whitelist known engineering hosts. Alert on anonymous session creation or high rejection rate.
+- **Visualization:** Table (servers with suspicious sessions), Bar chart (sessions by client IP).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.9 · PLC Firmware Change Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Change
+- **Value:** Unexpected firmware changes on PLCs can be maintenance errors or malicious reprogramming.
+- **App/TA:** PLC vendor export, OPC-UA device metadata
+- **Data Sources:** `sourcetype="plc:inventory"` (firmware, serial)
+- **SPL:**
+```spl
+index=ot sourcetype="plc:inventory"
+| streamstats current=firmware_version window=2 global=f by plc_name
+| where firmware_version!=f
+| table _time, plc_name, f, firmware_version, user
+```
+- **Implementation:** Snapshot firmware nightly or on change event from vendor tool. Correlate with change tickets. Alert on any drift without CMDB match.
+- **Visualization:** Timeline (firmware changes), Table (PLCs with unexpected version).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.10 · ICS Protocol Violation Alerts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Malformed DNP3/Modbus/Profinet frames or wrong L4 ports indicate misconfiguration or attacks.
+- **App/TA:** Industrial IDS, Zeek ICS parsers
+- **Data Sources:** `sourcetype="ics:protocol"` IDS alerts
+- **SPL:**
+```spl
+index=ot sourcetype="ics:protocol"
+| where severity IN ("high","critical") OR match(message,"(?i)(malformed|illegal|out.of.range)")
+| stats count by protocol, src_ip, dest_ip, signature
+| sort -count
+```
+- **Implementation:** Normalize IDS fields into Splunk. Tune for false positives on legacy equipment. Route critical to SOC and OT jointly.
+- **Visualization:** Table (violations), Timeline (events), Sankey (src → dest).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.11 · NERC CIP Compliance Checks
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Compliance
+- **Value:** Evidence of electronic access controls, logging, and change management for bulk electric systems.
+- **App/TA:** Custom (CIP evidence packs), Splunk Enterprise Security
+- **Data Sources:** Firewall, VPN, AD, asset logs tagged `nerc_cip`
+- **SPL:**
+```spl
+index=security sourcetype IN ("vpn:log","firewall:traffic") nerc_cip=1
+| where action="deny" OR match(user,"(?i)orphan")
+| stats count by asset_id, control_id, evidence_type
+```
+- **Implementation:** Tag in-scope assets and controls. Use saved searches per CIP requirement (e.g., access logging, 30-day log retention). Document in Splunk as authoritative evidence store.
+- **Visualization:** Compliance dashboard (control × status), Table (gaps by site).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.12 · Historian Data Integrity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Gaps or duplicated timestamps in historian feeds break batch quality and regulatory reporting.
+- **App/TA:** PI / OPC-UA historian export
+- **Data Sources:** `sourcetype="historian:point"` (value, quality, ts)
+- **SPL:**
+```spl
+index=ot sourcetype="historian:point"
+| sort 0 + _time
+| streamstats window=2 global=prev
+| eval gap_sec=_time-prev_ts
+| where gap_sec > 300 OR quality!="Good"
+| stats count by tag_name, gap_sec
+```
+- **Implementation:** Ingest quality codes and source timestamps. Alert on gap > SLA or bad quality >10% of samples per tag group.
+- **Visualization:** Line chart (insert rate), Table (tags with gaps), Single value (data quality %).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.13 · Safety Instrumented System Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** SIS trips, bypasses, and diagnostics demand immediate visibility and audit trails.
+- **App/TA:** SIS vendor DCS export, OPC-UA alarms
+- **Data Sources:** `sourcetype="sis:event"` (trip, bypass, fault)
+- **SPL:**
+```spl
+index=ot sourcetype="sis:event"
+| where event_type IN ("trip","bypass","fault","demand")
+| table _time, sis_tag, event_type, cause, sil_level
+| sort -_time
+```
+- **Implementation:** Segregate SIS data per safety policy. Never route writes from IT networks. Alert on any bypass or fault.
+- **Visualization:** Timeline (SIS events), Single value (active bypasses), Table (trip history).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.14 · HMI Unauthorized Access
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** HMIs should only be reachable from jump hosts; direct access from corporate networks is a red flag.
+- **App/TA:** HMI audit logs, RDP/VNC syslog
+- **Data Sources:** `sourcetype="hmi:audit"` (login, operator action)
+- **SPL:**
+```spl
+index=ot sourcetype="hmi:audit"
+| where action="login" AND NOT cidrmatch("10.50.0.0/16",src_ip)
+| stats count by src_ip, hmi_name, user
+| sort -count
+```
+- **Implementation:** Define allowed HMI source subnets. Alert on logins from outside. Correlate with physical access.
+- **Visualization:** Table (non-compliant logins), Map (source IP).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.15 · Control Loop Deviation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** PV diverging from SP with saturated output indicates tuning issues or actuator faults.
+- **App/TA:** OPC-UA process tags
+- **Data Sources:** `sourcetype="opcua:control"` (pv, sp, out)
+- **SPL:**
+```spl
+index=ot sourcetype="opcua:control"
+| eval err=abs(pv-sp)
+| where err > deadband*5 OR (abs(out)>95 AND err>deadband)
+| timechart span=1m avg(err) by loop_id
+```
+- **Implementation:** Define deadband per loop. Alert when sustained error exceeds threshold or output pegs. Integrate with maintenance CMMS.
+- **Visualization:** Line chart (PV vs SP), Gauge (loop error), Table (loops in alarm).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.16 · Process Variable Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Slow drift before alarm limits supports predictive maintenance and energy optimization.
+- **App/TA:** OPC-UA historian
+- **Data Sources:** `sourcetype="opcua:process"`
+- **SPL:**
+```spl
+index=ot sourcetype="opcua:process"
+| timechart span=1h avg(value) as avg_val by tag_name
+| predict avg_val as pred future_timespan=24
+| where pred > high_limit OR pred < low_limit
+```
+- **Implementation:** Use `predict` for critical tags. Alert when forecast crosses limits before physical alarm. Tune per process area.
+- **Visualization:** Line chart (actual vs predicted), Table (tags trending to limit).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.17 · ICS Network Segmentation Violations
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Hosts in wrong VLANs or east-west traffic across zones violates Purdue model and IEC 62443.
+- **App/TA:** Firewall, switch NetFlow, ARP tables
+- **Data Sources:** `sourcetype="pan:traffic"` `zone_pair` or `sourcetype="flow:ics"`
+- **SPL:**
+```spl
+index=network sourcetype="flow:ics"
+| where src_zone!=dest_zone AND allowed_pair="false"
+| stats count by src_ip, dest_ip, dest_port, app
+| sort -count
+```
+- **Implementation:** Maintain `allowed_pair` lookup for zone-to-zone. Alert on any deny or unexpected allow. Quarterly review.
+- **Visualization:** Sankey (zones), Table (violations), Single value (open violations).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.18 · Engineering Workstation Anomaly
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** USB inserts, new binaries, or remote sessions on EWS workstations are high-risk in OT.
+- **App/TA:** EDR on EWS, Windows Security / Sysmon
+- **Data Sources:** `sourcetype="sysmon:windows"` `tag=ews`
+- **SPL:**
+```spl
+index=ot sourcetype="sysmon:windows" host_tag="EWS"
+| search EventCode=1 OR EventCode=11
+| where NOT match(Image,"(?i)(approved\\\\path)")
+| stats count by Computer, Image, ParentImage
+| sort -count
+```
+- **Implementation:** Lock down EWS to approved paths. Alert on new process or driver load. Correlate with maintenance windows.
+- **Visualization:** Table (suspicious processes), Timeline (EWS events).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.19 · OT Asset External Communication Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** PLCs, HMIs, or sensors initiating outbound sessions to the internet or untrusted zones indicate misconfiguration, malware, or pivot from IT — a top IEC 62443 / NERC CIP concern.
+- **App/TA:** Firewall, OT NetFlow, passive tap (Zeek OT)
+- **Data Sources:** `sourcetype="flow:ics"`, `sourcetype="pan:traffic"` with OT zone tags
+- **SPL:**
+```spl
+index=ot sourcetype="flow:ics" src_zone="OT_L3"
+| lookup ot_asset_inventory ip as src_ip OUTPUT asset_class
+| lookup vendor_update_nets network as dest_ip OUTPUT network as vendor_net
+| where NOT cidrmatch("10.0.0.0/8",dest_ip) AND isnull(vendor_net)
+| stats count, values(dest_port) as ports by src_ip, dest_ip, app
+| sort -count
+```
+- **Implementation:** Maintain allowlisted update CDNs and remote-support jump hosts; default-deny egress from L3 devices. Alert on first-seen external `dest_ip`.
+- **Visualization:** Map (flows), Table (assets), Sankey (zone → egress).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.20 · OT Protocol Port Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unexpected Modbus, DNP3, or EtherNet/IP ports on non-asset IPs reveal rogue devices or scanning.
+- **App/TA:** SPAN / Zeek OT, industrial firewall
+- **Data Sources:** `sourcetype="zeek:conn"` with OT VLANs, `sourcetype="ics:protocol"`
+- **SPL:**
+```spl
+index=ot (sourcetype="zeek:conn" OR sourcetype="ics:protocol")
+| where dest_port IN (502,20000,44818,2404) OR service IN ("modbus","dnp3","enip")
+| lookup ot_authorized_peers src_ip dest_ip OUTPUT approved
+| where approved!="true"
+| stats count by src_ip, dest_ip, dest_port, service
+| sort -count
+```
+- **Implementation:** Pair with asset inventory; tune for engineering laptops in maintenance windows.
+- **Visualization:** Table (unexpected sessions), Bar chart (port mix), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.21 · Removable Media in OT Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** USB events on HMIs or engineering stations violate many site policies and are common malware vectors.
+- **App/TA:** Windows Security, EDR (where allowed on EWS), USB control agents
+- **Data Sources:** `sourcetype="wineventlog:security"` EventCode=6416, `sourcetype="sysmon:windows"` EventCode=11
+- **SPL:**
+```spl
+index=ot (sourcetype="wineventlog:security" EventCode=6416) OR (sourcetype="sysmon:windows" EventCode=11)
+| search Computer IN ("*HMI*","*EWS*") OR tag=ot_workstation
+| stats count by Computer, DeviceDescription, User, Image
+| sort -_time
+```
+- **Implementation:** Physical port block by default; break-glass USB with logged approval ticket.
+- **Visualization:** Table (USB events), Timeline, Single value (events per shift).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.22 · OT/IT Boundary Traffic Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Baselines permitted jump-server, patch, and historian replication across the Purdue boundary; flags new apps or volume spikes.
+- **App/TA:** Firewall, data diode logs (if bidirectional return path exists)
+- **Data Sources:** `sourcetype="pan:traffic"` `zone_pair`, `sourcetype="flow:ics"`
+- **SPL:**
+```spl
+index=network sourcetype="pan:traffic" zone_pair="IT_DMZ_to_OT_L3"
+| bin _time span=1h
+| stats sum(bytes) as b, dc(dest_port) as ports by app, _time
+| eventstats avg(b) as baseline by app
+| where b > 3*baseline AND ports>5
+| sort -b
+```
+- **Implementation:** Document each allowed application; use application-aware rules; quarterly rule review with OT owners.
+- **Visualization:** Line chart (bytes by app), Table (anomalies), Heatmap (hour × app).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.23 · ICS Change Management Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Logic downloads, firmware pushes, or HMI project changes without a linked work order break IEC 62443 SR-7 / internal change policy.
+- **App/TA:** PLC programming tools audit, engineering station logs
+- **Data Sources:** `sourcetype="plc:download"`, `sourcetype="tia:audit"`
+- **SPL:**
+```spl
+index=ot sourcetype="plc:download"
+| lookup cmms_work_orders change_id OUTPUT wo_status requester
+| where isnull(wo_status) OR wo_status!="approved"
+| stats count by plc_name, engineer_id, project_version
+| sort -count
+```
+- **Implementation:** Require pre-approved WO for all downloads; correlate with maintenance windows from MES.
+- **Visualization:** Table (unauthorized downloads), Bar chart (by line), Gantt (WO vs. event time).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.24 · Production Line Downtime Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Correlates controller faults, jam sensors, and Andon events for OEE and root-cause — feeds continuous improvement.
+- **App/TA:** MES, PLC fault bits, SCADA alarms
+- **Data Sources:** `sourcetype="mes:line_status"`, `sourcetype="opcua:alarm"`
+- **SPL:**
+```spl
+index=ot sourcetype="mes:line_status"
+| where state="DOWN" OR fault_code!=0
+| transaction line_id maxspan=24h startswith="state=UP" endswith="state=DOWN" keepevicted=true
+| eval downtime_min=duration/60
+| stats sum(downtime_min) as total_down, count as stops by line_id, shift
+| sort -total_down
+```
+- **Implementation:** Normalize fault codes to reason trees; exclude planned changeovers via MES schedule lookup.
+- **Visualization:** Bar chart (downtime by line), Timeline (stops), Single value (MTBF).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.25 · OEE Metrics Collection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Availability × Performance × Quality from SCADA/MES tags — executive and plant KPIs.
+- **App/TA:** Historian, OPC-UA, MES
+- **Data Sources:** `sourcetype="opcua:tag"`, `sourcetype="historian:sample"`
+- **SPL:**
+```spl
+index=ot sourcetype="opcua:tag" tag=oee
+| bin _time span=1h
+| stats avg(availability_pct) as A, avg(performance_pct) as P, avg(quality_pct) as Q by line_id, _time
+| eval oee=round((A*P*Q)/10000,2)
+| where oee < 0.75
+| sort _time
+```
+- **Implementation:** Align tag naming per ISA-95; validate against manual OEE samples monthly.
+- **Visualization:** Line chart (OEE trend), Gauge (current OEE), Bar chart (loss buckets).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.26 · Batch Process Deviation Alerting
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Quality, Safety
+- **Value:** Recipe phase duration, temperature, or agitator speed outside limits risks scrap or unsafe reactions.
+- **App/TA:** Batch executive (S88), historian
+- **Data Sources:** `sourcetype="batch:phase"`, `sourcetype="historian:sample"`
+- **SPL:**
+```spl
+index=ot sourcetype="batch:phase" batch_id=*
+| lookup recipe_limits recipe phase OUTPUT min_temp max_temp max_duration_sec
+| where temp_c < min_temp OR temp_c > max_temp OR phase_duration_sec > max_duration_sec
+| stats latest(batch_id) as batch, values(phase) as phases by reactor_id
+| sort -_time
+```
+- **Implementation:** Integrate with quality hold workflow; electronic signatures for parameter overrides.
+- **Visualization:** Table (deviations), Control chart (temp), Timeline (phases).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.27 · EDI Acknowledgement Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operations
+- **Value:** Missing 997/999/CONTRL acks for ASNs or orders disrupt supply-chain and inventory — common in automotive / discrete manufacturing.
+- **App/TA:** B2B gateway (IBM/Seeburger), VAN logs
+- **Data Sources:** `sourcetype="edi:control"`, `sourcetype="as2:mdn"`
+- **SPL:**
+```spl
+index=edi sourcetype="edi:control"
+| stats earliest(_time) as sent latest(ack_time) as ack by interchange_id, doc_type, partner_id
+| eval ack_latency_sec=ack-sent
+| where isnull(ack) OR ack_latency_sec>3600
+| sort -sent
+```
+- **Implementation:** SLA per trading partner; auto-retry and partner escalation on NAK codes.
+- **Visualization:** Table (late/missing acks), Line chart (ack latency trend), Bar chart (by partner).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.2.28 · Supplier Delivery Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Operations
+- **Value:** On-time delivery % and lead-time variance from ASN/OTIF feeds support supplier scorecards and production planning.
+- **App/TA:** TMS, EDI 856/855, MES receipts
+- **Data Sources:** `sourcetype="edi:asn"`, `sourcetype="wms:receipt"`
+- **SPL:**
+```spl
+index=supply sourcetype="edi:asn"
+| eval on_time=if(actual_arrival <= promised_date,1,0)
+| stats sum(on_time) as ot, count as total, avg((actual_arrival-promised_date)/86400) as avg_late_days by supplier_id
+| eval otif_pct=round(100*ot/total,1)
+| sort otif_pct
+| head 20
+```
+- **Implementation:** Join to GRN for quantity accuracy; exclude force majeure with reason codes.
+- **Visualization:** Bar chart (OTIF % by supplier), Table (worst performers), Trend (rolling 13 weeks).
 - **CIM Models:** N/A
 
 ---
@@ -1935,6 +2500,173 @@ index=environment sourcetype="aranet:sensor"
 - **Implementation:** Integrate Aranet Cloud API or local Aranet gateway (e.g. Aranet Cloud Bridge) to fetch sensor readings. Schedule scripted input or HEC to ingest JSON (CO2 ppm, temperature °C, humidity %, pressure hPa) every 5–15 minutes. Alert when CO2 exceeds 1000 ppm (ASHRAE 62.1 recommends <1000 ppm for occupied spaces), temperature outside 18–26°C, or humidity outside 30–60%. Track trends for ventilation and HVAC tuning.
 - **Visualization:** Gauge (CO2 ppm per zone), Line chart (CO2, temp, humidity trend), Heatmap (zone × CO2 level), Table (sensors with exceedances), Single value (zones in compliance %).
 - **CIM Models:** N/A
+
+
+---
+
+### UC-14.4.12 · IoT Device Fleet Health Dashboard
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Single pane for battery, RSSI, last-seen, and firmware supports NOC and field operations.
+- **App/TA:** IoT platform API, MQTT broker metrics
+- **Data Sources:** `sourcetype="iot_platform:devices"`
+- **SPL:**
+```spl
+index=iot sourcetype="iot_platform:devices"
+| eval health=case(status!="online","offline", battery_pct<15,"low_battery", rssi< -110,"poor_rssi", 1=1,"ok")
+| stats count by health, product_family
+| sort health
+```
+- **Implementation:** Normalize vendor fields. Refresh dashboard every 5 min. Drill to device detail.
+- **Visualization:** Status grid (region × health), Treemap (fleet by family), Single value (% healthy).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.13 · Firmware Update Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** OTA campaigns must complete; stragglers remain vulnerable to known exploits.
+- **App/TA:** IoT DM, OTA job logs
+- **Data Sources:** `sourcetype="iot:ota"` (job_id, status, version)
+- **SPL:**
+```spl
+index=iot sourcetype="iot:ota"
+| stats latest(target_version) as tgt by device_id
+| join device_id [
+  search index=iot sourcetype="iot_platform:devices"
+  | stats latest(firmware_version) as cur by device_id
+]
+| where cur!=tgt
+| table device_id, cur, tgt
+```
+- **Implementation:** Compare device inventory to OTA target per wave. Escalate devices >7 days behind.
+- **Visualization:** Bar chart (compliance by wave), Table (lagging devices).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.14 · Sensor Data Gap Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Missing telemetry breaks automation and safety analytics; gaps often precede device failure.
+- **App/TA:** MQTT/CoAP gateway logs
+- **Data Sources:** `sourcetype="iot:telemetry"`
+- **SPL:**
+```spl
+index=iot sourcetype="iot:telemetry"
+| stats latest(_time) as last_seen by device_id, sensor_id
+| eval gap_min=round((now()-last_seen)/60,1)
+| where gap_min > 30
+| table device_id, sensor_id, last_seen, gap_min
+```
+- **Implementation:** Tune gap threshold per sensor class (critical vs ambient). Alert on gap or stepped decrease in message rate.
+- **Visualization:** Table (gaps), Heatmap (device × hour), Line chart (messages/min).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.15 · MQTT Broker Overload
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Broker CPU, connection count, and retained message backlog indicate need to shard or scale.
+- **App/TA:** Mosquitto/HiveMQ/AWS IoT metrics
+- **Data Sources:** `sourcetype="mqtt:broker_metrics"`
+- **SPL:**
+```spl
+index=iot sourcetype="mqtt:broker_metrics"
+| where connections > max_connections*0.9 OR cpu_pct > 85 OR dropped_messages > 0
+| timechart span=1m avg(connections) as conn, avg(cpu_pct) as cpu, sum(dropped_messages) as drops
+```
+- **Implementation:** Scrape Prometheus or vendor API. Alert on sustained high utilization or any dropped messages. Correlate with misbehaving clients publishing at high QoS0 rate.
+- **Visualization:** Line chart (connections and CPU), Table (brokers with drops), Gauge (connection %).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.16 · IoT Device Certificate Expiry
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Expired device certs break TLS to cloud and brick OTA; proactive rotation avoids mass outages.
+- **App/TA:** PKI portal, device shadow attributes
+- **Data Sources:** `sourcetype="iot:cert_inventory"` (device_id, not_after)
+- **SPL:**
+```spl
+index=iot sourcetype="iot:cert_inventory"
+| eval days_left=round((strptime(not_after,"%Y-%m-%dT%H:%M:%SZ")-now())/86400,0)
+| where days_left < 45
+| table device_id, not_after, days_left
+| sort days_left
+```
+- **Implementation:** Ingest cert metadata from AWS IoT / Azure DPS / custom PKI. Alert at 45, 14, 7 days. Automate renewal jobs.
+- **Visualization:** Table (certs expiring), Timeline (renewal window), Single value (devices <30d).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.17 · Edge-to-Cloud Sync Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Store-and-forward gaps mean stale dashboards and missed alerts for remote sites.
+- **App/TA:** Edge agent logs (Azure IoT Edge, Greengrass)
+- **Data Sources:** `sourcetype="edge:sync"`
+- **SPL:**
+```spl
+index=iot sourcetype="edge:sync"
+| where status="failed" OR backlog_mb > 100 OR last_success_age_sec > 600
+| stats latest(backlog_mb) as backlog, latest(status) as st by edge_id, cloud_endpoint
+| sort -backlog
+```
+- **Implementation:** Parse sync success, backoff, and queue depth. Alert on failure or growing backlog. Correlate with WAN outages.
+- **Visualization:** Table (edges with backlog), Line chart (backlog MB), Single value (edges in sync).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.18 · IoT Device Provisioning Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Unauthorized provisioning events create shadow devices and billing abuse.
+- **App/TA:** AWS IoT Fleet / Azure DPS audit
+- **Data Sources:** `sourcetype="cloudtrail:iot"` or `sourcetype="iot:provisioning"`
+- **SPL:**
+```spl
+index=audit sourcetype="iot:provisioning"
+| where action IN ("RegisterThing","CreateCertificate","AttachPolicy")
+| stats count by actor, device_template, source_ip
+| where count > 50
+| sort -count
+```
+- **Implementation:** Compare provisioning rate to approved baseline. Alert on new template or IAM principal. Cross-check with HR for contractor access.
+- **Visualization:** Table (provisioning events), Timeline (bursts), Bar chart (by actor).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.4.19 · BLE/Zigbee Gateway Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Mesh coordinators and gateways aggregate low-power sensors; their health affects entire buildings.
+- **App/TA:** Zigbee2MQTT, Home Assistant, vendor hub
+- **Data Sources:** `sourcetype="zigbee:gateway"` OR `sourcetype="ble:gateway"`
+- **SPL:**
+```spl
+index=iot sourcetype IN ("zigbee:gateway","ble:gateway")
+| where coordinator_status!="OK" OR offline_devices > 5 OR mqtt_connected=0
+| table _time, gateway_id, coordinator_status, offline_devices, mqtt_connected
+```
+- **Implementation:** Poll hub API for mesh depth, neighbor loss, and MQTT uplink. Alert on coordinator down or offline child count spike.
+- **Visualization:** Status grid (gateway × health), Line chart (offline device count), Table (gateways degraded).
+- **CIM Models:** N/A
+
 
 ---
 

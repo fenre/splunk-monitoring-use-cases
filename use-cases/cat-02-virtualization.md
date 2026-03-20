@@ -957,7 +957,7 @@ index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.totalReadLat
 
 ---
 
-### UC-2.1.44 · ESXi Host Certificate Expiration
+### UC-2.1.44 · ESXi Host Certificate Renewal Compliance
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Availability

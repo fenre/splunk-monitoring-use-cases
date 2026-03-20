@@ -735,6 +735,8 @@ html.light-mode {
   transition: opacity 0.2s, background 0.2s, color 0.2s;
 }
 .filter-btn.clear-all:hover { opacity: 1; background: var(--splunk-bg-elevated); color: var(--splunk-text-primary); }
+.filter-btn.pillar-security.active { background: rgba(229,115,115,0.15); border-color: #e57373; color: #e57373; }
+.filter-btn.pillar-observability.active { background: rgba(100,181,246,0.15); border-color: #64b5f6; color: #64b5f6; }
 
 .uc-diff-badge {
   font-size: var(--text-xs); padding: 2px var(--space-2); border-radius: var(--radius-sm);
@@ -830,6 +832,12 @@ html.light-mode {
   border: 1px solid rgba(var(--splunk-intermediate-rgb), 0.25);
   white-space: nowrap;
 }
+.uc-pillar-tag {
+  font-size: 10px; padding: 1px var(--space-2); border-radius: var(--radius-sm);
+  white-space: nowrap; font-weight: 600; letter-spacing: 0.03em;
+}
+.uc-pillar-tag.security { background: rgba(229,115,115,0.12); color: #e57373; border: 1px solid rgba(229,115,115,0.25); }
+.uc-pillar-tag.observability { background: rgba(100,181,246,0.12); color: #64b5f6; border: 1px solid rgba(100,181,246,0.25); }
 
 .mtype-filter-wrap {
   display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
@@ -1136,6 +1144,25 @@ html.light-mode {
 .ov-diff-bar.expert { background: var(--splunk-critical); }
 .ov-diff-item .ov-diff-desc { font-size: var(--text-xs); color: var(--splunk-text-tertiary); }
 
+.ov-pillar-wrap { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.ov-pillar-label { font-size: var(--text-xs); font-weight: 600; color: var(--splunk-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-right: var(--space-1); }
+.ov-pillar-btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--splunk-border-subtle);
+  background: var(--splunk-bg-surface);
+  color: var(--splunk-text-secondary);
+  font-size: var(--text-xs); font-weight: 600; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+.ov-pillar-btn:hover { background: var(--splunk-bg-elevated); }
+.ov-pillar-btn.active { background: var(--splunk-green-muted); border-color: var(--splunk-green); color: var(--splunk-green); }
+.ov-pillar-btn.security:hover { color: #e57373; }
+.ov-pillar-btn.security.active { background: rgba(229,115,115,0.12); border-color: #e57373; color: #e57373; }
+.ov-pillar-btn.observability:hover { color: #64b5f6; }
+.ov-pillar-btn.observability.active { background: rgba(100,181,246,0.12); border-color: #64b5f6; color: #64b5f6; }
+.ov-pillar-count { font-weight: 400; opacity: 0.8; }
 .ov-filter-wrap { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-5); }
 .ov-filter-chip {
   padding: var(--space-2) var(--space-4);
@@ -1673,6 +1700,7 @@ let currentFilter = 'all';
 let currentDiffFilter = 'all';
 let currentMtypeFilter = 'all';
 let currentIndustryFilter = 'all';
+let currentPillarFilter = 'all';
 let currentSearch = '';
 let currentUCIdx = -1;
 let selectedEquipmentId = '';
@@ -1711,16 +1739,27 @@ function isEquipmentModelId(compoundId) {
 }
 
 function getFilteredUCs() {
-  if (!selectedEquipmentId) return allUCs;
-  var byModel = isEquipmentModelId(selectedEquipmentId);
-  return allUCs.filter(function(e) {
-    if (byModel) {
-      var em = e.uc.em;
-      return Array.isArray(em) && em.indexOf(selectedEquipmentId) !== -1;
-    }
-    var eq = e.uc.e;
-    return Array.isArray(eq) && eq.indexOf(selectedEquipmentId) !== -1;
-  });
+  var result = allUCs;
+  if (selectedEquipmentId) {
+    var byModel = isEquipmentModelId(selectedEquipmentId);
+    result = result.filter(function(e) {
+      if (byModel) {
+        var em = e.uc.em;
+        return Array.isArray(em) && em.indexOf(selectedEquipmentId) !== -1;
+      }
+      var eq = e.uc.e;
+      return Array.isArray(eq) && eq.indexOf(selectedEquipmentId) !== -1;
+    });
+  }
+  if (currentPillarFilter !== 'all') {
+    result = result.filter(function(e) {
+      var p = e.uc.pillar || 'observability';
+      if (currentPillarFilter === 'security') return p === 'security' || p === 'both';
+      if (currentPillarFilter === 'observability') return p === 'observability' || p === 'both';
+      return true;
+    });
+  }
+  return result;
 }
 
 function updateEquipmentSelect() {
@@ -1894,13 +1933,24 @@ let currentSubcat = null;
 function buildSidebar() {
   const sb = document.getElementById('sidebar');
   const simple = nonTechnicalView;
+  const filt = getFilteredUCs();
+  const hasFilter = selectedEquipmentId || currentPillarFilter !== 'all';
   let html = '<div class="cat-item' + (!currentCat ? ' active' : '') + '" onclick="selectCat(null)">';
   html += '<div class="cat-num">' + si('star') + '</div><span class="cat-name">Overview</span>';
-  if (!simple) html += '<span class="cat-count">' + allUCs.length + '</span>';
+  if (!simple) html += '<span class="cat-count">' + filt.length + '</span>';
   html += '</div>';
 
+  var filtByCat = {};
+  var filtBySubcat = {};
+  if (hasFilter) {
+    filt.forEach(function(e) {
+      filtByCat[e.cat.i] = (filtByCat[e.cat.i]||0) + 1;
+      filtBySubcat[e.sc.i] = (filtBySubcat[e.sc.i]||0) + 1;
+    });
+  }
+
   DATA.forEach(cat => {
-    const count = cat.s.reduce((a,s) => a + s.u.length, 0);
+    const count = hasFilter ? (filtByCat[cat.i]||0) : cat.s.reduce((a,s) => a + s.u.length, 0);
     const active = currentCat === cat.i ? ' active' : '';
     html += '<div class="cat-item' + active + '" onclick="selectCat(' + cat.i + ')">';
     html += '<div class="cat-num">' + cat.i + '</div>';
@@ -1913,10 +1963,11 @@ function buildSidebar() {
     if (!simple) {
       html += '<div class="subcat-list' + (currentCat === cat.i ? ' open' : '') + '">';
       cat.s.forEach(sc => {
+        const scCount = hasFilter ? (filtBySubcat[sc.i]||0) : sc.u.length;
         const scActive = currentSubcat === sc.i ? ' active' : '';
         html += '<div class="subcat-item' + scActive + '" onclick="event.stopPropagation(); scrollToSubcat(\'' + sc.i + '\')">';
         html += '<span class="subcat-name">' + sc.i + ' ' + sc.n + '</span>';
-        html += '<span class="sc-count">' + sc.u.length + '</span>';
+        html += '<span class="sc-count">' + scCount + '</span>';
         html += '</div>';
       });
       html += '</div>';
@@ -2025,6 +2076,20 @@ function renderOverview() {
     var active = currentDiffFilter === d[0] ? ' active ' + d[0] : '';
     html += '<button type="button" class="ov-diff-item' + active + '" onclick="filterByDifficulty(\'' + d[0] + '\')">';
     html += '<div class="ov-diff-bar ' + d[0] + '"></div><div><strong>' + d[1] + '</strong><br><span class="ov-diff-desc">' + d[2] + '</span></div></button>';
+  });
+  html += '</div>';
+
+  // Splunk Pillar filter (Security / Observability)
+  html += '<div class="ov-pillar-wrap">';
+  html += '<span class="ov-pillar-label">Splunk Pillar:</span>';
+  [['all','All'],['security','Security'],['observability','Observability']].forEach(function(p) {
+    var cls = 'ov-pillar-btn' + (currentPillarFilter===p[0]?' active':'') + (p[0]!=='all'?' '+p[0]:'');
+    html += '<button class="' + cls + '" onclick="filterByPillar(\'' + p[0] + '\')">' + escHtml(p[1]);
+    if (p[0] !== 'all') {
+      var cnt = filtered.filter(function(e) { var pp = e.uc.pillar||'observability'; return p[0]==='security'?(pp==='security'||pp==='both'):(pp==='observability'||pp==='both'); }).length;
+      html += ' <span class="ov-pillar-count">(' + cnt + ')</span>';
+    }
+    html += '</button>';
   });
   html += '</div>';
 
@@ -2194,6 +2259,13 @@ function toggleOvSPL(id, toggle) {
 function filterOvGroup(group) {
   ovGroupFilter = group;
   renderOverview();
+}
+
+function filterByPillar(pillar) {
+  currentPillarFilter = currentPillarFilter === pillar ? 'all' : pillar;
+  renderOverview();
+  buildSidebar();
+  updateCountLabel();
 }
 
 function filterByDifficulty(level) {
@@ -2405,7 +2477,12 @@ function filterBtns() {
     html += '<button class="filter-btn industry-telco' + (currentIndustryFilter==='Telecommunications'?' active':'') +
       '" onclick="setIndustryFilter(\'Telecommunications\')">Telco</button>';
   }
-  var anyActive = currentFilter !== 'all' || currentDiffFilter !== 'all' || currentIndustryFilter !== 'all' || currentMtypeFilter !== 'all' || selectedEquipmentId;
+  html += '<div class="filter-sep"></div>';
+  [['all','All Pillars'],['security','Security'],['observability','Observability']].forEach(function(p) {
+    var cls = 'filter-btn pillar-' + p[0] + (currentPillarFilter===p[0]?' active':'');
+    html += '<button class="' + cls + '" onclick="filterByPillar(\'' + p[0] + '\')">' + p[1] + '</button>';
+  });
+  var anyActive = currentFilter !== 'all' || currentDiffFilter !== 'all' || currentIndustryFilter !== 'all' || currentMtypeFilter !== 'all' || currentPillarFilter !== 'all' || selectedEquipmentId;
   if (anyActive) {
     html += '<div class="filter-sep"></div>';
     html += '<button class="filter-btn clear-all" onclick="clearAllFilters()" title="Reset all filters">✕ Clear filters</button>';
@@ -2477,6 +2554,12 @@ function renderCategory(catId) {
     if (currentDiffFilter !== 'all') ucs = ucs.filter(u => u.f === currentDiffFilter);
     if (currentMtypeFilter !== 'all') ucs = ucs.filter(u => Array.isArray(u.mtype) && u.mtype.includes(currentMtypeFilter));
     if (currentIndustryFilter !== 'all') ucs = ucs.filter(u => u.ind === currentIndustryFilter);
+    if (currentPillarFilter !== 'all') ucs = ucs.filter(function(u) {
+      var p = u.pillar || 'observability';
+      if (currentPillarFilter === 'security') return p === 'security' || p === 'both';
+      if (currentPillarFilter === 'observability') return p === 'observability' || p === 'both';
+      return true;
+    });
     if (currentSearch) {
       const q = currentSearch.toLowerCase();
       ucs = ucs.filter(u => {
@@ -2518,6 +2601,9 @@ function renderUCCard(uc) {
     if (ta) html += '<span class="uc-tag">' + escHtml(ta.substring(0,40)) + '</span>';
     if (cimModels) html += '<span class="uc-cim-tag">⚡ ' + cimModels.join(', ') + '</span>';
     if (mtypes) mtypes.forEach(t => { html += '<span class="uc-mtype-tag">' + escHtml(t) + '</span>'; });
+    var pillar = uc.pillar || 'observability';
+    if (pillar === 'security' || pillar === 'both') html += '<span class="uc-pillar-tag security">Security</span>';
+    if (pillar === 'observability' || pillar === 'both') html += '<span class="uc-pillar-tag observability">Observability</span>';
     html += '</div>';
   }
   html += '</div>';
@@ -2543,7 +2629,7 @@ function matchesSearch(text, q) {
 // Search across all
 function renderSearchResults() {
   const q = currentSearch.toLowerCase();
-  let base = selectedEquipmentId ? getFilteredUCs() : allUCs;
+  let base = (selectedEquipmentId || currentPillarFilter !== 'all') ? getFilteredUCs() : allUCs;
   let results = base.filter(e => matchesSearch(ucSearchText(e), q));
   if (currentFilter !== 'all') results = results.filter(e => e.uc.c === currentFilter);
   if (currentDiffFilter !== 'all') results = results.filter(e => e.uc.f === currentDiffFilter);
@@ -2867,6 +2953,7 @@ function clearAllFilters() {
   currentDiffFilter = 'all';
   currentIndustryFilter = 'all';
   currentMtypeFilter = 'all';
+  currentPillarFilter = 'all';
   if (selectedEquipmentId) {
     selectedEquipmentId = '';
     document.getElementById('equipment-select').value = '';

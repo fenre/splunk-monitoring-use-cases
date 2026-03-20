@@ -277,6 +277,228 @@ index=oncall sourcetype IN ("pagerduty:incidents","opsgenie:alerts")
 
 ---
 
+### UC-16.1.14 · SLA Breach Prediction
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Compliance
+- **Value:** Predicting tickets likely to breach SLA before the deadline enables proactive reassignment, escalation, and automation — reducing contractual exposure and customer impact.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** ServiceNow incident + SLA task / task_sla (`sourcetype=snow:task_sla` or equivalent)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:task_sla"
+| where isnull(breach_time) OR breach_time=0
+| eval pct_elapsed=if(isnotnull(planned_end_time) AND planned_end_time>sla_start_time,
+    100*(now()-sla_start_time)/(planned_end_time-sla_start_time), null())
+| where pct_elapsed>=80 AND pct_elapsed<100 AND isnotnull(pct_elapsed)
+| table _time, parent, number, sla_type, pct_elapsed, planned_end_time
+| sort -pct_elapsed
+```
+- **Implementation:** Ingest SLA task rows with `sla_start_time`, `planned_end_time` (or `due_at`), breach flag, and parent incident. Compute percent of SLA window consumed. Alert when elapsed ≥80% and breach has not occurred. Optionally blend with assignment group queue depth. Tune thresholds per priority and SLA definition.
+- **Visualization:** Table (at-risk tickets), Single value (at-risk count), Gauge (% SLA time consumed), Timeline (SLA burn-down).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.15 · Incident Reassignment Frequency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Operational
+- **Value:** Trending reassignment frequency (per period and per group) exposes routing quality, skills gaps, and noisy categories — complementing per-ticket reassignment counts.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** Incident audit / history (`sourcetype=snow:incident:audit` or `sys_audit` mapped)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident:audit" field_name="assignment_group"
+| timechart span=1d count as reassign_events
+| appendcols [ search index=itsm sourcetype="snow:incident:audit" field_name="assignment_group" earliest=-30d@d
+  | stats count as events_30d ]
+| eval daily_avg=round(events_30d/30,1)
+| where reassign_events > daily_avg*1.5
+```
+- **Implementation:** Ingest audit rows where `assignment_group` changes; each row is one reassignment event. Timechart daily volume; compare to 30-day average to detect spikes. Break down by `category` and `assignment_group` with `stats count by _time, category` in a separate panel.
+- **Visualization:** Line chart (reassignment events per day), Bar chart (events by category), Single value (30-day total).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.16 · Ticket Aging by Priority
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Distribution of open ticket age by priority highlights backlog imbalance (e.g., many old P3s) and supports capacity and escalation decisions.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** Open incidents (`sourcetype=snow:incident`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" state IN ("new","in_progress","on_hold")
+| eval age_days=round((now()-opened_at)/86400,1)
+| eval bucket=case(age_days<=1,"0-1d", age_days<=7,"2-7d", age_days<=30,"8-30d", true(),"30d+")
+| eval pri=case(priority=1,"P1", priority=2,"P2", priority=3,"P3", priority=4,"P4", true(),"Other")
+| stats count by pri, bucket
+| sort pri, bucket
+```
+- **Implementation:** Normalize priority labels. Bucket age for open tickets only. Report stacked bar or pivot table (priority × age bucket). Alert when count in `30d+` for P1/P2 exceeds policy.
+- **Visualization:** Stacked bar (age buckets by priority), Heatmap (priority × bucket), Table (raw counts).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.17 · Auto-Close Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Tracks incidents resolved by auto-close rules vs manual closure; excess auto-close may indicate poor engagement or policy gaming; too few may mean workflows are not firing.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** Incidents with resolution code / close notes / `closed_by` / `close_code`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" state="closed" earliest=-30d
+| eval auto_closed=if(match(lower(close_notes),"auto[- ]?close") OR match(lower(resolution_code),"auto") OR lower(closed_by)="system",1,0)
+| stats count as total, sum(auto_closed) as auto_closed by category
+| eval auto_close_pct=round(100*auto_closed/total,1)
+| sort -auto_close_pct
+```
+- **Implementation:** Map your ServiceNow fields: auto-close may appear as `resolution_code`, workflow user, or `sys_mod_count` patterns. Adjust `auto_closed` logic to match internal policy. Report fleet auto-close % and by category; investigate outliers.
+- **Visualization:** Single value (auto-close %), Bar chart (auto-close % by category), Table (top auto-closed categories).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.18 · Recurring Incident Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operational
+- **Value:** Clusters of similar incidents within a short window signal candidates for problem records, known-error articles, or permanent fixes.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** Incidents (`sourcetype=snow:incident`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-30d
+| eval key=coalesce(cmdb_ci, category."|".subcategory)
+| bin _time span=24h
+| stats count by _time, key, short_description
+| where count >= 3
+| sort -count
+```
+- **Implementation:** Group by CI and/or category hash; use `cluster` or `anomalydetection` for text similarity if needed. Alert when ≥N incidents per day on same key. Feed to problem management queue.
+- **Visualization:** Table (recurring clusters), Bar chart (count by key), Timeline (spikes).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.19 · Problem Management Root Cause Linking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Ensures resolved incidents are tied to problem records with root cause when repeat patterns exist — closing the loop for ITIL problem management.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:incident`, `sourcetype=snow:problem`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" state="closed" earliest=-90d
+| eval has_pr=if(isnotnull(problem_id) AND problem_id!="","1","0")
+| stats count as closed_inc, sum(eval(if(has_pr="1",1,0))) as with_pr by category
+| eval link_pct=round(100*with_pr/closed_inc,1)
+| where closed_inc>20 AND link_pct < 30
+| sort link_pct
+```
+- **Implementation:** Map `problem_id` or `caused_by` from incident to problem. Report link rate by category and assignment group. Alert when categories with high volume have low problem linkage. Exclude categories excluded by policy.
+- **Visualization:** Bar chart (problem link % by category), Table (gaps), Single value (overall link %).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.20 · Major Incident Post-Mortem Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Verifies that major incidents have completed post-mortems within policy — extending generic PIR tracking with explicit compliance scoring for Sev1 programs.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** Incidents with `major_incident` or `u_major_incident`, post-mortem fields
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" u_major_incident=true state="closed" earliest=-90d
+| eval pm_due=resolved_at + (7*86400)
+| eval compliant=if(post_mortem_completed=true OR now() <= pm_due OR isnotnull(u_post_mortem_date),1,0)
+| where post_mortem_completed=false AND now() > pm_due
+| table number, short_description, resolved_at, pm_due, assignment_group
+| sort resolved_at
+```
+- **Implementation:** Align field names with your form (`u_post_mortem_complete`, tasks, etc.). Use related task table if post-mortem is a child task. Weekly report of breaches; executive summary of compliance %.
+- **Visualization:** Table (non-compliant MIs), Single value (compliance %), Line chart (compliance trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.21 · War Room Activation Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operational
+- **Value:** Tracks when bridge/war-room workflows activate (chat, conference bridges, tags) for major incidents — supporting governance and after-action metrics.
+- **App/TA:** Custom (ServiceNow tags/tasks, Slack/Teams webhooks, Zoom API)
+- **Data Sources:** Incident updates with war-room flag, collaboration events (`sourcetype=snow:incident:activity` or chat)
+- **SPL:**
+```spl
+index=itsm (sourcetype="snow:incident:activity" OR sourcetype="chat:war_room")
+| search war_room=true OR match(raw,"(?i)bridge|war room|command center")
+| stats earliest(_time) as first_bridge by incident_number
+| join incident_number [ search index=itsm sourcetype="snow:incident" u_major_incident=true | rename number as incident_number ]
+| eval bridge_delay_mins=round((first_bridge-opened_at)/60,0)
+| table incident_number, opened_at, first_bridge, bridge_delay_mins
+```
+- **Implementation:** Normalize on `incident_number`. Ingest chat or activity logs where bridges are declared. Measure delay from incident open to first war-room event. Report monthly activations and average delay.
+- **Visualization:** Table (MI + bridge times), Line chart (activations per month), Histogram (bridge delay).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.22 · Escalation Path Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Audits whether incidents followed the documented escalation chain (L1→L2→vendor) for compliance and training.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** Incident history / audit (`sourcetype=snow:incident:audit`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident:audit" field_name="assignment_group"
+| eval from_group=old_value, to_group=new_value
+| eval step=from_group."->".to_group
+| stats values(step) as escalation_path, count as hops by number
+| join number [ search index=itsm sourcetype="snow:incident" priority IN (1,2) earliest=-90d | fields number, priority ]
+| where hops>4
+| table number, priority, escalation_path, hops
+```
+- **Implementation:** Build assignment hop strings from audit `old_value`/`new_value`. Flag incidents with excessive hops for P1/P2 (policy threshold). Optionally `lookup escalation_policy.csv` with first/last hop pairs for stricter audits. Adjust field names to match `sys_audit` extractions.
+- **Visualization:** Table (unexpected paths), Sankey (escalation flow), Single value (audit exceptions).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.23 · Service Request Fulfillment Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Percentage of catalog requests fulfilled successfully within the reporting period — distinct from average fulfillment time (UC-16.1.10).
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:sc_request` or `snow:request`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:sc_request" earliest=-30d
+| eval fulfilled=if(lower(state) IN ("closed","complete","fulfilled") AND lower(close_code)!="cancel",1,0)
+| stats count as total, sum(fulfilled) as fulfilled by cat_item
+| eval fulfill_rate=round(100*fulfilled/total,1)
+| where total>=5
+| sort fulfill_rate
+| head 20
+```
+- **Implementation:** Map request `state` and `close_code` for cancelled vs fulfilled. Exclude duplicates. Report overall rate and bottom 20 catalog items by fulfill rate for remediation.
+- **Visualization:** Bar chart (fulfill rate by catalog item), Single value (overall fulfill %), Table (bottom performers).
+- **CIM Models:** N/A
+
+---
+
 ### 16.2 Configuration Management (CMDB)
 
 **Primary App/TA:** ServiceNow CMDB integration, custom API inputs.
@@ -382,6 +604,225 @@ index=itsm sourcetype="snow:cmdb_audit"
 
 ---
 
+### UC-16.2.6 · CI Relationship Drift
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Detects when CI relationships change unexpectedly versus a baseline — supporting impact analysis integrity and unauthorized dependency changes.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:cmdb_rel_ci` or relationship table snapshots
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_rel_ci" earliest=-7d@d
+| bucket _time span=1d
+| stats values(_time) as days by parent, child, relationship_type
+| eval change_days=mvcount(days)
+| where change_days>1
+| table parent, child, relationship_type, change_days
+```
+- **Implementation:** Schedule a nightly `outputlookup cmdb_rel_baseline.csv` from `cmdb_rel_ci` and compare with `| diff` or `join` on parent+child+type for strict drift. The SPL above flags relationships with activity on multiple days in a week (churn). Alert on new parent/child pairs against a saved baseline lookup when available.
+- **Visualization:** Table (drifted relationships), Single value (drift count), Timeline (relationship changes).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.7 · Asset Discovery Reconciliation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Reconciles discovery source of truth against CMDB for asset inventory — variance by source, age, and confidence.
+- **App/TA:** ServiceNow Discovery, SCCM, or network scan feeds
+- **Data Sources:** `sourcetype=snow:discovery_model` or custom `discovery:asset`, `sourcetype=snow:cmdb_ci`
+- **SPL:**
+```spl
+index=discovery sourcetype="discovery:asset" earliest=-1d
+| eval host_key=lower(mvindex(split(hostname,"."),0))
+| stats latest(_time) as last_seen by host_key, serial_number
+| join type=left host_key [ search index=itsm sourcetype="snow:cmdb_ci" | eval host_key=lower(mvindex(split(name,"."),0)) | table host_key, sys_id, last_discovered ]
+| eval match_state=if(isnotnull(sys_id) AND abs(last_seen-last_discovered)<86400,"synced","stale_or_missing")
+| stats count by match_state
+```
+- **Implementation:** Normalize hostnames (FQDN strip). Map discovery tool serial/IP to CMDB. Report `stale_or_missing` counts weekly. Drive CMDB update tasks for unmatched discovery rows.
+- **Visualization:** Pie chart (synced vs stale), Table (unmatched assets), Single value (reconciliation gap %).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.8 · End-of-Life Hardware Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Surfaces CIs past vendor EOS/EOL dates for refresh planning and security risk reduction.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:cmdb_ci` (model, OS end dates, custom EOL fields)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_ci" ci_class IN ("cmdb_ci_server","cmdb_ci_netgear")
+| eval eol_epoch=strptime(u_eol_date,"%Y-%m-%d")
+| where isnotnull(eol_epoch) AND eol_epoch < relative_time(now(),"+90d@d")
+| eval days_to_eol=round((eol_epoch-now())/86400,0)
+| table name, model_id, u_eol_date, days_to_eol, support_group
+| sort days_to_eol
+```
+- **Implementation:** Populate `u_eol_date` from vendor feeds or CMDB enrichment. Alert at 90/30 days. Join model catalog for batch reporting by data center.
+- **Visualization:** Table (upcoming EOL), Bar chart (EOL by quarter), Single value (CIs past EOL).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.9 · CMDB Accuracy Scoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Scores accuracy by sampling validation (discovery match, pingable, owner confirmed) — complements completeness-focused quality scores.
+- **App/TA:** `Splunk_TA_snow` + discovery/network
+- **Data Sources:** `snow:cmdb_ci`, validation job results (`cmdb:validation`)
+- **SPL:**
+```spl
+index=cmdb sourcetype="cmdb:validation" earliest=-7d
+| eval ok=if(match(lower(to_string(check_passed)),"(?i)true|1|pass|ok"),1,0)
+| stats avg(ok) as accuracy_ratio by ci_class
+| eval accuracy_pct=round(accuracy_ratio*100,1)
+| sort accuracy_pct
+```
+- **Implementation:** Ingest periodic validation (e.g., “IP matches DNS,” “server responds to agent,” “owner replied”). Aggregate pass rate per class and region. Trend monthly for governance scorecards.
+- **Visualization:** Bar chart (accuracy % by class), Gauge (fleet accuracy), Line chart (trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.10 · Undocumented Server Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Finds servers visible to monitoring or AD but missing from CMDB — classic gap for incident routing and security scope.
+- **App/TA:** Splunk Universal Forwarder inventory, AD, vCenter
+- **Data Sources:** `sourcetype=inventory` or `vmware:inv:vm`, `sourcetype=snow:cmdb_ci`
+- **SPL:**
+```spl
+index=inventory sourcetype="vmware:inv:vm" earliest=-4h
+| eval host_key=lower(mvindex(split(name,"."),0))
+| stats latest(_time) as seen by host_key
+| join type=left host_key [ search index=itsm sourcetype="snow:cmdb_ci" ci_class="cmdb_ci_server" | eval host_key=lower(mvindex(split(name,"."),0)) | table host_key, sys_id ]
+| where isnull(sys_id)
+| table host_key, seen
+```
+- **Implementation:** Compare monitored/VM inventory hostnames (lowercased, short name) to CMDB server CIs. Tune for naming conventions (strip domain). Feed gaps to CMDB onboarding queue.
+- **Visualization:** Table (undocumented hosts), Single value (gap count), Line chart (gap trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.11 · Shadow IT Discovery
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.
+- **App/TA:** Zscaler, Umbrella, firewall logs
+- **Data Sources:** `sourcetype=zscaler:web`, `sourcetype=pan:traffic`
+- **SPL:**
+```spl
+index=proxy sourcetype="zscaler:web" earliest=-24h
+| stats sum(bytes_in) as bytes by app_name, user
+| lookup approved_saas_apps.csv app_name OUTPUT approved
+| where isnull(approved)
+| sort -bytes
+| head 50
+```
+- **Implementation:** Maintain `approved_saas_apps.csv` from architecture/ITAM. Top unapproved apps by volume; correlate with CMDB business service owner for intake.
+- **Visualization:** Table (shadow apps), Bar chart (bytes by app), Pie chart (approved vs unknown).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.12 · Software Asset Management Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Measures install counts vs license entitlements for major publishers — SAM compliance for audits.
+- **App/TA:** SCCM, Flexera, ServiceNow SAM
+- **Data Sources:** `sourcetype=sam:install`, `sourcetype=snow:alm_license`
+- **SPL:**
+```spl
+index=sam sourcetype="sam:install" product_name="Microsoft*Visio*"
+| stats dc(host) as deployed by product_name
+| join product_name [ search index=itsm sourcetype="snow:alm_license" | stats sum(entitlement) as entitled by product_name ]
+| eval compliance_pct=if(entitled>0, round(min(deployed,entitled)/entitled*100, 1), null())
+| eval over_deployed=if(deployed>entitled, deployed-entitled, 0)
+| table product_name, deployed, entitled, compliance_pct, over_deployed
+```
+- **Implementation:** Normalize product SKUs. Join installs to entitlement table. Alert when `over_deployed>0` or compliance below policy. Refresh entitlements monthly.
+- **Visualization:** Table (SKU compliance), Single value (non-compliant SKUs), Bar chart (overage).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.13 · Hardware Warranty Expiry
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Operational
+- **Value:** Tracks warranty end dates for hardware CIs to avoid unsupported break-fix gaps and budget surprises.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:cmdb_ci` (`warranty_expires`, `u_warranty_end`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_ci" operational_status="operational"
+| eval w_end=strptime(warranty_expires,"%Y-%m-%d")
+| where isnotnull(w_end) AND w_end < relative_time(now(),"+60d@d") AND w_end > now()
+| eval days_left=round((w_end-now())/86400,0)
+| table name, serial_number, warranty_expires, days_left, support_group
+| sort days_left
+```
+- **Implementation:** Map OEM warranty fields from procurement or discovery. Alert at 60/30 days. Exclude disposed assets via `install_status`.
+- **Visualization:** Table (warranty expiring), Timeline (expiry by month), Single value (CIs <30d).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.14 · CI Lifecycle Management
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Monitors CI lifecycle state transitions (ordered → received → in production → retired) for stuck states and policy compliance.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:cmdb_ci` (`install_status`, `operational_status`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_ci"
+| where match(lower(install_status),"on order|pending install|received")
+| eval created_epoch=coalesce(sys_created_on, sys_updated_on, _time)
+| eval age_days=round((now()-created_epoch)/86400,0)
+| where age_days>90
+| table name, install_status, operational_status, age_days, support_group
+```
+- **Implementation:** Adjust `install_status` values to your list. Flag CIs stuck in procurement or “pending install” beyond SLA. Report retired CIs still `operational` in error.
+- **Visualization:** Table (stuck lifecycles), Bar chart (count by stuck state), Line chart (backlog trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.15 · Asset Decommission Verification
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Confirms decommissioned servers no longer appear in monitoring, AD, or hypervisor inventory — reducing zombie assets and license bleed.
+- **App/TA:** Monitoring + CMDB
+- **Data Sources:** Decommission change tickets, `snow:cmdb_ci`, `vmware:inv:vm`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" state="Closed" earliest=-30d
+| where match(lower(short_description),"(?i)decom|retire") OR lower(category)="retire"
+| rename cmdb_ci as ci_sys_id
+| join type=left ci_sys_id [ search index=itsm sourcetype="snow:cmdb_ci" | rename sys_id as ci_sys_id | table ci_sys_id, install_status, operational_status ]
+| where install_status!="retired" AND lower(operational_status)!="retired" AND lower(operational_status)!="non-operational"
+| table number, short_description, ci_sys_id, install_status, operational_status
+```
+- **Implementation:** Map `cmdb_ci` (or task CI list) from the change; normalize `install_status`/`operational_status` values to your CMDB. Optionally join inventory (`vmware:inv:vm`) on hostname to catch VMs still present. Drive cleanup when decom CHG is closed but CI not retired.
+- **Visualization:** Table (failed decom verification), Single value (open exceptions), Bar chart (by team).
+- **CIM Models:** N/A
+
+---
+
 
 ### 16.3 Business Process & Availability Intelligence
 
@@ -420,6 +861,7 @@ index=monitoring sourcetype IN (server_health, app_health, db_health, network_he
 ```
 - **Implementation:** Build a lookup (`business_process_components.csv`) mapping infrastructure components to business processes, with an `is_essential` flag (essential = single point of failure). Run as a scheduled search every 5 minutes. Feed results into a KV Store for dashboard consumption. For full capability, use ITSI Service Analyzer with KPI threshold-based health scores — ITSI natively implements BPI-equivalent logic with adaptive thresholding and episode-based alerting. Alert when `bpi_state=DOWN` (essential member failed) or `bpi_score` drops below 60 for >10 minutes.
 - **Visualization:** Service Analyzer glass table (ITSI), Radial gauge (health score per process), Sankey diagram (component → process → business unit), Single value tiles (one per business process with color coding).
+- **CIM Models:** N/A
 
 ---
 
@@ -448,6 +890,7 @@ index=monitoring sourcetype IN (server_health, service_check, network_health)
 ```
 - **Implementation:** Normalize availability data from all sources (server, network, app) into a shared `index=monitoring` with a standardized `status` field. Schedule this search hourly. Store results in a summary index or KV Store for long-term retention. Build a Dashboard Studio heatmap visualization with host on the Y-axis and time on the X-axis, color-coded by availability percentage. Implement drilldown to raw events for any red cell. Export monthly availability reports per host/service for SLA documentation. Filter by host group (infrastructure, application, network) using tokens.
 - **Visualization:** Heatmap (host × time, color = availability%), Table (hosts sorted by lowest monthly availability), Single value (fleet-wide availability %), Line chart (fleet availability trend), Bar chart (downtime hours by host).
+- **CIM Models:** N/A
 
 ---
 
@@ -608,3 +1051,240 @@ index=itsm sourcetype="snow:incident" state="closed" cmdb_ci=*
 - **CIM Models:** N/A
 
 ---
+
+### UC-16.3.10 · Business Service Availability (Composite SLA)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Compliance
+- **Value:** Rolls up component availability into a single business-service SLA percentage (weighted or “all essential up”) for customer-facing reporting — beyond host-level heatmaps.
+- **App/TA:** Splunk ITSI, or custom lookups + summary indexing
+- **Premium Apps:** Splunk ITSI (optional)
+- **Data Sources:** `index=monitoring` normalized health events, `business_service_map.csv`
+- **SPL:**
+```spl
+index=monitoring sourcetype IN (server_health, app_health, db_health) earliest=-24h
+| eval up=if(status="ok" OR status="up",1,0)
+| stats latest(up) as up by component_name
+| lookup business_service_map.csv component_name OUTPUT business_service, weight, is_essential
+| eval w=coalesce(weight,1)
+| stats max(eval(if((is_essential=1 OR lower(is_essential)="true") AND up=0,1,0))) as essential_down
+       sum(eval(w*up)) as weighted_up
+       sum(w) as total_weight by business_service
+| eval composite_sla=if(essential_down>0, 0, round(100*weighted_up/total_weight,2))
+| where composite_sla < 99.9 OR essential_down>0
+| table business_service, composite_sla, essential_down
+```
+- **Implementation:** Define `business_service_map.csv` with components, optional weights, and `is_essential` (any essential down forces SLA=0 or “breach”). Ingest normalized availability per component every 5 minutes; backfill from summary index for monthly SLA. Align with contract SLAs (e.g., 99.9% monthly). ITSI can replace this with service KPIs and composite service health.
+- **Visualization:** Single value (composite SLA % per service), Bar chart (SLA vs target), Table (breaching services), ITSI Service Analyzer (if licensed).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.11 · Batch Job Schedule Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Operational
+- **Value:** Verifies scheduled batch jobs (ETL, billing, backups) started and finished within expected windows — catching silent scheduler failures before downstream SLAs break.
+- **App/TA:** Control-M, Autosys, cron/syslog, mainframe SMF (custom)
+- **Data Sources:** `sourcetype=controlm:job`, `sourcetype=autosys:job`, or `sourcetype=syslog` with scheduler tags
+- **SPL:**
+```spl
+index=batch sourcetype="controlm:job" earliest=-7d@d
+| eval day=strftime(_time,"%Y-%m-%d")
+| eval ended_ok=if(match(lower(status),"(?i)ended ok|success"),1,0)
+| stats max(ended_ok) as day_ok by job_name, day
+| where day_ok=0
+| table job_name, day
+```
+- **Implementation:** Map vendor fields: `scheduled_time`, end status, job name. For cron, ingest start/stop lines and compare to `batch_schedule.csv` lookup (job, expected cron, max duration). Alert when `ran_ok=0` for a calendar day. Tune time zones.
+- **Visualization:** Table (missed jobs), Calendar (job success by day), Line chart (miss rate trend).
+- **CIM Models:** N/A
+
+---
+
+### 16.4 Change & Release Management
+
+**Primary App/TA:** Splunk Add-on for ServiceNow (`Splunk_TA_snow`), Splunk Add-on for Jira Service Management (release data), optional CI/CD webhook correlation.
+
+---
+
+### UC-16.4.1 · Unauthorized Change Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Changes executed without approval or outside policy create audit exposure and outage risk; detecting them early supports SOC-2/ITIL controls and rapid rollback decisions.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:change_request`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request"
+| eval approved=coalesce(approval,"") 
+| where match(lower(u_authorization),"(?i)unauthorized|rejected") OR (isnull(cab_date) AND lower(type)!="standard" AND lower(category)!="routine")
+| table _time, number, short_description, state, type, u_authorization, opened_by
+| sort -_time
+```
+- **Implementation:** Ingest change_request with approval, CAB, and authorization fields mapped from ServiceNow. Build allowlists for standard/pre-approved change models. Alert when production-impacting changes lack `cab_date` or show `rejected`/`unauthorized` authorization. Correlate with CMDB and deployment tools for out-of-band activity.
+- **Visualization:** Table (flagged changes), Single value (unauthorized count — target: 0), Timeline (violations).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.4.2 · Change Window Compliance Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Change
+- **Value:** Work performed outside agreed maintenance windows disrupts users and breaks SLAs; measuring compliance enforces scheduling discipline and supports customer communication.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:change_request`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" state IN ("Closed","Implemented")
+| eval start=strptime(start_date,"%Y-%m-%d %H:%M:%S"), end=strptime(end_date,"%Y-%m-%d %H:%M:%S")
+| eval window_start=strptime(planned_start,"%Y-%m-%d %H:%M:%S"), window_end=strptime(planned_end,"%Y-%m-%d %H:%M:%S")
+| eval outside_window=if(start<window_start OR end>window_end,1,0)
+| stats sum(outside_window) as breaches count as total by assignment_group
+| eval breach_pct=round(100*breaches/total,1)
+| where breach_pct > 0
+| sort -breach_pct
+```
+- **Implementation:** Map `planned_start`/`planned_end` and actual work `start_date`/`end_date` from the change record (field names vary—use transforms). Flag implementations that begin early or finish late versus the approved window. Report by assignment group and business service. Exclude emergency changes with documented extensions via change task.
+- **Visualization:** Bar chart (breach % by team), Table (non-compliant CHGs), Line chart (weekly compliance %).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.4.3 · Failed Change Correlation with Incident Spikes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Change
+- **Value:** Linking unsuccessful changes to incident volume proves root cause for major reviews and helps tighten testing or rollback criteria for similar changes.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:change_request`, `sourcetype=snow:incident`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" state="Closed"
+| where lower(close_code)="unsuccessful"
+| eval ci=cmdb_ci
+| join type=left ci [
+  search index=itsm sourcetype="snow:incident" earliest=-30d
+  | rename cmdb_ci as ci
+  | stats count as inc_count by ci
+]
+| where isnotnull(inc_count) AND inc_count>0
+| table number, short_description, ci, inc_count
+```
+- **Implementation:** Align `cmdb_ci` on change and incident. Use `join` with time bounds via subsearch or `transaction` on `ci` plus `_time` window (e.g., 4h after change close). Prefer native `caused_by` or `problem_id` when populated. Dashboard: unsuccessful changes with related incident counts in the follow-up window. Use for PIR and change model updates.
+- **Visualization:** Table (failed CHG + incident count), Timeline (CHG vs incidents), Sankey (change → CI → incidents).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.4.4 · Release Deployment Success Rate Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Change
+- **Value:** Release success rate summarizes delivery health; sustained drops signal quality gaps in testing, automation, or release windows.
+- **App/TA:** `Splunk_TA_snow`, CI/CD release tags (optional)
+- **Data Sources:** `sourcetype=snow:change_request`, `sourcetype=snow:release`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" (category="Release" OR type="Release")
+| eval success=if(lower(close_code)="successful" OR (state="Closed" AND lower(u_outcome)="success"),1,0)
+| eval failed=if(lower(close_code)="unsuccessful" OR lower(u_outcome)="failed",1,0)
+| timechart span=1w sum(success) as successes sum(failed) as failures
+| eval success_rate=round(100*successes/(successes+failures),1)
+```
+- **Implementation:** Classify changes or release records that represent deployments (release catalog, RFC templates). Normalize `close_code`/`u_outcome`. Optionally join Jenkins/GitHub deployment events by `correlation_id`. Report weekly success rate by application and environment. Alert below target (e.g., 95%).
+- **Visualization:** Line chart (success rate trend), Single value (rolling success %), Bar chart (by application).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.4.5 · Emergency Change Frequency Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Operational, Risk
+- **Value:** Chronic reliance on emergency changes indicates planning gaps or unstable platforms; trending frequency guides process improvement and capacity investments.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:change_request`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request"
+| eval is_emergency=if(match(lower(type),"emergency") OR lower(u_change_model)="emergency",1,0)
+| where is_emergency=1
+| bin _time span=1w
+| stats count by _time, assignment_group
+| eventstats avg(count) as baseline by assignment_group
+| where count > baseline*1.5
+```
+- **Implementation:** Tag emergency changes via `type`, model, or priority. Exclude duplicates from reopen workflows. Compare weekly counts to a rolling baseline per team. Alert on spikes; review in CAB for pattern (vendor defects, capacity, failed standard changes).
+- **Visualization:** Line chart (emergency CHGs per week), Bar chart (by team), Table (recent emergencies with cause).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.4.6 · Change Advisory Board (CAB) Approval Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Governance
+- **Value:** CAB sign-off for high-risk changes is a control point; measuring compliance before implementation reduces unauthorized production risk.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:change_request`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" u_risk IN ("High","1 - High")
+| eval cab_ok=if(isnotnull(cab_date) AND cab_decision="Approved",1,0)
+| where state IN ("Implement","Closed") AND cab_ok=0 AND lower(type)!="emergency"
+| stats count by number, short_description, assignment_group, cab_decision
+| sort -_time
+```
+- **Implementation:** Map risk, CAB meeting date, and decision fields from ServiceNow. Define policy: high-risk changes require CAB approval before `Implement`. Allow documented emergency exceptions with `CHG` tasks. Weekly report of violations; integrate with GRC dashboards.
+- **Visualization:** Table (non-compliant CHGs), Single value (CAB compliance %), Pie chart (approved vs missing CAB).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.4.7 · Post-Implementation Review (PIR) Completion Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Quality
+- **Value:** PIRs capture lessons from major incidents and failed changes; tracking completion closes the feedback loop and satisfies audit expectations after Sev1 events.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:problem`, `sourcetype=snow:change_request`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" u_pir_required="true"
+| eval pir_done=if(isnotnull(u_pir_completed) OR lower(u_pir_state)="closed",1,0)
+| where pir_done=0
+| eval age_days=round((now()-_time)/86400,0)
+| where age_days>7
+| stats latest(_time) as last_seen, values(number) as chg by problem_id, short_description
+| sort last_seen
+```
+- **Implementation:** Use change fields or related problem tasks for PIR workflow (`u_pir_required`, completion date). For Sev1-linked changes, join `problem` records and PIR tasks. Alert when PIR is overdue (e.g., 7 days post closure). Escalate to problem management owner.
+- **Visualization:** Table (open PIRs), Single value (overdue PIR count), Bar chart (PIR completion SLA by team).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.4.8 · Change Risk Assessment Accuracy
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Quality, Risk
+- **Value:** If “low risk” changes often fail or drive incidents, the risk model is miscalibrated; analytics improve scoring and reduce surprise outages.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `sourcetype=snow:change_request`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" state="Closed"
+| eval predicted=case(match(lower(u_risk),"low"),"Low",match(lower(u_risk),"medium"),"Medium",match(lower(u_risk),"high"),"High",true(),"Unknown")
+| eval actual=if(lower(close_code)="unsuccessful" OR lower(u_customer_impact)="yes","Bad","Good")
+| stats count by predicted, actual
+| eventstats sum(count) as tot by predicted
+| eval pct=round(100*count/tot,1)
+| where predicted="Low" AND actual="Bad"
+```
+- **Implementation:** Compare `u_risk` at submission to outcomes (`close_code`, customer impact, related incident count within 24h). Build confusion-style matrix: predicted risk vs actual. Quarterly review with change managers; adjust questionnaires and automation gates. Requires consistent field extraction in the TA.
+- **Visualization:** Matrix heatmap (predicted vs actual), Table (low-risk failures), Line chart (calibration trend quarter over quarter).
+- **CIM Models:** N/A
+

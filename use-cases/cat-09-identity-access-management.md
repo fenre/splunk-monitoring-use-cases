@@ -380,6 +380,254 @@ index=ad sourcetype="ad:accounts"
 
 ---
 
+### UC-9.1.15 · Kerberoasting Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Attackers request weakly encrypted TGS tickets for service accounts to crack passwords offline. Focused Kerberoasting detection complements generic Kerberos monitoring.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Security Event Log (4769 — Kerberos service ticket requested)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769 Ticket_Encryption_Type=0x17
+| stats count, values(Service_Name) as spns by Account_Name
+| where count >= 5
+| sort -count
+```
+- **Implementation:** Forward 4769 from DCs. Flag RC4 (0x17) TGS requests in bulk per user; tune thresholds for service accounts that legitimately use RC4. Enforce AES for sensitive SPNs in AD and rotate krbtgt on schedule.
+- **Visualization:** Table (user, SPN, request count), Bar chart (Kerberoasting candidates by OU), Timeline (spikes).
+- **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=success
+  by Authentication.user Authentication.src span=1h
+| where count > 50
+```
+
+---
+
+### UC-9.1.16 · Golden Ticket Indicators
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Forged TGTs often produce anomalous ticket lifetimes, encryption types, or DC sourcing. Heuristic alerts support hunt teams when krbtgt may be compromised.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Security Event Log (4768 — Kerberos authentication ticket requested), 4624 (logon type 10 with Kerberos)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=4768
+| eval ticket_life_h=(Ticket_Lifetime/3600)
+| where ticket_life_h > 10 OR Ticket_Encryption_Type IN ("0xffffffff","0x12")
+| table _time, Account_Name, Ticket_Encryption_Type, ticket_life_h, IpAddress
+```
+- **Implementation:** Baseline normal TGT lifetimes and encryption types per domain. Alert on unusual lifetimes, unknown ETYPE, or TGT requests not originating from expected workstations. Correlate with 4624 type 10 and lateral movement analytics.
+- **Visualization:** Table (suspicious TGT events), Timeline, Single value (anomalies per day).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.1.17 · Entra Conditional Access Policy Changes
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Policy edits can weaken MFA, device compliance, or location controls org-wide. Auditing changes supports SOC2/ISO and incident response.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Entra ID audit logs (`DirectoryAudit` — Conditional Access policy create/update/delete)
+- **SPL:**
+```spl
+index=azure sourcetype="azure:aad:audit"
+| search "Conditional Access" OR activityDisplayName="Update conditional access policy"
+| table _time, initiatedBy.user.userPrincipalName, targetResources{}.displayName, activityDisplayName, result
+| sort -_time
+```
+- **Implementation:** Ingest Entra audit logs via Graph. Alert on any CA policy lifecycle change; require change ticket correlation. Snapshot policy IDs in lookups for crown-jewel apps.
+- **Visualization:** Timeline (policy changes), Table (actor, policy, result), Bar chart (changes by admin).
+- **CIM Models:** Change
+
+---
+
+### UC-9.1.18 · Hybrid Join Device Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Hybrid Azure AD join state and Intune compliance gate access; drift from compliant blocks users and signals stale or tampered endpoints.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, Microsoft Intune / Graph scripted input
+- **Data Sources:** Entra ID device objects (`trustType`, `isCompliant`, `profileType`), Intune compliance reports
+- **SPL:**
+```spl
+index=azure sourcetype="azure:intune:devices" OR sourcetype="azure:aad:devices"
+| where trustType="ServerAd" AND (isCompliant="false" OR isCompliant="False")
+| stats latest(_time) as last_seen by deviceId, displayName, managementType, isCompliant
+| sort -last_seen
+```
+- **Implementation:** Ingest device inventory from Graph/Intune on a schedule. Join with sign-in logs for non-compliant hybrid devices. Alert on compliance flip from true to false or long-running non-compliance.
+- **Visualization:** Table (non-compliant hybrid devices), Pie chart (compliant vs not), Line chart (non-compliance trend).
+- **CIM Models:** Endpoint
+
+---
+
+### UC-9.1.19 · LAPS Password Rotation Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Security
+- **Value:** Failed LAPS rotations leave predictable local admin passwords; attackers target stale LAPS attributes.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Operational log `Microsoft-Windows-LAPS/Operational` (Event IDs 10023, 10024, 10025, 10026), or legacy CSE events
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-LAPS/Operational" EventCode IN (10023,10024,10025,10026)
+| stats count by ComputerName, EventCode, Message
+| where count > 0
+| sort -count
+```
+- **Implementation:** Forward LAPS Operational log from all domain-joined clients that use LAPS. Map Event IDs to rotation success/failure. Alert on repeated failures per OU or GPO scope. Correlate with GPO and network issues.
+- **Visualization:** Table (hosts with failures), Bar chart (failures by OU), Single value (failed rotations 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.1.20 · AD Replication Topology Changes
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Configuration
+- **Value:** New connections, site link, or bridgehead changes can indicate persistence or misconfiguration affecting auth paths.
+- **App/TA:** `Splunk_TA_windows`, `repadmin` / scripted input
+- **Data Sources:** Directory Service events (KCC topology), scripted `repadmin /showconn` / `nltest`
+- **SPL:**
+```spl
+index=wineventlog (sourcetype="WinEventLog:Directory Service" EventCode IN (1308,1311,1394)) OR sourcetype="ad:topology"
+| table _time, host, EventCode, Message, connection_from, connection_to
+| sort -_time
+```
+- **Implementation:** Enable KCC and replication diagnostics. Ingest periodic topology snapshots. Alert on new unexpected replication partners or disabled site links outside change windows.
+- **Visualization:** Timeline (topology events), Table (connection changes), Diagram export (optional via lookup).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.1.21 · AdminSDHolder Modification
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Changes to AdminSDHolder or SDProp timing can preserve attacker persistence on privileged accounts.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Security Event Log (5136 — directory service object modified), object DN containing AdminSDHolder
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
+| search ObjectDN="*CN=AdminSDHolder,CN=System*"
+| table _time, SubjectUserName, ObjectDN, AttributeLDAPDisplayName, AttributeValue
+| sort -_time
+```
+- **Implementation:** Enable DS change auditing on DCs. Alert on any modification to AdminSDHolder ACL or attributes. Review regularly for expected adminSDHolder propagation delays.
+- **Visualization:** Table (changes), Timeline, Single value (changes per quarter — expect near zero).
+- **CIM Models:** Change
+
+---
+
+### UC-9.1.22 · GPO Tampering Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Tampering via SYSVOL (file-level) may bypass 5136-only monitoring. File integrity on GPO paths catches unauthorized edits.
+- **App/TA:** `Splunk_TA_windows`, FIM TA (e.g., Splunk FIM or OSSEC)
+- **Data Sources:** GPO change events (5136), SYSVOL file integrity events, DFS-R replication errors for SYSVOL
+- **SPL:**
+```spl
+index=ossec sourcetype="ossec:fim" OR index=fim sourcetype="fim:change"
+| search path="*\\SYSVOL\\*\\Policies\\*"
+| stats count by path, user, action
+| sort -count
+```
+- **Implementation:** Deploy FIM on DCs or SYSVOL replica members. Alert on new/modified GPO files outside change windows. Correlate with 5136 and DFS-R 4412/5004 events.
+- **Visualization:** Table (file paths changed), Timeline, Bar chart (changes by DC).
+- **CIM Models:** Change
+
+---
+
+### UC-9.1.23 · Entra PIM Activation Audit
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Privileged Identity Management activations grant time-bound admin roles; auditing ensures approvals and detects abuse.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Entra audit logs (`Add member to role completed`, PIM `RequestApproved` / `RoleAssignmentSchedule`)
+- **SPL:**
+```spl
+index=azure sourcetype="azure:aad:audit"
+| search "PIM" OR activityDisplayName IN ("Add member to role in PIM completed","Add member to role completed")
+| table _time, initiatedBy.user.userPrincipalName, targetResources{}.displayName, result, activityDisplayName
+| sort -_time
+```
+- **Implementation:** Ingest PIM-related audit events. Alert on activations outside business hours, without ticket ID (custom field), or for highly privileged roles. Report monthly for access reviews.
+- **Visualization:** Table (activations), Bar chart (role activations by user), Timeline.
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.1.24 · Stale Computer Account Cleanup
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Stale computer objects enable rogue domain joins and clutter access reviews. Tracking supports automated disable/delete workflows.
+- **App/TA:** Scripted input (PowerShell `Get-ADComputer`)
+- **Data Sources:** AD computer attributes (`lastLogonTimestamp`, `pwdLastSet`, `whenCreated`)
+- **SPL:**
+```spl
+index=ad sourcetype="ad:computers"
+| eval days_stale=round((now()-lastLogonTimestamp)/86400)
+| where days_stale > 90 AND Enabled="True"
+| table samAccountName, operatingSystem, days_stale, distinguishedName
+| sort -days_stale
+```
+- **Implementation:** Export computer inventory weekly. Join with DHCP/DNS for false positives. Feed cleanup automation; exclude known appliance OUs via lookup.
+- **Visualization:** Table (stale computers), Bar chart (stale count by OU), Single value (candidates for cleanup).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.1.25 · AD Forest Trust Changes
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Trust direction and selective authentication changes alter cross-forest attack surface; distinct from one-off session events.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Security Event Log (4706 — trust modified, 4713 — trust deleted, 4716 — trusted domain information modified)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706,4713,4716)
+| table _time, SubjectUserName, TargetDomainName, TrustType, TrustDirection, SidFiltering
+| sort -_time
+```
+- **Implementation:** Forward all DC Security logs. Require CAB approval for trust changes. Alert on selective auth disablement or inbound trust creation.
+- **Visualization:** Table (trust changes), Timeline, Single value (changes per year).
+- **CIM Models:** Change
+
+---
+
+### UC-9.1.26 · Certificate Template Abuse (ESC Attacks)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Misconfigured templates (ESC1/ESC8) allow domain escalation via certificate requests. Monitoring issuance and template edits reduces exposure.
+- **App/TA:** `Splunk_TA_windows`, AD CS logs
+- **Data Sources:** Certificate Services (4886, 4887, 4888), AD CS template change auditing (5136 on `CN=Certificate Templates`)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=4886
+| search Requester!="" Template_OID=*
+| lookup cert_template_risk Template_OID OUTPUT risk_esc
+| where risk_esc IN ("ESC1","ESC8")
+| table _time, Requester, Template_OID, risk_esc, ComputerName
+```
+- **Implementation:** Enable CA and template auditing. Maintain lookup mapping template OIDs to ESC categories (per SpecterOps research). Alert on enrollment to high-risk templates and on template ACL/schema changes.
+- **Visualization:** Table (risky enrollments), Bar chart (requests by template), Timeline.
+- **CIM Models:** N/A
+
+---
+
 ### 9.2 LDAP Directories
 
 **Primary App/TA:** Syslog inputs, custom scripted inputs for LDAP server stats.
@@ -518,6 +766,148 @@ index=azure sourcetype="azure:aad:signin"
 ```
 - **Implementation:** Configure Splunk Add-on for Microsoft Cloud Services to ingest Entra ID sign-in logs via Graph API. Parse appliedConditionalAccessPolicies array for policy names and results. Alert on spikes in failures per policy. Track reportOnlyNotApplied for policy tuning. Correlate with userPrincipalName and appDisplayName to identify affected users and apps.
 - **Visualization:** Bar chart (failures by policy), Table (blocked users with policy details), Line chart (failure rate trend), Pie chart (failures by application).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.2.6 · LDAP Query Volume Anomalies
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Performance
+- **Value:** Sudden spikes in LDAP searches may indicate reconnaissance, brute enumeration, or misbehaving applications hammering directory services.
+- **App/TA:** LDAP access log parsing, `Splunk_TA_windows` (Directory Service 1644)
+- **Data Sources:** OpenLDAP access log (SEARCH count), AD DS expensive search / query stats
+- **SPL:**
+```spl
+index=ldap sourcetype="openldap:access" operation="SEARCH"
+| bin _time span=15m
+| stats count by src_ip, _time
+| eventstats median(count) as med by src_ip
+| where count > med*10 AND count > 100
+| sort -count
+```
+- **Implementation:** Baseline searches per source per interval. Alert on statistical outliers. Correlate with known ETL jobs via lookup. On AD, combine with 1644 expensive search events.
+- **Visualization:** Line chart (query volume by source), Table (spikes), Bar chart (top talkers).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.2.7 · Bind Failure Rate Spikes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Fault
+- **Value:** Elevated invalid credential rates often precede password spraying or application misconfiguration; complements per-event bind failure monitoring.
+- **App/TA:** Syslog, LDAP server logs
+- **Data Sources:** OpenLDAP syslog (err=49), AD DS LDAP interface events
+- **SPL:**
+```spl
+index=ldap sourcetype="syslog" "BIND" ("err=49" OR "data 52e")
+| bin _time span=15m
+| stats count by src_ip, _time
+| where count > 50
+| sort -count
+```
+- **Implementation:** Tune threshold to environment. Whitelist scanners and load balancers. Correlate with account lockouts and Entra hybrid sign-in failures if applicable.
+- **Visualization:** Line chart (bind failure rate), Table (source IP, window count), Single value (spikes per day).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.2.8 · Active Directory Schema Modification Audit
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Schema changes in AD (classes/attributes) are rare and high impact; complements generic LDAP schema logging for OpenLDAP/389.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Security Event Log (5136 — directory service object modified under `CN=Schema,CN=Configuration`)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
+| search ObjectDN="*CN=Schema,CN=Configuration*"
+| table _time, SubjectUserName, ObjectDN, AttributeLDAPDisplayName
+| sort -_time
+```
+- **Implementation:** Enable auditing on schema partition. Alert on any schema object add/modify. Require schema admin CAB approval for all changes.
+- **Visualization:** Timeline (schema changes), Table (detail), Single value (changes per year).
+- **CIM Models:** Change
+
+---
+
+### UC-9.2.9 · LDAP Signing Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Unsigned LDAP binds expose credentials to interception. Tracking enforcement and bind failures ensures GPO and domain controller settings are effective.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Directory Service event log (2886 — unsigned LDAP bind, 2887 — unsigned SASL)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode IN (2886,2887)
+| stats count by ComputerName, EventCode, Client_IP
+| where count > 10
+| sort -count
+```
+- **Implementation:** Enable LDAP signing requirements via GPO. Alert on sustained unsigned binds from specific apps; work with owners to enable signing/TLS. Do not alert on one-off legacy until remediated.
+- **Visualization:** Table (clients with unsigned binds), Bar chart (by subnet), Line chart (trend toward zero).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.2.10 · LDAPS Certificate Validation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** LDAPS clients failing TLS handshakes or cert validation indicate expired CAs, hostname mismatches, or MITM attempts.
+- **App/TA:** Windows Schannel, OpenLDAP TLS logs
+- **Data Sources:** System log Schannel errors (36870, 36866), slapd TLS errors
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:System" SourceName="Schannel" EventCode IN (36870,36866)
+| stats count by ComputerName, EventCode, Message
+| sort -count
+```
+- **Implementation:** Forward Schannel and LDAP server TLS logs. Map to cert renewal runbook. Alert on spike in handshake failures after cert rotation.
+- **Visualization:** Table (hosts with TLS errors), Timeline, Single value (LDAPS errors 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.2.11 · LDAP Channel Binding Status
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Channel binding tokens for LDAP/SASL mitigate relay attacks; monitoring confirms clients meet `ldapEnforceChannelBinding` policy.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** Directory Service (3039 — rejected bind missing channel binding tokens when required)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=3039
+| stats count by ComputerName, Client_IP
+| where count > 5
+| sort -count
+```
+- **Implementation:** Phase enforcement with reporting mode first. Identify legacy apps from Client_IP. Alert when moving to enforced mode and failures persist.
+- **Visualization:** Table (clients failing channel binding), Bar chart (by application owner), Line chart (remediation trend).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.2.12 · LDAP Referral Chaining Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Security
+- **Value:** Excessive or looping referrals degrade auth and may indicate misconfigured base DNs or cross-domain abuse.
+- **App/TA:** OpenLDAP / 389 DS access logs, AD debug (optional)
+- **Data Sources:** LDAP access log lines containing `REFERRAL` or `v3 referral`
+- **SPL:**
+```spl
+index=ldap sourcetype="openldap:access" (message="REFERRAL" OR like(_raw,"%referral%"))
+| stats count, values(dn) as refs by src_ip, base
+| where count > 20
+| sort -count
+```
+- **Implementation:** Parse referral responses in access logs. Baseline per app. Alert on referral storms or new referral targets. Correlate with GSSAPI/SASL cross-realm issues in hybrid setups.
+- **Visualization:** Table (referral chains), Line chart (referral volume), Bar chart (by base DN).
 - **CIM Models:** Authentication
 
 ---
@@ -720,6 +1110,195 @@ index=okta sourcetype="OktaIM2:log"
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
+
+---
+
+### UC-9.3.8 · SAML Assertion Replay Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Replayed SAML assertions can grant access without fresh authentication. Correlating assertion IDs and NotOnOrAfter windows catches reuse.
+- **App/TA:** IdP logs, application SAML trace (e.g., Shibboleth, Okta, ADFS)
+- **Data Sources:** SAML response logs with `AssertionID`, `InResponseTo`, `NotOnOrAfter`
+- **SPL:**
+```spl
+index=saml sourcetype="saml:assertion"
+| stats count by assertion_id, sp_entity_id
+| where count > 1
+| table assertion_id, sp_entity_id, count
+```
+- **Implementation:** Ingest assertion IDs from IdP or SP debug logs (privacy-safe hashing if needed). Alert on duplicate assertion_id for same SP. Enforce short assertion lifetimes at IdP.
+- **Visualization:** Table (duplicate assertions), Timeline, Single value (replay attempts).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.3.9 · OAuth Token Abuse
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Excessive refresh grants, scope expansion, or token use from new ASNs indicates stolen refresh tokens or malicious OAuth clients.
+- **App/TA:** `Splunk_TA_okta`, Entra sign-in + Graph audit, API gateway logs
+- **Data Sources:** `app.oauth2.token.grant`, Entra `TokenIssuance` / `Update application` (consent)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
+| stats count, dc(client.ipAddress) as ips by actor.alternateId, client_id
+| where count > 200 OR ips > 5
+| sort -count
+```
+- **Implementation:** Baseline grants per user and client. Alert on burst refresh or grants from many IPs. Revoke client on anomaly. Mirror logic for `azure:aad:signin` with `tokenIssuerType`.
+- **Visualization:** Table (abusive clients), Line chart (grants over time), Bar chart (by client_id).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.3.10 · SSO Session Hijacking Indicators
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Complements session ID correlation with user-agent flips, ASN changes mid-session, and impossible concurrent SSO from IdP telemetry.
+- **App/TA:** `Splunk_TA_okta`, Entra sign-in logs
+- **Data Sources:** IdP `user.authentication.sso` with session correlation ID, device fingerprint fields
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
+| transaction authenticationContext.externalSessionId maxpause=300 maxevents=50
+| eval ua_change=if(mvcount(client.userAgent.rawUserAgent)>2,1,0)
+| where ua_change=1
+| table authenticationContext.externalSessionId, actor.alternateId, client.userAgent.rawUserAgent
+```
+- **Implementation:** Flag sessions with multiple user agents or countries within short windows. Tune for corporate VPN that rotates egress. Pair with UC-9.3.7 for IP-based hijack detection.
+- **Visualization:** Table (suspicious sessions), Timeline, Bar chart (sessions with UA churn).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.3.11 · Federated Trust Modifications
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Adding SAML/OIDC federation to new domains or apps expands blast radius; auditing trust metadata changes is essential.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_okta`
+- **Data Sources:** Entra `Add federation to domain`, Okta `trustedOrigin.*` / `idp.*` lifecycle events
+- **SPL:**
+```spl
+index=azure sourcetype="azure:aad:audit" activityDisplayName="Add external user"
+   OR activityDisplayName="Add federation to domain"
+| table _time, initiatedBy.user.userPrincipalName, targetResources{}.displayName, activityDisplayName
+| sort -_time
+```
+- **Implementation:** Alert on new federation partners, domain verification, or IdP metadata uploads. Require security review for new trust relationships.
+- **Visualization:** Timeline (trust changes), Table (actor, target), Single value (new trusts per quarter).
+- **CIM Models:** Change
+
+---
+
+### UC-9.3.12 · Consent Grant Abuse
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Users granting excessive delegated permissions to malicious OAuth apps is a common attack; monitoring consent events enables revocation.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Entra audit logs (`Consent to application`, `Add OAuth2PermissionGrant`)
+- **SPL:**
+```spl
+index=azure sourcetype="azure:aad:audit"
+| search "Consent" OR activityDisplayName="Add OAuth2PermissionGrant"
+| spath path=targetResources{}
+| mvexpand targetResources{}
+| spath input=targetResources{} path=displayName
+| table _time, initiatedBy.user.userPrincipalName, displayName, activityDisplayName
+| sort -_time
+```
+- **Implementation:** Ingest consent-related audit events. Alert on consent to apps with high privilege (`RoleManagement.ReadWrite.Directory`) or new publisher IDs. Integrate with admin consent workflow.
+- **Visualization:** Table (consent events), Bar chart (apps by consent count), Pie chart (user vs admin consent).
+- **CIM Models:** Change
+
+---
+
+### UC-9.3.13 · App Registration Secret Expiry
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Security
+- **Value:** Expired client secrets break automation and encourage long-lived secrets; proactive alerting avoids outages and insecure workarounds.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, Graph scripted input
+- **Data Sources:** Application credential inventory (`passwordCredentials.endDateTime`), audit when secret added
+- **SPL:**
+```spl
+index=azure sourcetype="azure:graph:applications"
+| eval days_left=round((strptime(endDateTime,"%Y-%m-%dT%H:%M:%SZ")-now())/86400)
+| where days_left < 30 AND days_left > 0
+| table appId, displayName, days_left, endDateTime
+| sort days_left
+```
+- **Implementation:** Schedule Graph export of app registrations with secrets/certificates. Alert at 30/14/7 days. Map apps to owners via lookup.
+- **Visualization:** Table (expiring secrets), Single value (next expiry), Gauge (apps past due).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.3.14 · Multi-Tenant App Access Anomalies
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unexpected tenants or guest users accessing multi-tenant apps may indicate consent phishing or lateral SaaS movement.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Entra sign-in logs (`resourceTenantId`, `crossTenantAccessType`, `homeTenantId`)
+- **SPL:**
+```spl
+index=azure sourcetype="azure:aad:signin"
+| where crossTenantAccessType IN ("b2bCollaboration","passthrough") AND resourceTenantId!=homeTenantId
+| stats count by userPrincipalName, appDisplayName, resourceTenantId
+| where count > 10
+| sort -count
+```
+- **Implementation:** Baseline B2B access patterns. Alert on new resource tenants for crown-jewel apps. Correlate with consent events (UC-9.3.12).
+- **Visualization:** Table (cross-tenant access), Heatmap (user × tenant), Line chart (volume).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.3.15 · OAuth Scope Creep Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Applications accumulating scopes over time violate least privilege; comparing current vs approved scopes finds drift.
+- **App/TA:** Graph API inventory, Okta `app.oauth2.*` events
+- **Data Sources:** OAuth scope grants per `client_id`, approved scope lookup CSV
+- **SPL:**
+```spl
+index=oauth sourcetype="oauth:scope_inventory"
+| lookup oauth_scope_approved client_id OUTPUT approved_scopes
+| eval extra_scopes=mvfilter(NOT match(approved_scopes, scope))
+| where mvcount(extra_scopes)>0
+| table client_id, scope, approved_scopes, extra_scopes
+```
+- **Implementation:** Export delegated/app role assignments from Graph weekly. Join with approved baseline. Alert on new sensitive scopes (`Mail.ReadWrite`, `Directory.ReadWrite.All`).
+- **Visualization:** Table (scope drift), Bar chart (apps with extra scopes), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.3.16 · Token Endpoint Rate Limiting
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Security
+- **Value:** Throttling at `/oauth2/token` breaks integrations and may indicate credential stuffing or runaway automation.
+- **App/TA:** API gateway / WAF logs, Entra `SignInLogs` with error codes, custom HEC from reverse proxy
+- **Data Sources:** HTTP 429, `AADSTS50196` / `invalid_client` bursts, `rateLimit` in response headers
+- **SPL:**
+```spl
+index=proxy sourcetype="access_combined" uri_path="/oauth2/v2.0/token"
+| search status=429 OR like(_raw,"%rate limit%")
+| bin _time span=5m
+| stats count by client_id, _time
+| where count > 100
+| sort -count
+```
+- **Implementation:** Log token endpoint from AAD Application Proxy or API Management. Alert on 429 spikes per client_id. Implement exponential backoff in callers.
+- **Visualization:** Line chart (429 rate), Table (top clients), Single value (throttled requests/hour).
+- **CIM Models:** N/A
 
 ---
 
@@ -1037,3 +1616,459 @@ index=ad_perf sourcetype="ad:dc_probe"
 
 ---
 
+### UC-9.4.14 · CyberArk Session Recording Alerts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Real-time alerts on PSM recordings—policy violations, blocked commands, or session anomalies—enable SOC response before logout.
+- **App/TA:** Splunk TA for CyberArk
+- **Data Sources:** PSM recording events, policy violation syslog from PSM
+- **SPL:**
+```spl
+index=pam sourcetype="cyberark:psm" OR sourcetype="cyberark:psm_alert"
+| search alert_level IN ("High","Critical") OR policy_violation="true"
+| table _time, user, target_account, session_id, alert_reason
+| sort -_time
+```
+- **Implementation:** Forward PSM alert stream to Splunk. Map vendor severity to SOC tiers. Integrate with SOAR for session kill on critical patterns.
+- **Visualization:** Timeline (alerts), Table (session detail), Single value (critical alerts 24h).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.15 · Privileged Session Duration Anomalies
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Sessions far longer than peer baseline may indicate data exfiltration or abandoned hijacked sessions.
+- **App/TA:** CyberArk / BeyondTrust session logs
+- **Data Sources:** PAM session start/end with duration
+- **SPL:**
+```spl
+index=pam sourcetype="cyberark:session"
+| eval dur_min=duration_sec/60
+| eventstats median(dur_min) as med by target_account
+| where dur_min > med*3 AND dur_min > 60
+| table _time, user, target_account, dur_min, med
+```
+- **Implementation:** Baseline duration per target system type. Exclude known maintenance windows via lookup. Pair with UC-9.4.1 audit trail.
+- **Visualization:** Table (long sessions), Box plot (duration by target), Line chart (max duration trend).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.16 · Vault Synchronization Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Vault replication or DR sync failures risk split-brain or stale credentials; distinct from generic component health.
+- **App/TA:** CyberArk Vault DR logs, vendor HA APIs
+- **Data Sources:** `VaultReplication`, `DR` sync job status, cluster replication lag metrics
+- **SPL:**
+```spl
+index=pam sourcetype="cyberark:vault_replication"
+| where status!="Success" OR lag_seconds > 120
+| stats latest(_time) as last_evt, values(error) as errs by primary_vault, dr_vault
+| table primary_vault, dr_vault, lag_seconds, errs
+```
+- **Implementation:** Ingest replication job results every minute. Alert on lag > policy (e.g., 2 minutes) or failed sync. Page vault admins for DR sites.
+- **Visualization:** Line chart (lag), Table (failed jobs), Status grid (primary × DR).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.4.17 · Just-in-Time Access Request Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Analytics on JIT volume, self-approval, and after-hours patterns complements simple volume alerts (UC-9.4.10).
+- **App/TA:** PAM JIT / Entra PIM logs
+- **Data Sources:** Request ID, requester, approver, time-to-approve, business justification field
+- **SPL:**
+```spl
+index=pam sourcetype="jit:requests"
+| eval same_approver=if(requester=approver,1,0)
+| eval after_hours=if(hour(_time) < 6 OR hour(_time) > 22,1,0)
+| stats count, sum(same_approver) as self_approvals, sum(after_hours) as off_hours by requester
+| where self_approvals > 0 OR off_hours > 5
+| sort -count
+```
+- **Implementation:** Require justification text; alert on empty justification with approval. Report monthly JIT metrics to IAM governance.
+- **Visualization:** Table (risky patterns), Bar chart (self-approvals), Heatmap (hour × requester).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.18 · Emergency Break-Glass Account Usage
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Real-time paging for emergency-only vault accounts beyond standard break-glass (UC-9.4.3)—includes usage from non-SOC networks.
+- **App/TA:** Splunk TA for CyberArk, AD Security logs
+- **Data Sources:** PAM checkout for accounts tagged `emergency_only`, 4624 for same sAMAccountName
+- **SPL:**
+```spl
+index=pam sourcetype="cyberark:vault" account_tag="emergency_only"
+| lookup soc_networks subnet OUTPUT network_name
+| where isnull(network_name)
+| table _time, user, account, client_ip, action
+| sort -_time
+```
+- **Implementation:** Define emergency accounts in PAM and AD. Alert on any checkout or interactive logon; require post-incident report within SLA. Correlate with major incident tickets.
+- **Visualization:** Timeline (emergency usage), Table (detail), Single value (events outside SOC net).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.19 · Shared Account Concurrent Login Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Shared privileged accounts used from two locations simultaneously indicate credential sharing or theft.
+- **App/TA:** PAM session logs, bastion logs
+- **Data Sources:** Session start with same `target_account` and overlapping time ranges
+- **SPL:**
+```spl
+index=pam sourcetype="cyberark:session"
+| eval end_time=_time+duration_sec
+| sort target_account, _time
+| streamstats window=2 current(src_ip) as ip1 next(src_ip) as ip2 current(_time) as t1 next(_time) as t2 by target_account
+| where ip1!=ip2 AND t2 < end_time
+| table target_account, ip1, ip2, t1, t2
+```
+- **Implementation:** Tune for load-balanced egress using known NAT pools. Prefer per-user vaulted accounts to eliminate shared IDs.
+- **Visualization:** Table (concurrent sessions), Timeline, Bar chart (accounts with overlap events).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.4.20 · PAM Agent Health Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** CPM, PSM, and PVWA agents offline block rotation and session capture; distinct from vault binary health (UC-9.4.6).
+- **App/TA:** CyberArk component monitoring, SNMP/HEARTBEAT logs
+- **Data Sources:** Agent heartbeat, service status, `Get-PMPServerHealth`-style scripted input
+- **SPL:**
+```spl
+index=pam sourcetype="cyberark:agent_heartbeat"
+| stats latest(_time) as last_hb by agent_type, hostname
+| eval secs_since=now()-last_hb
+| where secs_since > 300
+| table agent_type, hostname, secs_since
+```
+- **Implementation:** Agents send heartbeat every 60s. Alert if no heartbeat >5 minutes. Auto-ticket remediation for PSM in production zones.
+- **Visualization:** Status grid (agent × host), Single value (unhealthy agents), Line chart (heartbeat age).
+- **CIM Models:** N/A
+
+---
+
+### 9.5 Cloud Identity Providers — Okta & Duo
+
+**Primary App/TA:** Splunk Add-on for Okta (`Splunk_TA_okta`), Cisco Duo TA (Splunk Add-on for Cisco Duo / Duo Authentication Proxy logs), optional Splunk Connect for Cisco Security Cloud for unified Duo telemetry.
+
+---
+
+### UC-9.5.1 · Okta Authentication Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Spikes in failed logins reveal credential attacks, misconfigured apps, or lockout conditions before accounts are fully compromised.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`user.authentication.sso`, `user.authentication.auth_via_*`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" outcome.result="FAILURE"
+| bin _time span=15m
+| stats count by actor.alternateId, client.ipAddress, _time
+| where count > 5
+| sort -count
+```
+- **Implementation:** Ingest Okta System Log via the TA. Normalize `outcome.result` and actor fields. Baseline failures per user and IP; alert on threshold breaches and on impossible concurrent sources. Correlate with Duo denials if both are present.
+- **Visualization:** Table (user, IP, failure count), Line chart (failures over time), Bar chart (top source IPs).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.5.2 · Okta MFA Bypass Attempts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Attempts to skip or weaken MFA (policy gaps, risky grant flows) are a direct path to account takeover; monitoring policy evaluation outcomes closes that gap.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`policy.evaluate_sign_on`, `user.authentication`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" eventType="policy.evaluate_sign_on"
+| where outcome.reason IN ("MFA_NOT_ENROLLED","FACTOR_NOT_USED","NONE")
+| stats count by actor.alternateId, client.ipAddress, outcome.reason
+| where count > 0
+```
+- **Implementation:** Track sign-on policy evaluations where MFA was not satisfied or only password was used. Tune to your org’s allowed “password-only” apps and break-glass accounts. Alert on unexpected ALLOW without MFA for protected apps. Review `policy.evaluate_sign_on` with `outcome.result` and debug fields.
+- **Visualization:** Table (user, IP, reason), Timeline of policy events, Single value (bypass events per hour).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.5.3 · Okta Suspicious Sign-In Activity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Okta threat signals and anomalous sessions (new device, new country, Tor) surface account takeovers before lateral movement.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`security.threat.detected`, `user.session.start`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" (eventType="security.threat.detected" OR severity="WARN")
+| stats count by actor.alternateId, client.ipAddress, outcome.result, displayMessage
+| where count > 0
+| sort -count
+```
+- **Implementation:** Forward full threat and session events. Map `severity`, `outcome`, and Okta risk context. Create alerts for `security.threat.detected` and for sessions with risk scores above your baseline. Integrate with SOAR for step-up auth.
+- **Visualization:** Table (user, IP, message), Map (sign-in geo), Line chart (threat events per day).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.5.4 · Okta Admin Console Changes
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Changes in the admin console affect global security posture; auditing who changed what supports SOC2/ISO investigations and insider-threat programs.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`system.*`, `user.session.access_admin_app`, `resource.*`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" (eventType="user.session.access_admin_app" OR like(eventType,"system.org%"))
+| stats count by actor.alternateId, eventType, client.ipAddress, displayMessage
+| sort -count
+```
+- **Implementation:** Capture all admin app sessions and high-privilege system events. Restrict alerts to production Okta orgs; exclude known automation actors. Store lookups for approved admins and compare. Alert on first-time admin access from new ASN or country.
+- **Visualization:** Timeline (admin actions), Table (actor, event, IP), Bar chart (events by admin user).
+- **CIM Models:** Change
+
+---
+
+### UC-9.5.5 · Okta Policy Modifications
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Sign-on, MFA, and password policy edits can weaken security org-wide; detecting unauthorized or out-of-window changes is essential for governance.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`policy.*`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log"
+| where like(eventType,"policy.lifecycle%") OR like(eventType,"policy.rule%")
+| stats count by actor.alternateId, eventType, target{}.displayName
+| sort -count
+```
+- **Implementation:** Ingest policy lifecycle and rule events. Correlate with change tickets. Alert on any policy change outside maintenance windows or from non-admin service accounts. Snapshot policy names in a lookup for critical resources.
+- **Visualization:** Table (policy, actor, target), Timeline (policy changes), Single value (changes in last 24h).
+- **CIM Models:** Change
+
+---
+
+### UC-9.5.6 · Okta New Admin Creation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** New super-admin or role assignments are high-value targets for attackers; immediate notification enables rapid validation.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`user.privilege.grant`, `group.privilege*`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log"
+| where eventType="user.privilege.grant" OR like(eventType,"group.privilege%")
+| eval tgt=lower(mvjoin('target{}.displayName'," "))
+| where like(tgt,"%admin%") OR like(tgt,"%super%")
+| table _time, actor.alternateId, target{}.displayName, target{}.type
+```
+- **Implementation:** Parse `target` for admin roles and groups. Use lookups for approved role-assignment paths. Alert on any new admin grant or role elevation. Include `actor` and `client.ipAddress` for triage.
+- **Visualization:** Table (who, what role, when), Timeline, Single value (admin grants today).
+- **CIM Models:** Change
+
+---
+
+### UC-9.5.7 · Duo Authentication Denials
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Denied logins (fraud, policy, or lockout) indicate attacks or misconfigurations; volume and user patterns guide response.
+- **App/TA:** Cisco Duo TA
+- **Data Sources:** `sourcetype=duo:authentication`
+- **SPL:**
+```spl
+index=duo sourcetype="duo:authentication" result="deny"
+| bin _time span=1h
+| stats count by user, ip, application
+| where count > 10
+| sort -count
+```
+- **Implementation:** Ingest Duo Authentication API or proxy logs with the TA. Map `result`, `reason`, `factor`, and `application`. Baseline per-user and global deny rates. Alert on spikes and on denies from many IPs for one user.
+- **Visualization:** Table (user, IP, count), Line chart (denials over time), Bar chart (denials by application).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.5.8 · Duo Device Trust Posture
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Non-compliant or out-of-date devices that still attempt access signal policy gaps and endpoint risk exposure.
+- **App/TA:** Cisco Duo TA
+- **Data Sources:** `sourcetype=duo:authentication`, `sourcetype=duo:telephony` (device trust), Duo admin logs
+- **SPL:**
+```spl
+index=duo sourcetype="duo:authentication"
+| where device_trust_level!="trusted" OR like(lower(_raw),"%unmanaged%")
+| stats count by user, device, device_trust_level, application
+| where count > 0
+| sort -count
+```
+- **Implementation:** Ensure device fields (OS, encryption, posture) are extracted from Duo or endpoint telemetry. Alert on repeated access from untrusted posture or when trust level changes. Pair with Duo Device Trust policies.
+- **Visualization:** Table (user, device, trust level), Pie chart (trusted vs untrusted attempts), Line chart (untrusted attempts over time).
+- **CIM Models:** Endpoint
+
+---
+
+### UC-9.5.9 · Duo Enrollment Anomalies
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Sudden bulk enrollments or enrollments from unusual locations can indicate attacker-driven device registration or help-desk abuse.
+- **App/TA:** Cisco Duo TA
+- **Data Sources:** `sourcetype=duo:admin`, `sourcetype=duo:authentication` (enrollment events)
+- **SPL:**
+```spl
+index=duo sourcetype="duo:admin" event_type="enrollment"
+| bin _time span=15m
+| stats dc(user) as new_users by _time
+| where new_users > 20
+```
+- **Implementation:** Ingest Duo admin enrollment events. Baseline enrollment rate per hour per location. Alert on spikes and on enrollments outside business hours. Correlate with HR onboarding feeds when available.
+- **Visualization:** Line chart (enrollments per hour), Table (spike windows), Bar chart (enrollments by integration).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.5.10 · Federated SSO Token Abuse
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Excessive OAuth/OIDC grants, refresh-token reuse, or token minting from new clients can indicate session theft or malicious automation.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`app.oauth2.*`, `app.oauth2.token.*`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
+| stats count by actor.alternateId, client.ipAddress
+| where count > 100
+| sort -count
+```
+- **Implementation:** Track token grants per user per IP and client. Use `transaction` or `streamstats` to detect rapid grants. Alert on unusual client IDs or scopes. Correlate with OAuth abuse detections from IdP.
+- **Visualization:** Table (user, IP, grant count), Line chart (grants per minute), Bar chart (token grants by client).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.5.11 · Impossible Travel Detection (Okta)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Two successful sessions from geolocations that cannot be reached in the elapsed time indicate credential theft or shared accounts.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`user.session.start`, `user.authentication.sso`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" outcome.result="SUCCESS" eventType="user.authentication.sso"
+| sort 0 actor.alternateId _time
+| streamstats window=1 last(client.geographicalContext.country) as prev_country last(_time) as prev_time last(client.ipAddress) as prev_ip current(client.geographicalContext.country) as country by actor.alternateId
+| eval delta_sec=_time-prev_time
+| where delta_sec > 0 AND delta_sec < 3600 AND country!=prev_country AND isnotnull(prev_country)
+| table _time, actor.alternateId, prev_country, country, delta_sec, prev_ip, client.ipAddress
+```
+- **Implementation:** Use Okta geo fields (or enrich IP with `iplocation`). Tune minimum distance and maximum time windows. Exclude VPN and satellite egress via ASN lookups. Combine with Okta’s built-in impossible travel if licensed.
+- **Visualization:** Table (user, country A → B, delta), Map (sequential points), Single value (impossible travel count per day).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.5.12 · Okta API Rate Limit Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Availability
+- **Value:** Hitting rate limits breaks automation, integrations, and provisioning; trending usage prevents surprise throttling during peak loads.
+- **App/TA:** `Splunk_TA_okta`, custom HEC ingestion of API responses
+- **Data Sources:** `sourcetype=OktaIM2:log` (`system.*rate*`), API response headers ingested via scripted input
+- **SPL:**
+```spl
+index=okta (sourcetype="okta:api" OR sourcetype="OktaIM2:log")
+| search http_status=429 OR like(lower(_raw),"%rate limit%")
+| stats count by client_id, endpoint, http_status
+| where count > 0
+| sort -count
+```
+- **Implementation:** Log API calls from integrations with `X-Rate-Limit-*` headers or ingest Okta rate-limit system events. Alert on HTTP 429 or sustained high utilization. Work with app owners to add backoff and caching.
+- **Visualization:** Line chart (429s over time), Table (client, endpoint), Gauge (rate limit remaining %).
+- **CIM Models:** N/A
+
+---
+
+### UC-9.5.13 · Okta App Assignment Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** New access to sensitive SaaS apps is a common attack path; monitoring assignments supports least-privilege and access reviews.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`application.user_membership.*`, `group.user_membership.*`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log" (eventType="application.user_membership.add" OR eventType="group.user_membership.add")
+| stats count by actor.alternateId, target{}.displayName, target{}.type
+| sort -_time
+```
+- **Implementation:** Capture adds/removes for apps and groups tied to apps. Use lookups for crown-jewel applications. Alert on assignment to privileged groups. Include `actor` for service-account vs human.
+- **Visualization:** Table (app, user, actor), Timeline (assignments), Bar chart (assignments by app).
+- **CIM Models:** Change
+
+---
+
+### UC-9.5.14 · Duo Push Fraud Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Push bombing and fraudulent approve taps are common MFA bypass techniques; correlating push volume and user behavior stops approval fatigue attacks.
+- **App/TA:** Cisco Duo TA
+- **Data Sources:** `sourcetype=duo:authentication`
+- **SPL:**
+```spl
+index=duo sourcetype="duo:authentication" factor="push"
+| bin _time span=5m
+| stats count by user, _time
+| where count > 5
+| sort -count
+```
+- **Implementation:** Track push attempts per user per short window. Alert on high-frequency pushes (fatigue) or pushes with `result="fraud"` or Duo fraud reasons. Integrate with Duo Risk-Based Authentication. Pair with Okta MFA events for dual IdP visibility.
+- **Visualization:** Table (user, push count in window), Line chart (pushes per user), Timeline (fraud-marked events).
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.5.15 · Okta User Lifecycle Events (Provisioning / Deprovisioning)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Orphaned accounts, failed deprovisions, and unexpected creates drive audit findings and residual access after employee exit.
+- **App/TA:** `Splunk_TA_okta`
+- **Data Sources:** `sourcetype=OktaIM2:log` (`user.lifecycle.*`, `user.account.*`)
+- **SPL:**
+```spl
+index=okta sourcetype="OktaIM2:log"
+| where like(eventType,"user.lifecycle%")
+| stats count by actor.alternateId, eventType, target{}.displayName
+| sort -_time
+```
+- **Implementation:** Align event types with HRIS-driven lifecycle (create, activate, deactivate). Alert on deactivations that fail or retry, and on manual creates outside HR correlation. Feed summaries to access reviews.
+- **Visualization:** Table (event, target user, actor), Line chart (lifecycle events per day), Bar chart (events by type).
+- **CIM Models:** Change

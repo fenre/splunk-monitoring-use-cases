@@ -304,6 +304,287 @@ index=nac sourcetype="radius:accounting"
 
 ---
 
+### UC-17.1.11 · Posture Assessment Failure Trends
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.
+- **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE 3515–3695, ISE Virtual Appliance
+- **Data Sources:** ISE posture assessment logs (`cisco:ise:posture`)
+- **SPL:**
+```spl
+index=nac sourcetype="cisco:ise:posture" earliest=-30d
+| where posture_status="NonCompliant"
+| timechart span=1d count by failure_reason
+```
+- **Implementation:** Normalize `failure_reason` from ISE. Alert when daily failures exceed 7-day baseline by >50%. Segment by AD group or location if extracted.
+- **Visualization:** Line chart (failures over time by reason), Stacked area (failures by policy), Single value (failures vs prior week).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.src span=1d
+```
+
+---
+
+### UC-17.1.12 · Rogue Device Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.
+- **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE, switch/WLC syslog
+- **Data Sources:** ISE authentication logs, profiling
+- **SPL:**
+```spl
+index=nac sourcetype="cisco:ise:auth" earliest=-24h
+| eval mac=upper(replace(endpoint_mac,":","-"))
+| lookup corp_device_inventory.csv mac OUTPUT asset_tag
+| where isnull(asset_tag) AND match(auth_status,"(?i)success|pass")
+| stats count by mac, switch, location
+| where count>=3
+| sort -count
+```
+- **Implementation:** Maintain `corp_device_inventory.csv` from MDM/CMDB (MAC, owner). Tune minimum event count to reduce noise. Correlate with port-security and DHCP snooping if available.
+- **Visualization:** Table (unknown MACs), Bar chart (rogue events by site), Timeline (first seen).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.src span=1h
+| where count > 20
+```
+
+---
+
+### UC-17.1.13 · 802.1X Authentication Failure Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Security
+- **Value:** Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants.
+- **App/TA:** Splunk_TA_cisco-ise, RADIUS TA
+- **Equipment Models:** Cisco ISE, switches, WLCs
+- **Data Sources:** `cisco:ise:auth`, `radius:auth`
+- **SPL:**
+```spl
+index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth") earliest=-7d
+| search "802.1X" OR auth_method="EAP*" OR eap_method=*
+| where match(lower(message),"(?i)fail|reject|denied")
+| stats count by eap_method, failure_reason, nas_ip
+| sort -count
+| head 30
+```
+- **Implementation:** Extract `eap_method`, `failure_reason`, and `nas_ip` per your TA. Alert on spikes in a single failure bucket (e.g., TLS cert errors). Compare before/after cert updates.
+- **Visualization:** Bar chart (failures by EAP method), Table (top NAS + reason), Line chart (daily failure rate).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.dest Authentication.src span=1h
+| where count > 10
+```
+
+---
+
+### UC-17.1.14 · Guest Network Abuse Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Flags excessive concurrent guest sessions, high bandwidth, or repeated sponsor abuse — beyond simple guest usage volume (UC-17.1.4).
+- **App/TA:** Splunk_TA_cisco-ise, firewall logs
+- **Equipment Models:** Cisco ISE guest, WLC
+- **Data Sources:** `cisco:ise:guest`, NetFlow optional
+- **SPL:**
+```spl
+index=nac sourcetype="cisco:ise:guest" earliest=-24h
+| stats dc(session_id) as concurrent_sessions, sum(bytes) as total_bytes by sponsor, guest_mac
+| where concurrent_sessions>5 OR total_bytes>10737418240
+| eval total_gb=round(total_bytes/1073741824,2)
+| table sponsor, guest_mac, concurrent_sessions, total_gb
+| sort -total_gb
+```
+- **Implementation:** Map `bytes` from ISE or join firewall `src_ip` for guest VLAN. Thresholds per org. Alert on sponsor accounts with many parallel guests.
+- **Visualization:** Table (abuse candidates), Bar chart (bytes by sponsor), Single value (guests over threshold).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user span=1h
+| where count > 100
+```
+
+---
+
+### UC-17.1.15 · RADIUS Accounting NAS vs Session-ID Reconciliation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Value:** Complements UC-17.1.10 by flagging duplicate session IDs or mismatched NAS-IP between Start/Interim/Stop for the same `Acct-Session-Id` — catching replication and proxy issues.
+- **App/TA:** RADIUS accounting TA
+- **Equipment Models:** Cisco ISE, NPS, FreeRADIUS
+- **Data Sources:** `sourcetype=radius:accounting`
+- **SPL:**
+```spl
+index=nac sourcetype="radius:accounting" earliest=-24h
+| rex field=_raw "Acct-Session-Id=(?<session_id>[^\s]+)"
+| rex field=_raw "NAS-IP-Address=(?<nas>[^\s]+)"
+| stats dc(nas) as nas_dc values(nas) as nas_list by session_id
+| where nas_dc>1
+| table session_id, nas_list
+```
+- **Implementation:** A given RADIUS session should map to one NAS-IP unless mobility events are logged; multiple NAS for one session ID often indicates misconfiguration or log duplication.
+- **Visualization:** Table (conflicting sessions), Single value (conflict count).
+- **CIM Models:** Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.dest span=1h
+| where count > 50
+```
+
+---
+
+### UC-17.1.16 · MAC Authentication Bypass Anomaly Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Complements UC-17.1.6 whitelist checks with **volume and velocity** anomalies (sudden MAB spikes per port or site) that may indicate MAC spoofing or policy gaps.
+- **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE, access switches
+- **Data Sources:** `cisco:ise:auth` with MAB
+- **SPL:**
+```spl
+index=nac sourcetype="cisco:ise:auth" auth_method="MAB" earliest=-7d
+| bin _time span=1h
+| stats count by _time, switch, port
+| eventstats avg(count) as baseline by switch
+| where count > baseline*3 AND count>10
+| sort -count
+```
+- **Implementation:** Baseline MAB events per switch/port; alert on spikes. Join UC-17.1.6 for unknown MAC focus.
+- **Visualization:** Line chart (MAB rate per switch), Table (spike events), Heatmap (port × hour).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.dest span=1h
+| where count > 500
+```
+
+---
+
+### UC-17.1.17 · Network Quarantine Effectiveness
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures how often quarantined endpoints reach compliant state (successful remediation vs repeat quarantine) — effectiveness of NAC remediation workflows.
+- **App/TA:** Splunk_TA_cisco-ise, `nac:quarantine`
+- **Equipment Models:** Cisco ISE, NAC vendors
+- **Data Sources:** Quarantine assign/release, posture re-check
+- **SPL:**
+```spl
+index=nac sourcetype="nac:quarantine" earliest=-30d
+| eval released=if(match(lower(status),"(?i)released|cleared"),1,0)
+| stats count as events, sum(released) as releases by endpoint_mac
+| eval success_ratio=round(100*releases/events,1)
+| where events>3 AND success_ratio < 40
+| table endpoint_mac, events, releases, success_ratio
+```
+- **Implementation:** Map vendor status fields. Track repeat quarantines for same MAC within 7 days as “ineffective.” Feed to desktop engineering.
+- **Visualization:** Table (low effectiveness MACs), Bar chart (success ratio by violation type), Line chart (fleet success ratio).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.1.18 · NAC Policy Compliance Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Daily percentage of authentications that receive “permit” vs “deny” vs “redirect” per authorization policy — trending for policy drift and rollout validation.
+- **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE
+- **Data Sources:** `cisco:ise:auth`
+- **SPL:**
+```spl
+index=nac sourcetype="cisco:ise:auth" earliest=-30d
+| eval outcome=case(match(lower(authorization_result),"(?i)permit|access.accept"),"permit", match(lower(authorization_result),"(?i)deny|reject"),"deny", true(),"other")
+| timechart span=1d count by outcome
+```
+- **Implementation:** Normalize `authorization_result` from your ISE field set. Alert when `deny` share increases >2× baseline week-over-week.
+- **Visualization:** Stacked area (outcomes over time), Line chart (deny rate), Single value (deny % today).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.action span=1d
+```
+
+---
+
+### UC-17.1.19 · Endpoint Compliance Scoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Composite score per endpoint from posture checks (AV, patch, encryption) for executive dashboards and exception reporting.
+- **App/TA:** Splunk_TA_cisco-ise
+- **Equipment Models:** Cisco ISE
+- **Data Sources:** `cisco:ise:posture`
+- **SPL:**
+```spl
+index=nac sourcetype="cisco:ise:posture" earliest=-4h
+| eval check_pass=if(match(lower(posture_status),"(?i)compliant"),1,0)
+| stats avg(check_pass) as score by endpoint_mac
+| eval compliance_pct=round(score*100,1)
+| where compliance_pct < 80
+| sort compliance_pct
+| head 100
+```
+- **Implementation:** For multi-check rows per MAC, use `latest` per check name then average. Weight critical checks in `eval` if needed.
+- **Visualization:** Table (lowest-scoring endpoints), Histogram (score distribution), Gauge (fleet average score).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.src span=1d
+```
+
+---
+
+### UC-17.1.20 · Quarantine Release Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Audit trail of who released endpoints from quarantine and whether release matched policy (e.g., IT-only, ticket required).
+- **App/TA:** Splunk_TA_cisco-ise, `nac:quarantine`
+- **Equipment Models:** Cisco ISE
+- **Data Sources:** Admin audit + quarantine logs
+- **SPL:**
+```spl
+index=nac (sourcetype="nac:quarantine" OR sourcetype="cisco:ise:admin")
+| search "quarantine" AND (released OR "cleared" OR "unquarantine")
+| table _time, admin_user, endpoint_mac, action, ticket_id
+| sort -_time
+```
+- **Implementation:** Map `ticket_id` from workflow; alert when `isnull(ticket_id)` and action is manual release. Join ServiceNow for approved changes.
+- **Visualization:** Table (release audit), Timeline (releases), Bar chart (releases by admin).
+- **CIM Models:** N/A
+
+---
+
 ### 17.2 VPN & Remote Access
 
 **Primary App/TA:** Cisco ASA/AnyConnect TA, Palo Alto GlobalProtect TA, vendor syslog.
@@ -611,6 +892,311 @@ index=certs (sourcetype="cert:inventory" OR sourcetype="istio:cert" OR sourcetyp
 
 ---
 
+### UC-17.2.11 · Split Tunnel Violation Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Flags sessions where observed routing or client flags indicate split tunnel when group policy mandates full tunnel — complements UC-17.2.4/17.2.9 with explicit **violation** logic.
+- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto
+- **Equipment Models:** Cisco ASA/AnyConnect, GlobalProtect
+- **Data Sources:** VPN connect logs with `tunnel_type`, `split_include`, `default_gateway`
+- **SPL:**
+```spl
+index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="session_connect"
+| lookup vpn_policy_requirements.csv group_policy OUTPUT required_tunnel
+| eval violation=if(required_tunnel="full" AND (tunnel_type="split" OR match(lower(_raw),"(?i)split.?tunnel")),1,0)
+| where violation=1
+| stats count by user, group_policy, src_ip
+| sort -count
+```
+- **Implementation:** Align lookup with security architecture. Some vendors expose only group name — normalize in transforms.
+- **Visualization:** Table (violations), Bar chart (violations by group policy), Single value (violation sessions / day).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user span=1h
+| where count > 100
+```
+
+---
+
+### UC-17.2.12 · VPN Concentrator Capacity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Tracks session count and CPU/memory against platform limits to avoid remote-access brownouts during peaks.
+- **App/TA:** Splunk_TA_cisco-asa, SNMP TA
+- **Equipment Models:** ASA, FTD, Palo Alto GlobalProtect
+- **Data Sources:** SNMP OIDs, `cisco:asa` system events, vendor metrics API
+- **SPL:**
+```spl
+index=snmp sourcetype="snmp:cpu" host="vpn-headend-*" earliest=-24h
+| timechart span=15m avg(cpu_utilization) as avg_cpu by host
+```
+- **Implementation:** Prefer vendor metrics (e.g., AnyConnect session count OID). Alert when CPU >80% sustained or sessions >85% of license. Simplify if only session logs: use UC-17.2.1 trend + license field.
+- **Visualization:** Line chart (CPU vs sessions), Gauge (capacity %), Table (headends).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.2.13 · Concurrent VPN Session Limits
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Security
+- **Value:** Alerts when simultaneous sessions approach licensed or configured caps — same user or aggregate.
+- **App/TA:** Splunk_TA_cisco-asa
+- **Equipment Models:** Cisco ASA
+- **Data Sources:** `cisco:asa` session events
+- **SPL:**
+```spl
+index=vpn sourcetype="cisco:asa" earliest=-4h
+| where action="session_connect" OR action="session_disconnect"
+| eval delta=if(action="session_connect",1,-1)
+| sort 0 _time
+| streamstats global=f sum(delta) as concurrent by host
+| where concurrent > 0
+| stats max(concurrent) as peak_concurrent by host
+| lookup vpn_license_limits.csv host OUTPUT max_sessions
+| where peak_concurrent > max_sessions*0.85
+```
+- **Implementation:** If connect/disconnect deltas are incomplete, use vendor “show vpn-sessiondb summary” scripted input for authoritative count. Tune `max_sessions` from license CSV.
+- **Visualization:** Single value (peak vs cap %), Line chart (concurrent sessions), Table (headends near limit).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.2.14 · Geo-Impossible VPN Connections
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Detects logins from two distant countries faster than plausible travel — complements static geo allowlists (UC-17.2.3).
+- **App/TA:** VPN TA, GeoIP
+- **Equipment Models:** Cisco ASA, GlobalProtect
+- **Data Sources:** VPN session connect with `src_ip`, `user`
+- **SPL:**
+```spl
+index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
+| iplocation src_ip
+| eval country=Country
+| sort user _time
+| streamstats current=f last(_time) as prev_time last(Country) as prev_country by user
+| eval gap_hrs=round((_time-prev_time)/3600,2)
+| where isnotnull(prev_country) AND country!=prev_country AND gap_hrs < 6
+| table _time, user, prev_country, country, gap_hrs, src_ip
+```
+- **Implementation:** Tune time window (e.g., 4–8h) and distance (optional `haversine` if lat/long from enriched data). Whitelist mobile users and split tunnel carrier NAT.
+- **Visualization:** Table (impossible travel), Map (prev vs new), Single value (alerts / day).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.src span=1h
+| where count > 5
+```
+
+---
+
+### UC-17.2.15 · VPN Tunnel Keepalive Failure Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.
+- **App/TA:** Splunk_TA_cisco-asa, Palo Alto
+- **Equipment Models:** ASA, Palo Alto IPsec
+- **Data Sources:** VPN/IKE syslog (`cisco:asa`, `pan:system`)
+- **SPL:**
+```spl
+index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-24h
+| search "IKE" OR "keepalive" OR "DPD" OR "dead peer"
+| stats count by tunnel_id, peer_ip, message_signature
+| sort -count
+| head 40
+```
+- **Implementation:** Normalize `message_signature` with `rex` or `cluster` on raw. Correlate with UC-17.2.5 stability metrics.
+- **Visualization:** Bar chart (failures by peer), Table (top messages), Line chart (failure rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.2.16 · Remote Desktop Gateway Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers.
+- **App/TA:** Windows TA, IIS TA
+- **Equipment Models:** Windows Server RD Gateway
+- **Data Sources:** `sourcetype=ms:iis`, `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`
+- **SPL:**
+```spl
+index=windows sourcetype="WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational" earliest=-24h
+| where EventCode IN (200,201,300,302)
+| eval outcome=if(EventCode IN (200,201),"success","failure")
+| timechart span=15m count by outcome
+```
+- **Implementation:** Map Event IDs per OS version. Alert when failure ratio >10% over 1h. Add IIS logs for HTTP 503/502.
+- **Visualization:** Line chart (success vs failure), Single value (failure %), Table (recent errors).
+- **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.dest span=1h
+| where count > 5
+```
+
+---
+
+### UC-17.2.17 · VPN Client Version Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Reports AnyConnect/GlobalProtect client versions against minimum supported builds.
+- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto
+- **Equipment Models:** ASA, GP portal
+- **Data Sources:** VPN session logs with `client_version`
+- **SPL:**
+```spl
+index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="session_connect" earliest=-24h
+| eval major_minor=replace(client_version,"^(\d+\.\d+).*","\1")
+| lookup vpn_min_client.csv platform OUTPUT min_version
+| eval compliant=if(major_minor>=min_version,1,0)
+| where compliant=0
+| stats count by user, client_version, platform
+| sort -count
+```
+- **Implementation:** Use `ver` normalisation or `version` field if numeric. Block or warn via posture integration.
+- **Visualization:** Pie chart (compliant vs not), Table (outdated clients), Bar chart (by version).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user span=1d
+```
+
+---
+
+### UC-17.2.18 · Site-to-Site Tunnel Flapping
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Counts IKE/IPsec up/down events per peer for unstable WAN or crypto issues.
+- **App/TA:** Splunk_TA_cisco-asa, Palo Alto
+- **Equipment Models:** Firewalls, routers
+- **Data Sources:** VPN syslog tunnel events
+- **SPL:**
+```spl
+index=vpn sourcetype="cisco:asa" earliest=-24h
+| search "Tunnel is UP" OR "Tunnel is DOWN" OR "IPSEC.*DOWN"
+| eval peer=coalesce(peer_ip, tunnel_group)
+| stats count by peer
+| where count>10
+| sort -count
+```
+- **Implementation:** Vendor message strings vary — maintain `rex` extractions in props. Alert when transitions >N per hour per peer.
+- **Visualization:** Line chart (transitions over time), Table (worst peers), Single value (flapping peers).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.2.19 · Always-On VPN Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Identifies corporate assets connecting without Always-On (pre-login) VPN when policy requires it.
+- **App/TA:** Splunk_TA_cisco-asa, endpoint inventory
+- **Equipment Models:** AnyConnect with Always-On
+- **Data Sources:** VPN logs with `always_on` flag, MDM compliance
+- **SPL:**
+```spl
+index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
+| eval aov=if(match(lower(_raw),"(?i)always.?on|pre.?login"),1,0)
+| lookup corp_laptops.csv hostname OUTPUT requires_aov
+| where requires_aov=1 AND aov=0
+| stats count by user, hostname, src_ip
+```
+- **Implementation:** Prefer explicit field from ASA if available. Join MDM “managed device” list for `requires_aov`.
+- **Visualization:** Table (non-compliant hosts), Bar chart (violations by OU), Single value (violation count).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.2.20 · VPN Bandwidth Utilization Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Capacity
+- **Value:** Time-series bandwidth per headend and user cohort — complements UC-17.2.7 top talkers with **trend** and **gateway** dimension.
+- **App/TA:** Splunk_TA_cisco-asa, NetFlow
+- **Equipment Models:** ASA, routers
+- **Data Sources:** VPN accounting, NetFlow from VPN interface
+- **SPL:**
+```spl
+index=vpn sourcetype="cisco:asa" earliest=-7d
+| bin _time span=1h
+| stats sum(bytes_in) as in_b, sum(bytes_out) as out_b by _time, host
+| eval gbps=round((in_b+out_b)*8/3600/1000000000,3)
+| timechart span=1h avg(gbps) by host
+```
+- **Implementation:** If bytes not in syslog, use SNMP interface counters or NetFlow `exporter=VPN`. Alert on sustained >80% of circuit.
+- **Visualization:** Line chart (Gbps per headend), Area chart (total VPN throughput), Table (peak hour).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` sum(Network_Traffic.bytes) as bytes
+  from datamodel=Network_Traffic.Network_Traffic
+  by _time span=1h
+```
+
+---
+
+### UC-17.2.21 · SSL VPN Certificate Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Availability
+- **Value:** Tracks server certificate expiry and chain errors on SSL VPN / GlobalProtect portals from TLS handshake logs.
+- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto
+- **Equipment Models:** ASA, Palo Alto
+- **Data Sources:** SSL/TLS syslog, management logs
+- **SPL:**
+```spl
+index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-30d
+| search "certificate" AND ("expired" OR "not trusted" OR "invalid")
+| stats count by host, cert_cn, message
+| sort -count
+```
+- **Implementation:** Prefer proactive cert inventory from PKI; this search catches client-reported errors. Alert on any `expired` match on production gateways.
+- **Visualization:** Table (cert errors), Single value (error count), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-17.2.22 · Remote Session Duration Anomalies
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Statistical outliers in VPN session length — unusually short (brute probe) or long (unattended tunnel) vs UC-17.3.10 fixed thresholds.
+- **App/TA:** VPN TA
+- **Equipment Models:** Cisco ASA
+- **Data Sources:** `vpn:session` or ASA with start/end
+- **SPL:**
+```spl
+index=vpn sourcetype="vpn:session" earliest=-7d
+| eval dur_hrs=(end_time-start_time)/3600
+| eventstats median(dur_hrs) as med, stdev(dur_hrs) as sd by user
+| eval z=if(sd>0, (dur_hrs-med)/sd, 0)
+| where abs(z)>3 OR dur_hrs>48 OR dur_hrs<0.01
+| table user, dur_hrs, med, z, src_ip
+```
+- **Implementation:** Requires reliable `start_time`/`end_time`. Tune z-score or use `anomalydetection`.
+- **Visualization:** Scatter (duration vs time), Table (outliers), Histogram (duration).
+- **CIM Models:** N/A
+
+---
+
 ### 17.3 Zero Trust / SASE
 
 **Primary App/TA:** Zscaler TA, Netskope TA, Palo Alto Prisma Access TA.
@@ -885,3 +1471,336 @@ index=flows sourcetype="netflow"
 
 ---
 
+### UC-17.3.12 · Zscaler ZIA Policy Violation Trends
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** Time-series of blocked violations per URL category and rule — tunes SWG policy and spots sudden policy drift.
+- **App/TA:** Zscaler TA
+- **Data Sources:** `sourcetype=zscaler:web` or `zscaler:zia`
+- **SPL:**
+```spl
+index=proxy sourcetype="zscaler:web" earliest=-30d
+| where action="blocked" OR threat_score>0
+| timechart span=1d count by rule_name
+```
+- **Implementation:** Map `rule_name` / `policy` from ZIA. Alert when daily blocks for a rule exceed 2× 7-day average (possible mis-tuned category).
+- **Visualization:** Line chart (blocks by rule), Stacked area (categories), Table (top rules).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.Network_Traffic
+  where Network_Traffic.action=blocked
+  by Network_Traffic.url span=1d
+```
+
+---
+
+### UC-17.3.13 · ZPA Application Segment Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Tracks connector health, app segment reachability, and error rates for ZPA-published apps.
+- **App/TA:** Zscaler TA
+- **Data Sources:** `sourcetype=zscaler:zpa`, connector telemetry
+- **SPL:**
+```spl
+index=zt sourcetype="zscaler:zpa" earliest=-24h
+| where match(lower(status),"(?i)fail|error|down") OR latency_ms>2000
+| stats count by app_segment, connector_group, error_code
+| sort -count
+| head 30
+```
+- **Implementation:** Normalize `app_segment` and latency fields from your ZPA TA. Alert on connector group with >5% error rate vs prior week.
+- **Visualization:** Table (unhealthy segments), Line chart (error rate), Single value (segments in alert).
+- **CIM Models:** Authentication, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.dest span=1h
+```
+
+---
+
+### UC-17.3.14 · Cisco Umbrella DNS Block Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Top blocked domains, identities, and policy hits for DNS-layer security tuning and threat hunting.
+- **App/TA:** Cisco Umbrella TA
+- **Data Sources:** `sourcetype=umbrella:dns`
+- **SPL:**
+```spl
+index=dns sourcetype="umbrella:dns" earliest=-7d
+| where action="blocked"
+| stats count by domain, identity, categories
+| sort -count
+| head 50
+```
+- **Implementation:** Enrich with ASN or threat feed for rare domains. Alert on spike in blocks from single identity (possible compromise).
+- **Visualization:** Bar chart (top domains), Table (identity × domain), Pie chart (categories).
+- **CIM Models:** DNS
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Resolution.DNS
+  by DNS.query span=1h
+| where count > 100
+```
+
+---
+
+### UC-17.3.15 · SASE Tunnel Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Monitors IPSec/GRE/SSL tunnels from branch to SASE PoPs — packet loss, latency, and down events.
+- **App/TA:** Zscaler, Prisma, vendor syslog
+- **Data Sources:** `sourcetype=sase:tunnel`, SD-WAN to SASE
+- **SPL:**
+```spl
+index=sase sourcetype="sase:tunnel" earliest=-24h
+| eval healthy=if(match(lower(state),"(?i)up|active") AND packet_loss_pct < 2 AND latency_ms < 200,1,0)
+| where healthy=0
+| stats latest(latency_ms) as latency_ms latest(packet_loss_pct) as loss by tunnel_id, site
+| sort loss
+```
+- **Implementation:** Field names vary (Zscaler GRE, Prisma IPSec). Use unified summary index if multi-vendor.
+- **Visualization:** Table (unhealthy tunnels), Geo map (site), Line chart (loss trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.16 · Identity-Aware Proxy Access Anomalies
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.
+- **App/TA:** Google IAP, Azure AD App Proxy, ZPA
+- **Data Sources:** `sourcetype=iap:access`, `zscaler:zpa`
+- **SPL:**
+```spl
+index=zt sourcetype="zscaler:zpa" earliest=-30d
+| eval day=strftime(_time,"%Y-%m-%d")
+| stats dc(application) as apps_today by user, day
+| eventstats avg(apps_today) as baseline by user
+| where apps_today > baseline*3 AND apps_today>5
+| table user, day, apps_today, baseline
+```
+- **Implementation:** Adapt to Google IAP JSON logs. Whitelist break-glass accounts.
+- **Visualization:** Table (anomalies), Line chart (apps accessed per user), Heatmap (user × app).
+- **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.app span=1d
+```
+
+---
+
+### UC-17.3.17 · Microsegmentation Policy Effectiveness
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Ratio of expected denies vs allows for critical segments — validates that “default deny” is actually enforced.
+- **App/TA:** NSX, Illumio, Cisco Secure Workload
+- **Data Sources:** `microseg:policy`
+- **SPL:**
+```spl
+index=zt sourcetype="microseg:policy" earliest=-7d
+| eval kind=if(action="deny","deny","allow")
+| stats count as c by kind, policy_name
+| eventstats sum(c) as tot by policy_name
+| eval pct=round(100*c/tot,1)
+| where kind="deny"
+| table policy_name, pct, c
+```
+- **Implementation:** High deny % on locked-down segments is expected; unexpected **allow** spikes on deny-first policies warrant review (use companion search with `kind="allow"`).
+- **Visualization:** Bar chart (deny % by policy), Table (policy mix), Line chart (deny trend).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.Network_Traffic
+  where Network_Traffic.action=allowed
+  by Network_Traffic.dest span=1h
+```
+
+---
+
+### UC-17.3.18 · Device Trust Score Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Fleet-level and cohort trend of device trust scores — extends point-in-time UC-17.3.2.
+- **App/TA:** Zscaler, Microsoft Entra, CrowdStrike ZTNA
+- **Data Sources:** `zscaler:device_posture`, `zt:device_trust`
+- **SPL:**
+```spl
+index=zt sourcetype="zscaler:device_posture" earliest=-30d
+| timechart span=1d avg(trust_score) as avg_trust by os_type
+```
+- **Implementation:** Ensure `trust_score` is numeric 0–100. Alert when 7-day moving average drops >10 points for Windows corporate fleet.
+- **Visualization:** Line chart (avg trust by OS), Single value (fleet avg), Area chart (distribution).
+- **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.src span=1d
+```
+
+---
+
+### UC-17.3.19 · Continuous Authentication Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Tracks step-up auth, re-auth, and session risk evaluation outcomes for policies requiring continuous verification.
+- **App/TA:** Microsoft Entra ID Protection, Okta, ZPA
+- **Data Sources:** `sourcetype=azure:signin`, `okta:system`
+- **SPL:**
+```spl
+index=identity sourcetype="azure:signin" earliest=-7d
+| where risk_level!="none" OR authentication_requirement="multiFactorAuthentication"
+| stats count by user, risk_detail, result
+| sort -count
+| head 40
+```
+- **Implementation:** Map Entra `riskLevelDuringSignIn` and CA grant controls. Report MFA completion rate when risk elevated.
+- **Visualization:** Table (risky sign-ins), Bar chart (outcomes), Line chart (risk events / day).
+- **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.user span=1h
+```
+
+---
+
+### UC-17.3.20 · Browser Isolation Usage
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Operational
+- **Value:** Measures adoption of remote browser isolation (RBI) sessions vs direct access — for licensing and risky-site coverage.
+- **App/TA:** Menlo, Zscaler RBI, Island
+- **Data Sources:** `sourcetype=rbi:session`
+- **SPL:**
+```spl
+index=zt sourcetype="rbi:session" earliest=-30d
+| eval isolated=if(match(lower(session_type),"(?i)isolated|rbi"),1,0)
+| timechart span=1d sum(isolated) as isolated_sessions, count as total_sessions
+| eval isolation_rate=round(100*isolated_sessions/total_sessions,1)
+```
+- **Implementation:** Map vendor-specific session types. Alert when isolation_rate drops vs baseline for high-risk categories.
+- **Visualization:** Line chart (isolation rate), Bar chart (sessions by app), Single value (% isolated).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.21 · SWG Bypass Attempt Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Detects attempts to reach direct IPs, misuse PAC files, or tunnel out of SWG inspection.
+- **App/TA:** Zscaler, Netskope
+- **Data Sources:** `zscaler:web`, endpoint proxy logs
+- **SPL:**
+```spl
+index=proxy sourcetype="zscaler:web" earliest=-24h
+| where match(lower(reason),"(?i)bypass|tunnel|direct|pac") OR match(lower(url),"(?i)proxy\.pac")
+| stats count by user, src_ip, reason
+| sort -count
+```
+- **Implementation:** Correlate with firewall deny for non-standard ports. Tune for false positives from dev tools.
+- **Visualization:** Table (bypass attempts), Bar chart (by user), Timeline.
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.Network_Traffic
+  by Network_Traffic.user span=1h
+| where count > 200
+```
+
+---
+
+### UC-17.3.22 · ZTNA Application Access Latency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** p95 latency per published application for user experience SLAs on ZTNA paths.
+- **App/TA:** Zscaler ZPA, Cloudflare Access
+- **Data Sources:** `zscaler:zpa` access logs with `latency_ms`
+- **SPL:**
+```spl
+index=zt sourcetype="zscaler:zpa" earliest=-24h
+| stats perc95(latency_ms) as p95_ms, count by application
+| where p95_ms > 800
+| sort -p95_ms
+```
+- **Implementation:** Segment by connector group and region. Compare before/after app migrations.
+- **Visualization:** Bar chart (p95 by app), Line chart (p95 trend), Table (worst apps).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` avg(Network_Traffic.response_time) as rt
+  from datamodel=Network_Traffic.Network_Traffic
+  by Network_Traffic.url span=5m
+```
+
+---
+
+### UC-17.3.23 · Prisma Access Tunnel Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** IPSec/SSL tunnel state, latency, and error codes for Palo Alto Prisma Access remote networks and mobile users.
+- **App/TA:** Splunk_TA_paloalto, Prisma Access cloud logging
+- **Data Sources:** `sourcetype=prisma:access:tunnel` or PAN-OS VPN logs
+- **SPL:**
+```spl
+index=sase sourcetype="prisma:access:tunnel" earliest=-24h
+| eval ok=if(match(lower(tunnel_state),"(?i)up|active") AND error_code=0,1,0)
+| where ok=0
+| stats latest(latency_ms) as latency_ms latest(error_code) as error_code by tunnel_name, site_id
+| sort latency_ms
+```
+- **Implementation:** Map Prisma Remote Network vs Mobile User templates. Join SD-WAN site name from CMDB.
+- **Visualization:** Table (down tunnels), Map (sites), Line chart (tunnel availability %).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.24 · Conditional Access Policy Enforcement (Entra ID)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Volume of grants vs blocks per named CA policy — complements generic UC-17.3.1 with Microsoft-specific policy dimension.
+- **App/TA:** Azure / Entra TA
+- **Data Sources:** `sourcetype=azure:signin` with `conditional_access_status`
+- **SPL:**
+```spl
+index=identity sourcetype="azure:signin" earliest=-7d
+| where isnotnull(conditional_access_policy_name)
+| stats count by conditional_access_policy_name, conditional_access_status
+| sort -count
+```
+- **Implementation:** Include `failureReason` for blocks. Alert when block rate for a policy jumps without change ticket.
+- **Visualization:** Stacked bar (policy × status), Table (top blocks), Line chart (blocks / day per policy).
+- **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.user span=1h
+```
+
+---

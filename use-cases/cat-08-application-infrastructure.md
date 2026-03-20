@@ -280,6 +280,129 @@ index=web sourcetype="nginx:error" OR sourcetype="apache:error"
 
 ---
 
+### UC-8.1.11 · NGINX Upstream Response Errors
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Counts upstream HTTP 5xx and connect/timeout errors from NGINX access/error logs. Isolates reverse-proxy vs origin issues faster than aggregate 5xx alone.
+- **App/TA:** `TA-nginx`
+- **Data Sources:** `access_combined` with `upstream_status`, `nginx:error` upstream messages
+- **SPL:**
+```spl
+index=web sourcetype="nginx:access" OR sourcetype="access_combined"
+| eval up_err=if(upstream_status>=500 OR status=502 OR status=504,1,0)
+| stats sum(up_err) as upstream_errors, count as total by host, upstream_addr
+| eval err_rate=round(upstream_errors/total*100,2)
+| where err_rate > 2
+```
+- **Implementation:** Enable `upstream_status` and `upstream_addr` in log_format. Alert on upstream error rate >2% for 5m. Correlate with backend pool health.
+- **Visualization:** Line chart (upstream error rate), Table (upstream_addr, errors), Bar chart (5xx by upstream).
+- **CIM Models:** Web
+
+---
+
+### UC-8.1.12 · Apache mod_security WAF Blocks
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Tracks ModSecurity rule IDs and scores for blocked requests. Supports tuning false positives and detecting attack campaigns.
+- **App/TA:** `Splunk_TA_apache`, modsec audit log
+- **Data Sources:** `modsec_audit.log`, `SecRule` action deny entries
+- **SPL:**
+```spl
+index=web sourcetype="apache:modsec"
+| search action="denied" OR intercept_phase="phase:2"
+| stats count by rule_id, uri_path, src_ip
+| sort -count
+| head 30
+```
+- **Implementation:** Ingest JSON or native ModSecurity audit format. Extract `rule_id`, `msg`. Alert on spike in unique IPs or new rule_id firing at high volume.
+- **Visualization:** Table (rule, URI, count), Bar chart (blocks by rule), Map (src_ip).
+- **CIM Models:** Web
+
+---
+
+### UC-8.1.13 · IIS Worker Process Recycling
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Frequent `w3wp` recycles cause session loss and latency spikes. Event Log IDs 5074, 5002, 1011 indicate config, memory, or crash-driven recycles.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** System/Application Event Log (WAS, W3SVC)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:System" SourceName=WAS EventCode=5074
+| bucket _time span=5m
+| stats count as recycles by ComputerName, AppPoolName, _time
+| where recycles > 3
+```
+- **Implementation:** Enable WAS/W3SVC auditing. Alert when recycles per app pool exceed baseline. Correlate with private bytes and GC from perfmon.
+- **Visualization:** Timeline (recycle events), Table (app pool, recycle count), Line chart (recycles per hour).
+- **CIM Models:** Web
+
+---
+
+### UC-8.1.14 · SSL Certificate Expiry Countdown
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Days-to-expiry dashboard for all TLS endpoints monitored by cert checks. Complements UC-8.1.5 with trend and earliest-expiry focus.
+- **App/TA:** Scripted cert check, `openssl` input
+- **Data Sources:** `cert_check` with `cert_expiry_epoch`, `cn`
+- **SPL:**
+```spl
+index=certificates sourcetype="cert_check"
+| eval days_left=round((cert_expiry_epoch-now())/86400,0)
+| stats min(days_left) as soonest by host, port
+| where soonest < 45
+| sort soonest
+```
+- **Implementation:** Daily collection. Alert tiers at 45/30/14/7 days. Include chain validation failures as severity 1.
+- **Visualization:** Table (host, port, days_left), Single value (minimum days_left fleet-wide), Column chart (certs by expiry bucket).
+- **CIM Models:** Web
+
+---
+
+### UC-8.1.15 · HAProxy Backend Health State
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** CSV stats `status` (UP/DOWN/MAINT) per server line with weight. Distinct from UC-8.1.6 NGINX-only upstream errors for HAProxy-native shops.
+- **App/TA:** HAProxy stats socket scripted input
+- **Data Sources:** `haproxy:stats` `svname`, `status`, `chkfail`
+- **SPL:**
+```spl
+index=haproxy sourcetype="haproxy:stats" type=server
+| where status!="UP" OR chkfail > 0
+| stats latest(status) as status, sum(chkfail) as fails by pxname, svname
+| sort fails
+```
+- **Implementation:** Poll stats every 30s. Alert on any backend DOWN not in maintenance window. Track flapping (status changes >3 in 10m).
+- **Visualization:** Status grid (backend × UP/DOWN), Table (DOWN servers), Timeline (state changes).
+- **CIM Models:** Web
+
+---
+
+### UC-8.1.16 · Web Server Thread Pool Exhaustion
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** IIS `QueueFull`, NGINX worker saturation, or Apache `BusyWorkers` at limit causes queueing. Unified thresholding across stacks.
+- **App/TA:** `TA-nginx` stub_status, `Splunk_TA_windows` perfmon, Apache mod_status
+- **Data Sources:** `nginx:stub_status`, `Perfmon:W3SVC_W3WP`, `apache:server_status`
+- **SPL:**
+```spl
+index=web (sourcetype="nginx:stub_status" OR sourcetype="apache:server_status" OR sourcetype="Perfmon:W3SVC_W3WP")
+| eval util_pct=coalesce(worker_util_pct, pct_busy, thread_pool_queue_length/max_threads*100)
+| where util_pct > 85 OR queue_current > 50
+| timechart span=5m max(util_pct) as util by host, sourcetype
+```
+- **Implementation:** Normalize field names at ingest. Alert when util >85% for 10m or IIS request queue length sustained high. Correlate with CPU and backend latency.
+- **Visualization:** Gauge (util %), Line chart (util and queue), Table (hosts over threshold).
+- **CIM Models:** Web
+
+---
+
 ### 8.2 Application Servers & Runtimes
 
 **Primary App/TA:** Splunk Add-on for JMX (`TA-jmx`), OpenTelemetry Collector (`Splunk_TA_otel`), custom log inputs for application frameworks.
@@ -541,6 +664,185 @@ index=jmx sourcetype="jmx:wildfly:datasource"
 
 ---
 
+### UC-8.2.14 · JVM Garbage Collection Pause Time (STW)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Stop-the-world pause duration percentiles from unified GC logs (G1, ZGC) drive SLA breaches before heap % alerts fire.
+- **App/TA:** GC log parsing, `jvm:gc` sourcetype
+- **Data Sources:** `-Xlog:gc*` (Java 11+), `gc_pause_ms`, `gc_type`
+- **SPL:**
+```spl
+index=jvm sourcetype="jvm:gc"
+| where gc_pause_ms > 500
+| timechart span=5m perc95(gc_pause_ms) as p95_pause, max(gc_pause_ms) as max_pause by host
+| where p95_pause > 200
+```
+- **Implementation:** Parse pause events only (not concurrent phases). Alert on p95 >200ms or any pause >2s. Split by pool (G1 Old Gen vs Young).
+- **Visualization:** Line chart (p95/max pause), Histogram (pause distribution), Table (worst hosts).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.15 · .NET CLR Memory Pressure
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** `# Bytes in all Heaps`, `LOH` size, and `% Time in GC` together indicate memory pressure vs high allocation rate. Refines UC-8.2.8.
+- **App/TA:** `Splunk_TA_windows` Perfmon
+- **Data Sources:** `.NET CLR Memory`, `.NET Memory Cache`
+- **SPL:**
+```spl
+index=perfmon sourcetype="Perfmon:CLR_Memory"
+| timechart span=5m avg(Gen_2_heap_size) as gen2_bytes, avg(Pct_Time_in_GC) as gc_pct by instance
+| where gc_pct > 15
+```
+- **Implementation:** Collect every 1m for critical apps. Alert when GC time >15% and Gen 2 heap grows week-over-week. Trigger dump analysis workflow.
+- **Visualization:** Dual-axis (heap vs GC %), Line chart (Gen 2 size), Table (instances over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.16 · Node.js Event Loop Lag (High Resolution)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** `eventLoopUtilization` and `delay` histogram from `perf_hooks` or Prometheus `nodejs_eventloop_lag_seconds` for sub-millisecond vs millisecond precision.
+- **App/TA:** OpenTelemetry, `prom-client`
+- **Data Sources:** `nodejs:metrics` `event_loop_lag_p99_ms`
+- **SPL:**
+```spl
+index=application sourcetype="nodejs:metrics"
+| timechart span=1m perc99(event_loop_lag_ms) as p99_lag by host
+| where p99_lag > 50
+```
+- **Implementation:** Export p50/p99 lag. Alert on p99 >50ms for 5m. Correlate with blocking `fs` or `dns` calls from traces.
+- **Visualization:** Line chart (p99 event loop lag), Table (hosts breaching SLO), Single value (current p99).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.17 · Python WSGI Worker Pool Exhaustion
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Gunicorn/uWSGI `active workers`, `listening queue`, and `timeout` worker kills indicate saturation or slow upstream (DB).
+- **App/TA:** Structured app logs, stats endpoint
+- **Data Sources:** `gunicorn:json` `workers`, `req`, `timeout`
+- **SPL:**
+```spl
+index=application sourcetype="gunicorn:json"
+| where worker_timeout > 0 OR active_workers >= max_workers OR backlog > 10
+| stats sum(worker_timeout) as timeouts, max(backlog) as max_backlog by host, app_name
+| where timeouts > 0 OR max_backlog > 10
+```
+- **Implementation:** Enable `--statsd` or JSON access/error with worker fields. Alert on backlog growth or worker timeouts. Scale workers or fix slow queries.
+- **Visualization:** Line chart (backlog and active workers), Table (apps with timeouts), Single value (total worker timeouts 1h).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.18 · Tomcat Active Session Count
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Session explosion may indicate bot traffic, session fixation abuse, or missing session TTL. Per-context session counts from JMX.
+- **App/TA:** `TA-jmx`
+- **Data Sources:** `Catalina:type=Manager` `activeSessions`, `sessionMaxAliveTime`
+- **SPL:**
+```spl
+index=jmx sourcetype="jmx:tomcat:manager"
+| timechart span=15m max(activeSessions) as sessions by host, context_path
+| eventstats avg(sessions) as baseline by context_path
+| where sessions > baseline * 3 AND sessions > 5000
+```
+- **Implementation:** Baseline sessions per context. Alert on 3× baseline or absolute cap. Correlate with marketing events or attacks.
+- **Visualization:** Line chart (sessions over time), Table (context, sessions), Single value (peak sessions).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.19 · WebLogic Stuck Threads
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Stuck thread count >0 blocks request processing and triggers health check failures. Server log `BEA-000337` patterns.
+- **App/TA:** WebLogic Server logs, JMX
+- **Data Sources:** `weblogic:server` log, `StuckThreadCount` MBean
+- **SPL:**
+```spl
+index=application sourcetype="weblogic:server"
+| search "BEA-000337" OR "STUCK" OR stuck_thread_count>0
+| stats count by domain, server_name, thread_name
+| where count > 0
+```
+- **Implementation:** Forward stdout/stderr and domain logs. Alert on first stuck thread. Thread dump automation on critical domains.
+- **Visualization:** Table (domain, server, stuck count), Timeline (stuck events), Single value (stuck threads now).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.20 · JBoss / WildFly Deployment Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Failed deployments leave apps stopped or partial. Log markers `WFLYSRV0026`, `Deployment FAILED` require immediate attention.
+- **App/TA:** JBoss server.log ingestion
+- **Data Sources:** `jboss:server.log`, `server.log` deployment phase
+- **SPL:**
+```spl
+index=application sourcetype="jboss:server"
+| search "Deployment FAILED" OR "WFLYSRV0059" OR "Services with missing/unavailable dependencies"
+| table _time, host, deployment, message
+| sort -_time
+```
+- **Implementation:** Parse deployment name from log line. Alert on any FAILURE during CI/CD window or outside window (rogue deploy). Correlate with Git commit from pipeline ID if present.
+- **Visualization:** Timeline (deployment outcomes), Table (failed deployment, error), Single value (failures 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.21 · Spring Boot Actuator Health Down
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** `/actuator/health` JSON with `status:DOWN` from liveness/readiness probes. Aggregates component failures (diskSpace, db, redis).
+- **App/TA:** HEC from K8s probe sidecar, access log
+- **Data Sources:** `spring:actuator` JSON lines, probe stderr
+- **SPL:**
+```spl
+index=application sourcetype="spring:actuator" OR path="/actuator/health"
+| spath output=status status
+| spath output=components components
+| where status!="UP"
+| table _time, host, app_name, status, components
+```
+- **Implementation:** Ship health check responses (avoid PII). Alert on non-UP. Break down `components.*.status` for root cause.
+- **Visualization:** Status grid (app × component), Table (DOWN components), Timeline (health flaps).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.2.22 · .NET Exception Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** `# of Exceps Thrown / sec` and first-chance exception logs show error storms after deploys. Complements log-based UC-8.2.4 with runtime counters.
+- **App/TA:** `Splunk_TA_windows` Perfmon, Serilog/NLog
+- **Data Sources:** `.NET CLR Exceptions` `# of Exceps Thrown / sec`
+- **SPL:**
+```spl
+index=perfmon sourcetype="Perfmon:CLR_Exceptions"
+| timechart span=5m sum(Exceps_Thrown_per_sec) as ex_rate by process_name
+| eventstats avg(ex_rate) as baseline by process_name
+| where ex_rate > baseline * 5 AND ex_rate > 1
+```
+- **Implementation:** Baseline per process. Alert on 5× baseline. Join with deployment markers from UC-8.2.5.
+- **Visualization:** Line chart (exception rate), Table (process, spike factor), Single value (total exceptions/sec).
+- **CIM Models:** N/A
+
+---
+
 ### 8.3 Message Queues & Event Streaming
 
 **Primary App/TA:** Splunk Connect for Kafka (Splunkbase 3862), JMX, RabbitMQ management API (scripted input), custom REST inputs.
@@ -782,6 +1084,166 @@ index=zookeeper sourcetype="zookeeper:mntr"
 
 ---
 
+### UC-8.3.13 · Kafka Consumer Lag Monitoring (Consumer Group)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Lag in messages and approximate time lag per partition for each `group.id`. Tightens UC-8.3.1 with `kafka-consumer-groups` export fields.
+- **App/TA:** Burrow, Kafka Connect, `kafka:consumer_lag` scripted input
+- **Data Sources:** `LAG`, `CONSUMER-ID`, `TOPIC`, `PARTITION`
+- **SPL:**
+```spl
+index=kafka sourcetype="kafka:consumer_lag"
+| eval lag_sec=coalesce(lag_seconds, estimated_lag_sec)
+| where lag > 100000 OR lag_sec > 300
+| timechart span=5m max(lag) as max_lag by consumer_group, topic
+```
+- **Implementation:** Poll `kafka-consumer-groups.sh --describe` every minute. Alert on lag > SLA messages or estimated seconds. Exclude bursty batch groups via lookup.
+- **Visualization:** Line chart (lag by group/topic), Heatmap (partition lag), Single value (worst consumer group).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.14 · RabbitMQ Queue Depth Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Per-queue `messages_ready` thresholds with business priority tags. Alert routing by `queue` name pattern (`critical.*`).
+- **App/TA:** RabbitMQ management API
+- **Data Sources:** `rabbitmq:queue` `messages`, `messages_ready`, `consumers`
+- **SPL:**
+```spl
+index=messaging sourcetype="rabbitmq:queue"
+| lookup rabbitmq_queue_sla queue_name OUTPUT max_depth
+| where messages_ready > max_depth OR consumers=0 OR consumers IS NULL
+| table vhost name messages_ready consumers max_depth
+```
+- **Implementation:** Maintain SLA lookup per queue. Page on critical queue depth. Auto-scale consumers from orchestrator if integrated.
+- **Visualization:** Line chart (depth vs threshold), Table (breached queues), Single value (queues in alert).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.15 · Azure Service Bus Dead Letter Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** DLQ message count per topic/subscription and dead-letter reasons (`DeliveryCount`, `ExceptionDescription`) for cloud-native messaging.
+- **App/TA:** Azure Monitor Diagnostic Settings → Splunk
+- **Data Sources:** `DeadletteredMessages` metric, operational logs
+- **SPL:**
+```spl
+index=azure sourcetype="azure:servicebus:metrics"
+| where metric_name="DeadletteredMessages" OR EntityName="*DeadLetter*"
+| timechart span=5m sum(Total) as dlq_count by EntityName, SubscriptionName
+| where dlq_count > 0
+```
+- **Implementation:** Enable metrics on topics/subscriptions. Alert on any DLQ growth for tier-1 entities. Sample DLQ messages via separate secure pipeline (not full body in Splunk if PII).
+- **Visualization:** Line chart (DLQ count), Table (entity, subscription, count), Single value (total DLQ messages).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.16 · Kafka Connect Task Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Connector `FAILED` state, task failures, and `offset_commit` errors stop data pipelines. Distinct from broker-only monitoring.
+- **App/TA:** Connect worker logs, Connect REST `/status`
+- **Data Sources:** `kafka_connect:connector_status`, worker log
+- **SPL:**
+```spl
+index=kafka sourcetype="kafka_connect:status"
+| where connector_state="FAILED" OR task_state="FAILED"
+| stats latest(trace) as err by connector, task_id
+| table connector task_id connector_state task_state err
+```
+- **Implementation:** Poll `/connectors/*/status` every 2m. Alert on any FAILED. Include stack trace first line only for indexing size.
+- **Visualization:** Table (failed connectors/tasks), Timeline (state changes), Single value (open failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.17 · Kafka Topic Partition Skew
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Byte size and message count skew across partitions causes hot brokers and uneven consumer lag. Uses `kafka-log-dirs` or broker metrics.
+- **App/TA:** JMX, broker metrics export
+- **Data Sources:** `Size` per partition, `LogEndOffset` per partition
+- **SPL:**
+```spl
+index=kafka sourcetype="kafka:partition_skew"
+| eventstats avg(partition_size_bytes) as avg_sz by topic
+| eval skew_pct=round(abs(partition_size_bytes-avg_sz)/avg_sz*100,1)
+| where skew_pct > 25
+| table topic partition partition_size_bytes skew_pct
+```
+- **Implementation:** Nightly job from log size per partition. Alert when skew >25%. Recommend partition key review or reassign.
+- **Visualization:** Bar chart (skew % by partition), Table (top skewed topics), Heatmap (broker × partition size).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.18 · RabbitMQ Memory Alarm
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** `mem_alarm` blocks publishers when `vm_memory_high_watermark` is hit. Early warning from `memory` and `allocated` fields.
+- **App/TA:** RabbitMQ management API `/api/nodes`
+- **Data Sources:** `mem_used`, `mem_limit`, `mem_alarm`
+- **SPL:**
+```spl
+index=messaging sourcetype="rabbitmq:node"
+| where mem_alarm==true OR mem_used/mem_limit > 0.75
+| table _time, name, mem_used, mem_limit, mem_alarm
+```
+- **Implementation:** Poll nodes every minute. Alert at 75% memory or alarm true. Flow control from alarm requires immediate consumer scale-up or queue purge policy.
+- **Visualization:** Gauge (memory % per node), Line chart (mem_used trend), Table (nodes in alarm).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.19 · ActiveMQ Broker Store Usage
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Persistent store percent used (KahaDB) or JDBC store growth causes broker pause and producer blocking. JMX `StoreLimit` usage.
+- **App/TA:** ActiveMQ JMX, `activemq` log
+- **Data Sources:** `org.apache.activemq:type=Broker` `StoreLimit`, `TempLimit`
+- **SPL:**
+```spl
+index=messaging sourcetype="activemq:broker"
+| eval store_pct=round(store_used/store_limit*100,1)
+| where store_pct > 80
+| timechart span=5m max(store_pct) as pct by broker_name
+```
+- **Implementation:** Poll JMX every 5m. Alert at 80% store. Schedule garbage collection or archive old messages per policy.
+- **Visualization:** Gauge (store %), Line chart (store usage), Table (brokers over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.3.20 · NATS JetStream Consumer Ack Lag
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** `NumAckPending`, `NumRedelivered`, and consumer lag for JetStream streams indicate slow consumers or poison messages.
+- **App/TA:** NATS Prometheus exporter, `nats` server varz/jsz
+- **Data Sources:** `jetstream_consumer_lag`, `ack_pending`
+- **SPL:**
+```spl
+index=messaging sourcetype="nats:jetstream"
+| where num_ack_pending > 1000 OR num_redelivered > 100
+| stats max(num_ack_pending) as lag by stream_name, consumer_name
+| sort -lag
+```
+- **Implementation:** Scrape `/jsz` or Prometheus metrics. Alert on rising ack_pending. Correlate with consumer pod restarts.
+- **Visualization:** Line chart (ack pending), Table (stream, consumer, lag), Single value (max redelivered).
+- **CIM Models:** N/A
+
+---
+
 ### 8.4 API Gateways & Service Mesh
 
 **Primary App/TA:** Custom access log inputs, Envoy access log parsing, Istio telemetry, Kong/Apigee API inputs.
@@ -982,6 +1444,148 @@ index=haproxy sourcetype="haproxy:stats"
 - **Implementation:** Enable HAProxy stats via `stats uri /haproxy?stats` and `stats enable` in the frontend. Poll stats CSV via scripted input (curl or socket) every 30–60 seconds. Parse backend/frontend rows; extract status (UP/DOWN), qcur (current queued requests), scur (current sessions), and response code distribution. Forward to Splunk via HEC. Alert when any backend is DOWN or queue_depth exceeds 10. Correlate with syslog for connection errors and backend health transitions.
 - **Visualization:** Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).
 - **CIM Models:** N/A
+
+---
+
+### UC-8.4.10 · Kong Rate Limit Violations
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Security
+- **Value:** Kong `rate_limiting` plugin log lines and `429` with `RateLimit-*` headers. Identifies abusive consumers vs tight quotas.
+- **App/TA:** Kong admin/access logs
+- **Data Sources:** `kong:access` `status=429`, `rate_limiting` plugin log
+- **SPL:**
+```spl
+index=api sourcetype="kong:access" status=429
+| stats count by consumer_id, request_uri, rate_limit_plugin
+| sort -count
+| head 50
+```
+- **Implementation:** Enable plugin logging. Baseline 429s per consumer. Alert on spike vs baseline or new consumer_id hitting limit.
+- **Visualization:** Bar chart (429 by consumer), Line chart (429 rate), Table (top limited routes).
+- **CIM Models:** Web
+
+---
+
+### UC-8.4.11 · AWS API Gateway 4xx/5xx Trends
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** CloudWatch `4XXError`, `5XXError`, `Latency` per API stage. Single pane for serverless API frontends.
+- **App/TA:** `Splunk_TA_aws` CloudWatch
+- **Data Sources:** `AWS/ApiGateway` metrics, execution logs
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/ApiGateway" metric_name IN ("4XXError","5XXError")
+| timechart span=5m sum(Sum) as err by ApiName, Stage, metric_name
+| where err > 0
+```
+- **Implementation:** Enable detailed metrics per stage. Alert on 5XX >0 sustained or 4XX spike vs baseline. Join with Lambda logs for root cause.
+- **Visualization:** Stacked area (4xx vs 5xx), Line chart (error rate), Table (API, stage, errors).
+- **CIM Models:** Web
+
+---
+
+### UC-8.4.12 · Apigee Policy Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Apigee analytics API or syslog with `fault` policy name (SOAPThreat, JSONThreat, Quota, SpikeArrest) for blocked requests.
+- **App/TA:** Apigee export (BigQuery/Splunk), `apigee:analytics`
+- **Data Sources:** `fault` policy, `developer_app`, `response_status_code`
+- **SPL:**
+```spl
+index=api sourcetype="apigee:analytics"
+| where isnotnull(fault_policy) OR response_status_code="429"
+| stats count by fault_policy, proxy_name, developer_app
+| sort -count
+```
+- **Implementation:** Ingest nightly or hourly analytics. Alert on new fault_policy or high `SpikeArrest` counts. Tune policies vs false positives.
+- **Visualization:** Bar chart (faults by policy), Table (proxy, policy, count), Line chart (policy violations over time).
+- **CIM Models:** Web
+
+---
+
+### UC-8.4.13 · API Response Time SLA Breaches
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** p95/p99 latency from gateway access logs vs documented SLA per route (`/api/v1/orders`). Complements UC-8.4.2 with SLA lookup join.
+- **App/TA:** Kong, Envoy, AWS API GW access logs
+- **Data Sources:** `latency`, `request_uri`, `route_id`
+- **SPL:**
+```spl
+index=api sourcetype="kong:access"
+| lookup api_route_sla route_uri OUTPUT p95_ms_sla
+| stats perc95(latency) as p95 by route_uri
+| where p95 > p95_ms_sla
+| table route_uri p95 p95_ms_sla
+```
+- **Implementation:** Maintain SLA lookup per route. Run every 15m. Alert on breach for 3 consecutive windows. Exclude OPTIONS from stats.
+- **Visualization:** Line chart (p95 vs SLA), Table (breached routes), Heatmap (route × hour).
+- **CIM Models:** Web
+
+---
+
+### UC-8.4.14 · API Key Abuse Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Unusual volume of requests per API key or key used from many distinct IPs/countries in short window.
+- **App/TA:** Gateway logs with `consumer_id` or `api_key` hash
+- **Data Sources:** `kong:access` `credential_id`, `src_ip`
+- **SPL:**
+```spl
+index=api sourcetype="kong:access"
+| stats count, dc(src_ip) as ips by credential_id, _time span=1h
+| where count > 10000 OR ips > 50
+| table credential_id count ips
+```
+- **Implementation:** Never log raw API keys. Use hashed id. Baseline per credential. Alert on volume or IP diversity anomaly. Integrate with IP reputation.
+- **Visualization:** Table (credential, count, ips), Map (src_ip), Timeline (abuse spikes).
+- **CIM Models:** Web
+
+---
+
+### UC-8.4.15 · GraphQL Query Depth Violations
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Depth/complexity limit errors from Apollo/GraphQL server logs prevent DoS via deep queries.
+- **App/TA:** Application logs, GraphQL gateway
+- **Data Sources:** `graphql:request` `depth`, `errors`, `operationName`
+- **SPL:**
+```spl
+index=application sourcetype="graphql:server"
+| search "depth limit" OR "complexity" OR "Query is too deep"
+| stats count by operationName, client_name, depth
+| where count > 10
+```
+- **Implementation:** Log structured rejection reason. Alert on high rejection rate from single client or operation. Tune limits for legitimate mobile apps.
+- **Visualization:** Table (operation, depth, count), Bar chart (rejections by client), Line chart (depth violations over time).
+- **CIM Models:** Web
+
+---
+
+### UC-8.4.16 · API Version Deprecation Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
+- **Value:** Traffic to `/v1/` deprecated routes vs `/v2/` for migration planning. Header `Sunset` or path-based routing logs.
+- **App/TA:** API gateway access logs
+- **Data Sources:** `request_uri` path version segment, `X-API-Version`
+- **SPL:**
+```spl
+index=api sourcetype="kong:access"
+| rex field=request_uri "^/api/v(?<api_version>\d+)/"
+| stats count by api_version, request_uri
+| lookup api_version_deprecation api_version OUTPUT sunset_epoch
+| eval days_to_sunset=round((sunset_epoch-now())/86400)
+| where days_to_sunset < 90 AND api_version="1"
+```
+- **Implementation:** Maintain deprecation calendar lookup. Weekly report of traffic still on old versions. Alert on any `/v1/*` usage after sunset date.
+- **Visualization:** Pie chart (traffic by version), Line chart (v1 traffic trend), Table (routes still on deprecated version).
+- **CIM Models:** Web
 
 ---
 
@@ -1256,6 +1860,7 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 ```
 - **Implementation:** Ingest sshd syslog messages (Linux) via Universal Forwarder. Maintain a lookup (`monitored_linux_hosts.csv`) of expected hosts. Use `tstats` or a scheduled search every 5 minutes to detect hosts with no sshd events in the last 10 minutes. Optionally deploy a scripted input that performs a TCP connect to port 22 and logs result (0=up, 1=down) for direct availability data. Alert on SSH_DOWN status for more than 2 consecutive intervals to reduce false positives during restart.
 - **Visualization:** Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).
+- **CIM Models:** N/A
 
 ---
 
@@ -1277,6 +1882,7 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 ```
 - **Implementation:** Monitor vsftpd, proftpd, or OpenSSH SFTP subsystem logs via Universal Forwarder. For SFTP (port 22 subsystem), filter syslog for `sftp-server` process events. Alert when no daemon activity is seen for more than 15 minutes on a host expected to serve FTP/SFTP. Supplement with a scripted input using `nc -z -w5 host 21` (FTP) or `nc -z -w5 host 22` (SFTP) logged as synthetic check results. Correlate FTP availability with file-transfer success/failure logs.
 - **Visualization:** Table (host, port, status, last event), Single value (unavailable FTP hosts), Line chart (event rate over time per host), Alert timeline.
+- **CIM Models:** N/A
 
 ---
 
@@ -1299,6 +1905,7 @@ index=mail (sourcetype=syslog process=postfix* OR sourcetype="postfix:syslog")
 ```
 - **Implementation:** Ingest Postfix/Sendmail syslog output via Universal Forwarder. Under normal operation, an active MTA generates constant log activity (queue manager, cleanup, smtp/smtpd). Absence of events for 5–10 minutes on an expected mail host indicates SMTP process death or service failure. Alert after 2 consecutive empty windows. Complement with a scripted input: `echo QUIT | nc -w5 host 25` — log exit code as synthetic probe result. Monitor separately for TLS handshake failures (port 587/465) as distinct service checks.
 - **Visualization:** Single value (SMTP hosts down), Timeline (downtime events), Line chart (event rate per mail host), Table (host, MTA type, last event timestamp).
+- **CIM Models:** N/A
 
 ---
 
@@ -1320,6 +1927,7 @@ index=mail sourcetype=syslog (process=dovecot OR process=imap OR process=pop3)
 ```
 - **Implementation:** Forward Dovecot or Cyrus IMAP logs via Universal Forwarder. Dovecot logs login events, failed auth, and daemon lifecycle events continuously during normal operation. Zero events for >10 minutes on a mail host indicates a process crash or service failure. Alert after 2 consecutive empty windows. Cross-correlate with auth failures (could indicate process restart loops). For comprehensive coverage, deploy a scripted TCP probe on ports 143 (IMAP), 993 (IMAPS), 110 (POP3), 995 (POP3S).
 - **Visualization:** Table (host, protocol, port, status), Timeline (downtime events), Single value (services down count), Line chart (login event rate as proxy for service health).
+- **CIM Models:** N/A
 
 ---
 
@@ -1525,6 +2133,108 @@ index=asterisk sourcetype="asterisk:cdr"
 ```
 - **Implementation:** Forward Asterisk CDR (Call Detail Record) logs via Universal Forwarder. Parse caller, callee, duration, disposition, channel. For trunk status, use AMI (Asterisk Manager Interface) or `asterisk -rx "pjsip show endpoints"` via scripted input. Poll trunk registration status every 5 minutes. Calculate ASR (answered/total*100) and ACD per hour. Alert when ASR drops below 80% or trunk shows UNREACHABLE. Track call volume for capacity planning.
 - **Visualization:** Line chart (ASR and ACD over time), Table (trunk status), Single value (calls per hour), Bar chart (call volume by trunk).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.15 · SMTP Relay Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Availability
+- **Value:** Tracks messages relayed through internal SMTP gateways vs policy — unexpected relay volume or open relay abuse paths.
+- **App/TA:** `Splunk_TA_syslog`, Postfix/Exchange logs
+- **Data Sources:** `postfix:syslog` `relay=`, `status=sent`, `reject` relay attempts
+- **SPL:**
+```spl
+index=mail sourcetype="postfix:syslog" OR sourcetype=syslog process=postfix
+| search relay=* OR "relay access denied"
+| stats count by relay_domain, action, src_ip
+| where count > 500
+```
+- **Implementation:** Parse relay lines for authorized vs denied. Alert on high relay denied from single IP (scanning) or high accepted relay to external domains (misconfiguration).
+- **Visualization:** Table (relay domain, count), Line chart (relay attempts), Single value (relay denied rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.16 · NTP Stratum Drift
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Stratum jumps or large offset indicate bad upstream clock or local drift — affects Kerberos, TLS, and distributed logs.
+- **App/TA:** `Splunk_TA_nix`, `ntpq`/`chronyc` scripted input
+- **Data Sources:** `ntp:peer` `stratum`, `offset_ms`, `jitter_ms`
+- **SPL:**
+```spl
+index=os sourcetype="ntp:peer"
+| where stratum > 4 OR abs(offset_ms) > 100
+| timechart span=5m max(stratum) as stratum, max(abs(offset_ms)) as abs_offset by host
+```
+- **Implementation:** Poll `chronyc tracking` or `ntpq -pn` every 5m. Alert when stratum >4 or |offset| >100ms sustained. Correlate with VM time sync settings.
+- **Visualization:** Line chart (offset and stratum), Table (hosts with bad clock), Single value (max |offset|).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.17 · DNS Recursive Query Volume
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Security
+- **Value:** Sudden spike in recursive queries on internal resolvers may indicate DDoS, malware, or misconfigured application loops.
+- **App/TA:** BIND `named` logs, Infoblox DNS, CoreDNS logs
+- **Data Sources:** `dns:query` recursive flag, `client` IP, `qname`
+- **SPL:**
+```spl
+index=dns sourcetype="bind:query" OR sourcetype="dns:query"
+| where recursive=1
+| bucket _time span=1m
+| stats count as qps by client_ip, _time
+| eventstats avg(qps) as avg_q by client_ip
+| where qps > avg_q*10 AND qps > 1000
+```
+- **Implementation:** Baseline QPS per client subnet. Alert on 10× baseline or absolute flood. Top `qname` for tunneling investigation.
+- **Visualization:** Line chart (recursive QPS), Table (top clients), Bar chart (query types).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.18 · TFTP Unauthorized Access
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** TFTP should be rare in enterprise networks. Any RRQ/WRQ outside PXE scope may indicate data exfil or firmware abuse.
+- **App/TA:** Firewall logs, `atftpd`/`tftpd` syslog
+- **Data Sources:** `tftp:syslog` `filename`, `op`, `src_ip`
+- **SPL:**
+```spl
+index=network sourcetype="tftp:log" OR sourcetype="syslog" process=tftpd
+| search RRQ OR WRQ
+| lookup tftp_allowed_subnets src_ip OUTPUT allowed
+| where allowed!=1 OR isnull(allowed)
+| table _time, src_ip, filename, op
+```
+- **Implementation:** Maintain allowlist for PXE subnets. Alert on any other TFTP read/write. Block TFTP at firewall unless required.
+- **Visualization:** Timeline (TFTP events), Table (unauthorized attempts), Single value (blocked attempts).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.6.19 · SNMP Community String Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Detects use of default `public`/`private` or unauthorized SNMP GETs to network devices for SNMPv2c exposure auditing.
+- **App/TA:** Device syslog, SNMP proxy audit
+- **Data Sources:** `snmpd` auth failures, `community` in trap receiver logs
+- **SPL:**
+```spl
+index=network sourcetype="snmp:audit" OR (sourcetype=syslog process=snmpd)
+| search "Authentication failed" OR community="public" OR community="private"
+| stats count by src_ip, device, community
+| where count > 10
+```
+- **Implementation:** Forward snmpd auth failures. Alert on default community strings in use or brute-force patterns. Migrate devices to SNMPv3.
+- **Visualization:** Table (src_ip, device, community), Bar chart (failures by device), Line chart (auth failure rate).
 - **CIM Models:** N/A
 
 ---

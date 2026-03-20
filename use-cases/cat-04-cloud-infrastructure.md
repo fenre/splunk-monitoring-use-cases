@@ -1235,6 +1235,373 @@ index=aws (sourcetype="aws:config:notification" resourceType="AWS::EC2::TransitG
 
 ---
 
+### UC-4.1.59 · S3 Suspicious Access Patterns
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unusual ListBucket volume, access from new regions, or anonymous reads often precede data exfiltration; pattern detection reduces dwell time.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudtrail` (s3.amazonaws.com), optional S3 server access logs `sourcetype=aws:s3:accesslogs`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudtrail" eventSource="s3.amazonaws.com" eventName="GetObject"
+| eval geo=if(isnull(sourceIPAddress),"unknown",sourceIPAddress)
+| stats dc(eventName) as ops, dc(awsRegion) as regions, count by userIdentity.arn, requestParameters.bucketName
+| where regions > 3 OR count > 10000
+| sort -count
+```
+- **Implementation:** Baseline normal GetObject/ListBucket rates per bucket and principal. Enrich with GeoIP on `sourceIPAddress`. Alert on first-seen ASN, burst downloads, or ListBucket without matching application inventory. Correlate with GuardDuty S3 findings.
+- **Visualization:** Table (bucket, principal, count), Map (source IP), Timeline (access spikes).
+- **CIM Models:** Network_Traffic
+
+---
+
+### UC-4.1.60 · Security Hub Alert Aggregation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Security Hub rolls up Config, GuardDuty, Inspector, and partner findings; aggregating by account and severity prioritizes remediation queues.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:firehose` or `sourcetype=aws:cloudwatch:events` (Security Hub findings), EventBridge to Splunk
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch:events" detail-type="Security Hub Findings - Imported"
+| spath path=detail.findings{}
+| mvexpand detail.findings{}
+| spath input=detail.findings{} output=sev path=Severity.Label
+| spath input=detail.findings{} output=title path=Title
+| stats count by sev, title, account
+| sort -count
+```
+- **Implementation:** Send Security Hub custom actions or EventBridge rules to Firehose/HEC. Normalize `Severity` and `ComplianceStatus`. Auto-ticket CRITICAL/HIGH. Deduplicate by finding ID across updates. Feed executive dashboards with counts by standard (CIS, PCI).
+- **Visualization:** Bar chart (findings by severity), Table (title, account, count), Single value (open critical).
+- **CIM Models:** Intrusion_Detection
+
+---
+
+### UC-4.1.61 · Network ACL Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** NACL changes can open subnets to the internet or break least-privilege segmentation; they are less common than security groups and warrant explicit audit.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudtrail` (ec2.amazonaws.com CreateNetworkAclEntry, ReplaceNetworkAclEntry, DeleteNetworkAclEntry)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudtrail" eventSource="ec2.amazonaws.com" (eventName="CreateNetworkAclEntry" OR eventName="ReplaceNetworkAclEntry" OR eventName="DeleteNetworkAclEntry")
+| stats count by userIdentity.arn, requestParameters.networkAclId, eventName, awsRegion
+| sort -_time
+```
+- **Implementation:** Require change tickets in deployment pipeline metadata where possible. Alert on any prod NACL change. Visualize before/after rule numbers and CIDR blocks from `requestParameters`. Weekly review with network team.
+- **Visualization:** Table (NACL, user, action), Timeline (changes), Single value (changes 24h).
+- **CIM Models:** Change
+
+---
+
+### UC-4.1.62 · RDS Performance Insights Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Performance Insights exposes DB load by wait state; trending top SQL and waits guides index and instance right-sizing beyond raw CPU.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** Performance Insights API export, `sourcetype=aws:cloudwatch` (PI metrics), RDS log exports
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="DBLoad" statistic="Average"
+| timechart span=1h avg(Average) as dbload by DBInstanceIdentifier
+| streamstats window=168 global=f avg(dbload) as baseline by DBInstanceIdentifier
+| where dbload > baseline * 1.5
+```
+- **Implementation:** Enable Performance Insights (7–30 day retention). Export `DBLoad`, `DBLoadCPU`, `DBLoadNonCPU` via API or CloudWatch where available. Alert on sustained elevation vs weekly baseline. Join with application release times.
+- **Visualization:** Line chart (DB load vs baseline), Table (instance, wait class if ingested), Area chart (CPU vs non-CPU load).
+- **CIM Models:** Performance
+
+---
+
+### UC-4.1.63 · ECS Service Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Service-level running count versus desired indicates deployment failures, capacity shortfall, or health check flapping.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (AWS/ECS — CPUUtilization, MemoryUtilization), `sourcetype=aws:cloudwatch:events` (service events)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/ECS" (metric_name="CPUUtilization" OR metric_name="MemoryUtilization")
+| stats latest(Average) as util by ClusterName, ServiceName, metric_name
+| where util > 85
+```
+- **Implementation:** Ingest ECS service events from EventBridge for steady-state issues. Dashboard desired vs running from `DescribeServices` snapshots if scripted. Alert on failed deployments or service unable to reach steady state.
+- **Visualization:** Status grid (service health), Line chart (CPU/memory by service), Table (cluster, service, failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.64 · EKS Control Plane Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EKS.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** EKS control plane logs in `sourcetype=aws:cloudwatchlogs` (cluster audit), CloudTrail `eks.amazonaws.com` API
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatchlogs" log_group="/aws/eks/*/cluster"
+| search "audit.k8s.io" verb="create" objectRef.resource="clusterroles" OR objectRef.resource="secrets"
+| stats count by user.username, objectRef.namespace, objectRef.name
+| sort -count
+```
+- **Implementation:** Enable EKS audit logging to CloudWatch Logs and subscribe to Splunk. Optionally include CloudTrail for `CreateCluster`, `AssociateIdentityProviderConfig`. Alert on cluster-admin bindings, anonymous access, or secret reads from unexpected service accounts.
+- **Visualization:** Table (user, resource, count), Timeline (privileged API calls), Sankey (user→namespace).
+- **CIM Models:** Change
+
+---
+
+### UC-4.1.65 · GuardDuty Severity Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch:guardduty`, GuardDuty S3 export
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch:guardduty"
+| stats count by severity, type, accountId
+| sort -count
+```
+- **Implementation:** Normalize severity (8–10 = high). Auto-suppress known pen-test ranges via lookup. Weekly trend of finding types. SOAR integration for HIGH and above with runbooks per `type`.
+- **Visualization:** Bar chart (findings by type), Pie chart (severity), Table (account, type, count).
+- **CIM Models:** Intrusion_Detection
+
+---
+
+### UC-4.1.66 · AWS Config Rule Compliance Drift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Resources oscillating between COMPLIANT and NON_COMPLIANT indicate automation fights or manual changes—drift trends surface systemic issues.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:config:notification`, Config history snapshots
+- **SPL:**
+```spl
+index=aws sourcetype="aws:config:notification" configRuleList{}.complianceType=*
+| mvexpand configRuleList{}
+| spath input=configRuleList{} path=complianceType
+| spath input=configRuleList{} path=configRuleName
+| stats dc(complianceType) as state_changes by resourceId, configRuleName
+| where state_changes > 1
+| sort -state_changes
+```
+- **Implementation:** Ingest configuration item change streams. Track flapping rules weekly. Alert when critical rules (encryption, public access) change state more than N times per day. Root-cause with CloudTrail correlation.
+- **Visualization:** Table (resource, rule, changes), Line chart (compliant % over time), Single value (flapping resources).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.67 · SNS Delivery Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed SMS, email, or HTTP subscriptions break alerting and fan-out; monitoring delivery failures prevents silent notification loss.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (AWS/SNS — NumberOfNotificationsFailed), delivery status logs
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/SNS" metric_name="NumberOfNotificationsFailed"
+| timechart span=15m sum(Sum) as failed by TopicName
+| where failed > 0
+```
+- **Implementation:** Enable delivery status logging for HTTP/S endpoints. Ingest CloudWatch metrics per topic. Alert on any failed count sustained 15 minutes. Validate endpoint URLs and DLQ for failed deliveries if configured.
+- **Visualization:** Line chart (failures by topic), Table (topic, failed count), Single value (total failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.68 · SQS Dead Letter Queue Growth
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** DLQ depth growth means poison messages or downstream outages; rate-of-change highlights incidents faster than static thresholds.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (AWS/SQS — ApproximateNumberOfMessagesVisible on DLQ ARNs)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/SQS" metric_name="ApproximateNumberOfMessagesVisible" QueueName="*dlq*"
+| sort 0 _time
+| streamstats window=12 global=f first(Average) as prev by QueueName
+| eval growth=Average-prev
+| where growth > 10
+| table _time QueueName Average growth
+```
+- **Implementation:** Tag DLQs consistently for `*dlq*` matching or use explicit dimension. Alert on positive growth over 1h or depth exceeding SLO. Replay with caution after root-cause.
+- **Visualization:** Line chart (DLQ depth), Single value (growth rate), Table (queue, depth).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.69 · CloudFront Error Rates by Distribution
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Origin or edge errors vary by distribution; breaking out 4xx/5xx by `DistributionId` isolates bad releases and misconfigured behaviors.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (AWS/CloudFront — 4xxErrorRate, 5xxErrorRate), real-time logs
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/CloudFront" (metric_name="4xxErrorRate" OR metric_name="5xxErrorRate")
+| stats latest(Average) as err_rate by DistributionId, metric_name, bin(_time, 5m)
+| where err_rate > 1
+| sort - err_rate
+```
+- **Implementation:** Ingest metrics per distribution ID. Correlate spikes with deployments and origin health. Use real-time logs for URI-level detail. Alert when 5xx error rate exceeds SLO for 10 minutes.
+- **Visualization:** Line chart (error rate by distribution), Table (distribution, metric), Map (viewer country if from logs).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.70 · Route 53 Health Check Failover Validation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed health checks drive DNS failover; sustained failures mean user-facing outages or flapping routing policies.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (AWS/Route53 — HealthCheckStatus, ChildHealthCheckHealthyCount)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/Route53" metric_name="HealthCheckStatus"
+| stats latest(Minimum) as healthy by HealthCheckId, bin(_time, 5m)
+| where healthy < 1
+| sort HealthCheckId -_time
+```
+- **Implementation:** Map `HealthCheckId` to application names via lookup. Alert on unhealthy state for two consecutive periods. Correlate with target (ALB, IP) metrics. Include calculator health checks for complex routing.
+- **Visualization:** Status grid (health check × time), Table (check id, target), Timeline (failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.71 · Systems Manager Patch Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Patch baselines reduce exploit exposure; instance-level compliance gaps show outdated AMIs or broken agents.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:ssm:compliance`, SSM Inventory association
+- **SPL:**
+```spl
+index=aws sourcetype="aws:ssm:compliance" ComplianceType="Patch"
+| stats latest(status) as patch_status by resourceId, PatchSeverity
+| where patch_status!="Compliant"
+| stats count by resourceId
+| sort -count
+```
+- **Implementation:** Schedule `AWS-RunPatchBaseline` and ingest compliance association results. Dashboard by OU and environment tag. Alert when CRITICAL severity patches are non-compliant past SLA window.
+- **Visualization:** Table (instance, missing count), Pie chart (compliant %), Bar chart (severity).
+- **CIM Models:** Updates
+
+---
+
+### UC-4.1.72 · Transit Gateway Route Table Attachment Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Beyond attachment state, route propagation to TGW route tables determines reachability; blackholes show as dropped traffic or failed tests.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudtrail` (ec2:ReplaceTransitGatewayRoute, CreateRoute), TGW route table notifications
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudtrail" eventSource="ec2.amazonaws.com" (eventName="CreateTransitGatewayRoute" OR eventName="DeleteTransitGatewayRoute" OR eventName="ReplaceTransitGatewayRoute")
+| stats count by userIdentity.arn, requestParameters.transitGatewayRouteTableId, eventName
+| sort -_time
+```
+- **Implementation:** Alert on route changes in production TGW tables. Correlate with change windows. Combine with UC-4.1.58 metrics for end-to-end path validation. Use Network Manager events if enabled.
+- **Visualization:** Timeline (route changes), Table (route table, CIDR, action), Line chart (cross-VPC bytes with UC-4.1.58).
+- **CIM Models:** Change
+
+---
+
+### UC-4.1.73 · ELB Target Health Check Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Unhealthy targets are removed from rotation; rising unhealthy counts precede customer-facing errors.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (AWS/ApplicationELB, AWS/NetworkELB — UnHealthyHostCount, HealthyHostCount)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" (namespace="AWS/ApplicationELB" OR namespace="AWS/NetworkELB") metric_name="UnHealthyHostCount"
+| stats latest(Maximum) as unhealthy by LoadBalancer, TargetGroup, bin(_time, 5m)
+| where unhealthy > 0
+| sort - unhealthy
+```
+- **Implementation:** Join with target group tags for app name. Alert when unhealthy > 0 for 5 minutes or half of targets unhealthy. Correlate with ASG events and backend application logs.
+- **Visualization:** Line chart (unhealthy hosts), Table (TG, AZ, count), Status grid (target).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.74 · IAM Access Analyzer Findings
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Access Analyzer identifies unintended external access to S3, IAM roles, KMS keys, and other resources—reducing public exposure risk.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch:events" detail-type="Access Analyzer Finding" detail.status="ACTIVE"
+| stats count by detail.resourceType, detail.principal.awsAccountId, detail.isPublic
+| sort -count
+```
+- **Implementation:** Enable organization-wide analyzer. Send findings to EventBridge and Splunk. Auto-remediate public S3 where policy allows or ticket owners. Weekly review of new external access paths.
+- **Visualization:** Table (resource type, account, public), Bar chart (findings by type), Single value (active findings).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.75 · AWS Backup Job Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Centralized backup vault jobs must complete on schedule; failed jobs leave RPO gaps across EC2, EFS, and databases.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch:events` (Backup Job State Change), Backup notifications
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch:events" detail-type="Backup Job State Change"
+| eval ok=if(detail.state="COMPLETED",1,0)
+| stats count(eval(ok=0)) as failed, count as total by detail.backupVaultArn, detail.resourceArn
+| where failed>0
+```
+- **Implementation:** Parse job states COMPLETED, FAILED, EXPIRED. Alert on FAILED. Track partial completion for large resources. Cross-check with UC-4.4.29 restore drills for end-to-end assurance.
+- **Visualization:** Table (vault, resource, status), Timeline (job outcomes), Single value (failed jobs 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.1.76 · Lambda Layer Version Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Outdated layers carry vulnerable dependencies; enforcing approved layer ARNs avoids shadow IT libraries in functions.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudtrail` (lambda:GetFunction, PublishLayerVersion), Config custom rule output
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudtrail" eventSource="lambda.amazonaws.com" eventName="UpdateFunctionConfiguration"
+| spath path=requestParameters.layers{}
+| mvexpand requestParameters.layers{}
+| eval layer_arn=requestParameters.layers{}
+| lookup approved_lambda_layers layer_arn OUTPUT approved
+| where isnull(approved)
+| stats count by userIdentity.arn, requestParameters.functionName, layer_arn
+```
+- **Implementation:** Maintain CSV lookup of approved layer version ARNs. Alert on attach of unapproved layer or version drift weekly scan via `ListFunctions`. Integrate with CI/CD to block deploys pre-merge.
+- **Visualization:** Table (function, layer, user), Bar chart (non-compliant functions), Timeline (changes).
+- **CIM Models:** N/A
+
+---
+
 ## 4.2 Microsoft Azure
 
 **Primary App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`) — Free on Splunkbase
@@ -1817,6 +2184,298 @@ index=azure sourcetype="mscs:azure:diagnostics" resourceType="Microsoft.Cdn/prof
 
 ---
 
+### UC-4.2.30 · NSG Flow Log Threat Hunting
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** NSG flow logs reveal lateral movement, denied probes, and unexpected east-west volume; baselining flows speeds incident triage beyond simple allow/deny counts.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:nsgflow` or Event Hub JSON (flow records)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:nsgflow" flowDirection="In" macAddress=*
+| stats sum(bytes) as total_bytes, dc(src_ip) as unique_sources by dest_ip, dest_port_s, rule
+| where unique_sources > 50 OR total_bytes > 1000000000
+| sort -total_bytes
+```
+- **Implementation:** Ingest NSG Flow Logs to Event Hub and Splunk. Enrich IPs with threat intel and CMDB. Alert on denied burst to sensitive subnets or new rare port pairs. Retention per compliance.
+- **Visualization:** Sankey or chord (src→dest), Table (top talkers), Map (geo of external IPs).
+- **CIM Models:** Network_Traffic
+
+---
+
+### UC-4.2.31 · Azure Policy Compliance Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Point-in-time compliance misses drift; trending non-compliant resource counts shows whether governance keeps pace with deployments.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Policy compliance export, `sourcetype=mscs:azure:audit` (policy events)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:audit" complianceState="NonCompliant"
+| timechart span=1d count by policyDefinitionId
+```
+- **Implementation:** Schedule daily export of compliance snapshot per subscription. Ingest as JSON with timestamp. Alert when rolling 7-day average of non-compliant % increases week over week. Tie to deployment pipelines.
+- **Visualization:** Line chart (non-compliant % over time), Table (policy, delta), Bar chart (top resource types).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.32 · Key Vault Access Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Secret and key unwrap operations must be traceable for insider and breach investigations; unusual callers warrant immediate review.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:audit` (Microsoft.KeyVault vaults), diagnostic logs
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:audit" resourceId="*vaults*" (operationName.value="SecretGet" OR operationName.value="Decrypt" OR operationName.value="UnwrapKey")
+| stats count by identity.claims.name, callerIpAddress, resourceId
+| sort -count
+```
+- **Implementation:** Enable Key Vault diagnostic logs to Log Analytics or Event Hub. Alert on first-time principal, after-hours bulk access, or access from non-corporate IP ranges using lookups.
+- **Visualization:** Table (identity, vault, count), Timeline (access spikes), Map (caller IP).
+- **CIM Models:** Authentication
+
+---
+
+### UC-4.2.33 · App Service Health Metrics
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** HTTP queue length, response time, and instance health explain user-visible slowness before 5xx rates spike.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:metrics` (Microsoft.Web/sites — HttpQueueLength, AverageResponseTime, HealthCheckStatus)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Web/sites" (metric_name="HttpQueueLength" OR metric_name="AverageResponseTime" OR metric_name="HealthCheckStatus")
+| stats avg(average) as v by resourceId, metric_name, bin(_time, 5m)
+| where (metric_name="HttpQueueLength" AND v>100) OR (metric_name="AverageResponseTime" AND v>2000) OR (metric_name="HealthCheckStatus" AND v>0)
+```
+- **Implementation:** Stream App Service metrics via diagnostic settings. Correlate with App Service Plan saturation (UC-4.2.28). Alert on sustained queue depth or failed health probes. Scale out or warm up instances.
+- **Visualization:** Line chart (queue, response time, health), Table (app, metric, value), Status grid (probe per slot).
+- **CIM Models:** Performance
+
+---
+
+### UC-4.2.34 · AKS Diagnostics and Errors
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Control plane and node problems surface as API errors, failed mounts, and ImagePullBackOff; centralized errors shorten MTTR.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:diagnostics` (kube-audit, container logs), Azure Monitor for containers
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" category="kube-audit" "responseStatus.code">=400
+| stats count by objectRef.resource, verb, responseStatus.code
+| sort -count
+```
+- **Implementation:** Enable AKS diagnostic categories for audit and container logs. Ingest to Splunk. Alert on elevated 5xx from API server or repeated ImagePullBackOff patterns. Dashboard by namespace and deployment.
+- **Visualization:** Table (resource, code, count), Timeline (audit errors), Bar chart (namespace).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.35 · Cost Management Anomaly Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost
+- **Value:** Built-in Cost Management alerts help, but statistical baselines on daily spend catch unusual service charges early.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, Cost Management export
+- **Data Sources:** `sourcetype=mscs:azure:cost` or amortized cost CSV to blob/Event Hub
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:cost"
+| timechart span=1d sum(pretax_cost) as daily by ServiceName
+| eventstats avg(daily) as mu, stdev(daily) as sigma by ServiceName
+| eval z=if(sigma>0, (daily-mu)/sigma, 0)
+| where z > 3
+```
+- **Implementation:** Ingest daily actual cost by service and resource group. Use `predict` or manual z-score as shown. Alert finance and owners on anomalies. Exclude known one-time purchases via lookup.
+- **Visualization:** Line chart (daily cost by service), Table (service, z-score), Single value (anomaly count).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.36 · Azure Firewall Threat Intelligence Hits
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Threat intel–based denies block known-bad IPs and domains at the edge; volume and target trends indicate active campaigns or misclassified traffic.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Azure Firewall diagnostic logs (`AzureFirewallApplicationRule`, `AzureFirewallNetworkRule`), threat intel action
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" Category="AzureFirewallApplicationRule" msg_s="*ThreatIntel*"
+| stats count by msg_s, FQDN, SourceAddress
+| sort -count
+```
+- **Implementation:** Enable Threat Intel mode on Firewall and full diagnostic logging. Parse rule collection and threat category. Alert on new destination countries or sudden hit rate increase. Tune false positives with application owners.
+- **Visualization:** Map (source IP), Table (FQDN, count), Timeline (hits).
+- **CIM Models:** Intrusion_Detection
+
+---
+
+### UC-4.2.37 · Front Door WAF Blocks
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Managed rule blocks protect origins; tracking rule IDs separates scanning noise from targeted application abuse.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Front Door diagnostic logs (WebApplicationFirewallLog)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" log_s="WebApplicationFirewallLog" action_s="Block"
+| stats count by ruleName_s, clientIP_s, hostName_s
+| sort -count
+```
+- **Implementation:** Enable WAF logs on Front Door profile. Ingest to Splunk. Dashboard OWASP rule groups. Create exceptions carefully with SecOps. Correlate with origin 5xx to avoid blocking good clients.
+- **Visualization:** Bar chart (ruleName), Table (client IP, URI), Timeline (block rate).
+- **CIM Models:** Intrusion_Detection
+
+---
+
+### UC-4.2.38 · Logic App Run Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Integration workflows power automation; failed runs leave tickets, data, and approvals stuck.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:diagnostics` (WorkflowRuntime), Logic App run history export
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" resourceType="Microsoft.Logic/workflows" status_s="Failed"
+| stats count by resource_name_s, code_s, error_s
+| sort -count
+```
+- **Implementation:** Enable Logic App workflow diagnostics. Ingest run status and error codes. Alert on any failed production workflow or retry exhaustion. Replay failed runs from operations team process.
+- **Visualization:** Table (workflow, error), Timeline (failures), Single value (failed runs / hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.39 · Event Hub Capture Lag
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Capture to ADLS/Blob enables batch analytics; lag between enqueue and file availability delays downstream pipelines.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Event Hub metrics (`CaptureLag`, incoming messages), storage write diagnostics
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.EventHub/namespaces" metric_name="CaptureLag"
+| stats latest(average) as lag_ms by resourceId, bin(_time, 5m)
+| where lag_ms > 600000
+| eval lag_min=round(lag_ms/60000,1)
+```
+- **Implementation:** Ingest CaptureLag from Azure Monitor. Alert when lag exceeds SLA (for example 10 minutes). Check storage throttling and capture file naming collisions. Scale throughput units if needed.
+- **Visualization:** Line chart (capture lag), Table (namespace, lag minutes), Single value (worst lag).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.40 · Azure Backup Job Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failed or missed backup jobs leave restore gaps; operational health must be tracked per protected item.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:diagnostics` Category="AzureBackupReport" or Recovery Services job events
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" Category="AzureBackupReport" OperationName="Backup"
+| eval ok=if(match(JobStatus,"(?i)completed"),1,0)
+| stats count(eval(ok=0)) as failed, count as total by BackupItemName
+| where failed>0
+| sort -failed
+```
+- **Implementation:** Parse backup job JSON from diagnostic stream. Alert on Failed, CompletedWithWarnings patterns, or missing job in expected window (lookup per item). Test restores quarterly (see UC-4.4.29).
+- **Visualization:** Table (item, status), Timeline (job outcomes), Single value (failed jobs 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.41 · Private Link DNS Resolution
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Private Endpoint FQDNs resolve via private DNS zones; NXDOMAIN or public resolution leaks traffic or breaks apps.
+- **App/TA:** Custom (DNS query logs), `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** Azure DNS private zone query logs (if enabled), VM DNS client logs, `sourcetype=dns:query`
+- **SPL:**
+```spl
+index=network sourcetype="dns:query" zone_type="private"
+| stats count(eval(rcode!="NOERROR")) as failures, count as total by fqdn, source_ip
+| eval fail_pct=round(100*failures/total,2)
+| where fail_pct > 5 AND total > 20
+```
+- **Implementation:** Forward DNS resolver logs from VNet-linked zones or Azure Firewall DNS proxy. Alert on high NXDOMAIN for PE FQDNs. Validate zone links and auto-registration on new NICs.
+- **Visualization:** Table (fqdn, fail %), Timeline (DNS errors), Map (source subnet).
+- **CIM Models:** DNS
+
+---
+
+### UC-4.2.42 · Azure Monitor Alert Rule Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Disabled or misconfigured alert rules create silent monitoring gaps; tracking rule state protects on-call coverage.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:audit` (scheduledQueryRules, metricAlerts), Activity Log for alert changes
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:audit" (operationName.value="*scheduledQueryRules*" OR operationName.value="*metricAlerts*")
+| search disable OR Disabled OR delete OR Delete
+| stats count by caller, operationName.value, resourceId
+| sort -_time
+```
+- **Implementation:** Ingest Activity Log for alert create/update/delete. Nightly compare inventory of enabled rules vs golden baseline lookup. Alert when production-critical rules are disabled > 15 minutes.
+- **Visualization:** Table (rule, action, caller), Timeline (changes), Single value (disabled rules count).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.43 · Defender for Cloud Recommendations
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Secure score and recommendations drive hardening backlog; trending open recommendations shows risk posture over time.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, Defender export API
+- **Data Sources:** Defender for Cloud recommendations JSON, continuous export to Log Analytics/Event Hub
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:defender" recommendationState="Active"
+| stats count by recommendationName, severity
+| sort -count
+```
+- **Implementation:** Export recommendations on schedule via Logic App or Microsoft Graph security API to Splunk. Track mean time to remediate by severity. Executive dashboard of secure score trend if ingested.
+- **Visualization:** Bar chart (recommendations by type), Table (severity, count), Line chart (open recommendations over time).
+- **CIM Models:** Vulnerabilities
+
+---
+
+### UC-4.2.44 · Azure Resource Lock Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Locks prevent accidental deletes; removing a lock before maintenance is high risk and must be audited.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:audit` (Microsoft.Authorization/locks)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:audit" resourceId="*providers/Microsoft.Authorization/locks*"
+| stats count by operationName.value, identity.claims.name, resourceGroupName
+| sort -count
+```
+- **Implementation:** Alert on Delete or write operations against lock resources. Require change ticket in comments where possible. Correlate with subsequent delete operations on parent resources.
+- **Visualization:** Table (operation, user, resource group), Timeline (lock changes).
+- **CIM Models:** Change
+
+---
+
 ## 4.3 Google Cloud Platform (GCP)
 
 **Primary App/TA:** Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`) — Free on Splunkbase
@@ -2331,6 +2990,309 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="run.googleapis.com/req
 
 ---
 
+### UC-4.3.25 · BigQuery Slot Usage Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** Slot contention slows queries and raises cost; tracking slot usage versus reservation prevents interactive BI outages and runaway batch jobs.
+- **App/TA:** `Splunk_TA_google-cloudplatform`, BigQuery INFORMATION_SCHEMA export
+- **Data Sources:** `sourcetype=google:gcp:monitoring` (`bigquery.googleapis.com/slot/usage`), audit exports to Pub/Sub
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring" metric.type="bigquery.googleapis.com/slot/usage"
+| stats latest(value) as slot_seconds by resource.labels.project_id, bin(_time, 5m)
+| eventstats avg(slot_seconds) as baseline by resource.labels.project_id
+| where slot_seconds > baseline * 1.5
+| table _time resource.labels.project_id slot_seconds baseline
+```
+- **Implementation:** Ingest Cloud Monitoring metrics for slot usage and optional `JOBS_BY_PROJECT` exports. Alert when usage exceeds reservation plus burst buffer or sustained elevation vs 7-day baseline. Dashboard by reservation assignment and job type.
+- **Visualization:** Area chart (slot usage vs cap), Table (project, peak slots), Single value (utilization %).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.26 · GKE Autopilot Pod Scaling
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Autopilot scales node pools automatically; failed scale-outs leave pods pending and degrade SLOs.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:pubsub:message` (GKE cluster logs), `sourcetype=google:gcp:monitoring` (scheduler, pending pods)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" resource.type="k8s_cluster" ("FailedScheduling" OR "Insufficient cpu" OR "Insufficient memory")
+| stats count by resource.labels.cluster_name, jsonPayload.reason
+| sort -count
+```
+- **Implementation:** Enable GKE logging and filter for scheduling events. Correlate with pending pod metrics if exported. Alert on rising pending pod count or repeated scale failures.
+- **Visualization:** Timeline (scheduling failures), Table (cluster, reason, count), Line chart (pending pods).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.27 · Cloud Armor WAF Events
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** WAF blocks indicate attack traffic or misrules; separating noise from targeted campaigns protects edge apps behind HTTPS load balancers.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** HTTP(S) LB request logs with Cloud Armor, `sourcetype=google:gcp:pubsub:message` (loadbalancing.googleapis.com/requests)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" logName="*requests" httpRequest.status=403
+| search enforcedSecurityPolicy OR CLOUD_ARMOR
+| stats count by jsonPayload.enforcedSecurityPolicy.name, httpRequest.remoteIp, httpRequest.requestUrl
+| sort -count
+```
+- **Implementation:** Enable logging on security policies and sink to Pub/Sub. Parse rule ID and preview vs enforce. Alert on spike vs baseline or new country/ASN concentration. Tune rules to reduce false positives.
+- **Visualization:** Bar chart (rule hits), Map (client IP geo), Timeline (block rate).
+- **CIM Models:** Intrusion_Detection
+
+---
+
+### UC-4.3.28 · VPC Service Controls Violations
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Real-time violation tracking complements perimeter design reviews and catches data exfiltration paths early.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** Access Context Manager audit via `sourcetype=google:gcp:pubsub:message`
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="accesscontextmanager.googleapis.com"
+| search violation OR denied OR blocked
+| stats count by protoPayload.authenticationInfo.principalEmail, resource.labels.project_id
+| sort -count
+```
+- **Implementation:** Ensure VPC SC dry-run and enforce modes both log. Route to SIEM with severity by service (BigQuery, GCS). Weekly review of top principals for false positives.
+- **Visualization:** Table (principal, project, count), Timeline (violations), Pie chart (service).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.29 · Pub/Sub Subscription Backlog
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Growing backlog signals consumer lag or under-provisioned workers; oldest-unacked age breaches processing SLAs.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:monitoring` (`pubsub.googleapis.com/subscription/num_undelivered_messages`, `oldest_unacked_message_age`)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring" metric.type="pubsub.googleapis.com/subscription/num_undelivered_messages"
+| stats latest(value) as backlog by resource.labels.subscription_id, bin(_time, 5m)
+| where backlog > 10000
+| sort - backlog
+```
+- **Implementation:** Set per-subscription SLOs for max backlog and oldest age. Scale push subscribers or fix poison messages. Use dead-letter topics for bad payloads.
+- **Visualization:** Line chart (backlog over time), Single value (oldest message age), Table (subscription, backlog).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.30 · Security Command Center Findings
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews.
+- **App/TA:** `Splunk_TA_google-cloudplatform` (Pub/Sub export)
+- **Data Sources:** `sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" sourceProperties.ResourceName=*
+| spath path=finding
+| search finding.state="ACTIVE" (finding.severity="HIGH" OR finding.severity="CRITICAL")
+| stats latest(finding.createTime) as seen by finding.category, resource
+| sort -seen
+```
+- **Implementation:** Enable continuous export or finding notifications to Pub/Sub. Map categories to owners. Auto-ticket CRITICAL; weekly review HIGH. Deduplicate by finding ID across updates.
+- **Visualization:** Table (category, resource, severity), Bar chart (findings by category), Timeline (new findings).
+- **CIM Models:** Vulnerabilities
+
+---
+
+### UC-4.3.31 · Cloud KMS Key Rotation Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Crypto policy often mandates rotation; tracking next rotation time avoids audit findings and forced emergency rotations.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:pubsub:message` (cloudkms.googleapis.com audit), Asset Inventory key metadata
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="cloudkms.googleapis.com" protoPayload.methodName="*CryptoKey*"
+| stats latest(protoPayload.request.nextRotationTime) as next_rot by resource.labels.key_ring_id, resource.labels.crypto_key_id
+| eval days=round((strptime(next_rot,"%Y-%m-%dT%H:%M:%SZ")-now())/86400,0)
+| where days < 30 OR isnull(days)
+```
+- **Implementation:** Nightly sync key metadata including rotation period and next rotation. Alert when rotation overdue or manual rotation gaps detected. Include CMEK keys for BigQuery and GCS.
+- **Visualization:** Table (key, days to rotation), Timeline (rotation events), Single value (keys out of compliance).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.32 · Cloud Logging Sink Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Broken sinks drop audit and security logs silently; monitoring export errors preserves compliance and detection coverage.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:pubsub:message` (logging sink errors), Admin Activity for sink changes
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" logName="*logging*" (severity="ERROR" OR "SinkDisappeared" OR "WriteError")
+| stats count by resource.labels.project_id, textPayload
+| sort -count
+```
+- **Implementation:** Enable log metrics on sink write errors to Pub/Sub destinations. Alert on any error count > 0 in 15 minutes. Verify Pub/Sub IAM and destination bucket permissions after changes.
+- **Visualization:** Single value (sink errors), Table (project, error text), Timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.33 · GKE Node Auto-Repair Events
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Auto-repair replaces unhealthy nodes; frequent repairs indicate image, disk, or hardware issues affecting workload stability.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** GKE node pool operations in `sourcetype=google:gcp:pubsub:message`, cluster operations log
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.methodName="repairNodePool" OR textPayload="*auto-repair*"
+| stats count by resource.labels.cluster_name, resource.labels.node_pool
+| sort -count
+```
+- **Implementation:** Correlate repairs with container restarts and kernel OOM. Alert when repairs per day exceed baseline for a pool. Review node image version skew.
+- **Visualization:** Bar chart (repairs by pool), Timeline (repair events), Table (cluster, pool, count).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.34 · Dataflow Pipeline Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Batch and streaming pipelines power analytics; failed jobs or high system lag delay downstream consumers.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:monitoring` (`dataflow.googleapis.com/job/*`), Dataflow worker logs
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring" metric.type="dataflow.googleapis.com/job/system_lag"
+| stats latest(value) as lag_sec by resource.labels.job_name, bin(_time, 5m)
+| where lag_sec > 300
+| sort - lag_sec
+```
+- **Implementation:** Ingest job state changes (FAILED, UPDATED) from logging. Alert on sustained system lag for streaming jobs or failed batch completion. Dashboard worker CPU and shuffle errors.
+- **Visualization:** Line chart (system lag), Table (job, state), Timeline (job failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.35 · Cloud SQL Connection Limits
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Hitting max connections causes application errors; trending connections versus tier limits guides pool sizing and read replicas.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:monitoring` (`cloudsql.googleapis.com/database/network/connections`, `postgresql.googleapis.com/connection_count`)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring" metric.type="cloudsql.googleapis.com/database/network/connections"
+| stats latest(value) as conns by resource.labels.database_id, bin(_time, 5m)
+| lookup cloudsql_tier_limits database_id OUTPUT max_connections
+| where conns > max_connections * 0.85
+```
+- **Implementation:** Maintain lookup of instance tier to max connections. Alert at 85% sustained. Correlate with connection pool metrics from apps. Plan vertical scale or read replicas before hard failures.
+- **Visualization:** Line chart (connections vs limit), Gauge (utilization %), Table (instance, conns).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.36 · Memorystore (Redis) Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Redis backs sessions and caches; memory pressure and replication lag cause timeouts and stale reads.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:monitoring` (`redis.googleapis.com/stats/memory/usage_ratio`, `replication/role`, `cpu/utilization`)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring" metric.type="redis.googleapis.com/stats/memory/usage_ratio"
+| stats latest(value) as mem_ratio by resource.labels.instance_id, bin(_time, 5m)
+| where mem_ratio > 0.9
+| sort - mem_ratio
+```
+- **Implementation:** Alert on memory usage above 90%, high CPU, or replica lag metrics. Plan tier upgrades or key eviction policies. Monitor persistence (RDB/AOF) failures if enabled.
+- **Visualization:** Line chart (memory ratio, CPU), Table (instance, tier), Single value (evictions if exported).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.37 · Cloud CDN Cache Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Low hit ratio raises origin load and latency; optimizing cache keys and TTL improves cost and user experience.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** HTTP(S) LB logs with cache fill/lookup fields, `sourcetype=google:gcp:monitoring` (cdn metrics)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" httpRequest.latency!=""
+| eval cache_hit=if(match(_raw,"cacheHit|CACHE_HIT"),1,0)
+| stats sum(cache_hit) as hits, count as total by resource.labels.url_map_name
+| eval hit_ratio=round(100*hits/total,2)
+| where hit_ratio < 60 AND total > 1000
+| sort hit_ratio
+```
+- **Implementation:** Parse cache hit/miss from load balancer logs. Segment by content type and geography. Alert when hit ratio drops vs 14-day baseline. Review cache mode and Vary headers.
+- **Visualization:** Line chart (hit ratio by URL map), Bar chart (origin egress), Table (backend, hit %).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.3.38 · GCS Bucket Policy Changes
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Public buckets and IAM relaxations are common breach paths; real-time detection limits exposure window.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** Admin Activity `sourcetype=google:gcp:pubsub:message` (storage.setIamPermissions, bucket updates)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="storage.googleapis.com" protoPayload.methodName="storage.buckets.setIamPermissions"
+| spath path=protoPayload.serviceData.policy.bindings{}
+| mvexpand protoPayload.serviceData.policy.bindings{}
+| search bindings.members="allUsers" OR bindings.members="allAuthenticatedUsers"
+| table _time protoPayload.authenticationInfo.principalEmail resource.labels.bucket_name bindings.role
+```
+- **Implementation:** Alert on any allUsers/allAuthenticatedUsers binding or removal of org constraints. Weekly review of bucket-level IAM diffs. Integrate with SCC public bucket findings.
+- **Visualization:** Table (bucket, principal, role), Timeline (IAM changes), Single value (public buckets).
+- **CIM Models:** Change
+
+---
+
+### UC-4.3.39 · Anthos Service Mesh Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Istio-based meshes add control-plane and sidecar failure modes; monitoring error budgets and latency protects microservices SLOs.
+- **App/TA:** `Splunk_TA_google-cloudplatform`, Anthos Service Mesh telemetry
+- **Data Sources:** `sourcetype=google:gcp:monitoring` (Istio canonical metrics)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring"
+| where match(metric.type, "(istio|kubernetes\.io/istio)")
+| stats avg(value) as err_rate by metric.labels.destination_service_name
+| where err_rate > 0.01
+| sort - err_rate
+```
+- **Implementation:** Export Istio canonical metrics (4xx/5xx, request duration) to Cloud Monitoring and Splunk. Dashboard golden signals per service. Alert on error rate > 1% or p99 latency vs SLO. Include control plane (istiod) pod health.
+- **Visualization:** Service mesh graph (external tool) plus Table (service, error rate), Line chart (p50/p99 latency).
+- **CIM Models:** N/A
+
+---
+
 ## 4.4 Multi-Cloud & Cloud Management
 
 ---
@@ -2749,7 +3711,7 @@ index=cloud sourcetype="dns:resolution"
 
 ---
 
-### UC-4.4.21 · Cloud Resource Tagging Compliance
+### UC-4.4.21 · Cloud Resource Tag Coverage Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
@@ -2765,6 +3727,537 @@ index=aws sourcetype="aws:config:notification" configRuleName="*required-tags*" 
 ```
 - **Implementation:** Enable AWS Config rule `required-tags` (or custom rule). Use Azure Policy for tag compliance. Export GCP Asset Inventory to BigQuery or Pub/Sub. Ingest compliance results in Splunk with normalized fields (provider, resource_type, compliance_status). For multi-cloud, use `index=cloud` and union searches per provider. Dashboard untagged resources by provider, resource type, and owner. Alert when critical resources (e.g. production EC2, storage) lack required tags (Environment, Owner, CostCenter).
 - **Visualization:** Table (provider, resource type, compliance count), Pie chart (compliant vs non-compliant), Bar chart (non-compliant by tag key).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.22 · Cross-Cloud Identity Federation Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Federation misconfiguration or token abuse spans IdPs and cloud consoles; unified visibility reduces blind spots for lateral movement across AWS, Azure, and GCP.
+- **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=aws:cloudtrail` (AssumeRoleWithSAML, federation), `sourcetype=mscs:azure:audit` (federated sign-ins), `sourcetype=google:gcp:pubsub:message` (SAML/OIDC audit)
+- **SPL:**
+```spl
+(index=aws sourcetype="aws:cloudtrail" eventName="AssumeRoleWithSAML")
+ OR (index=azure sourcetype="mscs:azure:audit" identity.claims.http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier=*)
+ OR (index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.methodName="google.iam.admin.v1.IAM.SignBlob")
+| eval cloud=case(isnotnull(index) AND index="aws","aws", index="azure","azure", index="gcp","gcp",1=1,"unknown")
+| stats count by cloud, user, _time span=1h
+| sort -count
+```
+- **Implementation:** Normalize federated principal fields into a common `user` or `subject` via `eval`/`lookup`. Ingest IdP logs (Okta, Entra ID) via HEC if available and join on session ID. Alert on unusual federation volume, new IdP thumbprint, or cross-cloud sessions within minutes for the same user.
+- **Visualization:** Table (cloud, user, count), Timeline (federation events), Sankey or chord (IdP to cloud role).
+- **CIM Models:** Authentication
+
+---
+
+### UC-4.4.23 · Multi-Cloud DNS Resolution Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.
+- **App/TA:** Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs)
+- **Data Sources:** `sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled)
+- **SPL:**
+```spl
+index=cloud (sourcetype="dns:health" OR sourcetype="synthetic:dns")
+| stats latest(success) as ok, avg(latency_ms) as avg_ms by provider, resolver_vantage, tested_fqdn
+| where ok=0 OR avg_ms>500
+| eval avg_ms=round(avg_ms,1)
+| sort provider tested_fqdn
+```
+- **Implementation:** Emit probe results from each cloud (success, latency_ms, NXDOMAIN rate) via HEC. Optionally join Route 53 Resolver query logs for SERVFAIL spikes. Page when any critical FQDN fails from two vantage points or latency doubles vs baseline.
+- **Visualization:** Status grid (FQDN × provider), Line chart (success rate over time), Single value (failed probes).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.24 · Hybrid Connectivity Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** ExpressRoute, Direct Connect, VPN, and Interconnect carry production traffic; tunnel or BGP drops partition workloads between on-prem and cloud.
+- **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (DX, VPN, TGW), Azure Monitor VPN/ExpressRoute metrics, `sourcetype=google:gcp:monitoring` (VPN/interconnect)
+- **SPL:**
+```spl
+(index=aws sourcetype="aws:cloudwatch" (namespace="AWS/DX" OR namespace="AWS/VPN") (metric_name="ConnectionState" OR metric_name="TunnelState"))
+ OR (index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Network/expressRouteCircuits" metric_name="BgpPeerStatus")
+ OR (index=gcp sourcetype="google:gcp:monitoring" metric.type="vpn.googleapis.com/tunnel_established")
+| eval link_up=case(metric_name="ConnectionState" AND maximum=1,1, metric_name="TunnelState" AND maximum=1,1, metric_name="BgpPeerStatus" AND average>0,1, metric.type="vpn.googleapis.com/tunnel_established" AND value>0,1,1=1,0)
+| stats min(link_up) as healthy by resourceId, resource.labels.*, bin(_time, 5m)
+| where healthy=0
+```
+- **Implementation:** Align metric semantics per provider in lookups; alert on sustained unhealthy state. Correlate with provider status pages ingested as `sourcetype=cloud:status`. Dashboard RTO/RPO targets for hybrid links.
+- **Visualization:** Timeline (link state), Table (circuit, tunnel, status), Map (peering location if geo fields exist).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.25 · Multi-Cloud Secret Management Audit
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Secrets touched across AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager must be auditable for least-privilege reviews and breach investigations.
+- **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=aws:cloudtrail` (secretsmanager, kms), `sourcetype=mscs:azure:audit` (Key Vault), `sourcetype=google:gcp:pubsub:message` (secretmanager.googleapis.com)
+- **SPL:**
+```spl
+(index=aws sourcetype="aws:cloudtrail" eventSource="secretsmanager.amazonaws.com" eventName="GetSecretValue")
+ OR (index=azure sourcetype="mscs:azure:audit" resourceId="*vaults*")
+ OR (index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="secretmanager.googleapis.com")
+| eval principal=coalesce(userIdentity.arn, identity.claims.appid, protoPayload.authenticationInfo.principalEmail)
+| stats count by principal, index
+| sort -count
+```
+- **Implementation:** Enrich with HR or CMDB owner for service principals. Alert on first-time accessor, after-hours bulk reads, or secrets read from unexpected regions. Retention aligned to compliance policy.
+- **Visualization:** Table (principal, cloud, access count), Bar chart (top accessors), Timeline (spikes).
+- **CIM Models:** Authentication
+
+---
+
+### UC-4.4.26 · Cross-Cloud Resource Tagging Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** A single tagging schema across clouds enables chargeback and policy automation; drift in one provider breaks consolidated FinOps views.
+- **App/TA:** `Splunk_TA_aws`, Azure Policy exports, GCP Asset Inventory
+- **Data Sources:** `sourcetype=aws:config:notification`, Azure Policy compliance events, `sourcetype=google:gcp:pubsub:message` (asset exports)
+- **SPL:**
+```spl
+(index=aws sourcetype="aws:config:notification" configRuleName="*tag*" complianceType="NON_COMPLIANT")
+ OR (index=azure sourcetype="mscs:azure:audit" complianceState="NonCompliant" operationName.value="*policy*")
+ OR (index=gcp sourcetype="google:gcp:pubsub:message" "missingLabelKeys")
+| eval provider=case(index="aws","aws", index="azure","azure", index="gcp","gcp",1=1,"other")
+| stats count by provider, resourceType, resourceGroup
+| sort -count
+```
+- **Implementation:** Normalize required tag keys (for example Environment, Owner, CostCenter) in a lookup. Weekly trend of non-compliant count per provider. Alert when any provider’s gap exceeds SLA threshold.
+- **Visualization:** Stacked bar (non-compliant by provider over time), Table (resource, missing tags), Single value (compliance %).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.27 · Multi-Cloud Egress Cost Comparison
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost
+- **Value:** Egress drives surprise bills; comparing outbound spend by provider and region guides data locality and CDN decisions.
+- **App/TA:** Billing exports (CUR, Cost Management export, BigQuery billing)
+- **Data Sources:** `sourcetype=aws:billing`, `sourcetype=azure:cost`, `sourcetype=gcp:billing`
+- **SPL:**
+```spl
+index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="gcp:billing")
+| eval ut=lower(coalesce(lineItem_UsageType, usage_type, usageType, productSku))
+| eval is_egress=if(match(ut,"egress|transfer|internet|download|outbound|data_transfer"),1,0)
+| where is_egress=1
+| eval provider=case(sourcetype="aws:billing","aws", sourcetype="azure:cost","azure", sourcetype="gcp:billing","gcp",1=1,"unknown")
+| eval region=coalesce(lineItem_AvailabilityZone, resourceLocation, region)
+| stats sum(cost) as egress_usd by provider, region, bin(_time, 1d)
+| sort -egress_usd
+```
+- **Implementation:** Map each provider’s line items to normalized `usage_type` and `cost` fields during ingestion. Join with application tags where available. Alert on week-over-week egress growth above threshold per provider.
+- **Visualization:** Line chart (egress USD by provider), Bar chart (region), Table (top services driving egress).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.28 · Hybrid Identity Synchronization Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** AD Connect, Cloud Identity, and similar sync failures leave cloud groups stale, breaking access and compliance.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, Windows/Entra diagnostics, GCP Identity logs
+- **Data Sources:** `sourcetype=mscs:azure:audit` / AD Connect health, `sourcetype=wineventlog:security` (on-prem), `sourcetype=google:gcp:pubsub:message` (identity sync)
+- **SPL:**
+```spl
+(index=azure sourcetype="mscs:azure:audit" (operationName.value="*AADConnect*" OR activityDisplayName="*sync*") activityStatus!="Success")
+ OR (index=identity sourcetype="adconnect:health" status!="success")
+| eval connector_name=coalesce(connector_name, resourceGroupName, "aadconnect")
+| stats count by sourcetype, connector_name, bin(_time, 1h)
+```
+- **Implementation:** Ingest connector health JSON or Event Hub stream. Correlate with password hash sync errors and object export failures. Alert on any failed sync window or rising error count.
+- **Visualization:** Timeline (sync status), Table (connector, error), Single value (last successful sync age in minutes).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.29 · Multi-Cloud Backup Recovery Testing
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves RPO/RTO.
+- **App/TA:** `Splunk_TA_aws`, Azure Backup logs, GCP Backup for GKE / Database exports
+- **Data Sources:** `sourcetype=aws:cloudwatch:events` (Backup), `sourcetype=mscs:azure:diagnostics` (Backup), `sourcetype=google:gcp:pubsub:message` (gkebackup, sqladmin)
+- **SPL:**
+```spl
+(index=aws sourcetype="aws:cloudwatch:events" detail-type="Restore Job State Change")
+ OR (index=azure sourcetype="mscs:azure:diagnostics" Category="AzureBackupReport" OperationName="Restore")
+ OR (index=gcp sourcetype="google:gcp:pubsub:message" "Restore" OR "restoreBackup")
+| eval ok=if(match(_raw,"(?i)(FAILED|ERROR|PARTIAL)"),0,1)
+| eval provider=case(index="aws","aws", index="azure","azure", index="gcp","gcp",1=1,"unknown")
+| eval app_name=coalesce(detail.resourceArn, BackupItemName, resource.labels.project_id, "unknown")
+| stats count(eval(ok=1)) as success, count(eval(ok=0)) as failed by app_name, provider
+| where failed>0
+```
+- **Implementation:** Tag restore jobs with `drill=true` in application metadata. Quarterly dashboard of success rate and restore duration percentiles. Alert on any failed table-top restore.
+- **Visualization:** Table (app, provider, success/fail), Bar chart (drill outcomes by quarter), Line chart (restore duration trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.30 · Cloud Provider API Rate Limit Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Automation hitting AWS throttling, Azure 429s, or GCP RESOURCE_EXHAUSTED breaks pipelines; trending limits prevents silent job loss.
+- **App/TA:** Cloud TAs + application logs with HTTP status
+- **Data Sources:** `sourcetype=aws:cloudtrail` (ThrottlingException), `sourcetype=mscs:azure:audit` / app logs (429), `sourcetype=google:gcp:pubsub:message` (status 429, RESOURCE_EXHAUSTED)
+- **SPL:**
+```spl
+(index=aws sourcetype="aws:cloudtrail" errorCode="Throttling")
+ OR (index=azure sourcetype="mscs:azure:audit" status.value="429")
+ OR (index=gcp sourcetype="google:gcp:pubsub:message" "RESOURCE_EXHAUSTED" OR status="429")
+| eval provider=case(index="aws","aws", index="azure","azure", index="gcp","gcp",1=1,"unknown")
+| timechart span=15m count by provider
+```
+- **Implementation:** Back off and jitter in automation based on Splunk alerts. Separate control-plane vs data-plane APIs. Dashboard top callers (principal or workload) causing throttles.
+- **Visualization:** Line chart (throttle count by provider), Table (API operation, caller, count), Single value (15m throttle burst).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.4.31 · Multi-Cloud Certificate Expiry Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Expired certs break TLS for APIs and VPNs across regions; a unified expiry calendar prevents outages.
+- **App/TA:** ACM/Key Vault/Certificate Manager exports, optional certstream
+- **Data Sources:** `sourcetype=aws:acm:inventory`, `sourcetype=mscs:azure:metrics` / cert inventory, `sourcetype=google:gcp:pubsub:message` (certificatemanager)
+- **SPL:**
+```spl
+index=cloud (sourcetype="aws:acm:inventory" OR sourcetype="azure:keyvault:certs" OR sourcetype="google:gcp:pubsub:message")
+| eval not_after_epoch=coalesce(strptime(expiry, "%Y-%m-%dT%H:%M:%SZ"), strptime(expiry, "%Y-%m-%dT%H:%M:%S%z"), strptime(notAfter, "%Y-%m-%dT%H:%M:%S"))
+| eval days_left=round((not_after_epoch-now())/86400,0)
+| eval provider=case(sourcetype="aws:acm:inventory","aws", sourcetype="azure:keyvault:certs","azure", sourcetype="google:gcp:pubsub:message","gcp",1=1,"unknown")
+| where days_left < 30 AND days_left >= 0
+| table cert_name, provider, expiry, days_left
+| sort days_left
+```
+- **Implementation:** Nightly inventory jobs push cert metadata via HEC. Escalate at 30, 14, and 7 days. Include private CAs and cloud-managed certs for load balancers and API gateways.
+- **Visualization:** Table (cert, provider, days left), Timeline (expiry dates), Single value (next expiry).
+- **CIM Models:** N/A
+
+---
+
+## 4.5 Serverless & FaaS
+
+---
+
+### UC-4.5.1 · Lambda Invocation Errors and Failed Invocations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Failed Lambda invocations surface runtime bugs, dependency outages, and misconfiguration before they silently drop user traffic or break downstream workflows.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" metric_name="Errors"
+| timechart span=5m sum(Sum) as errors by FunctionName
+| join FunctionName type=left
+    [ search index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" metric_name="Invocations"
+    | timechart span=5m sum(Sum) as invocations by FunctionName ]
+| eval error_rate=if(invocations>0, round(100*errors/invocations, 2), 0)
+| where error_rate > 1
+```
+- **Implementation:** Enable CloudWatch metric collection for the Lambda namespace (Errors, Invocations). Ingest via Splunk_TA_aws. Optionally correlate with Lambda application logs from CloudWatch Logs subscription. Alert when error rate exceeds policy (for example 1–5% sustained over 15 minutes).
+- **Visualization:** Line chart (errors and invocations over time by function), Single value (error rate %), Table (FunctionName, errors, invocations, error_rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.2 · Lambda Cold Start and Init Duration Latency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cold starts add tail latency to user-facing APIs and batch jobs; tracking Init Duration guides memory tuning, provisioned concurrency, and VPC design.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (`InitDuration`), optional `sourcetype=aws:cloudwatchlogs` (Lambda REPORT lines)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" metric_name="InitDuration"
+| timechart span=5m avg(Average) as avg_init_ms, max(Maximum) as max_init_ms by FunctionName
+| where avg_init_ms > 500
+```
+- **Implementation:** Collect the `InitDuration` CloudWatch metric for each function. For log-based validation, subscribe Lambda log groups to Splunk and parse `REPORT` lines for `Init Duration`. Baseline p95/p99 init time per function and alert when cold-start latency breaches SLO after deploys or scaling events.
+- **Visualization:** Line chart (avg/max Init Duration by function), Box plot or percentile overlay (if precomputed), Table (FunctionName, p95 init ms).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.3 · Lambda Concurrent Execution Limits and Throttling
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Account- and function-level concurrency caps cause synchronous throttles and async retries; monitoring utilization prevents dropped work during traffic spikes.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" (metric_name="ConcurrentExecutions" OR metric_name="Throttles")
+| stats sum(Sum) as volume by FunctionName, metric_name
+| xyseries FunctionName metric_name volume
+| fillnull value=0
+| where Throttles>0
+```
+- **Implementation:** Ingest `ConcurrentExecutions`, `Throttles`, and reserved concurrency settings (from tags or a nightly inventory lookup). Compare concurrent usage to reserved and account limits. Alert on any non-zero throttles or when concurrent executions approach the configured cap for bursty functions.
+- **Visualization:** Line chart (ConcurrentExecutions vs limit by function), Single value (throttle count), Area chart (stacked concurrency by function).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.4 · Azure Functions Host and Worker Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Host startup failures, platform updates, and worker crashes take entire function apps offline; early detection reduces MTTR for serverless workloads on Azure.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:diagnostics` (Function App logs), `sourcetype=mscs:azure:metrics`
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" Category="FunctionAppLogs" (level="Error" OR level="Critical")
+| bin span=5m _time
+| stats count as errors by resourceName, operationName, _time
+| where errors > 0
+```
+- **Implementation:** Stream Function App diagnostics (FunctionAppLogs) to Event Hub and ingest with the Microsoft Cloud Services add-on. Normalize `resourceName` (app name) and severity. Optionally join with `mscs:azure:metrics` for `Http5xx` or `FunctionExecutionCount` drops. Alert on sustained host-level errors or absence of successful executions.
+- **Visualization:** Timeline (errors by app), Table (resourceName, message pattern, count), Status indicator (healthy/degraded per Function App).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.5 · Azure Functions Execution Duration
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Long-running functions tie up scale-out units and can hit timeout limits; duration trending guides right-sizing, connection pooling, and async patterns.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:metrics` (Function metrics)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:metrics" metricName="FunctionExecutionDuration"
+| timechart span=5m avg(average) as avg_ms, max(maximum) as max_ms by resourceName
+| where max_ms > 10000
+```
+- **Implementation:** Enable Azure Monitor metrics for Function Apps and ingest via the TA (dimensions: function name where available). Establish baselines per function. Alert when p95 duration approaches the function timeout or degrades after releases.
+- **Visualization:** Line chart (avg/max duration by app or function), Heatmap (duration by hour), Table (resourceName, avg_ms, max_ms).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.6 · Azure Functions Queue Trigger Backlog and Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Queue-triggered functions depend on storage or Service Bus depth; growing backlogs mean consumers cannot keep pace or messages are poisoned.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:metrics` (Storage Queue / Service Bus), `sourcetype=mscs:azure:diagnostics`
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:metrics" (metricName="QueueMessageCount" OR metricName="ActiveMessages")
+| timechart span=5m avg(average) as depth by resourceName, metricName
+| join type=left resourceName
+    [ search index=azure sourcetype="mscs:azure:diagnostics" Category="FunctionAppLogs" "QueueTrigger"
+    | stats count as trigger_errors by resourceName ]
+| where depth > 1000 OR trigger_errors > 0
+```
+- **Implementation:** Ingest queue depth metrics for the storage account or Service Bus namespace backing the trigger. Correlate with FunctionAppLogs for dequeue/processing errors. Alert when depth exceeds threshold or poison-message handling spikes. Map queue resource to Function App via tags or a lookup.
+- **Visualization:** Dual-axis line chart (queue depth vs successful executions), Table (queue, depth, errors), Single value (oldest message age if exported).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.7 · GCP Cloud Functions Memory Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Memory pressure causes OOM terminations and retries; tracking user memory against allocation prevents instability and guides memory settings per function.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:monitoring` (Cloud Functions metrics)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:monitoring" metric.type="cloudfunctions.googleapis.com/function/user_memory_bytes"
+| timechart span=5m avg(value) as avg_bytes, max(value) as max_bytes by metric.labels.function_name
+| eval max_mb=round(max_bytes/1048576, 2)
+| where max_mb > 0
+```
+- **Implementation:** Export Cloud Monitoring metrics for Cloud Functions to Splunk via the GCP add-on. Join max memory usage with deployed memory configuration from labels or an asset lookup. Alert when utilization consistently approaches the configured limit (for example >85% of allocated memory).
+- **Visualization:** Line chart (avg/max memory by function), Gauge (peak vs allocation), Table (function_name, max_mb, allocation_mb).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.8 · GCP Cloud Functions Timeout Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Timeouts indicate hung dependencies or insufficient deadline; they drive retries, duplicate side effects, and user-visible failures in synchronous invocations.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:pubsub:message` (Cloud Logging for `cloud_function`), `sourcetype=google:gcp:monitoring`
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" resource.type="cloud_function"
+| where match(_raw, "(?i)timeout|deadline exceeded|function execution took too long")
+| stats count as timeout_events by resource.labels.function_name, resource.labels.region
+| sort -timeout_events
+```
+- **Implementation:** Forward Cloud Functions logs to Pub/Sub and ingest with `resource.type="cloud_function"`. Optionally add monitoring metrics for execution times and error result codes. Alert on timeout string patterns or rising timeout counts after dependency or region incidents.
+- **Visualization:** Column chart (timeouts by function), Line chart (timeouts over time), Table (function_name, region, count).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.9 · Serverless Cost Tracking by Function
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost
+- **Value:** Function-level spend exposes expensive handlers, mis-scaled concurrency, and test sandboxes left running—essential for FinOps and chargeback.
+- **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=aws:billing`, `sourcetype=azure:costmanagement`, `sourcetype=gcp:billing`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:billing" OR index=azure sourcetype="azure:costmanagement" OR index=gcp sourcetype="gcp:billing"
+| eval cloud=case(index=="aws","AWS", index=="azure","Azure", index=="gcp","GCP")
+| eval line_cost=coalesce(BlendedCost, UnblendedCost, cost, CostInBillingCurrency)
+| eval fn=coalesce(resourceId, ResourceId, labels.value)
+| where match(lower(ProductName).lower(service).lower(resource_type), "(lambda|function|cloudfunctions|functions)")
+| stats sum(line_cost) as spend by cloud, fn
+| sort -spend
+```
+- **Implementation:** Ingest CUR or cost exports with resource-level granularity and tags (`aws:createdBy`, Azure resource name, GCP labels). Normalize into a common schema. Filter to serverless SKUs (Lambda, Azure Functions, Cloud Functions). Schedule weekly reports and alerts for top-N spenders or day-over-day spikes per function.
+- **Visualization:** Bar chart (spend by function), Treemap (cost by cloud and service), Table (cloud, function, spend, % of total).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.10 · Lambda Dead Letter Queue Depth and Message Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Messages landing in DLQs mean unprocessed events—often billing, inventory, or security actions—until replayed or dropped.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (namespace `AWS/SQS`), optional `sourcetype=aws:cloudwatch:events`
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/SQS" metric_name="ApproximateNumberOfMessagesVisible"
+| where match(QueueName, "(?i)dlq|dead")
+| timechart span=5m max(Maximum) as visible by QueueName
+| where visible > 0
+```
+- **Implementation:** Tag or name DLQ queues consistently (`*dlq*`). Ingest SQS CloudWatch metrics per queue. Correlate queue to owning Lambda via Event Source Mapping inventory (lookup table). Alert on any sustained visible message count or sudden spikes after bad deployments.
+- **Visualization:** Single value (DLQ depth), Line chart (visible messages by queue), Table (QueueName, linked function, visible).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.11 · AWS Step Functions Execution Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Failed state machine runs break orchestrated business processes; tracking failed executions enables rapid rollback and pinpointing of failing states or Lambda tasks.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (namespace `AWS/States`)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/States" metric_name="ExecutionsFailed"
+| timechart span=5m sum(Sum) as failed by StateMachineArn
+| where failed > 0
+```
+- **Implementation:** Enable CloudWatch metrics for Step Functions (`ExecutionsFailed`, `ExecutionsTimedOut`, `ExecutionsAborted`). Ingest via Splunk_TA_aws. Optionally join with execution history forwarded to S3 or CloudWatch Logs for failure context. Alert on any failed executions in production state machines or rate-based thresholds.
+- **Visualization:** Line chart (failed executions by state machine), Single value (failures in last hour), Table (StateMachineArn, failed, timed out).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.12 · Azure Durable Functions Orchestration Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Durable orchestrations span many activities; failed or stuck instances block business workflows until replayed or purged from storage.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`
+- **Data Sources:** `sourcetype=mscs:azure:diagnostics` (FunctionAppLogs, traces)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:diagnostics" Category="FunctionAppLogs"
+| where match(_raw, "(?i)orchestration.*(failed|faulted)|TaskFailed|SubOrchestrationFailed")
+| stats count as orch_failures by resourceName, coalesce(functionName, name)
+| sort -orch_failures
+```
+- **Implementation:** Enable verbose logging for Durable Functions and ingest FunctionAppLogs. Extract orchestration instance IDs where present. Correlate with Storage Account metrics (queue/table used by the task hub) for backlog. Alert on failure patterns or rising pending instances versus completions.
+- **Visualization:** Table (app, orchestration name, failures), Line chart (failures over time), Link to Application Insights-style trace IDs if forwarded.
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.13 · Lambda Provisioned Concurrency Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Provisioned concurrency is a fixed cost; low utilization wastes spend while high utilization risks cold starts on overflow—balance requires continuous measurement.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" metric_name="ProvisionedConcurrencyUtilization"
+| timechart span=5m avg(Average) as util by FunctionName, Resource
+| where util < 0.2 OR util > 0.9
+```
+- **Implementation:** Collect `ProvisionedConcurrencyUtilization` for each alias or version with provisioned settings. Compare against provisioned units from tags or CloudFormation export. Alert when utilization is chronically low (cost optimization) or high (risk of throttling on burst beyond provisioned pool).
+- **Visualization:** Line chart (utilization by function/alias), Area chart (consumed vs provisioned concurrency), Table (FunctionName, util %, recommended units).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.14 · API Gateway Integration Latency for Serverless Backends
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Integration latency isolates backend (Lambda, HTTP proxy) time from client-facing latency; spikes often precede Lambda timeouts or VPC connectivity issues.
+- **App/TA:** `Splunk_TA_aws`
+- **Data Sources:** `sourcetype=aws:cloudwatch` (namespace `AWS/ApiGateway`)
+- **SPL:**
+```spl
+index=aws sourcetype="aws:cloudwatch" namespace="AWS/ApiGateway" metric_name="IntegrationLatency"
+| timechart span=5m avg(Average) as integ_ms by ApiName, Stage
+| where integ_ms > 2000
+```
+- **Implementation:** Enable detailed CloudWatch metrics for REST or HTTP APIs. Ingest `IntegrationLatency` alongside `Latency` and `4XXError`/`5XXError`. Split dashboards by stage (prod vs dev). Alert when integration latency exceeds backend SLA or diverges from total API latency (pointing to edge vs origin issues).
+- **Visualization:** Line chart (IntegrationLatency vs Latency by API), Heatmap (route/method if dimensions available), Table (ApiName, Stage, p95 integ_ms).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.5.15 · GCP Cloud Functions Retry and Error Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Rising retries and error rates signal unstable dependencies or quota issues before quotas hard-stop traffic; trending supports SLO review and incident prevention.
+- **App/TA:** `Splunk_TA_google-cloudplatform`
+- **Data Sources:** `sourcetype=google:gcp:pubsub:message` (Cloud Logging), optional `sourcetype=google:gcp:monitoring` (execution metrics)
+- **SPL:**
+```spl
+index=gcp sourcetype="google:gcp:pubsub:message" resource.type="cloud_function"
+| eval fn=resource.labels.function_name
+| eval is_err=if(severity="ERROR", 1, 0)
+| timechart span=1h sum(is_err) as errors, count as invocations by fn
+| eval err_rate=if(invocations>0, round(100*errors/invocations, 2), 0)
+| where err_rate > 5
+```
+- **Implementation:** Ingest execution count metrics with result/status labels from Cloud Monitoring. Supplement with log-based counts from Cloud Logging for detailed error classes. Baseline hourly error and retry rates per function. Alert when error share exceeds threshold or retries spike versus invocations.
+- **Visualization:** Stacked area chart (executions by outcome), Line chart (error rate % over time), Table (function_name, invocations, errors, retry estimate).
 - **CIM Models:** N/A
 
 ---
