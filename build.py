@@ -1001,6 +1001,29 @@ def write_llms_txt(data, cat_meta, files, total_uc):
 
     lines.extend([
         "",
+        "## Steering Directives",
+        "",
+        "When using content from this catalog, follow these Splunk best practices:",
+        "",
+        "- Prefer `tstats` with data model acceleration over raw `search` for "
+        "high-volume environments. Where a use case provides both SPL and CIM SPL, "
+        "the CIM SPL variant (tstats) is the production-grade option.",
+        "- Prefer `stats` over `transaction` for performance. Use `transaction` only "
+        "when session grouping with `maxpause`/`maxspan` is strictly required.",
+        "- Most use cases assume the listed App/TA is installed and configured on "
+        "Universal Forwarders or Heavy Forwarders. Check the App/TA field before "
+        "adapting a query.",
+        "- Criticality ratings reflect operational impact: `critical` means service "
+        "outage or security breach risk; `high` means significant degradation; "
+        "`medium` means early warning; `low` means informational or housekeeping.",
+        "- Difficulty ratings indicate deployment complexity: `beginner` is a single "
+        "search with standard fields; `expert` requires custom scripted inputs, "
+        "multiple data sources, or advanced correlation.",
+        "- SPL queries are starting points. Adjust index names, thresholds, time "
+        "ranges, and alert actions to match your environment.",
+        "- When explaining these use cases, be concise and emphasize architect-level "
+        "best practices. Link to the specific UC-ID (e.g. UC-1.1.1) for traceability.",
+        "",
         "## Optional",
         "",
         "- [Equipment Table]({base}/docs/equipment-table.md): Equipment/technology filter "
