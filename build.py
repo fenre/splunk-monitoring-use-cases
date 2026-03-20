@@ -20,6 +20,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +28,7 @@ UC_DIR = os.path.join(SCRIPT_DIR, "use-cases")
 OUTPUT = os.path.join(SCRIPT_DIR, "data.js")
 OUTPUT_CATALOG_JSON = os.path.join(SCRIPT_DIR, "catalog.json")
 OUTPUT_LLMS_TXT = os.path.join(SCRIPT_DIR, "llms.txt")
+OUTPUT_LLM_TXT = os.path.join(SCRIPT_DIR, "llm.txt")
 OUTPUT_LLMS_FULL_TXT = os.path.join(SCRIPT_DIR, "llms-full.txt")
 
 SITE_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases"
@@ -1123,6 +1125,9 @@ def main():
     # Write llms.txt and llms-full.txt for AI agent discoverability
     llms_kb = write_llms_txt(data, cat_meta, files, total_uc)
     print(f"Wrote {OUTPUT_LLMS_TXT} ({llms_kb:.1f} KB)")
+
+    shutil.copy2(OUTPUT_LLMS_TXT, OUTPUT_LLM_TXT)
+    print(f"Wrote {OUTPUT_LLM_TXT} (copy of llms.txt)")
 
     llms_full_kb = write_llms_full_txt(data, cat_meta, files, total_uc)
     print(f"Wrote {OUTPUT_LLMS_FULL_TXT} ({llms_full_kb:.1f} KB)")
