@@ -30,6 +30,7 @@ OUTPUT_LLMS_TXT = os.path.join(SCRIPT_DIR, "llms.txt")
 OUTPUT_LLMS_FULL_TXT = os.path.join(SCRIPT_DIR, "llms-full.txt")
 
 SITE_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases"
+RAW_GITHUB_URL = "https://raw.githubusercontent.com/fenre/splunk-monitoring-use-cases/main"
 
 # Emoji → value mappings
 CRITICALITY_MAP = {
@@ -934,6 +935,10 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "and more. Use cases range from beginner to expert difficulty and from low to "
         "critical priority.",
         "",
+        "Note: The main page (index.html) is a JavaScript SPA and will appear empty to "
+        "non-browser clients. Use the files listed below for AI/LLM access — they are "
+        "all static plain-text or JSON, no JavaScript required.",
+        "",
         "## Docs",
         "",
         "- [Catalog JSON]({base}/catalog.json): Machine-readable JSON catalog of all use cases "
@@ -971,14 +976,35 @@ def write_llms_txt(data, cat_meta, files, total_uc):
 
     lines.extend([
         "",
+        "## Raw GitHub Access",
+        "",
+        "If the GitHub Pages URLs above are blocked by your fetch policy, use these "
+        "raw.githubusercontent.com URLs instead (identical content):",
+        "",
+        "- [llms-full.txt]({raw}/llms-full.txt): Complete use case index".format(raw=RAW_GITHUB_URL),
+        "- [catalog.json]({raw}/catalog.json): Full JSON catalog".format(raw=RAW_GITHUB_URL),
+        "- [catalog-schema.md]({raw}/docs/catalog-schema.md): Schema reference".format(raw=RAW_GITHUB_URL),
+        "",
+        "Per-category files (raw GitHub):",
+        "",
+    ])
+
+    for cat in data:
+        cat_id = cat["i"]
+        cat_name = cat["n"]
+        cat_file = _cat_file_for_id(cat_id, files)
+        if cat_file:
+            lines.append("- [{name}]({raw}/use-cases/{file})".format(
+                name=cat_name, raw=RAW_GITHUB_URL, file=cat_file))
+
+    lines.extend([
+        "",
         "## Optional",
         "",
         "- [Equipment Table]({base}/docs/equipment-table.md): Equipment/technology filter "
         "definitions and TA matching patterns".format(base=SITE_BASE_URL),
         "- [Splunk Apps Comparison]({base}/docs/splunk-apps-use-cases-comparison.md): "
         "How this catalog compares to other Splunk content sources".format(base=SITE_BASE_URL),
-        "- [Full Use Case Index (llms-full.txt)]({base}/llms-full.txt): "
-        "Expanded listing of every use case ID and title".format(base=SITE_BASE_URL),
         "",
     ])
 
@@ -1000,8 +1026,9 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
         "markdown files linked below.".format(uc_count=total_uc, cat_count=len(data)),
         "",
         "Machine-readable catalog (JSON): {base}/catalog.json".format(base=SITE_BASE_URL),
+        "Raw GitHub catalog (JSON): {raw}/catalog.json".format(raw=RAW_GITHUB_URL),
         "Schema reference: {base}/docs/catalog-schema.md".format(base=SITE_BASE_URL),
-        "Interactive dashboard: {base}/".format(base=SITE_BASE_URL),
+        "Interactive dashboard (JavaScript SPA): {base}/".format(base=SITE_BASE_URL),
         "",
     ]
 
@@ -1024,6 +1051,8 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
         if cat_file:
             lines.append("Full details: {base}/use-cases/{file}".format(
                 base=SITE_BASE_URL, file=cat_file))
+            lines.append("Raw GitHub: {raw}/use-cases/{file}".format(
+                raw=RAW_GITHUB_URL, file=cat_file))
             lines.append("")
 
         for sub in cat.get("s", []):
