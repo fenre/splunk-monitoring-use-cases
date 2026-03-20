@@ -1,0 +1,92 @@
+# Archive GitHub traffic data daily.
+# GitHub only retains 14 days of traffic stats; this workflow fetches them
+# daily and merges new data points into traffic/data.json for long-term history.
+name: Archive Traffic Data
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch and merge traffic data
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, subprocess, sys
+          from datetime import datetime
+
+          REPO = os.environ.get("GITHUB_REPOSITORY", "fenre/splunk-monitoring-use-cases")
+          DATA_FILE = "traffic/data.json"
+
+          def gh_api(endpoint):
+              result = subprocess.run(
+                  ["gh", "api", f"/repos/{REPO}/traffic/{endpoint}"],
+                  capture_output=True, text=True
+              )
+              if result.returncode != 0:
+                  print(f"API error for {endpoint}: {result.stderr}", file=sys.stderr)
+                  return None
+              return json.loads(result.stdout)
+
+          os.makedirs("traffic", exist_ok=True)
+          if os.path.exists(DATA_FILE):
+              with open(DATA_FILE, "r") as f:
+                  data = json.load(f)
+          else:
+              data = {"views": [], "referrers": {}, "paths": {}}
+
+          views_resp = gh_api("views?per=day")
+          if views_resp and "views" in views_resp:
+              existing_dates = {v["date"] for v in data["views"]}
+              for entry in views_resp["views"]:
+                  if entry["timestamp"] not in existing_dates:
+                      data["views"].append({
+                          "date": entry["timestamp"],
+                          "count": entry["count"],
+                          "uniques": entry["uniques"]
+                      })
+              data["views"].sort(key=lambda v: v["date"])
+
+          today = datetime.utcnow().strftime("%Y-%m-%d")
+
+          referrers_resp = gh_api("popular/referrers")
+          if referrers_resp:
+              data["referrers"][today] = [
+                  {"referrer": r["referrer"], "count": r["count"], "uniques": r["uniques"]}
+                  for r in referrers_resp
+              ]
+
+          paths_resp = gh_api("popular/paths")
+          if paths_resp:
+              data["paths"][today] = [
+                  {"path": p["path"], "count": p["count"], "uniques": p["uniques"]}
+                  for p in paths_resp
+              ]
+
+          with open(DATA_FILE, "w") as f:
+              json.dump(data, f, indent=2)
+
+          print(f"Views: {len(data['views'])} daily records")
+          print(f"Referrer snapshots: {len(data['referrers'])} days")
+          print(f"Path snapshots: {len(data['paths'])} days")
+          PYEOF
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add traffic/data.json
+          git diff --cached --quiet && echo "No new data" && exit 0
+          git commit -m "chore: archive traffic data $(date -u +%Y-%m-%d)"
+          git push
