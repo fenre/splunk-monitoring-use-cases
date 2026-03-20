@@ -30,6 +30,14 @@ python3 validate_md.py
 
 Checks UC-ID consistency, category numbering, and code-block balance across all use case files.
 
+### Random “Splunk fortune” (fun)
+
+```bash
+python3 scripts/splunk_fortune.py
+```
+
+Prints a random use case from `catalog.json` with a sample SPL line — like a fortune cookie for operators. Use `-n 3` for three picks.
+
 ### Customize Dashboard Text
 
 Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, footer, and other UI strings. This file is never overwritten by `build.py`.

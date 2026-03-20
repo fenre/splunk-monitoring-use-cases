@@ -11,6 +11,9 @@ Reads:
 
 Writes:
     data.js                     — const DATA, CAT_META, CAT_STARTERS, CAT_GROUPS
+    catalog.json                — machine-readable JSON catalog (same data as data.js)
+    llms.txt                    — concise AI-agent index (llms.txt standard)
+    llms-full.txt               — expanded AI-agent index with all use case titles
 """
 
 import glob
@@ -23,6 +26,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 UC_DIR = os.path.join(SCRIPT_DIR, "use-cases")
 OUTPUT = os.path.join(SCRIPT_DIR, "data.js")
 OUTPUT_CATALOG_JSON = os.path.join(SCRIPT_DIR, "catalog.json")
+OUTPUT_LLMS_TXT = os.path.join(SCRIPT_DIR, "llms.txt")
+OUTPUT_LLMS_FULL_TXT = os.path.join(SCRIPT_DIR, "llms-full.txt")
+
+SITE_BASE_URL = "https://fsudmann.github.io/splunk-monitoring-use-cases"
 
 # Emoji → value mappings
 CRITICALITY_MAP = {
@@ -903,6 +910,139 @@ def write_data_js(data, cat_meta, output_path):
     return size_kb
 
 
+def _cat_file_for_id(cat_id, files):
+    """Return the basename of the category file matching cat_id (int)."""
+    prefix = f"cat-{cat_id:02d}-"
+    for f in files:
+        if os.path.basename(f).startswith(prefix):
+            return os.path.basename(f)
+    return None
+
+
+def write_llms_txt(data, cat_meta, files, total_uc):
+    """Write a concise llms.txt file following the llms.txt standard."""
+    lines = [
+        "# Splunk Infrastructure Monitoring Use Cases",
+        "",
+        "> A curated catalog of {uc_count}+ IT infrastructure monitoring use cases for Splunk, "
+        "organized across {cat_count} technology domains. Each use case includes criticality, "
+        "SPL queries, CIM data model mappings, implementation guidance, equipment tagging, "
+        "and visualization recommendations.".format(uc_count=total_uc, cat_count=len(data)),
+        "",
+        "This repository provides ready-to-use Splunk monitoring content for servers, "
+        "virtualization, cloud, containers, networking, security, databases, IoT/OT, "
+        "and more. Use cases range from beginner to expert difficulty and from low to "
+        "critical priority.",
+        "",
+        "## Docs",
+        "",
+        "- [Catalog JSON]({base}/catalog.json): Machine-readable JSON catalog of all use cases "
+        "(structured data with abbreviated field keys)".format(base=SITE_BASE_URL),
+        "- [Catalog Schema]({base}/docs/catalog-schema.md): Field reference for catalog.json — "
+        "explains every key and how to query the data".format(base=SITE_BASE_URL),
+        "- [Category Index]({base}/use-cases/INDEX.md): Category overview with descriptions, "
+        "icons, and quick-start picks".format(base=SITE_BASE_URL),
+        "- [Implementation Guide]({base}/docs/implementation-guide.md): How to deploy use cases — "
+        "apps, inputs.conf, indexes".format(base=SITE_BASE_URL),
+        "- [CIM and Data Models]({base}/docs/cim-and-data-models.md): CIM mapping reference "
+        "and data model acceleration guidance".format(base=SITE_BASE_URL),
+        "- [Use Case Fields]({base}/docs/use-case-fields.md): Explanation of every field in "
+        "the use case markdown format".format(base=SITE_BASE_URL),
+        "",
+        "## Categories",
+        "",
+    ]
+
+    for cat in data:
+        cat_id = cat["i"]
+        cat_name = cat["n"]
+        cat_file = _cat_file_for_id(cat_id, files)
+        meta = cat_meta.get(str(cat_id), {})
+        desc = meta.get("desc", "")
+        uc_count = sum(len(s.get("u", [])) for s in cat.get("s", []))
+        if cat_file:
+            line = "- [{name}]({base}/use-cases/{file}): {desc} ({count} use cases)".format(
+                name=cat_name, base=SITE_BASE_URL, file=cat_file,
+                desc=desc, count=uc_count)
+        else:
+            line = "- {name}: {desc} ({count} use cases)".format(
+                name=cat_name, desc=desc, count=uc_count)
+        lines.append(line)
+
+    lines.extend([
+        "",
+        "## Optional",
+        "",
+        "- [Equipment Table]({base}/docs/equipment-table.md): Equipment/technology filter "
+        "definitions and TA matching patterns".format(base=SITE_BASE_URL),
+        "- [Splunk Apps Comparison]({base}/docs/splunk-apps-use-cases-comparison.md): "
+        "How this catalog compares to other Splunk content sources".format(base=SITE_BASE_URL),
+        "- [Full Use Case Index (llms-full.txt)]({base}/llms-full.txt): "
+        "Expanded listing of every use case ID and title".format(base=SITE_BASE_URL),
+        "",
+    ])
+
+    with open(OUTPUT_LLMS_TXT, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    size_kb = os.path.getsize(OUTPUT_LLMS_TXT) / 1024
+    return size_kb
+
+
+def write_llms_full_txt(data, cat_meta, files, total_uc):
+    """Write an expanded llms-full.txt with every use case ID and title."""
+    lines = [
+        "# Splunk Infrastructure Monitoring Use Cases — Full Index",
+        "",
+        "> Complete listing of all {uc_count}+ IT infrastructure monitoring use cases for Splunk "
+        "across {cat_count} technology domains. Each entry shows the use case ID, title, and "
+        "criticality. For full SPL queries and implementation details, see the per-category "
+        "markdown files linked below.".format(uc_count=total_uc, cat_count=len(data)),
+        "",
+        "Machine-readable catalog (JSON): {base}/catalog.json".format(base=SITE_BASE_URL),
+        "Schema reference: {base}/docs/catalog-schema.md".format(base=SITE_BASE_URL),
+        "Interactive dashboard: {base}/".format(base=SITE_BASE_URL),
+        "",
+    ]
+
+    for cat in data:
+        cat_id = cat["i"]
+        cat_name = cat["n"]
+        cat_file = _cat_file_for_id(cat_id, files)
+        meta = cat_meta.get(str(cat_id), {})
+        desc = meta.get("desc", "")
+        quick = meta.get("quick", "")
+
+        lines.append("## {id}. {name}".format(id=cat_id, name=cat_name))
+        lines.append("")
+        if desc:
+            lines.append(desc)
+            lines.append("")
+        if quick:
+            lines.append("**Quick tip:** " + quick)
+            lines.append("")
+        if cat_file:
+            lines.append("Full details: {base}/use-cases/{file}".format(
+                base=SITE_BASE_URL, file=cat_file))
+            lines.append("")
+
+        for sub in cat.get("s", []):
+            lines.append("### {id} {name}".format(id=sub["i"], name=sub["n"]))
+            lines.append("")
+            for uc in sub.get("u", []):
+                crit = uc.get("c", "")
+                crit_label = " [{c}]".format(c=crit) if crit else ""
+                lines.append("- UC-{id} · {name}{crit}".format(
+                    id=uc["i"], name=uc["n"], crit=crit_label))
+            lines.append("")
+
+    with open(OUTPUT_LLMS_FULL_TXT, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    size_kb = os.path.getsize(OUTPUT_LLMS_FULL_TXT) / 1024
+    return size_kb
+
+
 def main():
     # Find and sort category files
     pattern = os.path.join(UC_DIR, "cat-[0-9]*.md")
@@ -950,6 +1090,13 @@ def main():
     with open(OUTPUT_CATALOG_JSON, "w", encoding="utf-8") as f:
         json.dump(catalog, f, ensure_ascii=False, separators=(",", ":"))
     print(f"Wrote {OUTPUT_CATALOG_JSON} ({os.path.getsize(OUTPUT_CATALOG_JSON) / 1024:.0f} KB)")
+
+    # Write llms.txt and llms-full.txt for AI agent discoverability
+    llms_kb = write_llms_txt(data, cat_meta, files, total_uc)
+    print(f"Wrote {OUTPUT_LLMS_TXT} ({llms_kb:.1f} KB)")
+
+    llms_full_kb = write_llms_full_txt(data, cat_meta, files, total_uc)
+    print(f"Wrote {OUTPUT_LLMS_FULL_TXT} ({llms_full_kb:.1f} KB)")
 
 
 if __name__ == "__main__":
