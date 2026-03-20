@@ -46,6 +46,7 @@ def load_catalog(path: Path) -> list[dict]:
             cat_name = cat.get("n", "?")
             for uc in cat.get("u", []):
                 uc["_category"] = cat_name
+                flat.append(uc)
     return flat or FALLBACK
 
 
