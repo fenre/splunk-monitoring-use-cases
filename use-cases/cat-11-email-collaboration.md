@@ -1158,8 +1158,6 @@ index=jira sourcetype="jira:jmx"
 
 ---
 
-### 11.4 Cisco Spaces & Location Intelligence
-
 ### 11.3.TE Cisco ThousandEyes — Voice & Collaboration Monitoring
 
 ---

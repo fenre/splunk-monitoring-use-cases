@@ -226,3 +226,14 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
   - UC-20.2.1 · Compute Capacity Forecasting (high, Capacity Planning)
   - UC-20.2.2 · Storage Growth Forecasting (high, Capacity Planning)
 
+## 21. Industry Verticals
+- **Icon:** globe
+- **Description:** Industry-specific operational monitoring and compliance — energy, manufacturing, healthcare, transportation, oil & gas, retail, aviation, telecom, water utilities, insurance, and regulatory frameworks (GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2).
+- **Quick Tip:** Combine standard infrastructure TAs with industry-specific data sources (SCADA historians, HL7 feeds, fleet telematics, POS systems) for vertical-specific observability.
+- **Quick Start:**
+  - UC-21.1.1 · SCADA RTU Communication Health (critical, Energy and Utilities)
+  - UC-21.2.1 · PLC Program Change Detection (critical, Manufacturing and Process Industry)
+  - UC-21.3.1 · HL7 ADT Message Processing Latency (critical, Healthcare and Life Sciences)
+  - UC-21.11.1 · GDPR PII Detection in Application Log Data (high, Regulatory and Compliance Frameworks)
+  - UC-21.11.12 · DORA ICT Risk Management Dashboard (high, Regulatory and Compliance Frameworks)
+

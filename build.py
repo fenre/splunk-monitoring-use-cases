@@ -53,7 +53,7 @@ CAT_GROUPS = {
     "infra":    [1, 2, 5, 6, 15, 18, 19],
     "security": [9, 10, 17],
     "cloud":    [3, 4, 20],
-    "app":      [7, 8, 11, 12, 13, 14, 16],
+    "app":      [7, 8, 11, 12, 13, 14, 16, 21],
 }
 
 # Splunk two-pillar strategy: Security / Observability
@@ -491,6 +491,89 @@ SPLUNK_APPS = [
 # Link to the common implementation guide (apps, inputs.conf, Splunk directory)
 IMPLEMENTATION_GUIDE_LINK = "docs/implementation-guide.md"
 
+REGULATION_LABELS = [
+    "GDPR", "CCPA", "NIS2", "DORA", "PCI DSS", "HIPAA", "SOX",
+    "NERC CIP", "ISO 27001", "NIST CSF", "NIST 800-53", "SOC 2",
+    "MiFID II", "FedRAMP", "CMMC", "FISMA", "CJIS",
+]
+
+def assign_regulations(uc, cat_id, sub_id):
+    """Auto-assign regulation tags based on title/subcategory heuristics.
+    Tier 1: explicit title/subcategory matches (high confidence).
+    Tier 2: keyword-based (moderate confidence).
+    Tier 3: broad frameworks like ISO 27001, NIST CSF — manual only."""
+    auto = set()
+    title = uc.get("n", "").lower()
+    cat_str = str(cat_id)
+    sub_str = str(sub_id)
+
+    # Tier 1: explicit matches in 10.12 and 14.2
+    if sub_str.startswith("10.12"):
+        if "pci" in title:
+            auto.add("PCI DSS")
+        if "hipaa" in title:
+            auto.add("HIPAA")
+        if "sox" in title:
+            auto.add("SOX")
+        if "fedramp" in title:
+            auto.add("FedRAMP")
+        if "cmmc" in title:
+            auto.add("CMMC")
+        if "nist" in title:
+            auto.add("NIST 800-53")
+        if "fisma" in title:
+            auto.add("FISMA")
+        if "cjis" in title:
+            auto.add("CJIS")
+    if sub_str.startswith("14.2") and "nerc cip" in title:
+        auto.add("NERC CIP")
+    if sub_str.startswith("10.14") and "nerc cip" in title:
+        auto.add("NERC CIP")
+
+    # 21.11 UCs get their regulation from subcategory context
+    if sub_str.startswith("21.11"):
+        if "gdpr" in title:
+            auto.add("GDPR")
+        if "nis2" in title:
+            auto.add("NIS2")
+        if "dora" in title and cat_str != "12":
+            auto.add("DORA")
+        if "ccpa" in title or "cpra" in title:
+            auto.add("CCPA")
+        if "mifid" in title:
+            auto.add("MiFID II")
+        if "iso 27001" in title or "isms" in title:
+            auto.add("ISO 27001")
+        if "nist csf" in title:
+            auto.add("NIST CSF")
+        if "soc 2" in title:
+            auto.add("SOC 2")
+
+    # Tier 2: keyword-based
+    for kw in ("pii", "data masking", "data retention", "data subject",
+               "personal data", "anonymization", "pseudonymization",
+               "data protection"):
+        if kw in title:
+            auto.add("GDPR")
+            auto.add("CCPA")
+            break
+    if "consent" in title and "consent admin" not in title:
+        auto.add("GDPR")
+    if "cardholder" in title or "payment card" in title:
+        auto.add("PCI DSS")
+    if "pci" in title and "PCI DSS" not in auto:
+        auto.add("PCI DSS")
+    if "ephi" in title or "protected health information" in title:
+        auto.add("HIPAA")
+    if "segregation of duties" in title:
+        auto.add("SOX")
+    if "nerc cip" in title or "bes cyber" in title:
+        auto.add("NERC CIP")
+    if "dora" in title and cat_str != "12":
+        auto.add("DORA")
+
+    return sorted(auto)
+
 
 def assign_pillar(uc, cat_id):
     """Auto-assign Splunk pillar (security/observability/both) based on UC fields and heuristics.
@@ -863,6 +946,10 @@ def parse_category_file(filepath):
                         current_uc["pillar"] = "security"
                     elif "observability" in val:
                         current_uc["pillar"] = "observability"
+                elif field_name in ("regulations", "regulation"):
+                    regs = [r.strip() for r in field_value.split(",") if r.strip()]
+                    if regs:
+                        current_uc["regs"] = regs
 
                 i += 1
                 continue
@@ -882,6 +969,13 @@ def parse_category_file(filepath):
             if matched_apps:
                 uc["sapp"] = matched_apps
             uc["pillar"] = assign_pillar(uc, cat_id)
+
+            sub_id = sub.get("i", "")
+            manual_regs = set(uc.get("regs", []))
+            auto_regs = set(assign_regulations(uc, cat_id, sub_id))
+            final_regs = sorted(manual_regs | auto_regs)
+            if final_regs:
+                uc["regs"] = final_regs
 
     return category
 
@@ -1158,8 +1252,10 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
             for uc in sub.get("u", []):
                 crit = uc.get("c", "")
                 crit_label = " [{c}]".format(c=crit) if crit else ""
-                lines.append("- UC-{id} · {name}{crit}".format(
-                    id=uc["i"], name=uc["n"], crit=crit_label))
+                regs = uc.get("regs", [])
+                regs_label = " [" + ", ".join(regs) + "]" if regs else ""
+                lines.append("- UC-{id} · {name}{crit}{regs}".format(
+                    id=uc["i"], name=uc["n"], crit=crit_label, regs=regs_label))
             lines.append("")
 
     with open(OUTPUT_LLMS_FULL_TXT, "w", encoding="utf-8") as f:

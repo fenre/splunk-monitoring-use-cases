@@ -838,6 +838,17 @@ html.light-mode {
 }
 .uc-pillar-tag.security { background: rgba(229,115,115,0.12); color: #e57373; border: 1px solid rgba(229,115,115,0.25); }
 .uc-pillar-tag.observability { background: rgba(100,181,246,0.12); color: #64b5f6; border: 1px solid rgba(100,181,246,0.25); }
+.uc-reg-tag {
+  font-size: 10px; padding: 1px var(--space-2); border-radius: var(--radius-sm);
+  white-space: nowrap; font-weight: 600; letter-spacing: 0.03em;
+  background: rgba(171,130,255,0.12); color: #ab82ff; border: 1px solid rgba(171,130,255,0.25);
+}
+.ov-reg-select {
+  padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06); color: var(--text-primary); font-size: var(--text-sm);
+  cursor: pointer; max-width: 240px;
+}
+.ov-reg-select:focus { outline: 2px solid var(--splunk-green); outline-offset: 1px; }
 
 .mtype-filter-wrap {
   display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
@@ -1701,6 +1712,7 @@ let currentDiffFilter = 'all';
 let currentMtypeFilter = 'all';
 let currentIndustryFilter = 'all';
 let currentPillarFilter = 'all';
+let currentRegulationFilter = 'all';
 let currentSearch = '';
 let currentUCIdx = -1;
 let selectedEquipmentId = '';
@@ -1757,6 +1769,12 @@ function getFilteredUCs() {
       if (currentPillarFilter === 'security') return p === 'security' || p === 'both';
       if (currentPillarFilter === 'observability') return p === 'observability' || p === 'both';
       return true;
+    });
+  }
+  if (currentRegulationFilter !== 'all') {
+    result = result.filter(function(e) {
+      var regs = e.uc.regs;
+      return Array.isArray(regs) && regs.indexOf(currentRegulationFilter) !== -1;
     });
   }
   return result;
@@ -2093,6 +2111,28 @@ function renderOverview() {
   });
   html += '</div>';
 
+  // Regulation filter dropdown
+  var regSet = {};
+  filtered.forEach(function(e) {
+    var regs = e.uc.regs;
+    if (Array.isArray(regs)) regs.forEach(function(r) { regSet[r] = (regSet[r]||0) + 1; });
+  });
+  var regKeys = Object.keys(regSet).sort();
+  if (regKeys.length > 0) {
+    html += '<div class="ov-pillar-wrap">';
+    html += '<span class="ov-pillar-label">Regulation:</span>';
+    html += '<select class="ov-reg-select" onchange="filterByRegulation(this.value)">';
+    html += '<option value="all"' + (currentRegulationFilter==='all'?' selected':'') + '>All regulations</option>';
+    regKeys.forEach(function(r) {
+      html += '<option value="' + escHtml(r) + '"' + (currentRegulationFilter===r?' selected':'') + '>' + escHtml(r) + ' (' + regSet[r] + ')</option>';
+    });
+    html += '</select>';
+    if (currentRegulationFilter !== 'all') {
+      html += '<button class="ov-pillar-btn active" onclick="filterByRegulation(\'all\')" title="Clear regulation filter" style="margin-left:6px;font-size:0.85em;">✕</button>';
+    }
+    html += '</div>';
+  }
+
   // Group filter chips (categories, use cases, subcategories, quick wins)
   html += '<div class="ov-filter-wrap">';
   ['all','infra','security','cloud','app','alluc','subcats','quickwins'].forEach(g => {
@@ -2263,6 +2303,13 @@ function filterOvGroup(group) {
 
 function filterByPillar(pillar) {
   currentPillarFilter = currentPillarFilter === pillar ? 'all' : pillar;
+  renderOverview();
+  buildSidebar();
+  updateCountLabel();
+}
+
+function filterByRegulation(reg) {
+  currentRegulationFilter = currentRegulationFilter === reg ? 'all' : reg;
   renderOverview();
   buildSidebar();
   updateCountLabel();
@@ -2477,11 +2524,6 @@ function filterBtns() {
     html += '<button class="filter-btn industry-telco' + (currentIndustryFilter==='Telecommunications'?' active':'') +
       '" onclick="setIndustryFilter(\'Telecommunications\')">Telco</button>';
   }
-  html += '<div class="filter-sep"></div>';
-  [['all','All Pillars'],['security','Security'],['observability','Observability']].forEach(function(p) {
-    var cls = 'filter-btn pillar-' + p[0] + (currentPillarFilter===p[0]?' active':'');
-    html += '<button class="' + cls + '" onclick="filterByPillar(\'' + p[0] + '\')">' + p[1] + '</button>';
-  });
   var anyActive = currentFilter !== 'all' || currentDiffFilter !== 'all' || currentIndustryFilter !== 'all' || currentMtypeFilter !== 'all' || currentPillarFilter !== 'all' || selectedEquipmentId;
   if (anyActive) {
     html += '<div class="filter-sep"></div>';
@@ -2604,6 +2646,7 @@ function renderUCCard(uc) {
     var pillar = uc.pillar || 'observability';
     if (pillar === 'security' || pillar === 'both') html += '<span class="uc-pillar-tag security">Security</span>';
     if (pillar === 'observability' || pillar === 'both') html += '<span class="uc-pillar-tag observability">Observability</span>';
+    if (Array.isArray(uc.regs) && uc.regs.length) uc.regs.forEach(function(r) { html += '<span class="uc-reg-tag">' + escHtml(r) + '</span>'; });
     html += '</div>';
   }
   html += '</div>';
@@ -2616,6 +2659,7 @@ function ucSearchText(e) {
   return [u.n, u.i, u.v, u.q, u.t, u.d, u.m, e.cat.n, e.sc.n,
     Array.isArray(u.a) ? u.a.join(' ') : '',
     Array.isArray(u.mtype) ? u.mtype.join(' ') : '',
+    Array.isArray(u.regs) ? u.regs.join(' ') : '',
     u.hw || ''].join(' ').toLowerCase();
 }
 // Multi-word search: all words must appear somewhere in the searchable text
@@ -2629,7 +2673,7 @@ function matchesSearch(text, q) {
 // Search across all
 function renderSearchResults() {
   const q = currentSearch.toLowerCase();
-  let base = (selectedEquipmentId || currentPillarFilter !== 'all') ? getFilteredUCs() : allUCs;
+  let base = (selectedEquipmentId || currentPillarFilter !== 'all' || currentRegulationFilter !== 'all') ? getFilteredUCs() : allUCs;
   let results = base.filter(e => matchesSearch(ucSearchText(e), q));
   if (currentFilter !== 'all') results = results.filter(e => e.uc.c === currentFilter);
   if (currentDiffFilter !== 'all') results = results.filter(e => e.uc.f === currentDiffFilter);
@@ -2811,6 +2855,9 @@ function renderModal(entry) {
   if (uc.ind) {
     html += '<div class="meta-item"><h4>Industry</h4><p><span class="uc-mtype-tag">' + escHtml(uc.ind) + '</span></p></div>';
   }
+  if (Array.isArray(uc.regs) && uc.regs.length) {
+    html += '<div class="meta-item"><h4>Regulations</h4><p>' + uc.regs.map(function(r) { return '<span class="uc-reg-tag" style="margin-right:4px;cursor:pointer" onclick="event.stopPropagation();closeModal();filterByRegulation(\'' + r.replace(/'/g,"\\'") + '\')">' + escHtml(r) + '</span>'; }).join('') + '</p></div>';
+  }
   if (uc.tuc) {
     html += '<div class="meta-item"><h4>Telco Use Case</h4><p>' + escHtml(uc.tuc) + '</p></div>';
   }
@@ -2954,6 +3001,7 @@ function clearAllFilters() {
   currentIndustryFilter = 'all';
   currentMtypeFilter = 'all';
   currentPillarFilter = 'all';
+  currentRegulationFilter = 'all';
   if (selectedEquipmentId) {
     selectedEquipmentId = '';
     document.getElementById('equipment-select').value = '';

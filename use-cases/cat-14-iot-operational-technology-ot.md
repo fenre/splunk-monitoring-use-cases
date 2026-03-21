@@ -2987,4 +2987,802 @@ index=ot sourcetype=opcua_audit action=write
 
 ---
 
+### UC-14.5.16 · HiveMQ Cluster Node Health and Split-Brain Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** MQTT broker cluster faults and split-brain conditions fragment subscriptions and retained state; early detection avoids cross-site messaging black holes.
+- **App/TA:** HiveMQ Splunk Extension (SVA), HiveMQ Enterprise logging
+- **Data Sources:** `index=ot` `sourcetype="hivemq:log"` cluster/quorum log lines; optional `sourcetype="hivemq:metrics"`
+- **SPL:**
+```spl
+index=ot sourcetype="hivemq:log"
+| rex field=_raw "(?i)(?<cluster_event>split.?brain|quorum|not enough members|cluster view|partition|lost majority)"
+| where isnotnull(cluster_event)
+| rex field=_raw "(?i)node[=\s]+(?<node_id>[^\s,;]+)"
+| stats count by host, node_id, cluster_event
+| sort - count
+```
+- **Implementation:** Forward HiveMQ broker logs with cluster logger categories enabled to Splunk. Normalize host to broker hostname. Alert on any match of split-brain/quorum strings or sudden role flaps.
+- **Visualization:** Timeline (cluster events), Table (event counts by broker), Single value (split-brain indicators in last 24h).
+- **CIM Models:** N/A
 
+---
+
+### UC-14.5.17 · MQTT Shared Subscription Load Distribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Shared subscriptions should balance load across consumers; skew indicates stuck consumers or broker-side dispatch issues that inflate latency.
+- **App/TA:** HiveMQ Splunk Extension, MQTT Modular Input (Splunkbase 1890)
+- **Data Sources:** `index=ot` `sourcetype="mqtt:message"` fields `topic`, optional `subscription_group`
+- **SPL:**
+```spl
+index=ot sourcetype="mqtt:message"
+| eval t=lower(topic)
+| where like(t,"$share/%")
+| rex field=topic "^\$share\/(?<share_group>[^/]+)\/(?<base_topic>.+)"
+| stats count as msgs by share_group, base_topic
+| eventstats sum(msgs) as total_by_topic by base_topic
+| eval share_pct=round(100*msgs/total_by_topic,2)
+| sort base_topic, -msgs
+```
+- **Implementation:** If the modular input does not preserve `$share/...` in topic, enable broker metrics for shared subscriptions or ingest dispatch logs. For high volume, sample at the broker or pre-aggregate.
+- **Visualization:** Bar chart (messages per share group), Heatmap (group × time), Table (skew: max/min share_pct per base topic).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.18 · HiveMQ Retained Message Store Growth
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Retained messages accumulate with misconfigured publishers; growth risks disk exhaustion and slower broker startup, especially at OT edge with constrained storage.
+- **App/TA:** HiveMQ Splunk Extension (metrics to Splunk)
+- **Data Sources:** `index=ot` `sourcetype="hivemq:metrics"` retained message counters
+- **SPL:**
+```spl
+index=ot sourcetype="hivemq:metrics"
+| eval m=lower(coalesce(metric_name, metric, name))
+| where match(m, "retain")
+| eval v=coalesce(value, metric_value, _value)
+| bin _time span=1h
+| stats max(v) as retained_max by host, _time
+| timechart span=1h max(retained_max) by host
+```
+- **Implementation:** Map the exact HiveMQ metric name from your Prometheus/SVA mapping. Alert on week-over-week growth or crossing a capacity threshold. Correlate spikes with new devices publishing retained messages on unique topics.
+- **Visualization:** Line chart (retained count over time), Area chart (growth rate), Single value (current max), Table (brokers over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.19 · MQTT Client Disconnect Reason Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Categorized disconnect reasons separate clean shutdowns from timeouts, kicks, and protocol errors — shortening MTTR for unstable OT clients.
+- **App/TA:** HiveMQ Splunk Extension, HiveMQ broker logs
+- **Data Sources:** `index=ot` `sourcetype="hivemq:log"` client disconnect lines
+- **SPL:**
+```spl
+index=ot sourcetype="hivemq:log"
+| search disconnect OR DISCONNECT OR "Client ID"
+| rex field=_raw "(?i)client[_ ]?id[:=]\s*(?<client_id>[^\s,;]+)"
+| eval category=case(
+    match(_raw,"(?i)timeout|idle|keep.?alive"), "timeout",
+    match(_raw,"(?i)admin|kick|forced"), "admin_kick",
+    match(_raw,"(?i)reset|eof|closed"), "network_error",
+    match(_raw,"(?i)not.?authorized|bad.?user"), "auth_failure",
+    true(), "other"
+  )
+| stats count by category, client_id, host
+| sort - count
+```
+- **Implementation:** Align rex patterns with HiveMQ log format for your version. If reason codes are numeric, maintain a lookup mapping code to category. Filter out expected maintenance windows.
+- **Visualization:** Bar chart (disconnects by category), Pie chart (category mix), Table (top client_ids), Timeline (disconnect bursts).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.20 · HiveMQ Extension Execution Errors
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** HiveMQ extensions (enterprise integrations, custom interceptors) can fail independently; tracking exceptions prevents silent drops in policy enforcement and data enrichment.
+- **App/TA:** HiveMQ Splunk Extension, HiveMQ broker logs
+- **Data Sources:** `index=ot` `sourcetype="hivemq:log"` extension error lines
+- **SPL:**
+```spl
+index=ot sourcetype="hivemq:log"
+| where match(_raw, "(?i)extension") AND (match(_raw, "(?i)error|exception|failed") OR match(_raw," ERROR "))
+| rex field=_raw "(?i)extension[:\s]+(?<extension_id>[^\s\]\[]+)"
+| rex field=_raw "(?i)(?<ex_type>[A-Za-z0-9_.]+Exception)"
+| stats count by host, extension_id, ex_type
+| sort - count
+```
+- **Implementation:** Ensure HiveMQ log level captures extension exceptions. Create suppressions for known benign stack signatures via a lookup table. Consider separate alerts for WARN vs ERROR thresholds.
+- **Visualization:** Table (top extensions by errors), Line chart (error rate over time), Bar chart (errors by host).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.21 · MQTT Topic Tree Depth and Fan-Out Analysis
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Deep topic hierarchies and high fan-out increase broker memory and ACL evaluation costs; trending complexity helps right-size clusters and topic design reviews.
+- **App/TA:** MQTT Modular Input (Splunkbase 1890), HiveMQ Splunk Extension
+- **Data Sources:** `index=ot` `sourcetype="mqtt:message"` fields `topic`
+- **SPL:**
+```spl
+index=ot sourcetype="mqtt:message"
+| eval depth=mvcount(split(topic,"/"))
+| eval parts=split(topic,"/")
+| eval root=mvindex(parts,0)
+| stats count as msgs, dc(topic) as unique_topics, max(depth) as max_depth, avg(depth) as avg_depth by root, host
+| sort - unique_topics
+```
+- **Implementation:** For very high message rates, sample or pre-aggregate in HiveMQ metrics. Exclude test topics. Pair with ACL audit if unauthorized deep topics appear.
+- **Visualization:** Bar chart (unique topics by root prefix), Histogram (depth distribution), Table (top fan-out roots).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.5.22 · HiveMQ License Utilization Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Connection growth toward license limits causes hard rejections during peaks; trending utilization supports procurement decisions before production brownouts.
+- **App/TA:** HiveMQ Splunk Extension (metrics), HiveMQ license reporting
+- **Data Sources:** `index=ot` `sourcetype="hivemq:metrics"` connection count gauges
+- **SPL:**
+```spl
+index=ot sourcetype="hivemq:metrics"
+| eval m=lower(coalesce(metric_name, metric, name))
+| eval v=coalesce(value, metric_value, _value)
+| where match(m, "connection") AND match(m,"current|active|open|established")
+| bin _time span=5m
+| stats max(v) as connections by host, _time
+| eval license_limit=10000
+| eval utilization_pct=round(100*connections/license_limit,2)
+| where utilization_pct>85
+```
+- **Implementation:** Replace the static `license_limit` with a lookup or environment-specific value. Alert at 85%/95% thresholds with different severities.
+- **Visualization:** Line chart (connections vs limit), Area chart (utilization %), Gauge (current utilization), Table (hosts approaching limit).
+- **CIM Models:** N/A
+
+---
+
+### 14.6 Zeek ICS Deep Protocol Inspection
+
+**Primary App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884), TA for Corelight (Splunkbase 3885). Parses CISA ICSNPP protocol analyzers.
+
+**Data Sources:** Zeek ICS protocol logs from ICSNPP parsers: `sourcetype="zeek:s7comm:json"`, `sourcetype="zeek:modbus_detailed:json"`, `sourcetype="zeek:dnp3:json"`, `sourcetype="zeek:enip:json"`, `sourcetype="zeek:bacnet:json"`, `sourcetype="zeek:iec104:json"`, `sourcetype="zeek:hartip:json"`, `sourcetype="corelight_s7comm"`, etc.
+
+---
+
+### UC-14.6.1 · S7comm PLC Read/Write Operation Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Performance, Change
+- **Value:** Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:s7comm:json"
+| eval op=case(match(function_name,"(?i)read"),"read",match(function_name,"(?i)write"),"write","other")
+| stats count(eval(op=="read")) as reads count(eval(op=="write")) as writes by source_h destination_h
+| eval write_ratio=if(reads+writes>0, round(100*writes/(reads+writes),2), null())
+| where writes>0 AND (reads=0 OR write_ratio>25)
+| table source_h destination_h reads writes write_ratio
+```
+- **Implementation:** Deploy Zeek with ICSNPP-S7COMM on passive taps or SPAN ports on OT VLANs carrying PLC traffic; forward JSON logs to Splunk with TA for Zeek field extractions. Baseline read/write ratios per engineering workstation pair; tune the write-ratio threshold per zone and alert on off-hours spikes.
+- **Visualization:** Bar chart (writes vs reads by source/destination pair), Single value (max write_ratio), Table (top writers).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.2 · S7comm Program Upload/Download Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Change, Compliance
+- **Value:** PLC program upload/download changes process logic and safety envelopes; correlating these events with change tickets prevents unauthorized logic swaps that could disrupt operations or bypass interlocks.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (ICSNPP `s7comm_upload_download.log`: `function_code`, `filename`, `block_type`, `block_number`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:s7comm:json"
+| eval fc_hex=replace(function_code,"0x","")
+| eval fc=coalesce(tonumber(fc_hex,16), tonumber(function_code))
+| where fc IN (26,27) OR function_code IN ("0x1a","0x1b","26","27") OR isnotnull(filename)
+| stats earliest(_time) as first_seen latest(_time) as last_seen values(filename) as filenames values(block_type) as block_types values(block_number) as block_numbers by source_h destination_h uid
+| table first_seen last_seen source_h destination_h filenames block_types block_numbers
+```
+- **Implementation:** Enable ICSNPP upload/download logging on Zeek sensors at OT taps; ingest into `index=ot`. Map `function_code` 0x1a/0x1b (decimal 26/27) to engineering change workflows; require ticket IDs in SOAR for acknowledged maintenance windows.
+- **Visualization:** Timeline (upload/download events), Table (filename, block, endpoints), Single value (events in last 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.3 · S7comm CPU State Change Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Security, Availability
+- **Value:** CPU stop/start or mode transitions can halt a line or leave a PLC in an unsafe state; detecting them from the wire supports both troubleshooting and detection of malicious or accidental operational disruption.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (`rosctr_name`, `subfunction_name`, `function_name`, `error_class`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:s7comm:json"
+| where match(subfunction_name,"(?i)STOP|START|RESUME") OR match(rosctr_name,"(?i)STOP|RUN|HOLD") OR match(function_name,"(?i)PLC|mode|cpu")
+| stats count by source_h destination_h rosctr_name subfunction_name function_name
+| sort - count
+| head 100
+```
+- **Implementation:** Place Zeek on taps facing S7 controllers and HMIs; normalize `subfunction_name`/`rosctr_name` strings from production captures. Alert on stop/start patterns outside approved maintenance; correlate with MES/SCADA alarms for the same asset.
+- **Visualization:** Timeline (state-related messages), Bar chart (count by subfunction_name), Table (source, destination, fields).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.4 · S7comm Unauthorized Function Block Access
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Value:** Access attempts to protected OB/FB/FC blocks may indicate credential abuse or ladder tampering; monitoring errors and targeted function names supports defense-in-depth around safety-related code.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (`function_name`, `subfunction_name`, `error_class`, `error_code`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:s7comm:json"
+| where (match(function_name,"(?i)block|OB|FB|FC|SFB") OR match(subfunction_name,"(?i)block"))
+| where (isnotnull(error_code) AND error_code!="0x0000") OR (isnotnull(error_class) AND NOT error_class IN ("NONE","-",""))
+| stats count by source_h destination_h function_name subfunction_name error_class error_code
+| where count>=3
+| sort - count
+```
+- **Implementation:** Deploy Zeek ICSNPP on segments with S7 controllers; build an allowlist of engineering hosts permitted to access safety-related blocks. Tune minimum event counts to suppress single-bit noise; integrate with asset inventory for PLC roles.
+- **Visualization:** Table (source, destination, function, error), Bar chart (errors by source_h), Timeline (clusters of denied access).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.5 · Modbus Function Code Distribution Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Diagnostics and coil forcing are high-impact Modbus operations; a sudden shift in function-code mix can signal scanning, misuse, or a compromised HMI.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:modbus_detailed:json"` (`func`, `unit`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:modbus_detailed:json"
+| eval fc=upper(trim(func))
+| stats count by fc source_h destination_h
+| eval risky=if(fc IN ("0x08","8","0x05","5","0x0F","15"),1,0)
+| where risky=1 OR count>1000
+| sort - count
+```
+- **Implementation:** Ingest ICSNPP `modbus_detailed` logs from Zeek sensors on Modbus TCP segments. Establish weekly baselines per RTU; alert when diagnostics (0x08) or force/write function codes spike versus baseline or appear from new masters.
+- **Visualization:** Pie or bar chart (function code distribution), Table (risky FC by master), Timeline (spikes).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.6 · Modbus Register Value Change Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Change, Fault
+- **Value:** Covert changes to holding registers can alter setpoints or interlocks; comparing matched request/response values highlights tampering distinct from normal operator writes.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:modbus_detailed:json"` (`func`, `address`, `unit`, `request_values`, `response_values`, `matched`, `network_direction`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:modbus_detailed:json" matched=true
+| where func IN ("0x06","6","0x10","16")
+| eval reg_key=destination_h."|".unit."|".address
+| sort 0 reg_key _time
+| streamstats window=2 global=f earliest(response_values) as earlier_resp latest(response_values) as later_resp by reg_key
+| where isnotnull(earlier_resp) AND mvjoin(earlier_resp,",")!=mvjoin(later_resp,",")
+| table _time source_h destination_h unit address func earlier_resp later_resp request_values
+```
+- **Implementation:** Deploy Zeek with ICSNPP-Modbus on taps near RTUs; ensure `request_values`/`response_values` are indexed. Focus on critical register ranges from asset documentation; schedule correlation with historian trends for validation.
+- **Visualization:** Table (register_key, old vs new values), Timeline (changes), Line chart (change rate per hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.7 · Modbus Device Identification Enumeration (FC 43 / 0x2B)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Fault
+- **Value:** Read Device Identification (FC 0x2B) is a common reconnaissance step; bursts from non-inventory hosts often precede targeted attacks or rogue integration attempts.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:modbus_detailed:json"` or `sourcetype="zeek:modbus_read_device_identification:json"` (`func`, `mei_type`, `object_id`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot (sourcetype="zeek:modbus_detailed:json" OR sourcetype="zeek:modbus_read_device_identification:json")
+| where func IN ("0x2B","43","0x2b") OR mei_type="READ-DEVICE-IDENTIFICATION" OR isnotnull(object_id)
+| stats count dc(destination_h) as targets by source_h
+| where count>20 OR targets>5
+| sort - count
+```
+- **Implementation:** Forward ICSNPP Modbus detailed and read-device-identification logs from OT VLAN taps. Allowlist asset-management scanners; alert on new sources or high fan-out to many slaves in a short window.
+- **Visualization:** Bar chart (enumeration events by source), Table (source, target count), Map or table (distinct targets).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.8 · DNP3 Unsolicited Response Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Fault, Security
+- **Value:** Unsolicited responses carry event-driven telemetry; abnormal volume or timing can indicate flooding, misconfiguration, or spoofed outstations affecting SCADA visibility.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:dnp3:json"` (Zeek `dnp3.log` / application function text, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:dnp3:json"
+| where match(_raw,"UNSOLICITED") OR function="UNSOLICITED_RESPONSE"
+| bin _time span=1m
+| stats count by _time source_h destination_h
+| eventstats median(count) as med by destination_h
+| where count > med*3 AND count > 10
+| table _time source_h destination_h count med
+```
+- **Implementation:** Deploy Zeek with DNP3 on serial-Ethernet gateways’ segments; verify `function` or raw tokens for unsolicited responses in your build. Baseline per-master/outstation pair; alert on bursts that exceed rolling median.
+- **Visualization:** Timeline (unsolicited rate), Line chart (count vs median), Table (spikes).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.9 · DNP3 Control Relay Output Block (CROB) Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance, Change
+- **Value:** CROB select/operate sequences directly actuate breakers and outputs; a full audit trail is required for NERC CIP-style reviews and post-incident forensics.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:dnp3:json"` (ICSNPP `dnp3_control.log`: `block_type`, `function_code`, `operation_type`, `index_number`, `trip_control_code`, `status_code`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:dnp3:json" block_type="Control_Relay_Output_Block"
+| stats values(function_code) as phases values(operation_type) as ops values(trip_control_code) as trips latest(status_code) as last_status by _time source_h destination_h index_number uid
+| table _time source_h destination_h index_number phases ops trips last_status
+```
+- **Implementation:** Enable ICSNPP-DNP3 control logging on Zeek sensors facing RTU/MTU paths. Ingest `dnp3_control` fields; map `index_number` to one-line diagrams. Require change correlation for OPERATE phases outside maintenance.
+- **Visualization:** Table (full CROB audit), Timeline (SELECT vs OPERATE), Bar chart (operates by index_number).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.10 · DNP3 Cold/Warm Restart Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Security, Availability
+- **Value:** Restart commands to outstations reset application context and can interrupt protection; unexpected restarts may follow malware or operator error.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:dnp3:json"` (`function`, `object_type`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:dnp3:json"
+| where match(_raw,"(?i)COLD_RESTART|WARM_RESTART") OR match(function,"(?i)COLD_RESTART|WARM_RESTART") OR match(object_type,"(?i)COLD_RESTART|WARM_RESTART")
+| stats earliest(_time) as evt_time values(function) as fn values(object_type) as ot by source_h destination_h
+| table evt_time source_h destination_h fn ot
+```
+- **Implementation:** Capture DNP3 on links to critical RTUs via network tap; confirm field names (`function` vs `object_type`) against a sample capture. Alert any restart from non-master IPs or outside approved windows.
+- **Visualization:** Timeline (restart events), Table (source, destination, function), Single value (restarts per day).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.11 · EtherNet/IP CIP Service Request Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Unusual CIP services (e.g., configuration writes) against controllers can precede firmware or logic manipulation; service baselines highlight drift from normal automation behavior.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:enip:json"` (`cip_service`, `cip_service_code`, `class_name`, `direction`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:enip:json" direction="Request"
+| stats count by cip_service class_name source_h destination_h
+| eventstats sum(count) as svc_total by destination_h
+| eval pct=round(100*count/svc_total,3)
+| where cip_service IN ("Set_Attribute_Single","Reset","Delete") OR pct<0.1
+| sort destination_h - pct
+| table destination_h cip_service class_name count pct source_h
+```
+- **Implementation:** Deploy ICSNPP-ENIP on Zeek at CIP/EtherNet/IP taps (ports 2222/44818 per policy). Build per-controller service profiles; alert on rare services or configuration-class access from non-engineering hosts.
+- **Visualization:** Bar chart (CIP service mix), Table (rare services), Heatmap (service by source).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.12 · EtherNet/IP Unregistered Session Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Fault
+- **Value:** EtherNet/IP sessions are normally established with explicit registration; traffic that skips expected session setup may indicate tooling errors, bypass attempts, or non-compliant devices on the plant floor.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:enip:json"` (`enip_command`, `session_handle`, `uid`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:enip:json"
+| stats earliest(enip_command) as first_cmd values(enip_command) as cmds dc(enip_command) as cmd_variety by uid source_h destination_h
+| where first_cmd!="Register_Session" AND (like(enip_command,"%SendRRData%") OR like(enip_command,"%Unit%") OR mvindex(cmds,0)!=first_cmd)
+| table uid source_h destination_h first_cmd cmds
+```
+- **Implementation:** Ingest `enip.log` from Zeek on EtherNet/IP segments. Validate ordering with known-good PLC/HMI captures; tune exclusions for vendor-specific handshake quirks. Combine with asset roles so HMIs are not false-positive flagged incorrectly.
+- **Visualization:** Table (sessions with anomalous first command), Timeline (connection uid), Bar chart (count by destination_h).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.13 · EtherNet/IP I/O Implicit Messaging Anomaly
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Fault, Security
+- **Value:** Implicit I/O carries real-time control data; sudden changes in payload size or timing can signal cable issues, configuration drift, or injection attempts affecting deterministic control.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:enip:json"` (ICSNPP `cip_io.log` merged or `sourcetype="zeek:cip_io:json"`: `connection_id`, `data_length`, `sequence_number`, `io_data`)
+- **SPL:**
+```spl
+index=ot (sourcetype="zeek:cip_io:json" OR (sourcetype="zeek:enip:json" isnotnull(io_data)))
+| bin _time span=1s
+| stats avg(data_length) as avg_len stdev(data_length) as sd_len count by _time connection_id source_h destination_h
+| eventstats avg(avg_len) as baseline by connection_id
+| where sd_len>0 OR abs(avg_len-baseline)>64
+| table _time connection_id source_h destination_h avg_len sd_len baseline
+```
+- **Implementation:** Place Zeek on I/O scanner–adapter paths; prefer dedicated `cip_io` sourcetype when the TA splits logs. Learn normal `data_length` and sequence cadence per `connection_id`; alert on variance tied to control outages.
+- **Visualization:** Line chart (data_length over time), Timeline (anomaly markers), Table (connection_id stats).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.14 · IEC 104 Interrogation Command Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Performance, Compliance
+- **Value:** General interrogation and clock synchronization (types 100 and 103) can be abused for reconnaissance or time skew; auditing masters against expected scan behavior supports grid and plant operational integrity.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:iec104:json"` (`asdu_type`, `cot`, `stationinterrogation`, `cp56_*` clock fields, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:iec104:json"
+| where asdu_type IN (100,103) OR stationinterrogation="T" OR match(_raw,"C_IC_NA_1|C_CS_NA_1")
+| stats count by source_h destination_h asdu_type cot
+| sort - count
+```
+- **Implementation:** Deploy Zeek IEC 60870-5-104 parser on 2404/tcp SCADA paths via tap. Map `asdu_type` 100 to general interrogation and 103 to clock sync per asset documentation; whitelist primary SCADA masters.
+- **Visualization:** Timeline (interrogation and clock sync), Bar chart (count by asdu_type), Table (master, outstation, ASDU type).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.15 · IEC 104 Spontaneous Value Change Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Fault, Security
+- **Value:** Monitoring spontaneous updates helps distinguish normal process swings from stale data or spoofed telemetry that could mask a physical fault.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:iec104:json"` (`cot`, `asdu_type`, `ioa`, `shortfloat`, `nva`, `sva`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:iec104:json" cot=3
+| eval ioa_key=mvindex(ioa,0)
+| bin _time span=5m
+| stats latest(shortfloat) as sf by ioa_key destination_h _time
+| sort 0 ioa_key destination_h _time
+| streamstats window=2 global=f earliest(sf) as prev_sf latest(sf) as curr_sf by ioa_key destination_h
+| where isnotnull(prev_sf) AND isnotnull(curr_sf) AND abs(curr_sf-prev_sf)>0.0001
+| table _time destination_h ioa_key prev_sf curr_sf
+```
+- **Implementation:** Ingest IEC 104 JSON with vector fields expanded by TA; validate `cot` value for spontaneous (commonly 3). Tune magnitude thresholds per analog point class; integrate with EMS/Historian for cross-checks.
+- **Visualization:** Line chart (value over time by IOA), Table (IOA, delta), Timeline (large deltas).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.16 · IEC 104 Clock Synchronization Deviation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Fault, Security
+- **Value:** Time drift between master and outstation complicates event ordering and SOE correlation; detecting skew supports NERC-style evidence of synchronized operations.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:iec104:json"` (`asdu_type`, `cp56_minutes`, `cp56_hours`, `cp56_day`, `cp56_month`, `cp56_year`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:iec104:json" asdu_type=103
+| eval wall=strptime(cp56_year."-".cp56_month."-".cp56_day." ".cp56_hours.":".cp56_minutes.":00","%Y-%m-%d %H:%M:%S")
+| eval skew_sec=abs(_time-wall)
+| where skew_sec>2 AND isnotnull(wall)
+| stats max(skew_sec) as max_skew avg(skew_sec) as avg_skew by source_h destination_h
+| where max_skew>5
+| table source_h destination_h max_skew avg_skew
+```
+- **Implementation:** Capture C_CS_NA_1 clock sync ASDUs on OT taps; confirm `cp56_*` field population in your Zeek build. Alert when wire-time `_time` diverges from embedded CP56 time beyond policy (e.g., 2–5 seconds).
+- **Visualization:** Single value (max skew), Line chart (skew over time), Table (endpoints, skew stats).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.17 · BACnet Object Access Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance, Change
+- **Value:** Writes to analog outputs, schedules, or life-safety objects can change building or process environmental limits; auditing ReadProperty/WriteProperty supports both cyber and operational accountability.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:bacnet:json"` (`bacnet_property.log` via `pdu_service`, `object_type`, `property`, `value`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:bacnet:json"
+| where match(pdu_service,"(?i)write.*property") OR pdu_service="Write_Property_Request"
+| where object_type IN ("analog-output","binary-output","schedule","life-safety-point") OR match(property,"(?i)present.value|priority")
+| stats count by source_h destination_h object_type instance_number property
+| sort - count
+```
+- **Implementation:** Deploy ICSNPP-BACnet on UDP/47808 taps; use `bacnet_property` fields when the TA routes them into the same sourcetype or a dedicated property sourcetype. Define sensitive object lists per site; alert on writes from non-BMS servers.
+- **Visualization:** Table (writes by object), Bar chart (writes by source_h), Timeline (write bursts).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.18 · BACnet Who-Is Broadcast Storm Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Performance, Fault
+- **Value:** Excessive Who-Is/I-Am discovery floods MS/TP-to-IP bridges and can indicate misconfigured devices, loops, or active scanning that degrades BMS responsiveness.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:bacnet:json"` (`bacnet_discovery.log`: `pdu_service`, `device_id_number`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:bacnet:json" pdu_service IN ("who-is","i-am","who_is","i_am")
+| bin _time span=1m
+| stats count dc(source_h) as distinct_sources by _time destination_h
+| where count>200 OR distinct_sources>20
+| table _time destination_h count distinct_sources
+```
+- **Implementation:** Ingest discovery logs from Zeek on BACnet/IP VLANs. Set thresholds per campus; investigate sources with high Who-Is rates and verify router/broadcast management settings.
+- **Visualization:** Area chart (Who-Is rate per minute), Table (spikes), Pie chart (share by pdu_service).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.19 · HART-IP Command 48 Additional Status Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Performance, Compliance
+- **Value:** HART command 48 returns extended device status; tracking additional status fields helps catch sensor faults or configuration issues before they affect closed-loop control.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:hartip:json"` (`command`, `status`, `additional_status`, `source_h`, `destination_h`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:hartip:json"
+| where command=48 OR command="0x30" OR match(_raw,"\"command\"\\s*:\\s*48")
+| bin _time span=15m
+| stats latest(status) as dev_status values(additional_status) as addl by destination_h _time
+| where isnotnull(addl) OR (isnotnull(dev_status) AND dev_status!="0")
+| table _time destination_h dev_status addl
+```
+- **Implementation:** Deploy ICSNPP HART-IP on segments with smart instruments; confirm JSON keys (`command`, `additional_status`) against a sample. Baseline healthy additional-status patterns; alert on new fault bits correlated with maintenance.
+- **Visualization:** Timeline (command 48 events), Table (device, status, additional_status), Single value (devices reporting faults).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.6.20 · Unknown Protocol on OT VLAN Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance, Fault
+- **Value:** Non-whitelisted protocols on ICS segments often indicate shadow IT, dual-homed misconfigurations, or tunneling that bypasses zone policies—each can bridge IT threats into OT.
+- **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
+- **Data Sources:** `index=ot` `sourcetype="zeek:conn:json"` (`service`, `proto`, `dest_port`, `vlan_id` or `vlan_name`)
+- **SPL:**
+```spl
+index=ot sourcetype="zeek:conn:json" (like(vlan_name,"OT-%") OR cidrmatch("10.0.0.0/8",id.orig_h))
+| eval svc=lower(service)
+| where bytes_orig>0 AND bytes_resp>0
+| where NOT (svc IN ("modbus","dnp3","bacnet","enip","s7comm","iec60870-5-104","hart-ip","dns","ntp") OR dest_port IN (502,20000,44818,47808,2222,2404,102,5094))
+| stats sum(bytes_orig) as ob sum(bytes_resp) as rb dc(uid) as flows by "id.orig_h" "id.resp_h" dest_port proto service
+| sort - flows
+| head 200
+```
+- **Implementation:** Forward `conn.log` from Zeek on OT core taps with VLAN tags preserved. Maintain a Splunk lookup of approved services/ports per site; schedule nightly review of new triples (origin, destination, service). Tune DNS/NTP allowances.
+- **Visualization:** Table (unexpected proto/port/service), Treemap (bytes by service), Timeline (first-seen connections).
+- **CIM Models:** N/A
+
+---
+
+### 14.7 Litmus Edge Industrial IoT Gateway
+
+**Primary App/TA:** Litmus Edge (built-in Splunk HEC connector), custom HEC inputs.
+
+**Data Sources:** Litmus Edge gateway sends device data, health metrics, and alerts via HEC as JSON events. `sourcetype="litmus:edge"`, `sourcetype="litmus:health"`, `sourcetype="litmus:tag"`.
+
+---
+
+### UC-14.7.1 · Litmus Edge Gateway Connectivity Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Gateway offline events stop OT data from reaching Splunk; early detection reduces blind spots in plant visibility.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** `index=ot` `sourcetype="litmus:health"` fields `gateway_id`, `status`, `online`
+- **SPL:**
+```spl
+index=ot sourcetype="litmus:health"
+| eval is_online=case(
+    match(lower(status),"online|up|connected|running"), 1,
+    match(lower(status),"offline|down|disconnected|stopped"), 0,
+    online="true" OR online="1", 1,
+    true(), 0)
+| stats latest(is_online) as online_now, latest(_time) as last_health by gateway_id, site_id
+| where online_now=0 OR isnull(online_now)
+| eval minutes_since=round((now()-last_health)/60,1)
+| table gateway_id, site_id, online_now, last_health, minutes_since
+```
+- **Implementation:** Enable the Litmus Edge Splunk HEC destination and send periodic health/heartbeat JSON. Ensure gateway_id and site_id are present. Alert if no healthy event for 2x the expected interval.
+- **Visualization:** Single value (gateways offline), Table (gateway, site, last health), Status indicator (green/red per gateway).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.7.2 · PLC Tag Data Ingestion Validation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Missing or silent tag streams break dashboards, historians, and ML models; validating expected tags catches connector or network regressions before production impact.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** `index=ot` `sourcetype="litmus:tag"` fields `gateway_id`, `tag_name`, `source_device`
+- **SPL:**
+```spl
+index=ot sourcetype="litmus:tag"
+| bin _time span=5m
+| stats count as events, dc(tag_name) as distinct_tags by gateway_id, source_device, _time
+| where events < 1 OR distinct_tags < 1
+| table _time, gateway_id, source_device, events, distinct_tags
+```
+- **Implementation:** Normalize tag events so each sample carries gateway_id, tag_name, and source_device. Replace thresholds with per-device baselines from a lookup. For stricter checks, join to a required-tag lookup.
+- **Visualization:** Line chart (events per minute by device), Table (devices below floor), Heatmap (device × time rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.7.3 · Edge-to-Splunk Data Pipeline Latency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** End-to-end latency distinguishes edge capture delays from Splunk indexing backlog; spikes indicate broker saturation, HEC backpressure, or clock skew.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** `index=ot` `sourcetype="litmus:tag"` with `edge_timestamp` in JSON payload
+- **SPL:**
+```spl
+index=ot sourcetype="litmus:tag"
+| eval edge_sec=if(edge_timestamp>1e12, edge_timestamp/1000, edge_timestamp)
+| where isnotnull(edge_timestamp) AND edge_sec>0
+| eval latency_ms=abs(_time-edge_sec)*1000
+| bin _time span=5m
+| stats perc95(latency_ms) as p95_ms, avg(latency_ms) as avg_ms by gateway_id, _time
+| where p95_ms > 5000
+```
+- **Implementation:** Configure Litmus to stamp each tag event with capture time in epoch. Keep NTP synchronized on Litmus and Splunk. Alert when p95 exceeds acceptable thresholds.
+- **Visualization:** Line chart (p95/p99 latency by gateway), Area chart (latency distribution), Single value (fleet p95 latency).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.7.4 · Production Sensor Data Completeness Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Stale or missing sensor readings invalidate safety and quality analytics; completeness audits align telemetry coverage with regulatory expectations for critical measurements.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** `index=ot` `sourcetype="litmus:tag"` fields `gateway_id`, `tag_name`, optional `quality`
+- **SPL:**
+```spl
+index=ot sourcetype="litmus:tag"
+| stats latest(_time) as last_seen by gateway_id, tag_name
+| eval stale_sec=now()-last_seen
+| where stale_sec > 300
+| eval stale_minutes=round(stale_sec/60,1)
+| table gateway_id, tag_name, last_seen, stale_minutes
+| sort - stale_minutes
+```
+- **Implementation:** Set stale_threshold per tag class. Optionally join to a required-tag lookup and alert when any required tag is absent entirely.
+- **Visualization:** Table (stale tags), Bar chart (count stale by gateway), Heatmap (tag × gateway freshness).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.7.5 · Litmus Edge Device Inventory Drift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Change
+- **Value:** Unexpected devices or disappearing assets indicate misconfiguration or unauthorized connectivity; drift detection supports CMDB accuracy and OT security reviews.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** `index=ot` `sourcetype="litmus:health"` OR `sourcetype="litmus:edge"` with `gateway_id`, `device_id`
+- **SPL:**
+```spl
+index=ot (sourcetype="litmus:health" OR sourcetype="litmus:edge")
+| eval device_key=coalesce(device_id, asset_id)
+| where isnotnull(device_key)
+| stats earliest(_time) as first_seen, latest(_time) as last_seen by gateway_id, device_key
+| eval is_new=if(first_seen >= relative_time(now(),"-24h@h"), 1, 0)
+| eval is_missing=if(last_seen < relative_time(now(),"-7d@d"), 1, 0)
+| where is_new=1 OR is_missing=1
+| eval drift_type=if(is_new=1, "new_device", "missing_device")
+| table gateway_id, device_key, first_seen, last_seen, drift_type
+```
+- **Implementation:** Ensure device identifiers are stable in Litmus. Adjust the new/missing windows to match your change-management cadence. For baselines, use inputlookup and compare sets.
+- **Visualization:** Table (new vs missing devices), Bar chart (drift events by gateway), Timeline (first seen for new devices).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.7.6 · Edge Data Transformation Error Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Transformation and normalization failures silently drop or corrupt OT fields; tracking error rates ties engineering changes to ingestion health.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** `index=ot` `sourcetype="litmus:edge"` error fields or message text
+- **SPL:**
+```spl
+index=ot sourcetype="litmus:edge"
+| eval is_error=if(match(lower(_raw), "transform error|mapping error|parse error|conversion failed"), 1, 0)
+| bin _time span=15m
+| stats sum(is_error) as errors, count as total by gateway_id, _time
+| eval error_rate_pct=round(100*errors/total,2)
+| where errors>0
+| table _time, gateway_id, errors, total, error_rate_pct
+```
+- **Implementation:** Route Litmus pipeline diagnostics to Splunk. Alert when error rate exceeds SLO (e.g., >1% over 15 minutes).
+- **Visualization:** Line chart (error rate), Stacked bar (errors vs total), Table (top error pipelines), Single value (fleet error rate %).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.7.7 · Multi-Site Litmus Edge Fleet Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Aggregating gateway health by site highlights WAN issues, deployment drift, and capacity hotspots across plants without per-host manual checks.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** `index=ot` `sourcetype="litmus:health"` fields `site_id`, `gateway_id`, `status`
+- **SPL:**
+```spl
+index=ot sourcetype="litmus:health"
+| eval site=coalesce(site_id, plant_id, "unknown")
+| eval is_ok=if(match(lower(status),"online|up|connected|running"), 1, 0)
+| stats count as events, sum(is_ok) as ok_events, dc(gateway_id) as gateways by site
+| eval health_pct=round(100*ok_events/events,1)
+| table site, gateways, health_pct, ok_events, events
+| sort health_pct
+```
+- **Implementation:** Require site_id in every Litmus health payload. Schedule a nightly report by site for executive visibility.
+- **Visualization:** Bar chart (health % by site), Table (site ranking), Treemap (gateways × site).
+- **CIM Models:** N/A
+
+---
+
+### UC-14.7.8 · Litmus Edge Connector Authentication Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** HEC token leakage, rotation mistakes, or clock skew cause auth failures that stop ingestion; monitoring auth errors accelerates rotation and prevents silent data gaps.
+- **App/TA:** Litmus Edge (Splunk HEC connector)
+- **Data Sources:** Splunk `_internal` HEC (`sourcetype="splunkd_http_input"`) for HTTP Event Collector rejections
+- **SPL:**
+```spl
+index=_internal sourcetype="splunkd_http_input" (status=401 OR status=403)
+| stats count as failures, values(source) as sources by host
+| where failures > 0
+| sort - failures
+```
+- **Implementation:** Ensure HEC is enabled only on the collector Litmus uses. Correlate spikes with token rotations and NTP drift. Alert on any 401/403 responses.
+- **Visualization:** Line chart (auth failures over time), Table (hosts with failures), Single value (failures in last hour).
+- **CIM Models:** N/A
+
+---
