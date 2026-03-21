@@ -206,7 +206,7 @@ index=devops sourcetype="github:webhook" event="push" forced="true"
 - **SPL:**
 ```spl
 index=devops sourcetype="github:webhook" event="push"
-| mvexpand commits{}.modified
+| mvexpand commits{}.modified limit=500
 | where match(commits{}.modified,"(\.env|id_rsa|kubeconfig|\.pem|credentials\.xml)$")
 | table _time, repository, commits{}.author.username, commits{}.modified
 ```

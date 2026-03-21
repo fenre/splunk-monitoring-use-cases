@@ -644,7 +644,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4886
 - **SPL:**
 ```spl
 index=ldap sourcetype="syslog" "BIND" "err=49"
-| stats count by src_ip, bind_dn
+| stats count by src, bind_dn
 | where count > 10
 | sort -count
 ```
@@ -757,7 +757,7 @@ index=ldap sourcetype="openldap:syncrepl"
 index=azure sourcetype="azure:aad:signin"
 | where conditionalAccessStatus="failure" OR conditionalAccessStatus="reportOnlyNotApplied"
 | spath path=conditionalAccessPolicies{}
-| mvexpand conditionalAccessPolicies{}
+| mvexpand conditionalAccessPolicies{} limit=500
 | spath input=conditionalAccessPolicies{} path=displayName
 | spath input=conditionalAccessPolicies{} path=result
 | where result="failure" OR result="reportOnlyNotApplied"
@@ -781,8 +781,8 @@ index=azure sourcetype="azure:aad:signin"
 ```spl
 index=ldap sourcetype="openldap:access" operation="SEARCH"
 | bin _time span=15m
-| stats count by src_ip, _time
-| eventstats median(count) as med by src_ip
+| stats count by src, _time
+| eventstats median(count) as med by src
 | where count > med*10 AND count > 100
 | sort -count
 ```
@@ -803,7 +803,7 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 ```spl
 index=ldap sourcetype="syslog" "BIND" ("err=49" OR "data 52e")
 | bin _time span=15m
-| stats count by src_ip, _time
+| stats count by src, _time
 | where count > 50
 | sort -count
 ```
@@ -902,7 +902,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=3039
 - **SPL:**
 ```spl
 index=ldap sourcetype="openldap:access" (message="REFERRAL" OR like(_raw,"%referral%"))
-| stats count, values(dn) as refs by src_ip, base
+| stats count, values(dn) as refs by src, base
 | where count > 20
 | sort -count
 ```
@@ -1206,7 +1206,7 @@ index=azure sourcetype="azure:aad:audit" activityDisplayName="Add external user"
 index=azure sourcetype="azure:aad:audit"
 | search "Consent" OR activityDisplayName="Add OAuth2PermissionGrant"
 | spath path=targetResources{}
-| mvexpand targetResources{}
+| mvexpand targetResources{} limit=500
 | spath input=targetResources{} path=displayName
 | table _time, initiatedBy.user.userPrincipalName, displayName, activityDisplayName
 | sort -_time
@@ -1732,7 +1732,7 @@ index=pam sourcetype="cyberark:vault" account_tag="emergency_only"
 index=pam sourcetype="cyberark:session"
 | eval end_time=_time+duration_sec
 | sort target_account, _time
-| streamstats window=2 current(src_ip) as ip1 next(src_ip) as ip2 current(_time) as t1 next(_time) as t2 by target_account
+| streamstats window=2 current(src) as ip1 next(src) as ip2 current(_time) as t1 next(_time) as t2 by target_account
 | where ip1!=ip2 AND t2 < end_time
 | table target_account, ip1, ip2, t1, t2
 ```

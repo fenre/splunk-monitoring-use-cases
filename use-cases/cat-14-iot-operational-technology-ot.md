@@ -280,7 +280,8 @@ index=environment sourcetype="snmp:env_sensor"
 ```spl
 index=network sourcetype IN ("snmp:auth","cisco:ios")
 | search "authentication failure" OR "Unknown user name" OR "usmStatsUnknownUserNames"
-| stats count by src_ip, device_name, user_name
+| eval user=coalesce(user, user_name)
+| stats count by src, device_name, user
 | where count > 10
 | sort -count
 ```
@@ -365,7 +366,7 @@ index=ot sourcetype="safety_plc"
 ```spl
 index=network sourcetype="pan:traffic" zone_pair="IT-to-OT"
 | where action="allow"
-| stats count by src_ip, dest_ip, dest_port, app
+| stats count by src, dest, dest_port, app
 | sort -count
 ```
 - **Implementation:** Forward IT/OT boundary firewall logs. Monitor all traffic crossing the boundary. Alert on unexpected protocols or connections. Validate against whitelist of approved communications. Report for ICS security audits.
@@ -406,7 +407,7 @@ index=ot sourcetype="ics_inventory"
 ```spl
 index=ot sourcetype="ics_firewall"
 | search action="deny" OR src_zone="untrusted"
-| stats count by src_ip, dest_ip, dest_port
+| stats count by src, dest, dest_port
 | sort -count
 ```
 - **Implementation:** Monitor access to ICS networks from all sources. Alert on connections from non-whitelisted IPs. Track engineering workstation access sessions. Correlate with physical access to control rooms. Report for ICS cybersecurity compliance.
@@ -427,7 +428,7 @@ index=ot sourcetype="ics_firewall"
 ```spl
 index=ot sourcetype="modbus:traffic"
 | bin _time span=5m
-| stats count by _time, unit_id, function_code, src_ip
+| stats count by _time, unit_id, function_code, src
 | eventstats median(count) as med by unit_id, function_code
 | where count > med * 5 AND count > 100
 ```
@@ -488,7 +489,7 @@ index=ot sourcetype="plc:inventory"
 ```spl
 index=ot sourcetype="ics:protocol"
 | where severity IN ("high","critical") OR match(message,"(?i)(malformed|illegal|out.of.range)")
-| stats count by protocol, src_ip, dest_ip, signature
+| stats count by protocol, src, dest, signature
 | sort -count
 ```
 - **Implementation:** Normalize IDS fields into Splunk. Tune for false positives on legacy equipment. Route critical to SOC and OT jointly.
@@ -568,8 +569,8 @@ index=ot sourcetype="sis:event"
 - **SPL:**
 ```spl
 index=ot sourcetype="hmi:audit"
-| where action="login" AND NOT cidrmatch("10.50.0.0/16",src_ip)
-| stats count by src_ip, hmi_name, user
+| where action="login" AND NOT cidrmatch("10.50.0.0/16",src)
+| stats count by src, hmi_name, user
 | sort -count
 ```
 - **Implementation:** Define allowed HMI source subnets. Alert on logins from outside. Correlate with physical access.
@@ -629,7 +630,7 @@ index=ot sourcetype="opcua:process"
 ```spl
 index=network sourcetype="flow:ics"
 | where src_zone!=dest_zone AND allowed_pair="false"
-| stats count by src_ip, dest_ip, dest_port, app
+| stats count by src, dest, dest_port, app
 | sort -count
 ```
 - **Implementation:** Maintain `allowed_pair` lookup for zone-to-zone. Alert on any deny or unexpected allow. Quarterly review.
@@ -669,13 +670,13 @@ index=ot sourcetype="sysmon:windows" host_tag="EWS"
 - **SPL:**
 ```spl
 index=ot sourcetype="flow:ics" src_zone="OT_L3"
-| lookup ot_asset_inventory ip as src_ip OUTPUT asset_class
-| lookup vendor_update_nets network as dest_ip OUTPUT network as vendor_net
-| where NOT cidrmatch("10.0.0.0/8",dest_ip) AND isnull(vendor_net)
-| stats count, values(dest_port) as ports by src_ip, dest_ip, app
+| lookup ot_asset_inventory ip as src OUTPUT asset_class
+| lookup vendor_update_nets network as dest OUTPUT network as vendor_net
+| where NOT cidrmatch("10.0.0.0/8",dest) AND isnull(vendor_net)
+| stats count, values(dest_port) as ports by src, dest, app
 | sort -count
 ```
-- **Implementation:** Maintain allowlisted update CDNs and remote-support jump hosts; default-deny egress from L3 devices. Alert on first-seen external `dest_ip`.
+- **Implementation:** Maintain allowlisted update CDNs and remote-support jump hosts; default-deny egress from L3 devices. Alert on first-seen external `dest`.
 - **Visualization:** Map (flows), Table (assets), Sankey (zone → egress).
 - **CIM Models:** N/A
 
@@ -692,9 +693,9 @@ index=ot sourcetype="flow:ics" src_zone="OT_L3"
 ```spl
 index=ot (sourcetype="zeek:conn" OR sourcetype="ics:protocol")
 | where dest_port IN (502,20000,44818,2404) OR service IN ("modbus","dnp3","enip")
-| lookup ot_authorized_peers src_ip dest_ip OUTPUT approved
+| lookup ot_authorized_peers src dest OUTPUT approved
 | where approved!="true"
-| stats count by src_ip, dest_ip, dest_port, service
+| stats count by src, dest, dest_port, service
 | sort -count
 ```
 - **Implementation:** Pair with asset inventory; tune for engineering laptops in maintenance windows.
@@ -2635,7 +2636,7 @@ index=iot sourcetype="edge:sync"
 - **Monitoring type:** Compliance
 - **Value:** Unauthorized provisioning events create shadow devices and billing abuse.
 - **App/TA:** AWS IoT Fleet / Azure DPS audit
-- **Data Sources:** `sourcetype="cloudtrail:iot"` or `sourcetype="iot:provisioning"`
+- **Data Sources:** AWS CloudTrail (`sourcetype="aws:cloudtrail"`; filter `eventSource` / `eventName` for IoT control-plane APIs such as `iot.amazonaws.com`), or a custom `iot:provisioning` sourcetype from your pipeline.
 - **SPL:**
 ```spl
 index=audit sourcetype="iot:provisioning"
@@ -2644,7 +2645,7 @@ index=audit sourcetype="iot:provisioning"
 | where count > 50
 | sort -count
 ```
-- **Implementation:** Compare provisioning rate to approved baseline. Alert on new template or IAM principal. Cross-check with HR for contractor access.
+- **Implementation:** Compare provisioning rate to approved baseline. Alert on new template or IAM principal. Cross-check with HR for contractor access. For AWS, prefer CloudTrail (`sourcetype="aws:cloudtrail"`) with `eventSource="iot.amazonaws.com"` (and relevant `eventName` values) instead of a non-standard `cloudtrail:iot` sourcetype; keep `iot:provisioning` only if that is your normalized pipeline.
 - **Visualization:** Table (provisioning events), Timeline (bursts), Bar chart (by actor).
 - **CIM Models:** N/A
 
@@ -2894,7 +2895,7 @@ index=edge-hub-health sourcetype=edge_hub
 - **SPL:**
 ```spl
 index=ot sourcetype=mqtt_broker_log ("auth failed" OR "ACL deny" OR "access denied" OR "unauthorized")
-| stats count by client_id, src_ip, reason, _time span=15m
+| stats count by client_id, src, reason, _time span=15m
 | where count > 5
 | sort -count
 ```

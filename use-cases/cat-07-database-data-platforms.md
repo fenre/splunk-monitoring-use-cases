@@ -139,7 +139,7 @@ index=database sourcetype="dbconnect:backup_history"
 index=database sourcetype="mssql:errorlog"
 | search "Login failed"
 | rex "Login failed for user '(?<user>[^']+)'"
-| stats count by user, src_ip
+| stats count by user, src
 | where count > 10
 | sort -count
 ```

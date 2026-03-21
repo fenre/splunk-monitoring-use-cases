@@ -312,12 +312,12 @@ index=web sourcetype="nginx:access" OR sourcetype="access_combined"
 ```spl
 index=web sourcetype="apache:modsec"
 | search action="denied" OR intercept_phase="phase:2"
-| stats count by rule_id, uri_path, src_ip
+| stats count by rule_id, uri_path, src
 | sort -count
 | head 30
 ```
 - **Implementation:** Ingest JSON or native ModSecurity audit format. Extract `rule_id`, `msg`. Alert on spike in unique IPs or new rule_id firing at high volume.
-- **Visualization:** Table (rule, URI, count), Bar chart (blocks by rule), Map (src_ip).
+- **Visualization:** Table (rule, URI, count), Bar chart (blocks by rule), Map (src).
 - **CIM Models:** Web
 
 ---
@@ -1336,7 +1336,7 @@ index=api sourcetype="kong:access" status=429
 - **SPL:**
 ```spl
 index=api sourcetype="kong:access" status IN (401, 403)
-| stats count by consumer_id, src_ip, request_uri
+| stats count by consumer_id, src, request_uri
 | where count > 50
 | sort -count
 ```
@@ -1533,16 +1533,16 @@ index=api sourcetype="kong:access"
 - **Monitoring type:** Security
 - **Value:** Unusual volume of requests per API key or key used from many distinct IPs/countries in short window.
 - **App/TA:** Gateway logs with `consumer_id` or `api_key` hash
-- **Data Sources:** `kong:access` `credential_id`, `src_ip`
+- **Data Sources:** `kong:access` `credential_id`, `src`
 - **SPL:**
 ```spl
 index=api sourcetype="kong:access"
-| stats count, dc(src_ip) as ips by credential_id, _time span=1h
+| stats count, dc(src) as ips by credential_id, _time span=1h
 | where count > 10000 OR ips > 50
 | table credential_id count ips
 ```
 - **Implementation:** Never log raw API keys. Use hashed id. Baseline per credential. Alert on volume or IP diversity anomaly. Integrate with IP reputation.
-- **Visualization:** Table (credential, count, ips), Map (src_ip), Timeline (abuse spikes).
+- **Visualization:** Table (credential, count, ips), Map (src), Timeline (abuse spikes).
 - **CIM Models:** Web
 
 ---
@@ -1962,7 +1962,7 @@ index=mail sourcetype=mail_queue host=*
 ```spl
 index=mail sourcetype=syslog (process=postfix OR process=sendmail) ("authentication failed" OR "relay denied" OR "reject")
 | rex "user=(?<sasl_user>\S+)"
-| stats count by src_ip, sasl_user, action
+| stats count by src, sasl_user, action
 | where count > 10
 | sort -count
 ```
@@ -2148,7 +2148,7 @@ index=asterisk sourcetype="asterisk:cdr"
 ```spl
 index=mail sourcetype="postfix:syslog" OR sourcetype=syslog process=postfix
 | search relay=* OR "relay access denied"
-| stats count by relay_domain, action, src_ip
+| stats count by relay_domain, action, src
 | where count > 500
 ```
 - **Implementation:** Parse relay lines for authorized vs denied. Alert on high relay denied from single IP (scanning) or high accepted relay to external domains (misconfiguration).
@@ -2204,14 +2204,14 @@ index=dns sourcetype="bind:query" OR sourcetype="dns:query"
 - **Monitoring type:** Security
 - **Value:** TFTP should be rare in enterprise networks. Any RRQ/WRQ outside PXE scope may indicate data exfil or firmware abuse.
 - **App/TA:** Firewall logs, `atftpd`/`tftpd` syslog
-- **Data Sources:** `tftp:syslog` `filename`, `op`, `src_ip`
+- **Data Sources:** `tftp:syslog` `filename`, `op`, `src`
 - **SPL:**
 ```spl
 index=network sourcetype="tftp:log" OR sourcetype="syslog" process=tftpd
 | search RRQ OR WRQ
-| lookup tftp_allowed_subnets src_ip OUTPUT allowed
+| lookup tftp_allowed_subnets src OUTPUT allowed
 | where allowed!=1 OR isnull(allowed)
-| table _time, src_ip, filename, op
+| table _time, src, filename, op
 ```
 - **Implementation:** Maintain allowlist for PXE subnets. Alert on any other TFTP read/write. Block TFTP at firewall unless required.
 - **Visualization:** Timeline (TFTP events), Table (unauthorized attempts), Single value (blocked attempts).
@@ -2230,11 +2230,11 @@ index=network sourcetype="tftp:log" OR sourcetype="syslog" process=tftpd
 ```spl
 index=network sourcetype="snmp:audit" OR (sourcetype=syslog process=snmpd)
 | search "Authentication failed" OR community="public" OR community="private"
-| stats count by src_ip, device, community
+| stats count by src, device, community
 | where count > 10
 ```
 - **Implementation:** Forward snmpd auth failures. Alert on default community strings in use or brute-force patterns. Migrate devices to SNMPv3.
-- **Visualization:** Table (src_ip, device, community), Bar chart (failures by device), Line chart (auth failure rate).
+- **Visualization:** Table (src, device, community), Bar chart (failures by device), Line chart (auth failure rate).
 - **CIM Models:** N/A
 
 ---

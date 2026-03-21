@@ -1375,7 +1375,7 @@ sourcetype="cisco:ucm:cdr"
 | where total_attempts>10
 | sort ASR
 ```
-- **Implementation:** Ingest Cisco UCM CDR data. The `destCause_value=16` (Normal Call Clearing) indicates a successfully answered call. Group by `destDeviceName` (which represents the route group or gateway) to calculate ASR per trunk. Industry standard ASR benchmarks: >50% is acceptable for international routes, >70% is good for domestic routes. For SIP-based tracking via Stream, use `sourcetype="stream:sip"` with `method=INVITE` and calculate the ratio of `reply_code=200` to total INVITEs per `dest_ip`. Alert when ASR drops below historical baseline by more than 10 percentage points.
+- **Implementation:** Ingest Cisco UCM CDR data. The `destCause_value=16` (Normal Call Clearing) indicates a successfully answered call. Group by `destDeviceName` (which represents the route group or gateway) to calculate ASR per trunk. Industry standard ASR benchmarks: >50% is acceptable for international routes, >70% is good for domestic routes. For SIP-based tracking via Stream, use `sourcetype="stream:sip"` with `method=INVITE` and calculate the ratio of `reply_code=200` to total INVITEs per `dest`. Alert when ASR drops below historical baseline by more than 10 percentage points.
 - **Visualization:** Gauge (overall ASR with thresholds: green >70%, yellow 50-70%, red <50%), Column chart (ASR by destDeviceName/trunk), Line chart (ASR trend over 7 days), Table (destDeviceName, total_attempts, answered_calls, ASR — sortable, highlighted red below 50%).
 - **CIM Models:** N/A
 
@@ -1516,7 +1516,7 @@ index=cisco_spaces sourcetype="cisco:spaces:presence" eventType="DEVICE_ENTRY"
 - **SPL:**
 ```spl
 index=cisco_spaces sourcetype="cisco:spaces:workspace"
-| join type=left workspaceId [search index=webex sourcetype="webex:workspace_bookings" | fields workspaceId, bookingStart, bookingEnd, organizer]
+| join type=left max=0 workspaceId [search index=webex sourcetype="webex:workspace_bookings" | fields workspaceId, bookingStart, bookingEnd, organizer]
 | eval booked=if(isnotnull(bookingStart), 1, 0)
 | eval occupied=if(peopleCount>0, 1, 0)
 | eval ghost_booking=if(booked=1 AND occupied=0, 1, 0)

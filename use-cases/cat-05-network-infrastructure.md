@@ -276,8 +276,8 @@ index=network sourcetype="cisco:ios" "%SW_MATM-4-MACFLAP_NOTIF"
 - **SPL:**
 ```spl
 index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP"
-| rex "list (?<acl>\S+) denied (?<proto>\w+) (?<src_ip>\d+\.\d+\.\d+\.\d+)"
-| stats count by host, acl, src_ip, proto | sort -count
+| rex "list (?<acl>\S+) denied (?<proto>\w+) (?<src>\d+\.\d+\.\d+\.\d+)"
+| stats count by host, acl, src, proto | sort -count
 ```
 - **Implementation:** Enable ACL logging (`log` keyword). Forward syslog. Dashboard showing top denied sources and trends.
 - **Visualization:** Table, Bar chart by source IP, Timechart.
@@ -305,7 +305,7 @@ index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP"
 - **SPL:**
 ```spl
 index=network sourcetype="cisco:ios" "%SNMP-3-AUTHFAIL"
-| rex "from (?<src_ip>\S+)" | stats count by host, src_ip | sort -count
+| rex "from (?<src>\S+)" | stats count by host, src | sort -count
 ```
 - **Implementation:** Forward syslog. Alert on repeated failures from unknown sources.
 - **Visualization:** Table, Map, Timeline.
@@ -797,8 +797,8 @@ index=network (sourcetype=snmp:lldp OR sourcetype=snmp:cdp OR sourcetype="cisco:
 - **SPL:**
 ```spl
 index=firewall action="denied" OR action="drop"
-| stats count as denials, dc(dest_ip) as unique_dests by src_ip
-| sort -denials | head 20 | lookup geoip ip as src_ip OUTPUT Country
+| stats count as denials, dc(dest) as unique_dests by src
+| sort -denials | head 20 | lookup geoip ip as src OUTPUT Country
 ```
 - **Implementation:** Forward firewall traffic logs via syslog. Install vendor TA for CIM-compliant fields. Create top-N dashboard.
 - **Visualization:** Table (source, denials, dests), Map (GeoIP), Bar chart.
@@ -852,7 +852,7 @@ index=firewall sourcetype="pan:config" cmd="set" OR cmd="edit" OR cmd="delete"
 - **SPL:**
 ```spl
 index=firewall sourcetype="pan:threat" severity="critical" OR severity="high"
-| stats count by src_ip, dest_ip, threat_name, severity, action | sort -count
+| stats count by src, dest, threat_name, severity, action | sort -count
 ```
 - **Implementation:** Forward threat logs. Alert immediately on critical severity. Correlate source IPs with auth logs.
 - **Visualization:** Table (source, dest, threat, action), Bar chart by threat type, Map.
@@ -908,8 +908,8 @@ index=firewall ("tunnel" OR "IPSec" OR "IKE") ("down" OR "failed" OR "establishe
 - **SPL:**
 ```spl
 index=firewall action="allowed" (dest_port=3389 OR dest_port=445 OR dest_port=23)
-| where NOT cidrmatch("10.0.0.0/8", src_ip)
-| stats count by src_ip, dest_ip, dest_port | sort -count
+| where NOT cidrmatch("10.0.0.0/8", src)
+| stats count by src, dest, dest_port | sort -count
 ```
 - **Implementation:** Monitor allow rules for external traffic to high-risk ports. Alert on any matches. Review and tighten rules.
 - **Visualization:** Table (source, dest, port), Bar chart by port, Map.
@@ -936,9 +936,9 @@ index=firewall action="allowed" (dest_port=3389 OR dest_port=445 OR dest_port=23
 - **SPL:**
 ```spl
 index=firewall action="allowed" direction="outbound"
-| lookup geoip ip as dest_ip OUTPUT Country
+| lookup geoip ip as dest OUTPUT Country
 | search Country IN ("Russia","China","North Korea","Iran")
-| stats count, sum(bytes_out) as data_sent by src_ip, Country | sort -data_sent
+| stats count, sum(bytes_out) as data_sent by src, Country | sort -data_sent
 ```
 - **Implementation:** Install GeoIP lookup (MaxMind). Enrich traffic logs. Alert on sanctioned country traffic and volume anomalies.
 - **Visualization:** Choropleth map, Table, Bar chart by country.
@@ -966,8 +966,8 @@ index=firewall action="allowed" direction="outbound"
 ```spl
 index=firewall
 | bin _time span=5m
-| stats count as connections by src_ip, _time
-| eventstats avg(connections) as avg_c, stdev(connections) as std_c by src_ip
+| stats count as connections by src, _time
+| eventstats avg(connections) as avg_c, stdev(connections) as std_c by src
 | where connections > (avg_c + 3*std_c)
 | sort -connections
 ```
@@ -996,7 +996,7 @@ index=firewall
 - **SPL:**
 ```spl
 index=firewall sourcetype="pan:decryption" action="ssl-error"
-| stats count by dest_ip, dest_port, reason | sort -count
+| stats count by dest, dest_port, reason | sort -count
 ```
 - **Implementation:** Enable decryption logging. Track failure rates by destination. Tune exclusion lists.
 - **Visualization:** Table, Pie chart (reasons), Trend line.
@@ -1023,7 +1023,7 @@ index=firewall sourcetype="pan:decryption" action="ssl-error"
 - **SPL:**
 ```spl
 index=firewall sourcetype="pan:url" action="block-url"
-| stats count by url_category, src_ip | sort -count
+| stats count by url_category, src | sort -count
 ```
 - **Implementation:** Forward URL filtering logs. Dashboard showing blocks by category and user.
 - **Visualization:** Bar chart (by category), Table, Pie chart.
@@ -1052,7 +1052,7 @@ index=firewall sourcetype="pan:url" action="block-url"
 ```spl
 index=firewall sourcetype="pan:system" ("login" OR "logout" OR "auth")
 | eval status=case(match(_raw,"success"),"Success", match(_raw,"fail"),"Failed", 1=1,"Other")
-| stats count by admin_user, src_ip, status | sort -count
+| stats count by admin_user, src, status | sort -count
 ```
 - **Implementation:** Forward system/auth logs. Alert on failed admin logins. Track all successful logins. Alert on unexpected source IPs.
 - **Visualization:** Table (admin, source, status), Timeline, Bar chart.
@@ -1190,9 +1190,9 @@ index=firewall (sourcetype="pan:system" "HA state change") OR (sourcetype="fgt_e
 - **SPL:**
 ```spl
 index=network sourcetype="pan:threat" category="command-and-control" OR category="spyware"
-| stats count values(dest_ip) as c2_targets dc(dest_ip) as unique_c2 by src_ip
+| stats count values(dest) as c2_targets dc(dest) as unique_c2 by src
 | sort -count
-| lookup dnslookup clientip as src_ip OUTPUT clienthost as src_hostname
+| lookup dnslookup clientip as src OUTPUT clienthost as src_hostname
 ```
 - **Implementation:** Enable threat prevention and URL filtering on the firewall. Ingest threat logs. Cross-reference with external threat intelligence (STIX/TAXII feeds). Alert immediately on any C2 match.
 - **Visualization:** Table (compromised hosts, C2 targets), Sankey diagram (source → C2), Single value (count).
@@ -1219,9 +1219,8 @@ index=network sourcetype="pan:threat" category="command-and-control" OR category
 - **SPL:**
 ```spl
 index=network sourcetype="pan:decryption" action="decrypt-error" OR action="no-decrypt"
-| stats count by reason, dest_ip, dest_port
-| sort -count
-| head 50
+| stats count by reason, dest, dest_port
+| sort 50 -count
 ```
 - **Implementation:** Enable decryption logging. Group failures by reason (unsupported cipher, certificate pinning, policy exclude). Review and update decryption policy based on findings.
 - **Visualization:** Bar chart (failure reasons), Table (top undecrypted destinations), Pie chart (by reason).
@@ -1248,7 +1247,7 @@ index=network sourcetype="pan:decryption" action="decrypt-error" OR action="no-d
 - **SPL:**
 ```spl
 index=network sourcetype="pan:traffic"
-| stats count as hit_count dc(src_ip) as unique_sources dc(dest_ip) as unique_dests by rule
+| stats count as hit_count dc(src) as unique_sources dc(dest) as unique_dests by rule
 | sort hit_count
 | eval status=if(hit_count=0,"UNUSED",if(hit_count<10,"RARELY_USED","ACTIVE"))
 ```
@@ -1481,7 +1480,7 @@ index=network sourcetype="f5:bigip:syslog" "persistence" ("failed" OR "expired")
 - **SPL:**
 ```spl
 index=network sourcetype="f5:bigip:asm:syslog"
-| stats count by violation_name, src_ip, request_uri, severity | sort -count
+| stats count by violation_name, src, request_uri, severity | sort -count
 ```
 - **Implementation:** Enable F5 ASM logging. Dashboard showing top violations, attack sources, and targeted URIs.
 - **Visualization:** Table, Bar chart by violation, Map (source IPs), Timeline.
@@ -1546,7 +1545,7 @@ index=network sourcetype="f5:bigip:ltm:http"
 - **SPL:**
 ```spl
 index=network sourcetype="f5:bigip:asm" attack_type="*dos*" OR violation="Rate Limiting"
-| stats count values(src_ip) as source_ips dc(src_ip) as unique_sources by virtual_server, attack_type
+| stats count values(src) as src_values dc(src) as unique_sources by virtual_server, attack_type
 | sort -count
 ```
 - **Implementation:** Enable ASM/WAF logging. Configure rate limiting policies per virtual server. Alert on sustained rate limiting events. Track source IP patterns for blocklisting.
@@ -2191,7 +2190,7 @@ index=dns reply_code="SERVFAIL" OR rcode="2"
 ```spl
 index=dns
 | eval query_len=len(query)
-| stats avg(query_len) as avg_len, count as queries, dc(query) as unique_queries by src_ip, domain
+| stats avg(query_len) as avg_len, count as queries, dc(query) as unique_queries by src, domain
 | where avg_len > 50 OR queries > 1000
 | sort -avg_len
 ```
@@ -2238,7 +2237,7 @@ index=dhcp sourcetype="DhcpSrvLog" OR sourcetype="infoblox:dhcp"
 - **SPL:**
 ```spl
 index=network "DHCP" AND ("rogue" OR "conflict" OR "unauthorized" OR "snooping violation")
-| table _time host src_ip _raw | sort -_time
+| table _time host src _raw | sort -_time
 ```
 - **Implementation:** Enable DHCP snooping on switches. Forward syslog. Alert on any rogue DHCP server detection events.
 - **Visualization:** Events list (critical), Table, Map.
@@ -2416,7 +2415,7 @@ index=network sourcetype="stream:dns"
 - **SPL:**
 ```spl
 index=netflow
-| stats sum(bytes) as total_bytes by src_ip, dest_ip
+| stats sum(bytes) as total_bytes by src, dest
 | sort -total_bytes | head 20
 | eval total_GB=round(total_bytes/1073741824,2)
 ```
@@ -2444,7 +2443,7 @@ index=netflow
 - **SPL:**
 ```spl
 index=netflow
-| stats dc(dest_port) as unique_ports, dc(dest_ip) as unique_dests by src_ip
+| stats dc(dest_port) as unique_ports, dc(dest) as unique_dests by src
 | where unique_ports > 100 OR unique_dests > 500
 | sort -unique_ports
 ```
@@ -2499,8 +2498,8 @@ index=netflow
 - **SPL:**
 ```spl
 index=netflow
-| where cidrmatch("10.0.0.0/8",src_ip) AND cidrmatch("10.0.0.0/8",dest_ip)
-| stats sum(bytes) as bytes, count as flows by src_ip, dest_ip, dest_port
+| where cidrmatch("10.0.0.0/8",src) AND cidrmatch("10.0.0.0/8",dest)
+| stats sum(bytes) as bytes, count as flows by src, dest, dest_port
 | sort -bytes | head 50
 ```
 - **Implementation:** Export NetFlow from internal router/switch interfaces. Analyze internal traffic patterns. Establish baseline for anomaly detection.
@@ -2527,9 +2526,9 @@ index=netflow
 - **SPL:**
 ```spl
 index=netflow direction="outbound"
-| stats sum(bytes) as total_bytes by src_ip, dest_ip
+| stats sum(bytes) as total_bytes by src, dest
 | where total_bytes > 1073741824
-| lookup known_destinations dest_ip OUTPUT known
+| lookup known_destinations dest OUTPUT known
 | where isnull(known)
 | sort -total_bytes
 ```
@@ -2557,7 +2556,7 @@ index=netflow direction="outbound"
 - **SPL:**
 ```spl
 index=netflow
-| stats dc(dest_port) as unique_ports by src_ip, dest_ip
+| stats dc(dest_port) as unique_ports by src, dest
 | where unique_ports > 50
 | sort -unique_ports
 ```
@@ -2586,7 +2585,7 @@ index=netflow
 ```spl
 index=network sourcetype="netflow"
 | lookup service_lookup dest_port OUTPUT service_name
-| stats sum(bytes) as total_bytes dc(src_ip) as unique_sources by protocol, service_name
+| stats sum(bytes) as total_bytes dc(src) as unique_sources by protocol, service_name
 | eval GB=round(total_bytes/1073741824,2) | sort -total_bytes
 | head 20
 ```
@@ -2613,8 +2612,8 @@ index=network sourcetype="netflow"
 - **Data Sources:** `sourcetype=netflow`, `sourcetype=cisco:ios`
 - **SPL:**
 ```spl
-index=network sourcetype="netflow" dest_ip="224.0.0.0/4"
-| stats sum(bytes) as total_bytes, dc(src_ip) as sources by dest_ip
+index=network sourcetype="netflow" dest="224.0.0.0/4"
+| stats sum(bytes) as total_bytes, dc(src) as sources by dest
 | eval MB=round(total_bytes/1048576,1) | sort -total_bytes
 | head 20
 ```
@@ -2644,7 +2643,7 @@ index=network sourcetype="netflow" dest_ip="224.0.0.0/4"
 index=network sourcetype="netflow"
 | lookup vlan_authorization_lookup src_vlan OUTPUT authorized
 | where authorized!="yes" OR isnull(authorized)
-| stats sum(bytes) as bytes, dc(src_ip) as unique_hosts by src_vlan, input_interface
+| stats sum(bytes) as bytes, dc(src) as unique_hosts by src_vlan, input_interface
 | sort -bytes
 ```
 - **Implementation:** Map flow data to VLANs via input interface. Maintain a lookup of authorized VLANs per port. Alert on traffic from unauthorized VLANs. Correlate with 802.1X status.
@@ -2673,7 +2672,7 @@ index=network sourcetype="netflow"
 index=network sourcetype="netflow"
 | eval duration_min=duration/60
 | where duration_min > 60
-| stats sum(bytes) as total_bytes, max(duration_min) as max_duration by src_ip, dest_ip, dest_port
+| stats sum(bytes) as total_bytes, max(duration_min) as max_duration by src, dest, dest_port
 | eval GB=round(total_bytes/1073741824,2) | sort -max_duration
 | head 20
 ```
@@ -3135,7 +3134,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*Splash*"
 - **Data Sources:** `sourcetype=meraki type=flow`
 - **SPL:**
 ```spl
-index=cisco_network sourcetype="meraki" type=flow dest_ip="255.255.255.255" OR dest_mac="ff:ff:ff:ff:ff:ff"
+index=cisco_network sourcetype="meraki" type=flow dest="255.255.255.255" OR dest_mac="ff:ff:ff:ff:ff:ff"
 | stats sum(sent_bytes) as total_bytes, count as pkt_count by ap_name, src_mac
 | where pkt_count > 1000
 | sort - pkt_count
@@ -3641,7 +3640,7 @@ index=cisco_network sourcetype="meraki" type=vpn
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=urls action="blocked"
-| stats count as block_count by url_category, src_ip
+| stats count as block_count by url_category, src
 | sort - block_count
 | head 20
 ```
@@ -3661,7 +3660,7 @@ index=cisco_network sourcetype="meraki" type=urls action="blocked"
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=ids_alert
-| stats count as alert_count by signature, priority, src_ip, dest_ip
+| stats count as alert_count by signature, priority, src, dest
 | eval severity=case(priority=1, "Critical", priority=2, "High", priority=3, "Medium", 1=1, "Low")
 | where priority <= 2
 | sort - alert_count
@@ -3690,7 +3689,7 @@ index=cisco_network sourcetype="meraki" type=ids_alert
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=security_event (signature="*malware*" OR signature="*AMP*")
-| stats count as malware_count by src_ip, threat_name, file_name
+| stats count as malware_count by src, threat_name, file_name
 | where malware_count > 0
 | sort - malware_count
 ```
@@ -3710,7 +3709,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*malware
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=flow action="deny"
-| stats count as deny_count by firewall_rule, src_ip, dest_ip, dest_port
+| stats count as deny_count by firewall_rule, src, dest, dest_port
 | sort - deny_count
 | head 20
 ```
@@ -3784,7 +3783,7 @@ index=cisco_network sourcetype="meraki" type=vpn latency=*
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=vpn client_vpn=true
-| stats count as connection_count, avg(duration) as avg_session_length by user_id, src_ip
+| stats count as connection_count, avg(duration) as avg_session_length by user_id, src
 | where connection_count > 10
 ```
 - **Implementation:** Filter VPN logs for client connections. Track by user and source IP.
@@ -3862,9 +3861,9 @@ index=cisco_network sourcetype="meraki:api" dhcp_pool=*
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR type=flow)
-| lookup threat_intelligence_list src_ip as src_ip OUTPUTNEW threat_name, threat_severity
+| lookup threat_intelligence_list src as src OUTPUTNEW threat_name, threat_severity
 | where threat_severity="high" OR threat_severity="critical"
-| stats count as hit_count by src_ip, dest_ip, threat_name
+| stats count as hit_count by src, dest, threat_name
 | sort - hit_count
 ```
 - **Implementation:** Create threat intelligence lookup table. Correlate with network events.
@@ -3883,7 +3882,7 @@ index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR typ
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=urls action="blocked"
-| lookup geo_ip.csv dest_ip OUTPUTNEW country, city
+| lookup geo_ip.csv dest OUTPUTNEW country, city
 | stats count as block_count by country
 | sort - block_count
 ```
@@ -3924,7 +3923,7 @@ index=cisco_network sourcetype="meraki" type=flow application=*
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=flow
-| lookup department_by_ip.csv src_ip OUTPUTNEW department
+| lookup department_by_ip.csv src OUTPUTNEW department
 | stats sum(sent_bytes) as upload_mb, sum(received_bytes) as download_mb by application, department
 | eval total_mb=upload_mb+download_mb
 | sort -total_mb
@@ -4040,7 +4039,7 @@ index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR sign
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
-| timechart count as new_connections by src_ip
+| timechart count as new_connections by src
 | where new_connections > 1000
 ```
 - **Implementation:** Monitor TCP SYN rate by source IP. Alert on anomalous connection rates.
@@ -4059,7 +4058,7 @@ index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=security_event signature="*DLP*"
-| stats count as dlp_match_count by src_ip, dest_ip, dlp_policy, data_type
+| stats count as dlp_match_count by src, dest, dlp_policy, data_type
 | where dlp_match_count > 0
 | sort - dlp_match_count
 ```
@@ -5807,13 +5806,13 @@ sourcetype="stream:radius" code="Accounting-Request"
 - **SPL:**
 ```spl
 sourcetype="stream:sip" method="INVITE"
-| stats count as total, sum(eval(if(reply_code>=400, 1, 0))) as failures by dest_ip
+| stats count as total, sum(eval(if(reply_code>=400, 1, 0))) as failures by dest
 | eval failure_rate=round(failures*100/total, 2)
 | where failure_rate>5 OR failures>50
 | sort -failure_rate
 ```
-- **Implementation:** Configure Splunk App for Stream to capture SIP signaling on trunk-facing interfaces. Enable SIP protocol extraction for fields `method`, `reply_code`, `caller`, `callee`, and `dest_ip`. Focus on INVITE transactions as these represent call attempts. Group by `dest_ip` to identify problematic trunks or destinations. SIP 4xx codes indicate client errors (e.g., 404 Not Found, 486 Busy Here), 5xx codes indicate server errors, and 6xx codes indicate global failures. Alert when failure rate exceeds 5% sustained over 15 minutes.
-- **Visualization:** Single value (overall SIP trunk success rate with thresholds: green >95%, yellow 90-95%, red <90%), Column chart (failure count by dest_ip), Table (dest_ip, total attempts, failures, failure_rate — sortable), Timechart (SIP 4xx/5xx/6xx responses over 24h by response code class).
+- **Implementation:** Configure Splunk App for Stream to capture SIP signaling on trunk-facing interfaces. Enable SIP protocol extraction for fields `method`, `reply_code`, `caller`, `callee`, and `dest`. Focus on INVITE transactions as these represent call attempts. Group by `dest` to identify problematic trunks or destinations. SIP 4xx codes indicate client errors (e.g., 404 Not Found, 486 Busy Here), 5xx codes indicate server errors, and 6xx codes indicate global failures. Alert when failure rate exceeds 5% sustained over 15 minutes.
+- **Visualization:** Single value (overall SIP trunk success rate with thresholds: green >95%, yellow 90-95%, red <90%), Column chart (failure count by dest), Table (dest, total attempts, failures, failure_rate — sortable), Timechart (SIP 4xx/5xx/6xx responses over 24h by response code class).
 - **CIM Models:** N/A
 
 ---
@@ -5831,13 +5830,13 @@ sourcetype="stream:sip" method="INVITE"
 ```spl
 sourcetype="stream:sip" method="REGISTER"
 | bin _time span=5m
-| stats count as register_count, dc(src_ip) as unique_sources by _time
+| stats count as register_count, dc(src) as unique_sources by _time
 | eventstats avg(register_count) as baseline, stdev(register_count) as stdev_reg
 | eval threshold=baseline+(3*stdev_reg)
 | where register_count>threshold
 | eval spike_factor=round(register_count/baseline, 1)
 ```
-- **Implementation:** Configure Splunk App for Stream to capture SIP REGISTER traffic on the IMS/SBC interfaces. Use a 5-minute time bucket for aggregation. Calculate a rolling baseline using `eventstats` and flag any bucket where REGISTER volume exceeds 3 standard deviations above the mean. The `dc(src_ip)` field helps distinguish between a mass re-registration event (many unique sources) vs. a single device stuck in a registration loop (few unique sources, high count). Alert the NOC immediately as registration storms can cascade into full core outages within minutes.
+- **Implementation:** Configure Splunk App for Stream to capture SIP REGISTER traffic on the IMS/SBC interfaces. Use a 5-minute time bucket for aggregation. Calculate a rolling baseline using `eventstats` and flag any bucket where REGISTER volume exceeds 3 standard deviations above the mean. The `dc(src)` field helps distinguish between a mass re-registration event (many unique sources) vs. a single device stuck in a registration loop (few unique sources, high count). Alert the NOC immediately as registration storms can cascade into full core outages within minutes.
 - **Visualization:** Line chart (REGISTER count over time with dynamic baseline threshold line), Single value (current spike factor vs. baseline), Table (time bucket, register_count, unique_sources, baseline, threshold — highlighting rows above threshold), Area chart (unique sources over time to correlate with storms).
 - **CIM Models:** N/A
 
@@ -5856,13 +5855,13 @@ sourcetype="stream:sip" method="REGISTER"
 ```spl
 sourcetype="stream:sip" method="INVITE" reply_code=200
 | where isnotnull(setup_delay)
-| stats avg(setup_delay) as avg_pdd, perc95(setup_delay) as p95_pdd, max(setup_delay) as max_pdd, count as calls by dest_ip
+| stats avg(setup_delay) as avg_pdd, perc95(setup_delay) as p95_pdd, max(setup_delay) as max_pdd, count as calls by dest
 | eval avg_pdd_ms=round(avg_pdd*1000, 0), p95_pdd_ms=round(p95_pdd*1000, 0)
 | where p95_pdd_ms>3000
 | sort -p95_pdd_ms
 ```
-- **Implementation:** Configure Splunk App for Stream to capture SIP INVITE and response transactions. The `setup_delay` field measures the time from INVITE to the first non-100 response (typically 180 Ringing or 200 OK). Monitor by `dest_ip` to identify slow destinations or trunks. ITU-T E.721 recommends post-dial delay under 3 seconds for national calls and under 5 seconds for international calls. Create tiered alerts: warning at p95 >3s, critical at p95 >5s. Trend analysis reveals degradation patterns across time of day and destination.
-- **Visualization:** Gauge (p95 post-dial delay with thresholds: green <2s, yellow 2-3s, red >3s), Line chart (average PDD trend by dest_ip over 24h), Table (dest_ip, calls, avg_pdd_ms, p95_pdd_ms, max_pdd_ms — sortable), Histogram (PDD distribution across all calls).
+- **Implementation:** Configure Splunk App for Stream to capture SIP INVITE and response transactions. The `setup_delay` field measures the time from INVITE to the first non-100 response (typically 180 Ringing or 200 OK). Monitor by `dest` to identify slow destinations or trunks. ITU-T E.721 recommends post-dial delay under 3 seconds for national calls and under 5 seconds for international calls. Create tiered alerts: warning at p95 >3s, critical at p95 >5s. Trend analysis reveals degradation patterns across time of day and destination.
+- **Visualization:** Gauge (p95 post-dial delay with thresholds: green <2s, yellow 2-3s, red >3s), Line chart (average PDD trend by dest over 24h), Table (dest, calls, avg_pdd_ms, p95_pdd_ms, max_pdd_ms — sortable), Histogram (PDD distribution across all calls).
 - **CIM Models:** N/A
 
 ---
@@ -6074,7 +6073,7 @@ index=telco sourcetype="roaming:usage"
 index=voip sourcetype="cdr:voip"
 | lookup premium_and_high_risk_prefixes called_number OUTPUT risk_tier
 | where risk_tier IN ("premium","satellite","high_cost_geo")
-| stats sum(toll_charge) as cost, count, dc(calling_party) as sources by src_ip, hour
+| stats sum(toll_charge) as cost, count, dc(calling_party) as sources by src, hour
 | where cost>500 OR count>100
 | sort -cost
 ```

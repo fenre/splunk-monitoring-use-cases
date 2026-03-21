@@ -191,7 +191,7 @@ index=containers sourcetype="docker:info"
 | stats values(ServerVersion) as versions by host
 | eval version_count = mvcount(versions)
 | where version_count > 1
-| mvexpand versions
+| mvexpand versions limit=100
 | table host versions
 ```
 - **Implementation:** Create scripted input that runs `docker info --format '{{json .}}'` and `docker version --format '{{json .}}'` every 300 seconds. Parse ServerVersion, ServerErrors, Containers, Images, and DriverStatus. Forward to Splunk via HEC. Alert when Docker daemon is unresponsive (no data for >5 minutes) or when ServerErrors is non-empty. Report version drift: alert when multiple Engine versions exist across the fleet.

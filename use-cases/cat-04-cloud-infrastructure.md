@@ -229,9 +229,8 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 - **SPL:**
 ```spl
 index=aws sourcetype="aws:cloudwatchlogs:vpcflow" action="REJECT"
-| stats count by src_ip, dest_ip, dest_port, protocol
-| sort -count
-| head 20
+| stats count by src, dest, dest_port, protocol
+| sort 20 -count
 ```
 - **Implementation:** Enable VPC Flow Logs on all VPCs (send to S3 or CloudWatch Logs). Ingest via Splunk_TA_aws. Create dashboards for rejected traffic, top talkers, and unusual port activity.
 - **Visualization:** Table (top rejected flows), Sankey diagram (source to destination), Timechart, Map.
@@ -442,8 +441,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="DetectStackDrift" OR eventName=
 ```spl
 index=aws sourcetype="aws:waf" action="BLOCK"
 | stats count by terminatingRuleId, httpRequest.clientIp, httpRequest.uri
-| sort -count
-| head 20
+| sort 20 -count
 ```
 - **Implementation:** Enable WAF logging to S3 or Kinesis Firehose. Ingest via Splunk_TA_aws. Analyze blocked requests by rule, source IP, URI, and user agent to identify attack patterns and false positives.
 - **Visualization:** Table (rule, source, URI, count), Bar chart by rule, Map (source IPs), Timeline.
@@ -1194,7 +1192,7 @@ index=aws sourcetype="aws:cloudwatchlogs" ("REPORT RequestId" OR "INIT_START")
 ```spl
 index=aws sourcetype="aws:cloudtrail" eventSource="ecs.amazonaws.com" (eventName="RunTask" OR eventName="CreateService")
 | spath path=responseElements.failures{}
-| mvexpand responseElements.failures{}
+| mvexpand responseElements.failures{} limit=500
 | spath input=responseElements.failures{} path=reason
 | spath input=responseElements.failures{} path=arn
 | search reason=*
@@ -1267,7 +1265,7 @@ index=aws sourcetype="aws:cloudtrail" eventSource="s3.amazonaws.com" eventName="
 ```spl
 index=aws sourcetype="aws:cloudwatch:events" detail-type="Security Hub Findings - Imported"
 | spath path=detail.findings{}
-| mvexpand detail.findings{}
+| mvexpand detail.findings{} limit=500
 | spath input=detail.findings{} output=sev path=Severity.Label
 | spath input=detail.findings{} output=title path=Title
 | stats count by sev, title, account
@@ -1386,7 +1384,7 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 - **SPL:**
 ```spl
 index=aws sourcetype="aws:config:notification" configRuleList{}.complianceType=*
-| mvexpand configRuleList{}
+| mvexpand configRuleList{} limit=500
 | spath input=configRuleList{} path=complianceType
 | spath input=configRuleList{} path=configRuleName
 | stats dc(complianceType) as state_changes by resourceId, configRuleName
@@ -1590,7 +1588,7 @@ index=aws sourcetype="aws:cloudwatch:events" detail-type="Backup Job State Chang
 ```spl
 index=aws sourcetype="aws:cloudtrail" eventSource="lambda.amazonaws.com" eventName="UpdateFunctionConfiguration"
 | spath path=requestParameters.layers{}
-| mvexpand requestParameters.layers{}
+| mvexpand requestParameters.layers{} limit=200
 | eval layer_arn=requestParameters.layers{}
 | lookup approved_lambda_layers layer_arn OUTPUT approved
 | where isnull(approved)
@@ -1690,7 +1688,7 @@ index=azure sourcetype="mscs:azure:auditlog" activityDisplayName="Add member to 
 - **SPL:**
 ```spl
 index=azure sourcetype="mscs:azure:nsgflowlog" flowState="D"
-| stats count by src_ip, dest_ip, dest_port, protocol
+| stats count by src, dest, dest_port, protocol
 | sort -count | head 20
 ```
 - **Implementation:** Enable NSG Flow Logs (Version 2) on all NSGs. Send to a storage account. Ingest via Splunk_TA_microsoft-cloudservices. Create dashboards for denied traffic and top talkers.
@@ -2036,7 +2034,8 @@ index=azure sourcetype="mscs:azure:diagnostics" ResourceType="MICROSOFT.CONTAINE
 - **SPL:**
 ```spl
 index=azure sourcetype="mscs:azure:diagnostics" Category="AzureFirewallThreatIntelLog"
-| table _time msg_src_ip msg_dest_ip action threat_id
+| rename msg_src_ip as src, msg_dest_ip as dest
+| table _time src dest action threat_id
 | sort -_time
 ```
 - **Implementation:** Enable Azure Firewall diagnostic logs to Event Hub or storage. Ingest in Splunk. Alert on any threat intel hit. Dashboard rule hits, denied flows, and top sources/destinations.
@@ -2194,7 +2193,7 @@ index=azure sourcetype="mscs:azure:diagnostics" resourceType="Microsoft.Cdn/prof
 - **SPL:**
 ```spl
 index=azure sourcetype="mscs:azure:nsgflow" flowDirection="In" macAddress=*
-| stats sum(bytes) as total_bytes, dc(src_ip) as unique_sources by dest_ip, dest_port_s, rule
+| stats sum(bytes) as total_bytes, dc(src) as unique_sources by dest, dest_port_s, rule
 | where unique_sources > 50 OR total_bytes > 1000000000
 | sort -total_bytes
 ```
@@ -2549,7 +2548,8 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.methodName="SetIam
 ```spl
 index=gcp sourcetype="google:gcp:pubsub:message" logName="*vpc_flows"
 | spath
-| stats sum(bytes_sent) as total_bytes by connection.src_ip, connection.dest_ip, connection.dest_port
+| eval src=coalesce(src,'connection.src_ip'), dest=coalesce(dest,'connection.dest_ip'), dest_port=coalesce(dest_port,'connection.dest_port')
+| stats sum(bytes_sent) as total_bytes by src, dest, dest_port
 | sort -total_bytes | head 20
 ```
 - **Implementation:** Enable VPC Flow Logs on subnets. Sink to Pub/Sub and ingest in Splunk. Analyze for top talkers, rejected flows, and anomalous destinations.
@@ -3262,7 +3262,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" httpRequest.latency!=""
 ```spl
 index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="storage.googleapis.com" protoPayload.methodName="storage.buckets.setIamPermissions"
 | spath path=protoPayload.serviceData.policy.bindings{}
-| mvexpand protoPayload.serviceData.policy.bindings{}
+| mvexpand protoPayload.serviceData.policy.bindings{} limit=500
 | search bindings.members="allUsers" OR bindings.members="allAuthenticatedUsers"
 | table _time protoPayload.authenticationInfo.principalEmail resource.labels.bucket_name bindings.role
 ```
@@ -3456,7 +3456,7 @@ index=_internal source=*metrics* group=per_sourcetype_thruput
 ```spl
 index=aws sourcetype="aws:billing"
 | spath path=resourceTags output=tags
-| mvexpand tags
+| mvexpand tags limit=500
 | rex field=tags "^(?<tag_key>[^:]+):(?<tag_value>.+)$"
 | stats sum(BlendedCost) as cost by tag_key tag_value
 | where tag_key="Owner" OR tag_key="Team"

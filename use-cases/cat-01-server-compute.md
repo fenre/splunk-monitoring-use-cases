@@ -208,11 +208,11 @@ index=os sourcetype=syslog "Out of memory" OR "oom-killer" OR "Killed process"
 - **SPL:**
 ```spl
 index=os sourcetype=linux_secure "Failed password"
-| rex "from (?<src_ip>\d+\.\d+\.\d+\.\d+)"
-| stats count as attempts, dc(user) as users_targeted, values(user) as usernames by src_ip, host
+| rex "from (?<src>\d+\.\d+\.\d+\.\d+)"
+| stats count as attempts, dc(user) as users_targeted, values(user) as usernames by src, host
 | where attempts > 10
 | sort -attempts
-| iplocation src_ip
+| iplocation src
 ```
 - **Implementation:** Forward `/var/log/auth.log` (Debian/Ubuntu) or `/var/log/secure` (RHEL/CentOS). Create alert for >10 failed attempts from a single IP in 5 minutes. Consider integrating with a GeoIP lookup for geographic context.
 - **Visualization:** Table of source IPs with attempt counts, Choropleth map (GeoIP), Timechart of brute-force events.
@@ -1246,7 +1246,7 @@ index=os sourcetype=syslog "systemd-resolved" ("SERVFAIL" OR "NXDOMAIN" OR "TIME
 - **SPL:**
 ```spl
 index=os sourcetype=syslog "ufw" ("DENY" OR "REJECT" OR "DROP")
-| stats count by host, src_ip, dst_port, protocol
+| stats count by host, src, dst_port, protocol
 | where count > 100
 ```
 - **Implementation:** Enable firewall logging in iptables/nftables. Configure kernel logging for denied traffic. Create alerts for spike in dropped packets to specific ports, and trending reports on top blocked IPs.
@@ -1620,7 +1620,7 @@ index=os sourcetype=linux_audit path~="\.ssh/authorized_keys" action=modified
 - **SPL:**
 ```spl
 index=os sourcetype=linux_secure pam "authentication failure"
-| stats count as failures by host, user, src_ip
+| stats count as failures by host, user, src
 | where failures > 5
 ```
 - **Implementation:** Monitor PAM logs for authentication failures. Track failures per user and source IP. Create alerts for multiple failures from single IP within short timeframe indicating brute force.
@@ -1647,7 +1647,7 @@ index=os sourcetype=linux_secure pam "authentication failure"
 - **SPL:**
 ```spl
 index=os sourcetype=linux_secure "Accepted publickey" OR "Accepted password"
-| stats dc(src_ip) as unique_ips by host, user
+| stats dc(src) as unique_ips by host, user
 | eventstats avg(unique_ips) as baseline_ips by user
 | where unique_ips > baseline_ips + 3
 ```
@@ -3035,11 +3035,11 @@ index=wineventlog sourcetype="WinEventLog:*"
 - **SPL:**
 ```spl
 index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
-| eval src_ip=coalesce(src_ip, IpAddress)
-| stats count as failures, dc(TargetUserName) as accounts_targeted, values(TargetUserName) as usernames by src_ip, host
+| eval src=coalesce(src, IpAddress)
+| stats count as failures, dc(TargetUserName) as accounts_targeted, values(TargetUserName) as usernames by src, host
 | where failures > 10
 | sort -failures
-| iplocation src_ip
+| iplocation src
 ```
 - **Implementation:** Enable Security Event Log collection (already default in most deployments). Create alert for >10 failures from single source in 5 minutes. Correlate with successful logins (4624) from same source.
 - **Visualization:** Table (source, failures, targets), Map (GeoIP), Timechart of failure trends.
@@ -5365,8 +5365,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-AppLocker*" EventCode IN
 ```spl
 index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSessionManager/Operational" EventCode IN (21, 23, 24, 25)
 | eval Action=case(EventCode=21,"Logon", EventCode=23,"Logoff", EventCode=24,"Disconnect", EventCode=25,"Reconnect", 1=1,"Other")
-| eval src_ip=if(isnotnull(Address), Address, "local")
-| stats earliest(_time) as SessionStart latest(_time) as SessionEnd values(Action) as Actions by host, User, SessionID, src_ip
+| eval src=if(isnotnull(Address), Address, "local")
+| stats earliest(_time) as SessionStart latest(_time) as SessionEnd values(Action) as Actions by host, User, SessionID, src
 | eval Duration=round((SessionEnd-SessionStart)/60,1)
 ```
 - **Implementation:** Collect TerminalServices-LocalSessionManager/Operational log for session lifecycle events. Track logon (21), logoff (23), disconnect (24), reconnect (25). Correlate with Security log 4624 Type 10 for source IP. Alert on RDP to servers from non-admin workstations, sessions during off-hours, and multiple concurrent sessions from different IPs for same user.

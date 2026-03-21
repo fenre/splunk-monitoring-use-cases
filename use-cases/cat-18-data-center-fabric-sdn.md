@@ -405,10 +405,10 @@ index=cisco_aci sourcetype="cisco:aci:cluster_diag" earliest=-24h
 - **SPL:**
 ```spl
 index=vmware sourcetype="vmware:nsx:dfw"
-| stats sum(eval(if(action="ALLOW", 1, 0))) as allowed, sum(eval(if(action="DROP", 1, 0))) as dropped, sum(eval(if(action="REJECT", 1, 0))) as rejected by rule_id, rule_name, src_ip, dst_ip, dst_port, protocol
+| stats sum(eval(if(action="ALLOW", 1, 0))) as allowed, sum(eval(if(action="DROP", 1, 0))) as dropped, sum(eval(if(action="REJECT", 1, 0))) as rejected by rule_id, rule_name, src, dst_ip, dst_port, protocol
 | eval total=allowed+dropped+rejected
 | sort -total
-| table rule_id, rule_name, src_ip, dst_ip, dst_port, protocol, allowed, dropped, rejected
+| table rule_id, rule_name, src, dst_ip, dst_port, protocol, allowed, dropped, rejected
 ```
 - **Implementation:** Enable DFW logging on NSX Manager for desired rule sections. Forward DFW logs via syslog to Splunk. Parse rule ID, action, source, destination, and port fields. Identify rules with zero hits (candidates for removal). Alert on unexpected DENY hits indicating misconfiguration or attack.
 - **Visualization:** Bar chart (top rules by hits), Timechart (allow vs deny trending), Table (denied connections), Sankey diagram (source-to-destination flows).

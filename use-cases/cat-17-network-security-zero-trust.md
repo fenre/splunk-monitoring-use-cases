@@ -376,8 +376,7 @@ index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth") earliest=-7d
 | search "802.1X" OR auth_method="EAP*" OR eap_method=*
 | where match(lower(message),"(?i)fail|reject|denied")
 | stats count by eap_method, failure_reason, nas_ip
-| sort -count
-| head 30
+| sort 30 -count
 ```
 - **Implementation:** Extract `eap_method`, `failure_reason`, and `nas_ip` per your TA. Alert on spikes in a single failure bucket (e.g., TLS cert errors). Compare before/after cert updates.
 - **Visualization:** Bar chart (failures by EAP method), Table (top NAS + reason), Line chart (daily failure rate).
@@ -410,7 +409,7 @@ index=nac sourcetype="cisco:ise:guest" earliest=-24h
 | table sponsor, guest_mac, concurrent_sessions, total_gb
 | sort -total_gb
 ```
-- **Implementation:** Map `bytes` from ISE or join firewall `src_ip` for guest VLAN. Thresholds per org. Alert on sponsor accounts with many parallel guests.
+- **Implementation:** Map `bytes` from ISE or join firewall `src` for guest VLAN. Thresholds per org. Alert on sponsor accounts with many parallel guests.
 - **Visualization:** Table (abuse candidates), Bar chart (bytes by sponsor), Single value (guests over threshold).
 - **CIM Models:** Authentication, Network_Sessions
 - **CIM SPL:**
@@ -631,7 +630,7 @@ index=vpn sourcetype="cisco:asa"
 - **SPL:**
 ```spl
 index=vpn sourcetype="cisco:asa" action="authentication_failed"
-| stats count by user, src_ip
+| stats count by user, src
 | where count > 5
 | sort -count
 ```
@@ -661,9 +660,9 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 - **SPL:**
 ```spl
 index=vpn sourcetype="cisco:asa" action="session_connect"
-| iplocation src_ip
+| iplocation src
 | search NOT Country IN ("United States","Canada","United Kingdom")
-| table _time, user, src_ip, Country, City
+| table _time, user, src, Country, City
 ```
 - **Implementation:** Enrich VPN connections with GeoIP data. Maintain whitelist of expected countries. Alert on connections from unexpected locations. Correlate with user travel records if available. Block sanctioned countries.
 - **Visualization:** Geo map (VPN connections), Table (anomalous locations), Bar chart (connections by country).
@@ -757,7 +756,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 | where (hour < 5 OR hour > 23)
 | lookup user_roles.csv user OUTPUT department, role
 | where role!="on_call" AND role!="sysadmin"
-| table _time, user, department, src_ip, hour
+| table _time, user, department, src, hour
 ```
 - **Implementation:** Define normal hours per user role/department. Alert on VPN connections outside hours for roles that don't require it. Whitelist on-call and sysadmin roles. Review weekly for patterns.
 - **Visualization:** Heatmap (user × hour of day), Table (off-hours access), Bar chart (off-hours by department).
@@ -816,7 +815,7 @@ index=vpn sourcetype="cisco:asa"
 - **SPL:**
 ```spl
 index=vpn sourcetype="cisco:asa" action="session_connect"
-| stats dc(src_ip) as unique_ips, values(src_ip) as ips by user
+| stats dc(src) as unique_ips, values(src) as ips by user
 | where unique_ips > 1
 ```
 - **Implementation:** Track active VPN sessions per user. Alert when a user has concurrent sessions from different IPs. Whitelist known scenarios (multiple devices). Trigger automated investigation including password reset.
@@ -852,7 +851,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect")
 | lookup vpn_policy_requirements.csv group_policy OUTPUT required_tunnel
 | eval actual_tunnel=coalesce(tunnel_type, routing_mode, group_policy)
 | where required_tunnel!=actual_tunnel OR isnull(required_tunnel)
-| table _time, user, group_policy, actual_tunnel, required_tunnel, src_ip
+| table _time, user, group_policy, actual_tunnel, required_tunnel, src
 ```
 - **Implementation:** Ingest VPN session logs with tunnel configuration. Maintain lookup table mapping group policy to required tunnel type (full/split). For Cisco ASA, use Group-Policy; for GlobalProtect, use gateway-assigned policy. Alert when users connect with split-tunnel when policy requires full-tunnel (e.g., high-risk groups). Report on policy compliance rate by department and gateway.
 - **Visualization:** Pie chart (full vs split by policy), Table (policy violations), Bar chart (compliance by group policy), Single value (% compliant).
@@ -906,7 +905,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="ses
 | lookup vpn_policy_requirements.csv group_policy OUTPUT required_tunnel
 | eval violation=if(required_tunnel="full" AND (tunnel_type="split" OR match(lower(_raw),"(?i)split.?tunnel")),1,0)
 | where violation=1
-| stats count by user, group_policy, src_ip
+| stats count by user, group_policy, src
 | sort -count
 ```
 - **Implementation:** Align lookup with security architecture. Some vendors expose only group name — normalize in transforms.
@@ -974,17 +973,17 @@ index=vpn sourcetype="cisco:asa" earliest=-4h
 - **Value:** Detects logins from two distant countries faster than plausible travel — complements static geo allowlists (UC-17.2.3).
 - **App/TA:** VPN TA, GeoIP
 - **Equipment Models:** Cisco ASA, GlobalProtect
-- **Data Sources:** VPN session connect with `src_ip`, `user`
+- **Data Sources:** VPN session connect with `src`, `user`
 - **SPL:**
 ```spl
 index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
-| iplocation src_ip
+| iplocation src
 | eval country=Country
 | sort user _time
 | streamstats current=f last(_time) as prev_time last(Country) as prev_country by user
 | eval gap_hrs=round((_time-prev_time)/3600,2)
 | where isnotnull(prev_country) AND country!=prev_country AND gap_hrs < 6
-| table _time, user, prev_country, country, gap_hrs, src_ip
+| table _time, user, prev_country, country, gap_hrs, src
 ```
 - **Implementation:** Tune time window (e.g., 4–8h) and distance (optional `haversine` if lat/long from enriched data). Whitelist mobile users and split tunnel carrier NAT.
 - **Visualization:** Table (impossible travel), Map (prev vs new), Single value (alerts / day).
@@ -1012,8 +1011,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-24h
 | search "IKE" OR "keepalive" OR "DPD" OR "dead peer"
 | stats count by tunnel_id, peer_ip, message_signature
-| sort -count
-| head 40
+| sort 40 -count
 ```
 - **Implementation:** Normalize `message_signature` with `rex` or `cluster` on raw. Correlate with UC-17.2.5 stability metrics.
 - **Visualization:** Bar chart (failures by peer), Table (top messages), Line chart (failure rate).
@@ -1028,7 +1026,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-24h
 - **Value:** Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers.
 - **App/TA:** Windows TA, IIS TA
 - **Equipment Models:** Windows Server RD Gateway
-- **Data Sources:** `sourcetype=ms:iis`, `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`
+- **Data Sources:** `sourcetype=ms:iis`, `WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` (if inputs use **XML** rendering, use `XmlWinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational` instead)
 - **SPL:**
 ```spl
 index=windows sourcetype="WinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational" earliest=-24h
@@ -1117,7 +1115,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 | eval aov=if(match(lower(_raw),"(?i)always.?on|pre.?login"),1,0)
 | lookup corp_laptops.csv hostname OUTPUT requires_aov
 | where requires_aov=1 AND aov=0
-| stats count by user, hostname, src_ip
+| stats count by user, hostname, src
 ```
 - **Implementation:** Prefer explicit field from ASA if available. Join MDM “managed device” list for `requires_aov`.
 - **Visualization:** Table (non-compliant hosts), Bar chart (violations by OU), Single value (violation count).
@@ -1189,7 +1187,7 @@ index=vpn sourcetype="vpn:session" earliest=-7d
 | eventstats median(dur_hrs) as med, stdev(dur_hrs) as sd by user
 | eval z=if(sd>0, (dur_hrs-med)/sd, 0)
 | where abs(z)>3 OR dur_hrs>48 OR dur_hrs<0.01
-| table user, dur_hrs, med, z, src_ip
+| table user, dur_hrs, med, z, src
 ```
 - **Implementation:** Requires reliable `start_time`/`end_time`. Tune z-score or use `anomalydetection`.
 - **Visualization:** Scatter (duration vs time), Table (outliers), Histogram (duration).
@@ -1509,8 +1507,7 @@ index=proxy sourcetype="zscaler:web" earliest=-30d
 index=zt sourcetype="zscaler:zpa" earliest=-24h
 | where match(lower(status),"(?i)fail|error|down") OR latency_ms>2000
 | stats count by app_segment, connector_group, error_code
-| sort -count
-| head 30
+| sort 30 -count
 ```
 - **Implementation:** Normalize `app_segment` and latency fields from your ZPA TA. Alert on connector group with >5% error rate vs prior week.
 - **Visualization:** Table (unhealthy segments), Line chart (error rate), Single value (segments in alert).
@@ -1537,8 +1534,7 @@ index=zt sourcetype="zscaler:zpa" earliest=-24h
 index=dns sourcetype="umbrella:dns" earliest=-7d
 | where action="blocked"
 | stats count by domain, identity, categories
-| sort -count
-| head 50
+| sort 50 -count
 ```
 - **Implementation:** Enrich with ASN or threat feed for rare domains. Alert on spike in blocks from single identity (possible compromise).
 - **Visualization:** Bar chart (top domains), Table (identity × domain), Pie chart (categories).
@@ -1668,8 +1664,7 @@ index=zt sourcetype="zscaler:device_posture" earliest=-30d
 index=identity sourcetype="azure:signin" earliest=-7d
 | where risk_level!="none" OR authentication_requirement="multiFactorAuthentication"
 | stats count by user, risk_detail, result
-| sort -count
-| head 40
+| sort 40 -count
 ```
 - **Implementation:** Map Entra `riskLevelDuringSignIn` and CA grant controls. Report MFA completion rate when risk elevated.
 - **Visualization:** Table (risky sign-ins), Bar chart (outcomes), Line chart (risk events / day).
@@ -1715,7 +1710,7 @@ index=zt sourcetype="rbi:session" earliest=-30d
 ```spl
 index=proxy sourcetype="zscaler:web" earliest=-24h
 | where match(lower(reason),"(?i)bypass|tunnel|direct|pac") OR match(lower(url),"(?i)proxy\.pac")
-| stats count by user, src_ip, reason
+| stats count by user, src, reason
 | sort -count
 ```
 - **Implementation:** Correlate with firewall deny for non-standard ports. Tune for false positives from dev tools.

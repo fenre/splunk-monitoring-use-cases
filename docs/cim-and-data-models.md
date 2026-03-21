@@ -68,3 +68,20 @@ For OCSF-only or OCSF-first use cases, implementation will rely on OCSF-normaliz
 | **Schema / OCSF** | Optional; indicates CIM, OCSF, or both when the use case aligns with OCSF. |
 
 When implementing a use case that has **CIM Models** and **CIM SPL**, enable Data Model Acceleration for the listed model(s) and ensure data is mapped into those models via the appropriate Splunk TAs or CIM configuration.
+
+---
+
+## Preferred CIM-style field names (raw / index searches)
+
+For **index-time SPL** examples (outside `tstats` / `from datamodel`), this catalog prefers names that align with **CIM-normalized** fields so searches port more easily to data models and ES:
+
+| Prefer (CIM-aligned) | Often seen in vendor raw logs | Notes |
+|---------------------|-------------------------------|--------|
+| `src` | `src_ip`, `source_ip`, some `client_ip` | Source address (host or IP). |
+| `dest` | `dest_ip`, `dst_ip`, some `server_ip` | Destination address. |
+| `user` | `user_name`, `username` | Use `eval user=coalesce(user, user_name)` when both may appear. |
+| `dest_port`, `src_port` | `remote_port`, etc. | Rename or coalesce when mapping vendor fields. |
+
+Vendor-specific paths (e.g. `connection.src_ip` in JSON) are often **`eval`/`rename`d** to `src`/`dest` in the SPL block. **Data model** paths in `tstats` use dataset prefixes, e.g. `All_Traffic.src`, `All_Traffic.dest` (not `*_ip`).
+
+The helper script `scripts/normalize_cim_fields.py` can re-apply bulk `src_ip`/`dest_ip` → `src`/`dest` renames on `use-cases/cat-*.md` when needed; always review **BY** clauses for duplicate `All_Traffic.dest` lines after replacing `dest_ip`.

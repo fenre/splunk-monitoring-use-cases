@@ -149,23 +149,23 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Value:** Highlights outbound traffic volumes to destinations outside the approved EEA/adequacy footprint so transfers can be gated by SCCs, BCRs, TIAs, or blocking controls.
 - **App/TA:** Splunk Common Information Model Add-on (Splunkbase 1621), Palo Alto Networks Add-on (Splunkbase 2757) or equivalent firewall TA populating Network_Traffic data model
 - **Premium Apps:** Splunk Enterprise Security (optional, for asset/identity context)
-- **Data Sources:** CIM `Network_Traffic` data model (`All_Traffic.dest_ip`, `All_Traffic.bytes_out`, `All_Traffic.action`) — backed by sourcetypes such as `sourcetype="pan:traffic"`, `sourcetype="cisco:asa"`, or `sourcetype="fortigate_traffic"`
+- **Data Sources:** CIM `Network_Traffic` data model (`All_Traffic.dest`, `All_Traffic.bytes_out`, `All_Traffic.action`) — backed by sourcetypes such as `sourcetype="pan:traffic"`, `sourcetype="cisco:asa"`, or `sourcetype="fortigate_traffic"`
 - **SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_out) as bytes_out
     from datamodel=Network_Traffic.All_Traffic
     where All_Traffic.action="allowed"
-    by All_Traffic.dest_ip
+    by All_Traffic.dest
 | rename All_Traffic.* as *
-| iplocation dest_ip
+| iplocation dest
 | lookup eea_and_adequate_countries.csv Country OUTPUT transfer_basis
 | where isnull(transfer_basis) OR transfer_basis="restricted"
 | eval bytes_gb=round(bytes_out/1073741824, 2)
 | sort 100 - bytes_out
 | head 100
-| table dest_ip, Country, bytes_gb, transfer_basis
+| table dest, Country, bytes_gb, transfer_basis
 ```
-- **Implementation:** (1) Accelerate `Network_Traffic` data model in Settings > Data Models; (2) create `eea_and_adequate_countries.csv` with `Country` values matching `iplocation` output (MaxMind) and your legal team's adequacy list (EEA + UK + other recognised adequacy decisions); (3) add a `transfer_basis` column (e.g. SCC, BCR, adequacy) for approved destinations; (4) tune with CDN/exception lookups by `dest_ip`.
+- **Implementation:** (1) Accelerate `Network_Traffic` data model in Settings > Data Models; (2) create `eea_and_adequate_countries.csv` with `Country` values matching `iplocation` output (MaxMind) and your legal team's adequacy list (EEA + UK + other recognised adequacy decisions); (3) add a `transfer_basis` column (e.g. SCC, BCR, adequacy) for approved destinations; (4) tune with CDN/exception lookups by `dest`.
 - **Visualization:** Choropleth (top non-EEA destinations), Bar chart (bytes by country), Table (restricted transfers).
 - **CIM Models:** Network_Traffic
 

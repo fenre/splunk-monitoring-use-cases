@@ -2271,10 +2271,10 @@ index=ai_ops sourcetype="openai:api"
 ```spl
 index=ai_ops sourcetype="ollama:logs"
 | search path IN ("/api/generate","/api/chat")
-| eventstats count as reqs_per_src by src_ip
+| eventstats count as reqs_per_src by src
 | where status>=400 OR duration_ms>60000 OR reqs_per_src>100
 | eval suspicious=if(reqs_per_src>100,"high_volume",if(match(user_agent,"curl|python-requests"),"scripted","normal"))
-| stats count, dc(path) as paths, values(user_agent) as ua by src_ip, host, suspicious
+| stats count, dc(path) as paths, values(user_agent) as ua by src, host, suspicious
 | where count>50 OR match(ua,"(?i)(scanner|masscan)")
 ```
 - **Implementation:** Forward Ollama access logs with client IP, path, model, duration, and status. Tune ESCU detections for unusual volume, off-hours spikes, and known scanner user agents. Block or rate-limit at the network edge based on Splunk alerts. Enrich with asset and identity lookups where available.

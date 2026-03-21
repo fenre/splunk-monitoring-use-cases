@@ -97,7 +97,7 @@ flowchart LR
     subgraph js["data.js"]
         D["DATA\ncategories → subs → UCs"]
         M["CAT_META\nicon, description per cat"]
-        G["CAT_GROUPS\ninfra, security, cloud, app"]
+        G["CAT_GROUPS\ninfra, security, cloud, app, industry, compliance"]
         E["EQUIPMENT\nvendor → model mapping"]
     end
 
@@ -166,6 +166,8 @@ flowchart LR
         security["security\n9,10,17"]
         cloud["cloud\n3,4,20"]
         app["app\n7,8,11,12,13,14,16"]
+        industry["industry\n21"]
+        compliance["compliance\n22"]
     end
 
     subgraph examples["Category examples"]
@@ -174,6 +176,8 @@ flowchart LR
         E3["Identity & Access"]
         E4["Containers"]
         E5["Databases"]
+        E6["Industry Verticals"]
+        E7["Regulatory & Compliance"]
     end
 
     infra --> E1
@@ -181,6 +185,8 @@ flowchart LR
     security --> E3
     cloud --> E4
     app --> E5
+    industry --> E6
+    compliance --> E7
 ```
 
 ---

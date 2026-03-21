@@ -44,6 +44,10 @@ Prints a random use case from `catalog.json` with a sample SPL line — like a f
 
 Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, footer, and other UI strings. This file is never overwritten by `build.py`.
 
+### CIM-style fields in SPL examples
+
+Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over vendor `*_ip` fields where practical. See **`docs/cim-and-data-models.md`** and optional bulk helper **`scripts/normalize_cim_fields.py`**.
+
 ---
 
 ## Repository Structure
@@ -139,7 +143,7 @@ Additional fields are available for security use cases (MITRE ATT&CK, detection 
 ## Dashboard Features
 
 - **Unified filter strip** with pillar, criticality, difficulty, regulation, monitoring type, and sort controls
-- **Grouped sidebar navigation** with 4 collapsible sections (Infrastructure, Security, Cloud, Applications)
+- **Grouped sidebar navigation** with 6 collapsible sections (Infrastructure, Security, Cloud, Applications, Industry Verticals, Regulatory & Compliance)
 - **Deep linking** with hash-based URLs — share links to categories, use cases, or search results
 - **Search** across all use cases by keyword, UC-ID, or SPL content (Cmd/Ctrl+K shortcut)
 - **Filter by equipment** you have (e.g. "Cisco", "AWS", "VMware") with optional model-level drill-down

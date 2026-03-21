@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.1.8] - 2026-03-21
+
+### Changed
+
+- **Industry Verticals as its own domain group** — Category 21 is no longer grouped under Applications in `CAT_GROUPS`. The overview hero chips, sidebar, and catalog now use a dedicated **`industry`** group (with **`factory`** icon on the hero) so vertical use cases are visible next to Infrastructure, Security, Cloud, Applications, and Regulatory & Compliance.
+
+---
+
+## [2.1.7] - 2026-03-21
+
+### Changed
+
+- **CIM-style field names** — Normalized `src_ip`/`dest_ip`/`source_ip` to **`src`** / **`dest`** across use-case SPL where appropriate; data model clauses use **`All_Traffic.src`** / **`All_Traffic.dest`** (not `*_ip`). GCP VPC flows use `eval`/`coalesce` from `connection.*`; Azure Firewall threat intel uses `rename` to `src`/`dest`; Carbon Black netconn uses `rename` to `dest`/`dest_port`; SNMP example uses `eval user=coalesce(user, user_name)`. Added `scripts/normalize_cim_fields.py` and a short **Preferred CIM-style field names** table in `docs/cim-and-data-models.md`.
+
+---
+
+## [2.1.6] - 2026-03-21
+
+### Fixed
+
+- **SPL review follow-up** — Applied remaining actionable items from `spl-review-findings.md`: `mvexpand … limit=N` on high-cardinality expands (cloud, Entra, GitHub, Docker); `join type=left max=0` on Webex workspace join; top-N `sort <N> -count` instead of `sort -count` + `head` in several NGFW/IDS/Web examples; AWS IoT provisioning data sources documented to prefer `aws:cloudtrail` + `eventSource` filters; RD Gateway note for XmlWinEventLog vs WinEventLog. See remediation note at top of `spl-review-findings.md`.
+
+---
+
 ## [2.1.5] - 2026-03-21
 
 ### Added

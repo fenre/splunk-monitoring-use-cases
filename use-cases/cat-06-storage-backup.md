@@ -1248,7 +1248,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4670 OR EventCode=
 - **SPL:**
 ```spl
 index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663 AccessMask="0x1"
-| stats sum(Size) as total_bytes, dc(ObjectName) as file_count by Account_Name, src_ip
+| stats sum(Size) as total_bytes, dc(ObjectName) as file_count by Account_Name, src
 | eval total_gb=round(total_bytes/1024/1024/1024,2)
 | where total_gb > 1
 | sort -total_gb

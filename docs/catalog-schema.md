@@ -108,10 +108,12 @@ Maps group names to lists of category IDs (numbers). Used by the dashboard filte
 
 ```json
 {
-  "infra":    [1, 2, 5, 6, 15, 18, 19],
-  "security": [9, 10, 17],
-  "cloud":    [3, 4, 20],
-  "app":      [7, 8, 11, 12, 13, 14, 16]
+  "infra":      [1, 2, 5, 6, 15, 18, 19],
+  "security":   [9, 10, 17],
+  "cloud":      [3, 4, 20],
+  "app":        [7, 8, 11, 12, 13, 14, 16],
+  "industry":   [21],
+  "compliance": [22]
 }
 ```
 
