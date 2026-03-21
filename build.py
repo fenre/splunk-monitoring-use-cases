@@ -1211,6 +1211,10 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "non-browser clients. Use the files listed below for AI/LLM access — they are "
         "all static plain-text or JSON, no JavaScript required.",
         "",
+        "For a complete listing of all {uc_count}+ individual use cases (ID, title, "
+        "criticality), see the full index: {base}/llms-full.txt".format(
+            uc_count=total_uc, base=SITE_BASE_URL),
+        "",
         "## Docs",
         "",
         "- [Catalog JSON]({base}/catalog.json): Machine-readable JSON catalog of all use cases "
@@ -1320,6 +1324,9 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
         "criticality. For full SPL queries and implementation details, see the per-category "
         "markdown files linked below.".format(uc_count=total_uc, cat_count=len(data)),
         "",
+        "For a concise category-level overview with descriptions, steering directives, "
+        "and documentation links, see: {base}/llms.txt".format(base=SITE_BASE_URL),
+        "",
         "Machine-readable catalog (JSON): {base}/catalog.json".format(base=SITE_BASE_URL),
         "Raw GitHub catalog (JSON): {raw}/catalog.json".format(raw=RAW_GITHUB_URL),
         "Schema reference: {base}/docs/catalog-schema.md".format(base=SITE_BASE_URL),
@@ -1412,7 +1419,19 @@ def main():
     print(f"\nWrote {OUTPUT} ({size_kb:.0f} KB)")
 
     # Write catalog.json for Splunk UI Toolkit / React app (same data as data.js)
-    catalog = {"DATA": data, "CAT_META": cat_meta, "CAT_GROUPS": CAT_GROUPS, "EQUIPMENT": EQUIPMENT}
+    catalog = {
+        "_schema_url": f"{SITE_BASE_URL}/docs/catalog-schema.md",
+        "_readme": (
+            "Splunk monitoring use case catalog. Keys are abbreviated — see _schema_url "
+            "for full field reference. DATA contains categories with subcategories and use "
+            "cases. CAT_META has per-category metadata. CAT_GROUPS maps domain groups to "
+            "category IDs. EQUIPMENT lists technology/TA filter definitions."
+        ),
+        "DATA": data,
+        "CAT_META": cat_meta,
+        "CAT_GROUPS": CAT_GROUPS,
+        "EQUIPMENT": EQUIPMENT,
+    }
     with open(OUTPUT_CATALOG_JSON, "w", encoding="utf-8") as f:
         json.dump(catalog, f, ensure_ascii=False, separators=(",", ":"))
     print(f"Wrote {OUTPUT_CATALOG_JSON} ({os.path.getsize(OUTPUT_CATALOG_JSON) / 1024:.0f} KB)")
@@ -1426,6 +1445,32 @@ def main():
 
     llms_full_kb = write_llms_full_txt(data, cat_meta, files, total_uc)
     print(f"Wrote {OUTPUT_LLMS_FULL_TXT} ({llms_full_kb:.1f} KB)")
+
+    # Write sitemap.xml with all crawlable content URLs
+    sitemap_path = os.path.join(SCRIPT_DIR, "sitemap.xml")
+    sitemap_urls = [
+        f"{SITE_BASE_URL}/",
+        f"{SITE_BASE_URL}/llms.txt",
+        f"{SITE_BASE_URL}/llms-full.txt",
+        f"{SITE_BASE_URL}/catalog.json",
+        f"{SITE_BASE_URL}/use-cases/INDEX.md",
+    ]
+    for cat in data:
+        cat_file = _cat_file_for_id(cat["i"], files)
+        if cat_file:
+            sitemap_urls.append(f"{SITE_BASE_URL}/use-cases/{cat_file}")
+    for doc in [
+        "catalog-schema.md", "implementation-guide.md", "cim-and-data-models.md",
+        "use-case-fields.md", "equipment-table.md", "splunk-apps-use-cases-comparison.md",
+    ]:
+        sitemap_urls.append(f"{SITE_BASE_URL}/docs/{doc}")
+    with open(sitemap_path, "w", encoding="utf-8") as sf:
+        sf.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        sf.write('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
+        for u in sitemap_urls:
+            sf.write(f"  <url><loc>{u}</loc></url>\n")
+        sf.write("</urlset>\n")
+    print(f"Wrote {sitemap_path} ({len(sitemap_urls)} URLs)")
 
 
 if __name__ == "__main__":
