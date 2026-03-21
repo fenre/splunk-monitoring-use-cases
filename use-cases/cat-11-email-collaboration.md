@@ -488,7 +488,7 @@ index=gws sourcetype="gws:vault" OR (sourcetype="gws:admin" event_name="VAULT_*"
 ```spl
 index=gws sourcetype="gws:token" event_name="authorize"
 | stats values(scope) as scopes by app_name, actor.email
-| mvexpand scopes
+| mvexpand scopes limit=500
 | search scopes="https://www.googleapis.com/auth/drive*" OR scopes="*gmail*"
 | sort app_name
 ```

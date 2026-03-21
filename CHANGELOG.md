@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.1.5] - 2026-03-21
+
+### Added
+
+- **Report issue on GitHub** — Technical and non-technical use case modals include a link that opens **New issue** with a pre-filled title/body: UC id, category/subcategory, link to the source markdown on GitHub (`use-cases/<file>`), and the current dashboard URL with `#uc-…` hash. Forks can set `window.SITE_CUSTOM.siteRepoUrl` to point issues at their repo.
+
+---
+
+## [2.1.4] - 2026-03-21
+
+### Added
+
+- **Auto-generated SPL explanations** — Every use case’s generated **Detailed implementation** (`md` in `catalog.json` / **View more detailed instructions** in the UI) now includes an **Understanding this SPL** section: plain-language bullets per pipeline stage (base search, `stats`/`timechart`, `tstats`/datamodel, joins, lookups, etc.). When a **CIM SPL** (`qs`) exists, the guide also embeds that query and a matching walkthrough. Heuristic limits keep very long ESCU-style searches readable.
+
+---
+
+## [2.1.3] - 2026-03-21
+
+### Fixed
+
+- **SPL & CIM catalog pass** — aligned examples with Splunk CIM and TA conventions across multiple categories: `WinEventLog:Security` sourcetype casing (vs. `wineventlog:security`); `Network_Traffic.All_Traffic` aggregates using `bytes_in`/`bytes_out` with `eval` totals (vs. `All_Traffic.bytes` alone); LDAP `tstats` private-range filtering with `cidrmatch()`; explicit `index=windows` (vs. `index=wineventlog`) in compliance samples; FortiGate inventory search scoped to `fortinet:fortigate_system`; SOX ERP vs. AD queries split; `mvexpand` limits; `transaction`/`sort` tuning; ITSI `inputlookup` notes; markdown/Data Source backtick fixes (e.g. Meraki on UC-5.4.9).
+- **Additional SPL hygiene** — `cidrmatch()` argument order (IP first, CIDR second); UC-10.13.12 CIM egress example uses `` `drop_dm_object_name("All_Traffic")` `` then `src`/`dest` for RFC1918 tests; **cat-05** closed 100+ broken `` ` `` spans on Meraki Data Sources lines; normalized `| sort -field` (removed erroneous spaces) in Meraki SPL snippets.
+
+---
+
+## [2.1.2] - 2026-03-21
+
+### Fixed
+
+- **ES `notable` macro** — replaced `index=notable` with the Splunk ES `` `notable` `` macro across 15 SPL queries in Category 10 (Security Infrastructure) and Category 22 (Regulatory & Compliance). The macro resolves human-readable status labels, owner fields, and other enrichment that raw index access does not provide.
+
+---
+
 ## [2.1.1] - 2026-03-21
 
 AI and LLM discoverability improvements.

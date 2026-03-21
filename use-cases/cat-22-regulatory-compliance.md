@@ -4,7 +4,7 @@
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -72,10 +72,10 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 - **Value:** Tracks time from ES notable creation through triage milestones so legal/DPO can demonstrate good-faith effort toward the 72-hour supervisory notification clock.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263)
 - **Premium Apps:** Splunk Enterprise Security
-- **Data Sources:** `index=notable` (rule_name, urgency, status, owner, status_description, _time)
+- **Data Sources:** `` `notable` `` macro (rule_name, urgency, status, owner, status_description, _time)
 - **SPL:**
 ```spl
-index=notable status IN ("New","In Progress","Pending") earliest=-7d
+`notable` status IN ("New","In Progress","Pending") earliest=-7d
 | eval hours_since_detection=round((now()-_time)/3600, 2)
 | eval near_deadline=if(hours_since_detection>=60 AND hours_since_detection<72, 1, 0)
 | eval breached_72h=if(hours_since_detection>72, 1, 0)
@@ -152,16 +152,16 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Data Sources:** CIM `Network_Traffic` data model (`All_Traffic.dest_ip`, `All_Traffic.bytes_out`, `All_Traffic.action`) — backed by sourcetypes such as `sourcetype="pan:traffic"`, `sourcetype="cisco:asa"`, or `sourcetype="fortigate_traffic"`
 - **SPL:**
 ```spl
-| tstats summariesonly=true sum(All_Traffic.bytes_out) as bytes_out
+| tstats summariesonly=t sum(All_Traffic.bytes_out) as bytes_out
     from datamodel=Network_Traffic.All_Traffic
-    where All_Traffic.action=allowed
+    where All_Traffic.action="allowed"
     by All_Traffic.dest_ip
-| rename "All_Traffic.*" as *
+| rename All_Traffic.* as *
 | iplocation dest_ip
 | lookup eea_and_adequate_countries.csv Country OUTPUT transfer_basis
 | where isnull(transfer_basis) OR transfer_basis="restricted"
 | eval bytes_gb=round(bytes_out/1073741824, 2)
-| sort - bytes_out
+| sort 100 - bytes_out
 | head 100
 | table dest_ip, Country, bytes_gb, transfer_basis
 ```
@@ -175,7 +175,7 @@ index=web sourcetype="access_combined" earliest=-7d
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -188,10 +188,10 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Value:** Measures detection-to-response progress on high-urgency ES notables to support early-warning obligations and internal crisis reporting within the first 24 hours of awareness.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263)
 - **Premium Apps:** Splunk Enterprise Security
-- **Data Sources:** `index=notable` (rule_name, urgency, status, owner, status_description, _time)
+- **Data Sources:** `` `notable` `` macro (rule_name, urgency, status, owner, status_description, _time)
 - **SPL:**
 ```spl
-index=notable urgency IN ("high","critical") earliest=-3d
+`notable` urgency IN ("high","critical") earliest=-3d
 | eval hours_open=round((now()-_time)/3600, 2)
 | eval t_minus_4h=if(hours_open>=20 AND hours_open<24 AND status!="Closed", 1, 0)
 | eval past_24h_open=if(hours_open>24 AND status!="Closed", 1, 0)
@@ -293,14 +293,14 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-24h
 - **Regulations:** EU NIS2
 - **Value:** Audits interactive logon success/failure and special privilege assignment on Windows assets supporting essential services, including after-hours and non-interactive patterns, for access-control assurance.
 - **App/TA:** Splunk Add-on for Microsoft Windows (Splunkbase 742)
-- **Data Sources:** `index=wineventlog` `sourcetype="WinEventLog:Security"` (EventCode, Account_Name, Logon_Type, Workstation_Name, Status, dest)
+- **Data Sources:** `index=windows` `sourcetype="WinEventLog:Security"` (EventCode, Account_Name, Logon_Type, Workstation_Name, Status, dest)
 - **SPL:**
 ```spl
-index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4624, 4625, 4672) earliest=-24h
+index=windows sourcetype="WinEventLog:Security" EventCode IN (4624, 4625, 4672) earliest=-24h
 | eval auth_result=case(EventCode=4624,"success", EventCode=4625,"failure", EventCode=4672,"special_privileges", 1=1,"other")
 | eval after_hours=if(tonumber(strftime(_time,"%H"))<7 OR tonumber(strftime(_time,"%H"))>19, 1, 0)
 | stats count by EventCode, auth_result, Account_Name, dest, Logon_Type, after_hours
-| sort - count
+| sort -count
 ```
 - **Implementation:** (1) Deploy Splunk Add-on for Windows (742) with Security log collection from domain controllers and member servers; (2) enable Group Policy auditing for logon events and special privileges; (3) tune out known service accounts via `lookup service_accounts.csv`; (4) send high-value rows (4625 spikes, 4672 after-hours) to SOAR/ITSM; (5) map to Authentication CIM for ES content.
 - **Visualization:** Time chart (failed logons 4625), Table (privileged logons 4672), Bar chart (after_hours vs business hours).
@@ -312,7 +312,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4624, 4625, 46
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -351,10 +351,10 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Value:** Maps ES notable urgency/severity to DORA major vs significant classification and computes filing deadline clocks (4h for major, 72h for others) for operational resilience incident workflows.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263)
 - **Premium Apps:** Splunk Enterprise Security
-- **Data Sources:** `index=notable` `sourcetype="stash"` (urgency, severity, rule_name, status, owner, _time)
+- **Data Sources:** `` `notable` `` macro (urgency, severity, rule_name, status, owner, _time)
 - **SPL:**
 ```spl
-index=notable status IN ("New","In Progress") earliest=-7d
+`notable` status IN ("New","In Progress") earliest=-7d
 | eval dora_class=case(
     urgency IN ("critical","high") OR severity IN ("critical","high"), "major",
     1=1, "significant_or_other")
@@ -458,7 +458,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-24h
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -540,7 +540,7 @@ index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -629,7 +629,7 @@ index=trading sourcetype="_json" source="http:bestex" earliest=-7d
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -642,7 +642,7 @@ index=trading sourcetype="_json" source="http:bestex" earliest=-7d
 - **Value:** Proves that detective controls implemented as ES correlation searches actually execute, complete, and produce hits — mapped to Annex A control IDs — so auditors see operating effectiveness, not only documented intent.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263)
 - **Premium Apps:** Splunk Enterprise Security
-- **Data Sources:** `index=_internal` `source=*scheduler.log*` (savedsearch_name, run_time, status, skip_reason); `index=notable` (rule_name, urgency, _time); CSV lookup `iso27001_annex_a_es_rule_control_lookup` (correlation_search_short, annex_a_control_id, control_title)
+- **Data Sources:** `index=_internal` `source=*scheduler.log*` (savedsearch_name, run_time, status, skip_reason); `` `notable` `` macro (rule_name, urgency, _time); CSV lookup `iso27001_annex_a_es_rule_control_lookup` (correlation_search_short, annex_a_control_id, control_title)
 - **SPL:**
 ```spl
 index=_internal source=*scheduler.log* savedsearch_name="*Correlation*" earliest=-30d
@@ -652,8 +652,8 @@ index=_internal source=*scheduler.log* savedsearch_name="*Correlation*" earliest
     by savedsearch_name
 | eval correlation_search_short=replace(savedsearch_name, "(?i)^.*Correlation Search\\s*-\\s*", "")
 | lookup iso27001_annex_a_es_rule_control_lookup correlation_search_short OUTPUT annex_a_control_id, control_title
-| join type=left correlation_search_short [
-    search index=notable earliest=-90d
+| join type=left max=0 correlation_search_short [
+    search `notable` earliest=-90d
     | stats count as notable_hits by rule_name
     | rename rule_name as correlation_search_short
   ]
@@ -704,10 +704,10 @@ index=_audit action=search info=completed user!="splunk-system-user" earliest=-3
 - **Regulations:** ISO 27001
 - **Value:** Captures group membership changes (on-prem AD or Entra ID) for access recertification evidence and detective alerting on privileged group churn.
 - **App/TA:** Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)
-- **Data Sources:** `index=wineventlog` `sourcetype="WinEventLog:Security"` (EventCode, SubjectUserName, MemberName, Group_Name, ComputerName); `index=azure` `sourcetype="mscs:azure:auditlog"` (activityDisplayName, targetResources, initiatedBy)
+- **Data Sources:** `index=windows` `sourcetype="WinEventLog:Security"` (EventCode, SubjectUserName, MemberName, Group_Name, ComputerName); `index=azure` `sourcetype="mscs:azure:auditlog"` (activityDisplayName, targetResources, initiatedBy)
 - **SPL:**
 ```spl
-(index=wineventlog OR index=windows) sourcetype="WinEventLog:Security"
+index=windows sourcetype="WinEventLog:Security"
     EventCode IN ("4728","4729","4732","4733","4756","4757")
 | eval access_change=case(
     EventCode IN ("4728","4732","4756"), "member_added",
@@ -732,7 +732,7 @@ index=azure sourcetype="mscs:azure:auditlog"
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -772,20 +772,20 @@ index=azure sourcetype="mscs:azure:auditlog"
 - **Value:** Highlights MITRE techniques with no mapped correlation search or no recent notable fires, focusing detection engineering on true gaps in the Detect function.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263), ES MITRE ATT&CK lookups
 - **Premium Apps:** Splunk Enterprise Security
-- **Data Sources:** `| inputlookup mitre_attack_all_techniques` (technique_id, technique_name); `| rest /services/saved/searches`; `| inputlookup mitre_user_rule_technique_lookup` (correlation_search_name, technique_id); `index=notable` (rule_name, annotations.mitre_attack.mitre_attack_id)
+- **Data Sources:** `| inputlookup mitre_attack_all_techniques` (technique_id, technique_name); `| rest /services/saved/searches`; `| inputlookup mitre_user_rule_technique_lookup` (correlation_search_name, technique_id); `` `notable` `` macro (rule_name, annotations.mitre_attack.mitre_attack_id)
 - **SPL:**
 ```spl
 | inputlookup mitre_attack_all_techniques
 | fields technique_id, technique_name
-| join type=left technique_id [
+| join type=left max=0 technique_id [
     | rest /services/saved/searches splunk_server=local count=0
     | search disabled=0 title="*Correlation Search*"
     | lookup mitre_user_rule_technique_lookup correlation_search_name AS title OUTPUT technique_id
     | stats dc(title) as enabled_rules by technique_id
   ]
-| join type=left technique_id [
-    search index=notable earliest=-90d
-    | mvexpand annotations.mitre_attack.mitre_attack_id
+| join type=left max=0 technique_id [
+    search `notable` earliest=-90d
+    | mvexpand annotations.mitre_attack.mitre_attack_id limit=500
     | rename annotations.mitre_attack.mitre_attack_id as technique_id
     | stats dc(rule_name) as rules_with_fires by technique_id
   ]
@@ -808,7 +808,7 @@ index=azure sourcetype="mscs:azure:auditlog"
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
 
-**Data Sources:** ES Notable events (`index=notable`), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -821,7 +821,7 @@ index=azure sourcetype="mscs:azure:auditlog"
 - **Value:** Continuous evidence for logical access (CC6), security monitoring and incident handling (CC7), and change management visibility (CC8) using CIM-normalized authentication data, ES notables, and Splunk audit telemetry.
 - **App/TA:** Splunk Add-on for Microsoft Windows (Splunkbase 742) or identity TAs feeding CIM, Splunk Enterprise Security (Splunkbase 263)
 - **Premium Apps:** Splunk Enterprise Security
-- **Data Sources:** CIM `Authentication` data model (user, action, src, app); `index=notable` (status, urgency, owner, rule_name); `index=_audit` (object_type, action, user)
+- **Data Sources:** CIM `Authentication` data model (user, action, src, app); `` `notable` `` macro (status, urgency, owner, rule_name); `index=_audit` (object_type, action, user)
 - **SPL:**
 ```spl
 | tstats summariesonly=false count from datamodel=Authentication.Authentication
@@ -830,7 +830,7 @@ index=azure sourcetype="mscs:azure:auditlog"
 | timechart span=1d sum(count) by Authentication.action
 ```
 ```spl
-index=notable
+`notable`
 | stats count by status, urgency, rule_name, owner
 | eval cc7_open=if(status!="Closed", 1, 0)
 ```
@@ -853,7 +853,7 @@ index=_audit object_type IN ("savedsearch","lookup") action IN ("edit","create",
 - **Value:** Pairs ITSI service health KPI time series with ES notable closure MTTR for availability plus incident-response effectiveness in one evidence trail.
 - **App/TA:** Splunk IT Service Intelligence (Splunkbase 1841), Splunk Enterprise Security (Splunkbase 263)
 - **Premium Apps:** Splunk IT Service Intelligence (ITSI), Splunk Enterprise Security
-- **Data Sources:** `index=itsi_summary` (service_name, alert_value, health_score, severity_value, is_service_in_maintenance, _time); `index=notable` (status, closed_time, rule_name, _time)
+- **Data Sources:** `index=itsi_summary` (service_name, alert_value, health_score, severity_value, is_service_in_maintenance, _time); `` `notable` `` macro (status, closed_time, rule_name, _time)
 - **SPL:**
 ```spl
 index=itsi_summary is_service_in_maintenance=0 is_entity_in_maintenance=0
@@ -862,7 +862,7 @@ index=itsi_summary is_service_in_maintenance=0 is_entity_in_maintenance=0
 | timechart span=1h avg(health_score) by service_name
 ```
 ```spl
-index=notable status="Closed" isnotnull(closed_time)
+`notable` status="Closed" isnotnull(closed_time)
 | eval mttr_sec=closed_time-_time
 | stats avg(mttr_sec) as avg_mttr, perc95(mttr_sec) as p95_mttr, count as closed_incidents by rule_name
 | eval avg_mttr_hours=round(avg_mttr/3600, 2)

@@ -1782,6 +1782,7 @@ index=vmware sourcetype="vmware:inv:vm"
 index=vmware sourcetype="vmware:inv:vm" power_state="poweredOn"
 | stats latest(vm_name) as vm_name by vm_name
 | append [search index=hyperv sourcetype="hyperv_vm_config" state="Running" | stats latest(vm_name) as vm_name by vm_name]
+| sort 0 vm_name, -_time
 | dedup vm_name
 | join type=left vm_name [search index=backup sourcetype="backup_jobs" status="Success" earliest=-48h | stats latest(_time) as last_backup, latest(status) as backup_status by vm_name]
 | eval backup_age_hours=if(isnotnull(last_backup), round((now()-last_backup)/3600, 0), 999)

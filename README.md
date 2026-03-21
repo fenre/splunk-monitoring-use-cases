@@ -6,6 +6,8 @@ Browse them in the **interactive dashboard** or use the **machine-readable catal
 
 **Live dashboard:** [fenre.github.io/splunk-monitoring-use-cases](https://fenre.github.io/splunk-monitoring-use-cases/)
 
+**Feedback:** In the dashboard, open any use case (technical or plain-language view) and click **Report issue on GitHub** to open a new issue with the UC id, source markdown link, and current page URL pre-filled. Forks can set `window.SITE_CUSTOM.siteRepoUrl` in `index.html` to point at their repository.
+
 ---
 
 ## Getting Started

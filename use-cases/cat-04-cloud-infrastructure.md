@@ -2408,7 +2408,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="AzureBackupReport" Ope
 - **SPL:**
 ```spl
 index=network sourcetype="dns:query" zone_type="private"
-| stats count(eval(rcode!="NOERROR")) as failures, count as total by fqdn, source_ip
+| stats count(eval(rcode!="NOERROR")) as failures, count as total by fqdn, src
 | eval fail_pct=round(100*failures/total,2)
 | where fail_pct > 5 AND total > 20
 ```
@@ -3870,7 +3870,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 - **Monitoring type:** Availability
 - **Value:** AD Connect, Cloud Identity, and similar sync failures leave cloud groups stale, breaking access and compliance.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Windows/Entra diagnostics, GCP Identity logs
-- **Data Sources:** `sourcetype=mscs:azure:audit` / AD Connect health, `sourcetype=wineventlog:security` (on-prem), `sourcetype=google:gcp:pubsub:message` (identity sync)
+- **Data Sources:** `sourcetype=mscs:azure:audit` / AD Connect health, `sourcetype=WinEventLog:Security` (on-prem), `sourcetype=google:gcp:pubsub:message` (identity sync)
 - **SPL:**
 ```spl
 (index=azure sourcetype="mscs:azure:audit" (operationName.value="*AADConnect*" OR activityDisplayName="*sync*") activityStatus!="Success")

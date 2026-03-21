@@ -174,7 +174,7 @@ index=_internal sourcetype=splunkd component=DeploymentServer
 - **Data Sources:** Any index (sampling `_time` vs `_indextime`)
 - **SPL:**
 ```spl
-index=* earliest=-15m
+(index=main OR index=security OR index=os OR index=windows) earliest=-15m
 | eval latency=_indextime-_time
 | stats avg(latency) as avg_latency, perc95(latency) as p95_latency by index, sourcetype
 | where p95_latency > 300
@@ -978,7 +978,7 @@ index=itsi_grouped_alerts
 - **Value:** Entity health provides granular visibility into individual infrastructure components feeding services. Unstable entities degrade service health.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** ITSI entity overview, entity health scores
-- **SPL:**
+- **SPL:** *(Run in the ITSI app context or use your deployment’s fully qualified `itsi_entities` lookup path so the lookup resolves.)*
 ```spl
 | inputlookup itsi_entities
 | where entity_status!="active"
@@ -1312,12 +1312,12 @@ index=itsi_summary is_service_in_maintenance=0
 - **App/TA:** Splunk ITSI, infrastructure TAs
 - **Premium Apps:** Splunk IT Service Intelligence (ITSI)
 - **Data Sources:** `itsi_entities` lookup, CMDB/asset inventory, `index=_internal`
-- **SPL:**
+- **SPL:** *(Run in the ITSI app context or use your deployment’s fully qualified `itsi_entities` lookup path so the lookup resolves.)*
 ```spl
 | inputlookup itsi_entities
 | stats dc(_key) as itsi_entities values(entity_type_ids) as types
 | appendcols [
-  | tstats dc(host) as infra_hosts where index=* by index
+  | tstats dc(host) as infra_hosts where (index=main OR index=security OR index=os OR index=windows) by index
   | stats sum(infra_hosts) as total_infra_hosts
 ]
 | eval coverage_pct=round(itsi_entities/total_infra_hosts*100,1)
@@ -1655,7 +1655,7 @@ index=itsi_grouped_alerts status=5
 - **App/TA:** Splunk ITSI
 - **Premium Apps:** Splunk IT Service Intelligence (ITSI)
 - **Data Sources:** `itsi_entities` lookup, `itsi_summary`, `index=_internal`
-- **SPL:**
+- **SPL:** *(Run in the ITSI app context or use your deployment’s fully qualified `itsi_entities` lookup path so the lookup resolves.)*
 ```spl
 | inputlookup itsi_entities
 | stats dc(_key) as total_entities

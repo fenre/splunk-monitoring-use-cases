@@ -709,10 +709,10 @@ index=ot (sourcetype="zeek:conn" OR sourcetype="ics:protocol")
 - **Monitoring type:** Security, Compliance
 - **Value:** USB events on HMIs or engineering stations violate many site policies and are common malware vectors.
 - **App/TA:** Windows Security, EDR (where allowed on EWS), USB control agents
-- **Data Sources:** `sourcetype="wineventlog:security"` EventCode=6416, `sourcetype="sysmon:windows"` EventCode=11
+- **Data Sources:** `sourcetype="WinEventLog:Security"` EventCode=6416, `sourcetype="sysmon:windows"` EventCode=11
 - **SPL:**
 ```spl
-index=ot (sourcetype="wineventlog:security" EventCode=6416) OR (sourcetype="sysmon:windows" EventCode=11)
+index=ot (sourcetype="WinEventLog:Security" EventCode=6416) OR (sourcetype="sysmon:windows" EventCode=11)
 | search Computer IN ("*HMI*","*EWS*") OR tag=ot_workstation
 | stats count by Computer, DeviceDescription, User, Image
 | sort -_time
@@ -2412,7 +2412,7 @@ index=iot sourcetype="iot:telemetry"
 ```spl
 index=ot sourcetype="modbus:traffic"
 | search (function_code=6 OR function_code=16 OR function_code IN ("0x10","0x06"))
-| stats count by source_ip, unit_id, function_code, register
+| stats count by src, unit_id, function_code, register
 | where count > 100
 | sort -count
 ```
@@ -2640,7 +2640,7 @@ index=iot sourcetype="edge:sync"
 ```spl
 index=audit sourcetype="iot:provisioning"
 | where action IN ("RegisterThing","CreateCertificate","AttachPolicy")
-| stats count by actor, device_template, source_ip
+| stats count by actor, device_template, src
 | where count > 50
 | sort -count
 ```

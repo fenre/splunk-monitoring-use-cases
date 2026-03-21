@@ -763,6 +763,217 @@ def equipment_ids_for_ta_string(ta_str):
     return sorted(seen), sorted(model_seen)
 
 
+def _split_spl_stages(spl):
+    """Split SPL on | at top level (not inside quotes, backticks, or bracketed subsearches)."""
+    if not (spl or "").strip():
+        return []
+    spl = spl.strip()
+    parts = []
+    buf = []
+    in_dq = in_sq = False
+    in_bt = False
+    bracket = 0
+    i = 0
+    while i < len(spl):
+        c = spl[i]
+        if in_bt:
+            buf.append(c)
+            if c == "`":
+                in_bt = False
+            i += 1
+            continue
+        if c == "`" and not in_dq and not in_sq:
+            in_bt = True
+            buf.append(c)
+            i += 1
+            continue
+        if c == '"' and (i == 0 or spl[i - 1] != "\\"):
+            in_dq = not in_dq
+        elif c == "'" and not in_dq:
+            in_sq = not in_sq
+        elif not in_dq and not in_sq:
+            if c == "[":
+                bracket += 1
+            elif c == "]":
+                bracket = max(0, bracket - 1)
+            elif c == "|" and bracket == 0:
+                seg = "".join(buf).strip()
+                if seg:
+                    parts.append(seg)
+                buf = []
+                i += 1
+                continue
+        buf.append(c)
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _explain_one_spl_stage(stage):
+    """Return one bullet line (without leading •) describing a pipeline stage, or None to skip."""
+    st = (stage or "").strip()
+    if not st:
+        return None
+    if st.startswith("|"):
+        st = st[1:].strip()
+    low = st.lower()
+    # Splunk macro
+    if st.startswith("`") and "`" in st[1:]:
+        end = st.find("`", 1)
+        name = st[1:end] if end > 1 else st.strip("`")
+        return (
+            "Invokes macro `%s` — in Search, use the UI or expand to inspect the underlying SPL."
+            % name
+        )
+    if low.startswith("tstats") or re.search(r"\bfrom\s+datamodel\s*=", low):
+        dm = re.search(r"datamodel\s*=\s*([^\s|]+)", st, re.I)
+        if dm:
+            return (
+                "Uses `tstats` against accelerated summaries for data model `%s` — enable acceleration for that model."
+                % dm.group(1).rstrip(")")
+            )
+        return "Uses `tstats` against precomputed summaries; ensure the referenced data model is accelerated."
+    if low.startswith("mstats"):
+        return "Uses `mstats` to query metrics indexes (pre-aggregated metric data)."
+    if low.startswith("metadata") or low.startswith("metasearch"):
+        return "Uses `metadata`/`metasearch` to inspect indexes, sources, hosts, or sourcetypes (not raw events)."
+    if re.match(r"^\|?\s*inputlookup\b", low):
+        return "Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting."
+    if low.startswith("loadjob"):
+        return "Loads a prior job's results with `loadjob`."
+    if re.match(r"^\|?\s*rest\b", low):
+        return "Calls Splunk `rest` to read configuration or REST-exposed entities."
+    if low.startswith("search"):
+        return "Applies an explicit `search` filter to narrow the current result set."
+    if low.startswith("stats") or low.startswith("eventstats") or low.startswith("streamstats"):
+        return "Aggregates with `stats`/`eventstats`/`streamstats` (counts, dc, sums, percentiles, etc.)."
+    if low.startswith("timechart"):
+        return "Buckets time and plots values per interval with `timechart`."
+    if low.startswith("chart") and not low.startswith("timechart"):
+        return "Builds a non-time chart with `chart` (e.g. by category)."
+    if low.startswith("top"):
+        return "Shows the most frequent field values with `top`."
+    if low.startswith("rare"):
+        return "Shows the least frequent field values with `rare`."
+    if low.startswith("eval"):
+        return "Computes or normalizes fields using `eval`."
+    if low.startswith("where"):
+        return "Filters rows with `where` (often after `stats`/`eval`)."
+    if low.startswith("fields"):
+        return "Keeps or drops fields with `fields` to shape columns and size."
+    if low.startswith("rename"):
+        return "Renames fields with `rename` for clarity or joins."
+    if low.startswith("sort"):
+        return "Orders rows with `sort` — combine with `head`/`tail` for top-N patterns."
+    if low.startswith("head"):
+        return "Limits the number of rows with `head`."
+    if low.startswith("tail"):
+        return "Takes the last N rows with `tail`."
+    if low.startswith("dedup"):
+        return "Removes duplicate values with `dedup` — pair with `sort` when order matters."
+    if low.startswith("join"):
+        return "Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation."
+    if low.startswith("appendcols"):
+        return "Adds columns from a subsearch with `appendcols`."
+    if low.startswith("append"):
+        return "Appends rows from a subsearch with `append`."
+    if low.startswith("union"):
+        return "Combines multiple searches with `union`."
+    if low.startswith("lookup"):
+        return "Enriches events using `lookup` (lookup definition + optional OUTPUT fields)."
+    if low.startswith("outputlookup"):
+        return "Writes results to a lookup with `outputlookup` (permissions and retention apply)."
+    if low.startswith("rex"):
+        return "Extracts fields with `rex` (regular expression)."
+    if low.startswith("regex"):
+        return "Filters rows matching a pattern with `regex`."
+    if low.startswith("transaction"):
+        return "Groups related events into transactions — prefer `maxspan`/`maxpause`/`maxevents` for bounded memory."
+    if low.startswith("bin") or low.startswith("bucket"):
+        return "Discretizes time or numeric ranges with `bin`/`bucket`."
+    if low.startswith("mvexpand"):
+        return "Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion."
+    if low.startswith("spath"):
+        return "Extracts structured paths (JSON/XML) with `spath`."
+    if low.startswith("makeresults"):
+        return "Generates synthetic events with `makeresults` (tests or scaffolding)."
+    if low.startswith("return"):
+        return "Returns subsearch results to an outer search with `return`."
+    if low.startswith("format"):
+        return "Formats subsearch output for `map`/`join` with `format`."
+    if low.startswith("map"):
+        return "Runs a templated search per row with `map`."
+    if low.startswith("foreach"):
+        return "Iterates over multivalue fields with `foreach`."
+    if low.startswith("xyseries"):
+        return "Pivots fields for charting with `xyseries`."
+    if low.startswith("fillnull"):
+        return "Fills null values with `fillnull`."
+    if low.startswith("filldown"):
+        return "Propagates values downward with `filldown`."
+    if low.startswith("from ") or low.startswith("| from "):
+        return "Uses `from` (dataset / Federated Search) — verify dataset availability and permissions."
+    # Base / indexed search
+    if (
+        "index=" in low
+        or "sourcetype=" in low
+        or "eventtype=" in low
+        or re.search(r"\btag\s*=", low)
+        or "source=" in low
+        or re.search(r"\bhost\s*=", low)
+        or "earliest=" in low
+        or "latest=" in low
+    ):
+        bits = []
+        for m in re.finditer(r"index\s*=\s*([^\s\)]+)", st, re.I):
+            bits.append("index=%s" % m.group(1).strip(","))
+        sm = re.search(r"sourcetype\s*=\s*(\"[^\"]+\"|[^\s\)]+)", st, re.I)
+        if sm:
+            bits.append("sourcetype=%s" % sm.group(1).strip(","))
+        if "earliest=" in low or "latest=" in low:
+            bits.append("time bounds")
+        if re.search(r"\btag\s*=", low):
+            bits.append("tags")
+        if bits:
+            return "Scopes the data: " + ", ".join(bits[:4]) + ("…" if len(bits) > 4 else "") + "."
+        return "Filters the initial event set (index, sourcetype, host, time, tags, etc.)."
+    if st.startswith("["):
+        return "Uses a bracketed subsearch `[ ... ]` whose results constrain or feed the outer search."
+    # Fallback: short preview
+    one = " ".join(st.split())
+    if len(one) > 140:
+        one = one[:137] + "…"
+    return "Pipeline stage: %s" % one
+
+
+def explain_spl_pipeline(spl, max_bullets=24):
+    """Plain-language bullets describing SPL pipeline stages (heuristic)."""
+    if not (spl or "").strip():
+        return ""
+    stages = _split_spl_stages(spl)
+    if not stages:
+        return ""
+    bullets = []
+    cap = max(4, min(max_bullets, 40))
+    for si, stage in enumerate(stages):
+        if len(bullets) >= cap - 1:
+            bullets.append(
+                "Additional pipeline stages follow — adjust indexes, fields, macros, and thresholds for your environment."
+            )
+            break
+        line = _explain_one_spl_stage(stage)
+        if line:
+            bullets.append(line)
+    if not bullets:
+        return ""
+    out = ["Understanding this SPL", ""]
+    for b in bullets:
+        out.append("• " + b)
+    return "\n".join(out)
+
+
 def generate_detailed_impl(uc):
     """Generate a thorough step-by-step implementation guide from UC fields (used when no explicit Detailed implementation is in markdown)."""
     t = (uc.get("t") or "").strip()
@@ -770,6 +981,7 @@ def generate_detailed_impl(uc):
     m = (uc.get("m") or "").strip()
     z = (uc.get("z") or "").strip()
     q = (uc.get("q") or "").strip()
+    qs = (uc.get("qs") or "").strip()
     script = (uc.get("script") or "").strip()
     # First 2–3 sentences of implementation for Step 1 (cap length)
     m_lead = m[:500] + ("…" if len(m) > 500 else "") if m else "Configure inputs and permissions as needed for your environment."
@@ -791,7 +1003,35 @@ def generate_detailed_impl(uc):
         lines.append(q)
         lines.append("```")
         lines.append("")
-        lines.append("If the use case includes a tstats/CIM query, enable Data Model Acceleration for the relevant data model.")
+        expl = explain_spl_pipeline(q)
+        if expl:
+            lines.append(expl)
+            lines.append("")
+        if qs:
+            lines.append("Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):")
+            lines.append("")
+            lines.append("```spl")
+            lines.append(qs)
+            lines.append("```")
+            lines.append("")
+            expl_cim = explain_spl_pipeline(qs, max_bullets=18)
+            if expl_cim:
+                lines.append("CIM / accelerated variant — what this SPL does")
+                lines.append("")
+                # Drop duplicate H2; keep bullets only
+                cim_body = expl_cim.replace("Understanding this SPL", "").strip()
+                lines.append(cim_body)
+                lines.append("")
+        needs_dma = (
+            "tstats" in q.lower()
+            or "mstats" in q.lower()
+            or (qs and ("tstats" in qs.lower() or "mstats" in qs.lower()))
+        )
+        if needs_dma:
+            lines.append(
+                "Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries."
+            )
+            lines.append("")
     else:
         lines.append("Run the SPL query from the SPL Query section above in Search. Save as a report or alert. Adjust the time range and threshold as needed. If the use case includes a tstats/CIM query, enable Data Model Acceleration for the relevant data model.")
     lines.extend([
@@ -843,6 +1083,7 @@ def generate_detailed_impl(uc):
 
 def parse_category_file(filepath):
     """Parse a single cat-*.md file into a category dict."""
+    basename = os.path.basename(filepath)
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -883,6 +1124,7 @@ def parse_category_file(filepath):
         if m:
             category["i"] = int(m.group(1))
             category["n"] = m.group(2).strip()
+            category["src"] = basename  # e.g. cat-10-security-infrastructure.md — for GitHub source links
             i += 1
             continue
 

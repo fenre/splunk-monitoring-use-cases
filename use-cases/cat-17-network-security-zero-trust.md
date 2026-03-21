@@ -1146,8 +1146,8 @@ index=vpn sourcetype="cisco:asa" earliest=-7d
 - **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` sum(Network_Traffic.bytes) as bytes
-  from datamodel=Network_Traffic.Network_Traffic
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
   by _time span=1h
 ```
 
@@ -1490,9 +1490,9 @@ index=proxy sourcetype="zscaler:web" earliest=-30d
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Network_Traffic.Network_Traffic
-  where Network_Traffic.action=blocked
-  by Network_Traffic.url span=1d
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.action="blocked"
+  by All_Traffic.url span=1d
 ```
 
 ---
@@ -1625,9 +1625,9 @@ index=zt sourcetype="microseg:policy" earliest=-7d
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Network_Traffic.Network_Traffic
-  where Network_Traffic.action=allowed
-  by Network_Traffic.dest span=1h
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.action="allowed"
+  by All_Traffic.dest span=1h
 ```
 
 ---
@@ -1724,8 +1724,8 @@ index=proxy sourcetype="zscaler:web" earliest=-24h
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Network_Traffic.Network_Traffic
-  by Network_Traffic.user span=1h
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.user span=1h
 | where count > 200
 ```
 
@@ -1750,9 +1750,9 @@ index=zt sourcetype="zscaler:zpa" earliest=-24h
 - **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` avg(Network_Traffic.response_time) as rt
-  from datamodel=Network_Traffic.Network_Traffic
-  by Network_Traffic.url span=5m
+| tstats `summariesonly` avg(All_Traffic.response_time) as rt
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.url span=5m
 ```
 
 ---
