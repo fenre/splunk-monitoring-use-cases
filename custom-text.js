@@ -50,5 +50,5 @@ window.SITE_CUSTOM = {
 
   // Footer
   siteAuthor: "Fredrik Lima Sudmann",
-  siteRepoUrl: "https://github.com/fsudmann/splunk-monitoring-use-cases"
+  siteRepoUrl: "https://github.com/fenre/splunk-monitoring-use-cases"
 };
