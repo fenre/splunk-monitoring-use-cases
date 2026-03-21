@@ -10,7 +10,7 @@ Reads:
     use-cases/INDEX.md          — category metadata (icons, descriptions, starters)
 
 Writes:
-    data.js                     — const DATA, CAT_META, CAT_STARTERS, CAT_GROUPS
+    data.js                     — const DATA, CAT_META, CAT_GROUPS, EQUIPMENT
     catalog.json                — machine-readable JSON catalog (same data as data.js)
     llms.txt                    — concise AI-agent index (llms.txt standard)
     llms-full.txt               — expanded AI-agent index with all use case titles
@@ -50,10 +50,11 @@ DIFFICULTY_MAP = {
 }
 
 CAT_GROUPS = {
-    "infra":    [1, 2, 5, 6, 15, 18, 19],
-    "security": [9, 10, 17],
-    "cloud":    [3, 4, 20],
-    "app":      [7, 8, 11, 12, 13, 14, 16, 21],
+    "infra":      [1, 2, 5, 6, 15, 18, 19],
+    "security":   [9, 10, 17],
+    "cloud":      [3, 4, 20],
+    "app":        [7, 8, 11, 12, 13, 14, 16, 21],
+    "compliance": [22],
 }
 
 # Splunk two-pillar strategy: Security / Observability

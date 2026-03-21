@@ -224,14 +224,14 @@ These are new Splunkbase apps that could generate timely, relevant UCs.
 
 | Source | URL | Status | Notes |
 |---|---|---|---|
-| GDPR Full Text | gdpr-info.eu | 🟡 PLANNED | Phase 3k — 21.11.1 |
-| NIS2 Directive | eur-lex.europa.eu (Directive 2022/2555) | 🟡 PLANNED | Phase 3k — 21.11.2 |
-| DORA Regulation | eur-lex.europa.eu (Regulation 2022/2554) | 🟡 PLANNED | Phase 3k — 21.11.3 |
-| CCPA/CPRA Text | oag.ca.gov/privacy/ccpa | 🟡 PLANNED | Phase 3k — 21.11.4 |
-| MiFID II | esma.europa.eu | 🟡 PLANNED | Phase 3k — 21.11.5 |
-| ISO 27001:2022 | iso.org/standard/27001 | 🟡 PLANNED | Phase 3k — 21.11.6 |
-| NIST CSF 2.0 | nist.gov/cyberframework | 🟡 PLANNED | Phase 3k — 21.11.7 |
-| SOC 2 Trust Services Criteria | aicpa.org | 🟡 PLANNED | Phase 3k — 21.11.8 |
+| GDPR Full Text | gdpr-info.eu | 🟡 PLANNED | Cat 22 — 22.1 |
+| NIS2 Directive | eur-lex.europa.eu (Directive 2022/2555) | 🟡 PLANNED | Cat 22 — 22.2 |
+| DORA Regulation | eur-lex.europa.eu (Regulation 2022/2554) | 🟡 PLANNED | Cat 22 — 22.3 |
+| CCPA/CPRA Text | oag.ca.gov/privacy/ccpa | 🟡 PLANNED | Cat 22 — 22.4 |
+| MiFID II | esma.europa.eu | 🟡 PLANNED | Cat 22 — 22.5 |
+| ISO 27001:2022 | iso.org/standard/27001 | 🟡 PLANNED | Cat 22 — 22.6 |
+| NIST CSF 2.0 | nist.gov/cyberframework | 🟡 PLANNED | Cat 22 — 22.7 |
+| SOC 2 Trust Services Criteria | aicpa.org | 🟡 PLANNED | Cat 22 — 22.8 |
 | NERC CIP Standards | nerc.com/pa/Stand/Pages/CIPStandards.aspx | ✅ USED | 14.2.11 + planned expansion |
 | PCI DSS v4.0 | pcisecuritystandards.org | ✅ USED | 10.12.7, 10.12.15 |
 | HIPAA Security Rule | hhs.gov/hipaa | ✅ USED | 10.12.16-30 |
@@ -338,15 +338,12 @@ Sources to check on a regular cadence for updates:
 
 | Metric | Value |
 |---|---|
-| Total UCs in catalog | 4,404 |
+| Total UCs in catalog | 4,625 |
 | Unique TAs/Apps referenced | ~1,700 |
-| Categories | 20 |
-| Subcategories | 93 |
-| Security pillar UCs | 2,760 (62.7%) |
-| Observability pillar UCs | 1,431 (32.5%) |
-| Both pillar UCs | 213 (4.8%) |
-| Cat 10 (Security) share | 2,355 (53.5%) |
+| Categories | 22 |
+| Subcategories | 122 |
+| Security pillar UCs | 2,819 (61.0%) |
+| Observability pillar UCs | 1,568 (33.9%) |
+| Both pillar UCs | 238 (5.1%) |
+| Cat 10 (Security) share | 2,375 (51.4%) |
 | ESCU-derived UCs | ~2,068 |
-| Planned expansion | ~210 UCs |
-| High-priority quick wins | ~20 UCs |
-| Medium-priority quick wins | ~28 UCs |

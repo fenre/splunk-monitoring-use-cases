@@ -1,7 +1,7 @@
 # Use Case Repository — Category Index
 
 This file provides metadata for each category: icons, descriptions, and quick-start picks.
-build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in data.js.
+build.py reads this file to generate CAT_META in data.js. CAT_GROUPS is defined directly in build.py.
 
 ---
 
@@ -228,12 +228,23 @@ build.py reads this file to generate CAT_META, CAT_STARTERS, and CAT_GROUPS in d
 
 ## 21. Industry Verticals
 - **Icon:** globe
-- **Description:** Industry-specific operational monitoring and compliance — energy, manufacturing, healthcare, transportation, oil & gas, retail, aviation, telecom, water utilities, insurance, and regulatory frameworks (GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2).
+- **Description:** Industry-specific operational monitoring — energy, manufacturing, healthcare, transportation, oil & gas, retail, aviation, telecom, water utilities, and insurance.
 - **Quick Tip:** Combine standard infrastructure TAs with industry-specific data sources (SCADA historians, HL7 feeds, fleet telematics, POS systems) for vertical-specific observability.
 - **Quick Start:**
   - UC-21.1.1 · SCADA RTU Communication Health (critical, Energy and Utilities)
   - UC-21.2.1 · PLC Program Change Detection (critical, Manufacturing and Process Industry)
   - UC-21.3.1 · HL7 ADT Message Processing Latency (critical, Healthcare and Life Sciences)
-  - UC-21.11.1 · GDPR PII Detection in Application Log Data (high, Regulatory and Compliance Frameworks)
-  - UC-21.11.12 · DORA ICT Risk Management Dashboard (high, Regulatory and Compliance Frameworks)
+  - UC-21.4.1 · Fleet GPS Tracking Gap Detection (high, Transportation and Logistics)
+  - UC-21.10.1 · Claims FNOL Intake Monitoring (critical, Insurance)
+
+## 22. Regulatory and Compliance Frameworks
+- **Icon:** shield
+- **Description:** Cross-industry regulatory compliance monitoring — GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, and SOC 2. Deployable SPL for PII detection, breach notification timelines, data subject rights tracking, ICT risk management, and continuous control evidence.
+- **Quick Tip:** Map ES correlation searches and risk scores to specific regulatory articles for auditable, data-driven compliance evidence.
+- **Quick Start:**
+  - UC-22.1.1 · GDPR PII Detection in Application Log Data (critical, GDPR)
+  - UC-22.2.1 · NIS2 Incident Detection and 24-Hour Early Warning Reporting (critical, NIS2)
+  - UC-22.3.1 · DORA ICT Risk Management Dashboard (critical, DORA)
+  - UC-22.4.1 · CCPA Consumer Data Access and Deletion Request Tracking (high, CCPA)
+  - UC-22.8.1 · SOC 2 Trust Services Criteria Continuous Control Monitoring (critical, SOC 2)
 

@@ -102,6 +102,11 @@ window.NON_TECHNICAL = {
         { id: "3.4.8", why: "Warn before a registry certificate expires — expired certs stop all image pulls." },
         { id: "3.4.5", why: "Spot failed logins and denied pulls that may indicate credential misuse." },
         { id: "3.4.1", why: "Audit who pushed or pulled what images — supply chain visibility." }
+      ]},
+      { name: "Service mesh & serverless", description: "Istio, sidecar proxies, and serverless containers. We watch the networking layer between your services.", ucs: [
+        { id: "3.5.1", why: "Monitor Istio mesh traffic to see how your microservices are talking to each other." },
+        { id: "3.5.2", why: "Check sidecar proxy health — when proxies fail, services can't communicate." },
+        { id: "3.5.3", why: "Get warned before mTLS certificates expire — expired certs break service-to-service encryption." }
       ]}
     ]
   },
@@ -131,6 +136,11 @@ window.NON_TECHNICAL = {
         { id: "4.4.3", why: "See spending across AWS, Azure, and GCP in a single cost dashboard." },
         { id: "4.4.14", why: "Detect when audit logging is disabled in any cloud — that's a dangerous blind spot." },
         { id: "4.4.6", why: "Pull security findings from all clouds into one place for unified prioritization." }
+      ]},
+      { name: "Serverless & functions", description: "AWS Lambda, Azure Functions, and similar. We watch for errors, cold starts, and throttling.", ucs: [
+        { id: "4.5.1", why: "Track Lambda invocation errors — failed functions mean broken workflows." },
+        { id: "4.5.2", why: "Monitor cold start latency — slow starts hurt user experience for first requests." },
+        { id: "4.5.3", why: "Alert when concurrent execution limits are hit — functions start getting throttled." }
       ]}
     ]
   },
@@ -204,6 +214,11 @@ window.NON_TECHNICAL = {
         { id: "5.11.1", why: "Track Diameter signaling health — failures here mean subscribers can't authenticate or use data." },
         { id: "5.11.4", why: "Monitor SIP trunk success rates — failed calls mean lost revenue and unhappy customers." },
         { id: "5.11.5", why: "Detect registration storms that can overwhelm voice infrastructure within minutes." }
+      ]},
+      { name: "Call detail records (CDR)", description: "Call records from voice platforms. We analyze call patterns, failures, and trends.", ucs: [
+        { id: "5.12.1", why: "Track call failure statistics — rising failure rates mean network or routing problems." },
+        { id: "5.12.2", why: "See call volume trends by destination to spot unusual patterns or fraud." },
+        { id: "5.12.3", why: "Analyze call duration distributions to detect anomalies like stuck or ghost calls." }
       ]}
     ]
   },
@@ -276,6 +291,11 @@ window.NON_TECHNICAL = {
       { name: "Data warehouses", description: "Snowflake, Redshift, BigQuery, and similar analytics platforms. We track cost, performance, and scaling.", ucs: [
         { id: "7.4.4", why: "See how much each query costs — find runaway queries burning through credits." },
         { id: "7.4.2", why: "Track auto-scaling events to check whether scaling policies match real workload." }
+      ]},
+      { name: "Search platforms", description: "Elasticsearch, OpenSearch, and Solr. We monitor cluster health, shards, and indexing performance.", ucs: [
+        { id: "7.5.1", why: "Know when your Elasticsearch cluster goes red or yellow — searches may fail or return incomplete results." },
+        { id: "7.5.2", why: "Detect shard allocation failures that can cause data loss or slow queries." },
+        { id: "7.5.3", why: "Track OpenSearch index performance to catch slowdowns before users notice." }
       ]}
     ]
   },
@@ -345,6 +365,11 @@ window.NON_TECHNICAL = {
         { id: "9.3.5", why: "Monitor whether your login system (identity provider) is up and responding." },
         { id: "9.3.2", why: "Spot impossible travel — someone logs in from two far-apart locations too quickly." },
         { id: "9.3.3", why: "Detect suspicious authentication tokens that may indicate a compromised session." }
+      ]},
+      { name: "Okta & Duo", description: "Cloud identity providers. We track authentication failures, MFA bypass attempts, and suspicious activity.", ucs: [
+        { id: "9.5.1", why: "Track Okta authentication failures — rising rates may indicate a credential attack." },
+        { id: "9.5.2", why: "Detect MFA bypass attempts — attackers try to work around your second factor." },
+        { id: "9.5.3", why: "Catch suspicious sign-in activity in Okta such as unusual locations or devices." }
       ]}
     ]
   },
@@ -353,7 +378,9 @@ window.NON_TECHNICAL = {
       "See when the firewall or security tools find something bad.",
       "Know when endpoints are isolated or threats are detected.",
       "Track email, web, and intrusion detection events in one place.",
-      "Manage certificates and catch weak cryptography before it becomes a problem."
+      "Manage certificates and catch weak cryptography before it becomes a problem.",
+      "Detect AI/LLM abuse, financial fraud, and OT security threats.",
+      "Check that your detection rules are actually working and not going stale."
     ],
     areas: [
       { name: "Firewall & threats", description: "Blocked traffic, malware verdicts, and security alerts from your firewall. We surface what matters.", ucs: [
@@ -390,6 +417,36 @@ window.NON_TECHNICAL = {
         { id: "10.6.1", why: "Track critical vulnerabilities across your systems — what needs patching first?" },
         { id: "10.7.1", why: "Monitor overall security alert volume — spot trends and avoid alert fatigue." },
         { id: "10.6.2", why: "Measure how quickly vulnerabilities get fixed once they're found." }
+      ]},
+      { name: "AI & LLM threats", description: "Detections for AI abuse, prompt injection, and unauthorized model usage. We watch for new-generation threats.", ucs: [
+        { id: "10.9.1", why: "Detect suspicious Ollama or LLM process execution on systems where it shouldn't run." },
+        { id: "10.9.4", why: "Catch prompt injection attempts being sent to your AI APIs." },
+        { id: "10.9.3", why: "Alert when someone downloads unauthorized AI models to your infrastructure." }
+      ]},
+      { name: "Detection health", description: "Are your security rules actually working? We track false positives, stale rules, and coverage gaps.", ucs: [
+        { id: "10.10.1", why: "Measure false positive rates so your analysts aren't drowning in noise." },
+        { id: "10.10.3", why: "Find detection rules that haven't fired in 90+ days — they might be broken or irrelevant." },
+        { id: "10.10.5", why: "Map your detections to MITRE ATT&CK and find the gaps in your coverage." }
+      ]},
+      { name: "Vendor-specific security", description: "FortiGate, Palo Alto, CrowdStrike, Zscaler, and more. Deep monitoring for specific security products.", ucs: [
+        { id: "10.11.1", why: "Track FortiGate firewall policy violations — which rules are being hit and why." },
+        { id: "10.11.2", why: "Trend IPS events from FortiGate to spot attack patterns against your network." },
+        { id: "10.11.4", why: "See which web categories FortiGate is blocking — unusual spikes may signal compromise." }
+      ]},
+      { name: "Financial fraud", description: "ATM fraud, wire transfer anomalies, and card velocity checks. We help financial institutions catch suspicious transactions.", ucs: [
+        { id: "10.12.1", why: "Detect patterns of ATM fraud — unusual withdrawal sequences across locations." },
+        { id: "10.12.2", why: "Spot anomalous wire transfers that deviate from normal business patterns." },
+        { id: "10.12.3", why: "Catch rapid-fire card transactions that indicate stolen credentials." }
+      ]},
+      { name: "Cross-vendor analytics (CIM)", description: "Vendor-agnostic security analytics using normalized data. Works across any product that maps to Splunk's Common Information Model.", ucs: [
+        { id: "10.13.1", why: "Track failed authentication ratios across all systems — rising rates mean trouble." },
+        { id: "10.13.3", why: "Detect impossible travel — someone logging in from two distant locations too quickly." },
+        { id: "10.13.4", why: "Catch service accounts being used interactively — they should only be used by machines." }
+      ]},
+      { name: "OT & industrial security", description: "Protecting SCADA, PLCs, and industrial control systems. We watch for unauthorized changes and protocol violations.", ucs: [
+        { id: "10.14.2", why: "Detect when unauthorized industrial protocols appear on your OT network." },
+        { id: "10.14.4", why: "Alert when PLC programs are changed outside of approved maintenance windows." },
+        { id: "10.14.1", why: "Make sure the OT security monitoring tools themselves are healthy and configured." }
       ]}
     ]
   },
@@ -432,6 +489,11 @@ window.NON_TECHNICAL = {
         { id: "11.4.1", why: "See real-time and historical occupancy per building and floor — supports space planning." },
         { id: "11.4.3", why: "Monitor temperature, humidity, and air quality using Meraki MT sensors." },
         { id: "11.4.4", why: "Track high-value assets in real time and get alerts when they leave a geofenced area." }
+      ]},
+      { name: "Video conferencing (Zoom)", description: "Meeting quality, call drops, and participant issues. We help you keep video meetings reliable.", ucs: [
+        { id: "11.5.1", why: "Track Zoom meeting quality metrics — jitter, packet loss, and latency affect everyone." },
+        { id: "11.5.2", why: "Monitor call drop rates so you know how often meetings are interrupted." },
+        { id: "11.5.3", why: "Detect participant join failures — people can't get into meetings when they need to." }
       ]}
     ]
   },
@@ -462,6 +524,11 @@ window.NON_TECHNICAL = {
         { id: "12.4.1", why: "Track every Terraform apply — know exactly what changed in your infrastructure and when." },
         { id: "12.4.5", why: "Catch policy violations that prevent non-compliant infrastructure from being deployed." },
         { id: "12.4.7", why: "Audit container image builds and pushes to protect the software supply chain." }
+      ]},
+      { name: "GitOps & automation", description: "ArgoCD, Flux, and deployment automation. We watch for sync failures and configuration drift.", ucs: [
+        { id: "12.5.1", why: "Know when ArgoCD sync fails — your desired state and actual state have diverged." },
+        { id: "12.5.2", why: "Detect drift between what's in Git and what's actually running in your cluster." },
+        { id: "12.5.3", why: "Monitor Flux reconciliation health — broken reconciliation means broken deployments." }
       ]}
     ]
   },
@@ -492,6 +559,11 @@ window.NON_TECHNICAL = {
         { id: "13.3.15", why: "View ThousandEyes alerts by severity in Splunk — see what's critical at a glance." },
         { id: "13.3.19", why: "Track ThousandEyes service health through ITSI — KPIs and service scores in one view." },
         { id: "13.3.22", why: "Correlate ThousandEyes network data with Splunk APM — is it the network or the app?" }
+      ]},
+      { name: "AI & LLM observability", description: "Monitoring AI APIs, token usage, and GPU resources. We help you track the cost and health of AI workloads.", ucs: [
+        { id: "13.4.1", why: "Track LLM API latency and error rates — slow or failing AI calls break your applications." },
+        { id: "13.4.2", why: "Monitor token usage and cost per model — AI spend can grow quickly without visibility." },
+        { id: "13.4.3", why: "Watch GPU and TPU utilization for inference workloads — underused GPUs waste money." }
       ]}
     ]
   },
@@ -522,6 +594,16 @@ window.NON_TECHNICAL = {
         { id: "14.5.11", why: "Catch failed MQTT logins and access denials — may indicate credential abuse or attack." },
         { id: "14.5.5", why: "Track data backlog when Edge Hub loses cloud connectivity — 3 million points can pile up." },
         { id: "14.5.9", why: "Warn before OPC-UA certificates expire — expired certs break secure data collection." }
+      ]},
+      { name: "Deep OT protocols (Zeek ICS)", description: "S7comm, Modbus, DNP3, and other industrial protocols inspected by Zeek. We detect unauthorized PLC operations.", ucs: [
+        { id: "14.6.1", why: "Monitor S7comm read/write operations to Siemens PLCs — unauthorized writes could be sabotage." },
+        { id: "14.6.2", why: "Detect PLC program uploads and downloads that happen outside of change windows." },
+        { id: "14.6.3", why: "Alert when a PLC CPU state changes unexpectedly — someone may have stopped a controller." }
+      ]},
+      { name: "Litmus Edge gateway", description: "Industrial IoT gateways that connect factory-floor data to Splunk. We monitor the data pipeline itself.", ucs: [
+        { id: "14.7.1", why: "Know when a Litmus Edge gateway loses connectivity — factory data stops flowing." },
+        { id: "14.7.2", why: "Validate that PLC tag data is actually arriving in Splunk as expected." },
+        { id: "14.7.3", why: "Track the latency from edge to cloud — delays can mean stale operational data." }
       ]}
     ]
   },
@@ -575,6 +657,11 @@ window.NON_TECHNICAL = {
         { id: "16.3.2", why: "See at a glance which hosts and services have been up or down — a Nagios-style heatmap." },
         { id: "16.3.4", why: "Track how long it takes to escalate or hand off tickets — delays hurt resolution." },
         { id: "16.3.6", why: "Make sure every major incident has a post-mortem — learning and accountability." }
+      ]},
+      { name: "Change management", description: "Authorized vs unauthorized changes and their impact on incidents. We help you connect the dots.", ucs: [
+        { id: "16.4.1", why: "Detect unauthorized changes — modifications made outside of approved change windows." },
+        { id: "16.4.2", why: "Track whether changes happen inside approved maintenance windows as planned." },
+        { id: "16.4.3", why: "Correlate failed changes with incident spikes — did a change cause this outage?" }
       ]}
     ]
   },
@@ -671,14 +758,19 @@ window.NON_TECHNICAL = {
         { id: "20.2.1", why: "Forecast when you'll need more computing power based on growth trends." },
         { id: "20.2.2", why: "Predict when storage will fill up so you can plan purchases." },
         { id: "20.2.7", why: "Model seasonal patterns — some workloads spike at predictable times." }
+      ]},
+      { name: "Licenses & subscriptions", description: "SaaS license usage, renewal forecasting, and audit readiness. We help you avoid over-spending and surprises.", ucs: [
+        { id: "20.3.1", why: "Compare assigned vs active SaaS licenses — you may be paying for seats nobody uses." },
+        { id: "20.3.2", why: "Stay audit-ready with reports on software license usage and compliance." },
+        { id: "20.3.3", why: "Forecast subscription renewals so budget planning isn't a last-minute scramble." }
       ]}
     ]
   },
   "21": {
     outcomes: [
       "Monitor industry-specific systems like SCADA, manufacturing lines, medical devices, and trading platforms.",
-      "Meet regulatory requirements (GDPR, NIS2, DORA, CCPA) with ready-to-use compliance dashboards and audit trails.",
-      "Detect operational anomalies unique to your industry — alarm flooding, production yield drops, patient flow issues, and more."
+      "Detect operational anomalies unique to your industry — alarm flooding, production yield drops, patient flow issues, and more.",
+      "Track fleet logistics, retail point-of-sale, aviation, and insurance claims with purpose-built monitoring."
     ],
     areas: [
       { name: "Energy & utilities", description: "Power grids, smart meters, and SCADA systems. We watch for alarm flooding, outages, and grid anomalies.", ucs: [
@@ -691,10 +783,79 @@ window.NON_TECHNICAL = {
         { id: "21.2.4", why: "Catch quality issues early with statistical process control charts." },
         { id: "21.2.5", why: "Detect equipment vibration changes before they become breakdowns." }
       ]},
-      { name: "Regulatory compliance", description: "GDPR, NIS2, DORA, and more. We help you prove compliance with automated evidence collection.", ucs: [
-        { id: "21.11.1", why: "Track data access and deletion requests to stay compliant with GDPR." },
-        { id: "21.11.3", why: "Meet NIS2 incident reporting requirements with automated timelines." },
-        { id: "21.11.5", why: "Monitor financial system resilience as required by DORA regulations." }
+      { name: "Healthcare", description: "Patient flow, medical device connectivity, and clinical system integration. We help you keep care systems running.", ucs: [
+        { id: "21.3.1", why: "Monitor HL7 message processing latency — delays can affect patient care decisions." },
+        { id: "21.3.4", why: "Track medical device connectivity — disconnected devices mean missing vital signs." },
+        { id: "21.3.2", why: "Know when clinical interfaces fail to deliver results to the right systems." }
+      ]},
+      { name: "Transportation & logistics", description: "Fleet tracking, fuel monitoring, and supply chain operations. We help you keep goods and vehicles moving.", ucs: [
+        { id: "21.4.1", why: "Track fleet vehicles in real time and get alerts when they leave approved zones." },
+        { id: "21.4.3", why: "Spot fuel consumption anomalies that could indicate theft or mechanical problems." },
+        { id: "21.4.4", why: "Monitor vehicle diagnostic trouble codes so maintenance happens before breakdowns." }
+      ]},
+      { name: "Oil, gas & mining", description: "Pipelines, wellheads, and heavy equipment. We watch for pressure anomalies, emissions, and equipment drift.", ucs: [
+        { id: "21.5.1", why: "Detect pipeline pressure and flow anomalies before they become safety incidents." },
+        { id: "21.5.2", why: "Spot gaps in wellhead telemetry data that could mask developing problems." },
+        { id: "21.5.3", why: "Track gas compressor vibration trends to catch mechanical wear early." }
+      ]},
+      { name: "Retail & e-commerce", description: "Point-of-sale, self-checkout, and online shopping. We monitor the systems that keep stores and websites running.", ucs: [
+        { id: "21.6.1", why: "Watch POS terminal response times — slow checkouts frustrate customers and lose sales." },
+        { id: "21.6.2", why: "Track self-checkout lane availability and error rates across your stores." },
+        { id: "21.6.5", why: "Monitor click-and-collect order fulfillment so customers aren't kept waiting." }
+      ]},
+      { name: "Aviation & airports", description: "Baggage handling, security lanes, and aircraft turnaround. We help airports run on time.", ucs: [
+        { id: "21.7.1", why: "Detect baggage misroutes and throughput drops in the handling system." },
+        { id: "21.7.2", why: "Monitor security lane processing times and queue lengths for staffing decisions." },
+        { id: "21.7.3", why: "Track aircraft turnaround time to reduce delays and improve gate utilization." }
+      ]},
+      { name: "Telecom operations", description: "Cell sites, core network, and subscriber systems. We monitor the infrastructure that keeps people connected.", ucs: [
+        { id: "21.8.1", why: "Know when a cell site goes down — it directly affects subscribers in that area." },
+        { id: "21.8.2", why: "Monitor core network elements (MME, SGW, PGW) that handle millions of sessions." },
+        { id: "21.8.5", why: "Detect billing mediation delays before they affect revenue recognition." }
+      ]},
+      { name: "Water & wastewater", description: "Treatment plants, pump stations, and distribution networks. We help utilities deliver safe water reliably.", ucs: [
+        { id: "21.9.1", why: "Track treatment plant parameters like chlorine, pH, and turbidity in real time." },
+        { id: "21.9.2", why: "Monitor pump station efficiency to catch mechanical degradation early." },
+        { id: "21.9.4", why: "Get early warning of sewer overflow conditions before they become environmental incidents." }
+      ]},
+      { name: "Insurance & claims", description: "Claims processing, fraud detection, and underwriting. We help insurers handle claims faster and spot fraud.", ucs: [
+        { id: "21.10.1", why: "Track claims processing cycle times end-to-end to meet service targets." },
+        { id: "21.10.2", why: "Analyze which channels (phone, web, app) customers use to report claims." },
+        { id: "21.10.4", why: "Monitor subrogation recovery rates to maximize money recouped from third parties." }
+      ]}
+    ]
+  },
+  "22": {
+    outcomes: [
+      "Prove compliance with GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, and SOC 2 using automated evidence collection.",
+      "Track breach notification timelines, data subject access requests, and audit trails with deployable SPL.",
+      "Map security controls to regulatory articles and measure control effectiveness continuously."
+    ],
+    areas: [
+      { name: "GDPR", description: "EU General Data Protection Regulation — PII detection, data subject access requests, breach notification timelines, and consent audit trails.", ucs: [
+        { id: "22.1.1", why: "Detect personal data (emails, SSNs) in application logs so you can prove data minimisation." },
+        { id: "22.1.2", why: "Track DSAR tickets end-to-end against the 30-day response deadline." },
+        { id: "22.1.3", why: "Monitor the 72-hour breach notification clock on open security incidents." }
+      ]},
+      { name: "NIS2", description: "EU Network and Information Security Directive — incident reporting, supply chain security, and access control auditing for essential services.", ucs: [
+        { id: "22.2.1", why: "Catch high-urgency incidents approaching the 24-hour early warning deadline." },
+        { id: "22.2.2", why: "Correlate vendor sessions with threat intelligence to surface supply chain risk." },
+        { id: "22.2.3", why: "Track CVE remediation against patch SLAs to demonstrate vulnerability handling." }
+      ]},
+      { name: "DORA", description: "Digital Operational Resilience Act — ICT risk dashboards, incident classification, resilience testing, and third-party concentration risk for financial entities.", ucs: [
+        { id: "22.3.1", why: "Build a continuously refreshed ICT risk dashboard using ES risk scoring." },
+        { id: "22.3.2", why: "Classify incidents as major or significant and compute filing deadline clocks." },
+        { id: "22.3.4", why: "Measure cloud provider concentration risk across accounts and regions." }
+      ]},
+      { name: "CCPA & MiFID II", description: "California Consumer Privacy Act and EU Markets in Financial Instruments Directive — privacy requests, opt-out enforcement, trade reporting, and best execution.", ucs: [
+        { id: "22.4.1", why: "Track consumer data access and deletion requests against the 45-day CCPA window." },
+        { id: "22.5.1", why: "Detect transaction reporting gaps and ARM/APA rejections for MiFID II compliance." },
+        { id: "22.5.2", why: "Audit communications recording coverage for MiFID II Art. 16(7) retention obligations." }
+      ]},
+      { name: "ISO 27001, NIST & SOC 2", description: "Standards-based compliance — Annex A control effectiveness, NIST CSF maturity posture, MITRE ATT&CK coverage gaps, and SOC 2 trust services criteria.", ucs: [
+        { id: "22.6.1", why: "Prove that your ES correlation searches actually run and produce signals — control effectiveness evidence." },
+        { id: "22.7.1", why: "Map enabled detections to NIST CSF functions for a data-driven maturity snapshot." },
+        { id: "22.8.1", why: "Continuous evidence for logical access (CC6), security monitoring (CC7), and change management (CC8)." }
       ]}
     ]
   }

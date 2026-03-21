@@ -42,7 +42,7 @@ window.SITE_CUSTOM = {
   noStartersMessage: "No quick-win starters — click category in sidebar to explore all use cases",
 
   // Filter chip labels (Overview)
-  filterAll: "All Categories",
+  filterAll: "Categories",
   filterInfra: "Core Infrastructure",
   filterSecurity: "Security",
   filterCloud: "Cloud & Containers",

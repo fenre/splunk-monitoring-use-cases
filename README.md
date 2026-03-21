@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring Use Cases
 
-A curated collection of **4,625+ IT infrastructure monitoring use cases** for Splunk, organized across 21 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
+A curated collection of **4,625+ IT infrastructure monitoring use cases** for Splunk, organized across 22 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
 
 Browse them in the **interactive dashboard** or use the **machine-readable catalog** (`catalog.json`) for automation and integrations.
 
@@ -48,13 +48,14 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 
 ```
 .
-├── use-cases/              Source of truth: 21 category files + INDEX.md
+├── use-cases/              Source of truth: 22 category files + INDEX.md
 │   ├── INDEX.md            Category metadata (icons, descriptions, quick starters)
 │   ├── cat-00-preamble.md  Legend and field descriptions (not a category)
 │   ├── cat-01-server-compute.md
 │   ├── ...
 │   ├── cat-20-cost-capacity-management.md
-│   └── cat-21-industry-verticals.md
+│   ├── cat-21-industry-verticals.md
+│   └── cat-22-regulatory-compliance.md
 ├── build.py                Parses markdown, emits data.js and catalog.json
 ├── validate_md.py          Validates structure and UC-ID consistency
 ├── index.html              Single-page dashboard UI
@@ -83,7 +84,7 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 
 ---
 
-## Technology Domains (21 Categories)
+## Technology Domains (22 Categories)
 
 | # | Category | Examples |
 |---|----------|----------|
@@ -107,7 +108,8 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 | 18 | Data Center Fabric & SDN | Cisco ACI, VMware NSX |
 | 19 | Compute Infrastructure (HCI/Converged) | Nutanix, UCS, blade chassis |
 | 20 | Cost & Capacity Management | Cloud cost, rightsizing, forecasting |
-| 21 | Industry Verticals | Energy, manufacturing, healthcare, telecom, regulatory compliance |
+| 21 | Industry Verticals | Energy, manufacturing, healthcare, telecom, transportation, retail, aviation, insurance |
+| 22 | Regulatory & Compliance Frameworks | GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2 |
 
 ---
 

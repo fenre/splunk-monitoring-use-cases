@@ -6,16 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.1.0] - 2026-03-21
+
+UI polish, non-technical view redesign, and navigation improvements.
+
+### Added
+
+- **Tab-based content navigation** — Categories, Subcategories, Use Cases, and Quick Wins as tabs with integrated sort control.
+- **Interactive hero domain chips** — front-page domain buttons now filter the category grid and expand the relevant sidebar group.
+- **Hero domain icons** — replaced colored dots with monochrome SVG icons (server, shield, cloud, gear, clipboard).
+- **Non-technical view redesign** — animated hero with gradient accent and badge, staggered card fade-ins, numbered area indicators in category detail, styled modal sections with green headings.
+- **Release notes popup** — full project history accessible from the page footer.
+- **Unified sidebar** — both technical and non-technical modes share the same grouped sidebar with collapsible sections, counts, and subcategory drill-down.
+
+### Changed
+
+- **Filter strip** — removed inline "Pillar" and "Criticality" labels; chips are self-explanatory with criticality color dots inline.
+- **Category icons in sidebar** — replaced colored dots with per-category SVG icons to avoid confusion with criticality colors.
+- **Smart sidebar folding** — non-active groups auto-fold on navigation; manual expand/collapse preserved until category changes.
+- **Sort control** moved from filter strip to the tab bar line.
+- **Non-technical category detail** — added back-to-overview button, gradient header accent, focus-area/check counts, and outcomes in header.
+
+### Fixed
+
+- Missing `filterByRegulation` function causing runtime errors.
+- Previous/Next modal navigation not updating URL hash.
+- `clearAllFilters` not resetting overview group filter.
+- `restoreFromHash` not clearing hero domain filter state.
+- Double history entries from `filterOvGroup`.
+- Clipboard copy with no error handling.
+- `scrollToSubcat` not updating URL hash.
+- Removed dead functions (`getStarters`, `getStartersFromFiltered`, `toggleOvSPL`) and ~120 lines of unused CSS.
+- Accessibility gaps — added ARIA roles, keyboard handlers, and focus management to interactive elements.
+- Stale counts in README, CHANGELOG, and source-catalog.md.
+
+---
+
 ## [2.0.0] - 2026-03-20
 
 Major UI redesign and content expansion.
 
 ### Added
 
-- **Category 21 — Industry Verticals**: 310+ use cases for energy/utilities, manufacturing, healthcare, telecom, retail, financial services, transportation, government, education, media, and regulatory compliance (GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2).
+- **Category 21 — Industry Verticals**: 119 use cases for energy/utilities, manufacturing, healthcare, telecom, retail, financial services, transportation, government, education, and insurance.
+- **Category 22 — Regulatory & Compliance Frameworks**: 30 use cases across GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, and SOC 2 — promoted to a standalone category for discoverability and customer importance.
 - **Unified filter strip** replacing scattered filter blocks — pillar, criticality, difficulty, regulation, industry, monitoring type, and sort in one horizontal bar.
 - **Active filter tags** row showing applied filters with inline clear buttons.
-- **Grouped sidebar** with 4 collapsible sections (Infrastructure, Security, Cloud, Applications) using color-coded headers.
+- **Grouped sidebar** with 5 collapsible sections (Infrastructure, Security, Cloud, Applications, Regulatory & Compliance) using color-coded headers.
 - **Deep linking** via hash-based URL routing — shareable links to `#cat-N`, `#uc-N.N.N`, and `#search=term` with full pushState/popstate support.
 - **Virtual scrolling** using IntersectionObserver for performant rendering of all 4,625+ use cases.
 - **Sort controls** (criticality, difficulty, name, category) with localStorage persistence.
@@ -28,7 +65,7 @@ Major UI redesign and content expansion.
 
 ### Changed
 
-- Total use case count increased from 3,473 to **4,625** across **21** categories (up from 20).
+- Total use case count increased from 3,473 to **4,625** across **22** categories (up from 20).
 - **Light-mode visual overhaul**: subtle gradient backgrounds, ambient orbs, card shadows, stronger tag contrast (WCAG AA), and category-group accent colors.
 - **Front page redesign**: display-only stats, streamlined view chips (8 → 4), roadmap moved below content, category cards now navigate directly.
 - `renderOverview()`, `renderCategory()`, and `renderSearchResults()` rewritten to use `filterStrip()` and `activeFilterTags()`.
