@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring Use Cases
 
-A curated collection of **3,000+ IT infrastructure monitoring use cases** for Splunk, organized across 20 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
+A curated collection of **4,625+ IT infrastructure monitoring use cases** for Splunk, organized across 21 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
 
 Browse them in the **interactive dashboard** or use the **machine-readable catalog** (`catalog.json`) for automation and integrations.
 
@@ -48,12 +48,13 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 
 ```
 .
-├── use-cases/              Source of truth: 20 category files + INDEX.md
+├── use-cases/              Source of truth: 21 category files + INDEX.md
 │   ├── INDEX.md            Category metadata (icons, descriptions, quick starters)
 │   ├── cat-00-preamble.md  Legend and field descriptions (not a category)
 │   ├── cat-01-server-compute.md
 │   ├── ...
-│   └── cat-20-cost-capacity-management.md
+│   ├── cat-20-cost-capacity-management.md
+│   └── cat-21-industry-verticals.md
 ├── build.py                Parses markdown, emits data.js and catalog.json
 ├── validate_md.py          Validates structure and UC-ID consistency
 ├── index.html              Single-page dashboard UI
@@ -61,6 +62,10 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 ├── catalog.json            Machine-readable catalog (same data, JSON format)
 ├── custom-text.js          User-editable site text (not overwritten by build)
 ├── non-technical-view.js   Plain-language outcomes per category
+├── llms.txt                AI-readable site index
+├── llms-full.txt           Complete UC listing for LLMs
+├── sitemap.xml             Search engine sitemap
+├── robots.txt              Crawler directives
 ├── docs/                   Documentation
 │   ├── use-case-fields.md
 │   ├── implementation-guide.md
@@ -78,7 +83,7 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 
 ---
 
-## Technology Domains (20 Categories)
+## Technology Domains (21 Categories)
 
 | # | Category | Examples |
 |---|----------|----------|
@@ -102,6 +107,7 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 | 18 | Data Center Fabric & SDN | Cisco ACI, VMware NSX |
 | 19 | Compute Infrastructure (HCI/Converged) | Nutanix, UCS, blade chassis |
 | 20 | Cost & Capacity Management | Cloud cost, rightsizing, forecasting |
+| 21 | Industry Verticals | Energy, manufacturing, healthcare, telecom, regulatory compliance |
 
 ---
 
@@ -128,12 +134,18 @@ Additional fields are available for security use cases (MITRE ATT&CK, detection 
 
 ## Dashboard Features
 
-- **Search** across all use cases by keyword, UC-ID, or SPL content
-- **Filter** by category group (Infrastructure, Security, Cloud, Applications)
+- **Unified filter strip** with pillar, criticality, difficulty, regulation, monitoring type, and sort controls
+- **Grouped sidebar navigation** with 4 collapsible sections (Infrastructure, Security, Cloud, Applications)
+- **Deep linking** with hash-based URLs — share links to categories, use cases, or search results
+- **Search** across all use cases by keyword, UC-ID, or SPL content (Cmd/Ctrl+K shortcut)
 - **Filter by equipment** you have (e.g. "Cisco", "AWS", "VMware") with optional model-level drill-down
-- **Filter by criticality** and difficulty
+- **Sort** by criticality, difficulty, name, or category
+- **Virtual scrolling** for large lists (4,625+ use cases rendered on demand)
 - **Non-technical view** with plain-language outcomes per category
 - **Quick-win starters** highlighted per category for fast implementation
+- **Print-friendly** layout with dedicated print stylesheet
+- **Mobile-first** with off-canvas sidebar drawer, safe-area support, and 44px touch targets
+- **Light/dark mode** with accessible contrast and ambient visual effects
 - **Expandable details** with full SPL, CIM queries, and step-by-step implementation guides
 
 ---

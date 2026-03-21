@@ -673,5 +673,29 @@ window.NON_TECHNICAL = {
         { id: "20.2.7", why: "Model seasonal patterns — some workloads spike at predictable times." }
       ]}
     ]
+  },
+  "21": {
+    outcomes: [
+      "Monitor industry-specific systems like SCADA, manufacturing lines, medical devices, and trading platforms.",
+      "Meet regulatory requirements (GDPR, NIS2, DORA, CCPA) with ready-to-use compliance dashboards and audit trails.",
+      "Detect operational anomalies unique to your industry — alarm flooding, production yield drops, patient flow issues, and more."
+    ],
+    areas: [
+      { name: "Energy & utilities", description: "Power grids, smart meters, and SCADA systems. We watch for alarm flooding, outages, and grid anomalies.", ucs: [
+        { id: "21.1.1", why: "Detect when alarm rates spike abnormally — a sign of serious operational issues." },
+        { id: "21.1.2", why: "Know immediately when a remote substation loses communication." },
+        { id: "21.1.3", why: "Spot gaps in smart meter data that could mean billing errors or tampering." }
+      ]},
+      { name: "Manufacturing", description: "Production lines, quality control, and equipment health. We track efficiency and catch defects early.", ucs: [
+        { id: "21.2.1", why: "Calculate Overall Equipment Effectiveness so you know how well your lines are running." },
+        { id: "21.2.4", why: "Catch quality issues early with statistical process control charts." },
+        { id: "21.2.5", why: "Detect equipment vibration changes before they become breakdowns." }
+      ]},
+      { name: "Regulatory compliance", description: "GDPR, NIS2, DORA, and more. We help you prove compliance with automated evidence collection.", ucs: [
+        { id: "21.11.1", why: "Track data access and deletion requests to stay compliant with GDPR." },
+        { id: "21.11.3", why: "Meet NIS2 incident reporting requirements with automated timelines." },
+        { id: "21.11.5", why: "Monitor financial system resilience as required by DORA regulations." }
+      ]}
+    ]
   }
 };
