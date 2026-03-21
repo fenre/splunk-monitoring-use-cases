@@ -575,6 +575,100 @@ def assign_regulations(uc, cat_id, sub_id):
     return sorted(auto)
 
 
+# Premium Splunk products that require separate licensing
+PREMIUM_APPS = [
+    {
+        "label": "Splunk Enterprise Security",
+        "ta_keywords": ["enterprise security", "escu", "es correlation"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk IT Service Intelligence (ITSI)",
+        "ta_keywords": ["itsi", "it service intelligence"],
+        "name_keywords": ["itsi"],
+    },
+    {
+        "label": "Splunk SOAR",
+        "ta_keywords": ["soar", "phantom"],
+        "name_keywords": ["soar playbook", "soar forwarding"],
+    },
+    {
+        "label": "Splunk User Behavior Analytics (UBA)",
+        "ta_keywords": ["uba", "user behavior analytics"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk Edge Hub",
+        "ta_keywords": ["edge hub", "splunk edge hub"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk OT Intelligence",
+        "ta_keywords": ["ot intelligence", "splunk oti"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk OT Security Add-on",
+        "ta_keywords": ["ot security add-on"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk App for Fraud Analytics",
+        "ta_keywords": ["fraud analytics"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk Behavioral Profiling App",
+        "ta_keywords": ["behavioral profiling"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk Airport Ground Operations App",
+        "ta_keywords": ["airport ground operations"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk Intelligence Management",
+        "ta_keywords": ["intelligence management", "trustar"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk Attack Analyzer",
+        "ta_keywords": ["attack analyzer"],
+        "name_keywords": [],
+    },
+    {
+        "label": "Splunk Asset and Risk Intelligence",
+        "ta_keywords": ["asset and risk intelligence"],
+        "name_keywords": [],
+    },
+]
+
+
+def assign_premium(uc):
+    """Auto-assign premium app labels based on TA field and UC name.
+    Only checks TA and name fields (not implementation/SPL) to avoid tagging
+    optional recommendations as requirements."""
+    ta = (uc.get("t", "") or "").lower()
+    name = (uc.get("n", "") or "").lower()
+
+    matched = []
+    for app in PREMIUM_APPS:
+        for kw in app["ta_keywords"]:
+            if kw in ta:
+                matched.append(app["label"])
+                break
+        else:
+            for kw in app["name_keywords"]:
+                if kw in name:
+                    matched.append(app["label"])
+                    break
+
+    if not matched:
+        return ""
+    return ", ".join(sorted(set(matched)))
+
+
 def assign_pillar(uc, cat_id):
     """Auto-assign Splunk pillar (security/observability/both) based on UC fields and heuristics.
     If the UC already has a manually-set pillar field, respect it."""
@@ -920,8 +1014,12 @@ def parse_category_file(filepath):
                 elif field_name == "references":
                     current_uc["refs"] = field_value
                 elif field_name in ("mitre att&ck", "mitre attack"):
-                    # Comma-separated technique IDs, e.g. T1562.008, T1190
-                    ids = [x.strip() for x in field_value.split(",") if x.strip()]
+                    raw = [x.strip() for x in field_value.split(",") if x.strip()]
+                    ids = []
+                    for raw_id in raw:
+                        tid = raw_id.split("#")[0].strip()
+                        if re.match(r"^T\d{4}(\.\d{3})?$", tid):
+                            ids.append(tid)
                     if ids:
                         current_uc["mitre"] = ids
                 elif field_name == "detection type":
@@ -969,6 +1067,11 @@ def parse_category_file(filepath):
             if matched_apps:
                 uc["sapp"] = matched_apps
             uc["pillar"] = assign_pillar(uc, cat_id)
+
+            if not uc.get("premium"):
+                auto_premium = assign_premium(uc)
+                if auto_premium:
+                    uc["premium"] = auto_premium
 
             sub_id = sub.get("i", "")
             manual_regs = set(uc.get("regs", []))

@@ -920,7 +920,7 @@ index=_internal sourcetype=splunkd group=deploymentclient
 - **Monitoring type:** Availability
 - **Value:** Service health scores provide a single-pane view of business service status. Trending enables SLA reporting and proactive management.
 - **App/TA:** Splunk ITSI
-- **Premium Apps:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
 - **Data Sources:** `itsi_summary` index
 - **SPL:**
 ```spl
@@ -1116,7 +1116,7 @@ index=fluent sourcetype IN ("fluentd:plugins", "fluentbit:metrics")
 - **Monitoring type:** Performance
 - **Value:** Trending KPI breaches over time shows chronic vs transient service issues and validates threshold tuning.
 - **App/TA:** Splunk ITSI
-- **Premium Apps:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
 - **Data Sources:** `index=itsi_summary`, `itsi_notable:audit`
 - **SPL:**
 ```spl
@@ -1278,6 +1278,399 @@ index=itsi_summary is_service_in_maintenance=0
 ```
 - **Implementation:** Tag KPIs using adaptive vs static thresholds. Compare breach rate and analyst disposition before/after ML enablement. Retrain when seasonal drift causes misses.
 - **Visualization:** Line chart (breaches per adaptive KPI), Table (KPIs needing threshold review).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.19 · Multi-Tier Application Service Tree Modeling
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Service trees link infrastructure KPIs to business outcomes, enabling impact analysis that shows which component failure affects which customer-facing service.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_summary` index, entity discovery from infrastructure TAs
+- **SPL:**
+```spl
+| rest /servicesNS/nobody/SA-ITOA/itoa_interface/service
+| rename title as service_name
+| eval kpi_count=mvcount(kpis), dep_count=mvcount(services_depends_on)
+| table service_name kpi_count dep_count
+| sort -dep_count
+```
+- **Implementation:** Model services top-down: business service → application tier → middleware → infrastructure. Use entity rules with host/IP aliases to dynamically bind entities. Define dependency relationships so parent health reflects child degradation. Use service templates for repeatable patterns across environments.
+- **Visualization:** Service Analyzer (dependency tree), Glass Table (business service map).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.20 · Entity Discovery Completeness Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
+- **Value:** Undiscovered entities create monitoring blind spots. Auditing entity coverage against infrastructure inventories ensures every critical asset is monitored by ITSI services.
+- **App/TA:** Splunk ITSI, infrastructure TAs
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_entities` lookup, CMDB/asset inventory, `index=_internal`
+- **SPL:**
+```spl
+| inputlookup itsi_entities
+| stats dc(_key) as itsi_entities values(entity_type_ids) as types
+| appendcols [
+  | tstats dc(host) as infra_hosts where index=* by index
+  | stats sum(infra_hosts) as total_infra_hosts
+]
+| eval coverage_pct=round(itsi_entities/total_infra_hosts*100,1)
+| table itsi_entities total_infra_hosts coverage_pct types
+```
+- **Implementation:** Compare ITSI entity inventory against CMDB, cloud provider APIs, or Splunk host metadata. Identify unmonitored hosts. Use entity discovery searches or CSV imports to close gaps. Schedule weekly coverage audits. Track entity types to ensure classification is consistent.
+- **Visualization:** Single value (coverage %), Table (unmatched hosts), Column chart (entity count by type).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.21 · Content Pack Deployment Health (Monitoring and Alerting)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The Monitoring and Alerting content pack provides pre-built correlation searches and aggregation policies. Tracking deployment health ensures these critical components remain functional.
+- **App/TA:** Splunk ITSI, DA-ITSI-CP-Monitoring-and-Alerting
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `index=_internal sourcetype=scheduler`, `itsi_tracked_alerts`, `itsi_grouped_alerts`
+- **SPL:**
+```spl
+index=_internal sourcetype=scheduler app="DA-ITSI-CP-Monitoring-and-Alerting"
+| stats count(eval(status="success")) as success count(eval(status="skipped")) as skipped count(eval(status!="success" AND status!="skipped")) as failed by savedsearch_name
+| eval health=if(failed>0 OR skipped>success, "degraded", "healthy")
+| sort -failed -skipped
+```
+- **Implementation:** Install the Monitoring and Alerting content pack via ITSI UI. Enable correlation searches incrementally. Monitor the lookup generator reports (schedule daily). Track notable event flow rates to confirm the pipeline is working. Alert on correlation search failures or skipped executions.
+- **Visualization:** Table (search name, status, skip rate), Single value (healthy/degraded count).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.22 · ServiceNow Bidirectional Incident Sync
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Bidirectional sync between ITSI episodes and ServiceNow incidents eliminates manual ticket creation and ensures incident status is consistent across platforms.
+- **App/TA:** Splunk ITSI, Splunk Add-on for ServiceNow
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_grouped_alerts`, ServiceNow incident table
+- **SPL:**
+```spl
+index=itsi_grouped_alerts status!=5
+| eval has_snow_ticket=if(isnotnull(snow_incident_number), "synced", "unsynced")
+| stats count by has_snow_ticket severity
+| sort severity
+```
+- **Implementation:** Configure ServiceNow integration in ITSI: map episode severity to ServiceNow priority, define assignment groups, and enable bidirectional status updates. Episodes auto-create incidents; ServiceNow resolution closes episodes. Monitor sync latency and failure rate. Requires Splunk Add-on for ServiceNow 5.5+.
+- **Visualization:** Table (sync status by severity), Single value (unsynced episode count), Time chart (sync latency).
+- **CIM Models:** Change
+
+---
+
+### UC-13.2.23 · Notable Event Volume Trending by Source
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Tracking notable event volume by source correlation search identifies noisy rules, misconfigured thresholds, and alert fatigue risks before they overwhelm analysts.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_tracked_alerts`
+- **SPL:**
+```spl
+index=itsi_tracked_alerts
+| timechart span=1h count by source limit=20
+| addtotals
+| where Total > 50
+```
+- **Implementation:** Monitor notable event ingest rates per correlation search source. Identify sudden spikes (alert storms) and sustained high-volume sources (noisy rules). Set thresholds: >100 notables/hour from a single source warrants investigation. Tune or disable noisy correlation searches. Feed into Episode Review capacity planning.
+- **Visualization:** Stacked area chart (events by source over time), Table (top 10 noisiest sources).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.24 · KPI Drift Detection for Gradual Degradation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Drift detection identifies gradual KPI value changes (e.g., slow memory leak, increasing latency) that stay within thresholds but indicate an emerging problem. Catches issues before threshold breach.
+- **App/TA:** Splunk ITSI 4.20+
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_summary`, `itsi_summary_metrics`
+- **SPL:**
+```spl
+index=itsi_summary is_service_in_maintenance=0 is_entity_in_maintenance=0
+| timechart span=1d avg(alert_value) as daily_avg by kpi_name
+| foreach * [
+  | eval <<FIELD>>_trend=if(<<FIELD>> > 0, round((<<FIELD>> - exact(<<FIELD>>))/exact(<<FIELD>>)*100, 2), 0)
+]
+| untable _time kpi_name daily_avg
+| eventstats avg(daily_avg) as baseline stdev(daily_avg) as sigma by kpi_name
+| eval drift_score=round(abs(daily_avg - baseline) / sigma, 2)
+| where drift_score > 2
+```
+- **Implementation:** Enable drift detection in ITSI 4.20+ Configuration Assistant. For earlier versions, use MLTK regression models on KPI time series. Compare rolling 7-day averages against 30-day baselines. Alert when drift exceeds 2 sigma. Common drift patterns: memory leaks, disk fill, queue depth growth, connection pool exhaustion.
+- **Visualization:** Line chart (KPI value with baseline band), Table (drifting KPIs ranked by score).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.25 · MLTK Custom Anomaly Detection on KPI Data
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
+- **Value:** Combining MLTK with ITSI KPI data enables custom anomaly models that detect multi-dimensional patterns (e.g., CPU+memory+latency correlation) impossible with single-KPI thresholds.
+- **App/TA:** Splunk ITSI, Splunk Machine Learning Toolkit (MLTK)
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_summary`, MLTK models
+- **SPL:**
+```spl
+index=itsi_summary is_service_aggregate=0 kpi_name IN ("CPU Utilization", "Memory Usage", "Response Time")
+| timechart span=5m avg(alert_value) by kpi_name
+| fit DensityFunction "CPU Utilization" "Memory Usage" "Response Time" into itsi_multivariate_model
+| where isOutlier > 0
+```
+- **Implementation:** Extract KPI data from `itsi_summary`. Build MLTK models (DensityFunction for outlier detection, RandomForestRegressor for prediction). Create residual KPIs: predicted vs actual values. Feed MLTK output back as ITSI KPIs for service health scoring. Retrain models monthly or on significant infrastructure changes.
+- **Visualization:** Scatter plot (multi-dimensional KPI space with outliers highlighted), Line chart (residual KPI over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.26 · Splunk On-Call (VictorOps) Alert Routing
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Routing ITSI episode alerts to Splunk On-Call ensures the right on-call engineer is paged with full service context, reducing MTTA by eliminating manual triage.
+- **App/TA:** Splunk ITSI, Splunk On-Call
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_grouped_alerts`, On-Call incident logs
+- **SPL:**
+```spl
+index=itsi_grouped_alerts status=1 severity>=4
+| eval routing_key=case(
+    match(service_name, "(?i)payment|checkout"), "payment-team",
+    match(service_name, "(?i)database|sql"), "dba-team",
+    1=1, "general-ops"
+)
+| stats count by routing_key severity
+| sort -severity
+```
+- **Implementation:** Configure Splunk On-Call integration in ITSI notable event actions. Map episode severity to On-Call urgency levels. Define routing keys per service or service tree branch. Enable auto-acknowledgment when analysts claim episodes in Episode Review. Track MTTA and MTTR per routing key.
+- **Visualization:** Table (routing key, severity, count), Single value (unacknowledged critical episodes).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.27 · Observability Cloud Alert Ingestion
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Ingesting Splunk Observability Cloud alerts into ITSI unifies cloud-native and on-prem monitoring into a single episode management workflow, eliminating tool-switching.
+- **App/TA:** Splunk ITSI, Splunk Observability Cloud
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** Observability Cloud webhooks, `itsi_tracked_alerts`
+- **SPL:**
+```spl
+index=itsi_tracked_alerts source="*observability*" OR source="*o11y*"
+| stats count by service_name severity source
+| sort -count
+```
+- **Implementation:** Configure Observability Cloud to forward alerts via webhook to Splunk HEC. Normalize alert payloads into the ITSI Universal Alerting schema. Create a Universal Correlation Search to convert incoming alerts into notable events. Configure NEAPs to group O11y alerts with infrastructure alerts into unified episodes. Track alert volume and false positive rate.
+- **Visualization:** Table (O11y alert source, count, severity), Time chart (alert volume over time).
+- **CIM Models:** Alerts
+
+---
+
+### UC-13.2.28 · Service Template Adoption and Consistency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** Service templates ensure consistent KPI definitions, thresholds, and entity rules across environments (dev/staging/prod). Tracking adoption prevents configuration drift.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** ITSI REST API, `itsi_services` lookup
+- **SPL:**
+```spl
+| rest /servicesNS/nobody/SA-ITOA/itoa_interface/service
+| rename title as service_name
+| eval has_template=if(isnotnull(base_service_template_id), "yes", "no")
+| stats count by has_template
+| eval adoption_pct=round(count/sum(count)*100, 1)
+```
+- **Implementation:** Create service templates for standard service types (web app, database, message queue). Link services to templates for consistent KPI inheritance. Monitor template adherence — services that diverge from templates should be reviewed. Use ITSI REST API to programmatically create services from templates during CI/CD deployments.
+- **Visualization:** Pie chart (templated vs non-templated), Table (services diverging from template).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.29 · Entity-Level Adaptive Threshold Tuning
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
+- **Value:** Entity-level adaptive thresholds (ITSI 4.20+) provide per-host baselines instead of aggregate, drastically reducing false positives in heterogeneous environments where host behavior varies.
+- **App/TA:** Splunk ITSI 4.20+
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_summary`, per-entity KPI data
+- **SPL:**
+```spl
+index=itsi_summary is_entity_in_maintenance=0 is_service_in_maintenance=0
+| stats avg(alert_value) as avg_val stdev(alert_value) as stdev_val count by entity_title kpi_name
+| where stdev_val/avg_val > 0.5 AND count > 100
+| sort -stdev_val
+| head 20
+```
+- **Implementation:** Enable entity-level adaptive thresholds for KPIs with high per-entity variance (e.g., CPU on mixed workload hosts). Review the coefficient of variation (stdev/mean) — values > 0.5 indicate entity-level thresholds will significantly outperform aggregate. Monitor false positive reduction after enablement. Fall back to static thresholds for entities with insufficient data.
+- **Visualization:** Table (entity, KPI, variance, threshold type), Line chart (per-entity KPI with threshold bands).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.30 · Configuration Assistant Recommendations Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration
+- **Value:** The Configuration Assistant (ITSI 4.20+) provides AI-powered optimization recommendations. Tracking which recommendations are implemented vs ignored ensures continuous ITSI health improvement.
+- **App/TA:** Splunk ITSI 4.20+
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `index=_internal sourcetype=itsi_internal_log`, Configuration Assistant UI
+- **SPL:**
+```spl
+index=_internal sourcetype=itsi_internal_log component=ConfigurationAssistant
+| stats count by recommendation_type action_taken
+| eval implementation_rate=round(count/sum(count)*100, 1)
+```
+- **Implementation:** Review Configuration Assistant recommendations weekly. Categorize by type: threshold tuning, KPI consolidation, entity rule optimization, base search performance. Track implementation rate and measure impact (reduced skipped searches, fewer false positives, improved health score stability). Prioritize recommendations that affect critical services.
+- **Visualization:** Table (recommendation type, count, implementation status), Single value (implementation rate %).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.31 · Deep Dive Utilization and Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Deep Dives are ITSI's primary investigation tool. Tracking utilization reveals which KPIs analysts actually use for troubleshooting and identifies slow-rendering dives that need optimization.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `index=_internal`, ITSI access logs
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd_ui_access uri_path="*deep_dive*"
+| stats count avg(spent) as avg_load_time_ms by user uri_path
+| sort -count
+| eval avg_load_time_s=round(avg_load_time_ms/1000, 2)
+```
+- **Implementation:** Monitor Deep Dive access patterns to understand analyst workflows. Identify unused deep dives for cleanup. Track load times — dives exceeding 10s typically have too many KPIs or overly broad time ranges. Optimize by reducing KPI count per lane, enabling backfill, or narrowing default time ranges.
+- **Visualization:** Table (deep dive name, user, access count, avg load time), Bar chart (top 10 most-used dives).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.32 · ITSI Team Permission and RBAC Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Splunk Pillar:** Security
+- **Value:** ITSI team assignments control service visibility and episode access. Auditing permissions ensures least-privilege access and prevents unauthorized service modifications.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** ITSI REST API, `authorize.conf`
+- **SPL:**
+```spl
+| rest /servicesNS/nobody/SA-ITOA/itoa_interface/team
+| rename title as team_name
+| eval member_count=mvcount(members)
+| eval service_count=mvcount(services)
+| table team_name member_count service_count
+| sort -service_count
+```
+- **Implementation:** Define ITSI teams aligned to organizational structure. Assign services to teams for scoped visibility. Audit team membership quarterly — remove departed users, verify role assignments (itoa_admin, itoa_team_admin, itoa_analyst, itoa_user). Ensure admin role inherits itoa_admin in authorize.conf. Monitor for users with excessive permissions.
+- **Visualization:** Table (team, members, services, role distribution), Single value (users with admin access).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.33 · Business Service SLA Composite Scoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Composite SLA scores aggregate ITSI health data across services to produce contractual SLA metrics (e.g., 99.9% availability), directly supporting customer and executive reporting.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_summary`, SLA definitions
+- **SPL:**
+```spl
+index=itsi_summary is_service_aggregate=1
+  service_name IN ("Payment Gateway", "Customer Portal", "API Platform")
+| bin _time span=1d
+| stats avg(health_score) as daily_health by _time service_name
+| eval sla_met=if(daily_health >= 70, 1, 0)
+| stats sum(sla_met) as days_met count as total_days by service_name
+| eval sla_pct=round(days_met/total_days*100, 3)
+| eval sla_target=99.9
+| eval sla_status=if(sla_pct >= sla_target, "MET", "BREACHED")
+```
+- **Implementation:** Define SLA targets per business service (e.g., 99.9% availability). Map ITSI health score thresholds to SLA compliance (health >= 70 = available). Calculate daily/monthly/quarterly SLA metrics. Use Glass Tables for executive dashboards showing SLA status. Alert on projected SLA breach based on error budget burn rate. Integrate with ITSM for SLA violation reporting.
+- **Visualization:** Glass Table (SLA dashboard), Single value (current SLA %), Gauge (error budget remaining), Table (service SLA history).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.34 · Episode MTTR Analysis by Service Tier
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Breaking MTTR down by service tier (Tier 1 critical, Tier 2 important, Tier 3 internal) reveals whether high-priority services get faster resolution and identifies process bottlenecks.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_grouped_alerts`
+- **SPL:**
+```spl
+index=itsi_grouped_alerts status=5
+| eval create_time=strptime(create_time, "%Y-%m-%dT%H:%M:%S")
+| eval close_time=strptime(mod_time, "%Y-%m-%dT%H:%M:%S")
+| eval mttr_minutes=round((close_time - create_time) / 60, 1)
+| eval tier=case(
+    severity>=6, "Tier 1 - Critical",
+    severity>=4, "Tier 2 - Important",
+    1=1, "Tier 3 - Internal"
+)
+| stats avg(mttr_minutes) as avg_mttr median(mttr_minutes) as median_mttr count by tier
+| sort tier
+```
+- **Implementation:** Define service tiers based on business impact (severity mapping). Track MTTR per tier over time. Set targets: Tier 1 < 15 min, Tier 2 < 60 min, Tier 3 < 4 hours. Analyze outliers to identify process gaps. Correlate MTTR with time-of-day and team assignment for resource optimization.
+- **Visualization:** Bar chart (avg MTTR by tier), Line chart (MTTR trend over weeks), Table (slowest-resolved episodes).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.35 · ITSI License and Capacity Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** ITSI licensing is based on entity count and KPI volume. Tracking utilization prevents license overages and supports capacity planning for service expansion.
+- **App/TA:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_entities` lookup, `itsi_summary`, `index=_internal`
+- **SPL:**
+```spl
+| inputlookup itsi_entities
+| stats dc(_key) as total_entities
+| appendcols [
+  | rest /servicesNS/nobody/SA-ITOA/itoa_interface/service
+  | stats count as total_services
+]
+| appendcols [
+  | rest /servicesNS/nobody/SA-ITOA/itoa_interface/kpi_base_search
+  | stats count as total_base_searches
+]
+| table total_entities total_services total_base_searches
+```
+- **Implementation:** Monitor entity count against license tier. Track KPI count growth over time. Project when the next license tier will be needed. Identify unused or orphaned entities for cleanup. Monitor base search count and execution time as a proxy for ITSI compute load.
+- **Visualization:** Single value (entity count vs license limit), Line chart (entity growth trend), Table (entity count by type).
 - **CIM Models:** N/A
 
 

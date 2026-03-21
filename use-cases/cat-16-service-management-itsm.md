@@ -836,7 +836,7 @@ Covers Nagios Business Process Intelligence (BPI)-style monitoring: aggregating 
 - **Monitoring type:** Availability
 - **Value:** Individual component alerts do not communicate business impact. A BPI model aggregates the health of all components that together constitute a business capability (e.g., "Order Processing = web tier + database + payment gateway + message queue"). When any essential member fails, the business process is immediately flagged as degraded or down — mirroring Nagios BPI groups with essential member logic. Operations teams see business impact, not raw host counts.
 - **App/TA:** Splunk IT Service Intelligence (ITSI), or custom KV Store + scheduled searches
-- **Premium Apps:** Splunk ITSI
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
 - **Data Sources:** All existing monitoring indexes (`index=os`, `index=network`, `index=app`, `index=db`), ITSI entity/service model
 - **SPL:**
 ```spl
@@ -1058,7 +1058,7 @@ index=itsm sourcetype="snow:incident" state="closed" cmdb_ci=*
 - **Monitoring type:** Availability, Compliance
 - **Value:** Rolls up component availability into a single business-service SLA percentage (weighted or “all essential up”) for customer-facing reporting — beyond host-level heatmaps.
 - **App/TA:** Splunk ITSI, or custom lookups + summary indexing
-- **Premium Apps:** Splunk ITSI (optional)
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
 - **Data Sources:** `index=monitoring` normalized health events, `business_service_map.csv`
 - **SPL:**
 ```spl
