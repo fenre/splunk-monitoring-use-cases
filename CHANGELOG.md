@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.1.10] - 2026-03-21
+
+### Changed
+
+- **Industry Verticals (category 21)** — **Implementation** sections for aviation, telecommunications, water/wastewater, and insurance use cases now include **Domain context** (standards, regulatory, and operational notes) and **Splunk** guidance (field normalization, thresholds, time scope, and index/sourcetype caveats). Rebuild with `python3 build.py`.
+
+---
+
+## [2.1.9] - 2026-03-21
+
+### Changed
+
+- **Detailed implementation — SPL walkthrough** — Auto-generated “Understanding this SPL” text is now **use-case–aware**: it pulls **title**, **value**, **Data sources**, and **App/TA**, cross-checks the **first search stage** against documented sourcetypes, and adds a **Pipeline walkthrough** with richer command lines (e.g. `by`/`span` for `stats`/`timechart`, first `eval` target field, `where` condition text). CIM variants use a dedicated heading and CIM-specific intro. Implemented in `build.py` (`explain_spl_pipeline`, `_spl_explain_intro`); rebuild with `python3 build.py`.
+
+---
+
 ## [2.1.8] - 2026-03-21
 
 ### Changed

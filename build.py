@@ -812,7 +812,146 @@ def _split_spl_stages(spl):
     return parts
 
 
-def _explain_one_spl_stage(stage):
+def _truncate_words(s, max_len=420):
+    """Trim string to max_len at word boundary."""
+    s = (s or "").strip()
+    if len(s) <= max_len:
+        return s
+    cut = s[: max_len - 1].rsplit(" ", 1)[0]
+    return cut + "…"
+
+
+def _spl_explain_context(uc):
+    """Build a dict of use-case fields for tailored SPL explanations."""
+    if not uc:
+        return None
+    return {
+        "title": (uc.get("n") or "").strip(),
+        "value": (uc.get("v") or "").strip(),
+        "data_sources": (uc.get("d") or "").strip(),
+        "app_ta": (uc.get("t") or "").strip(),
+        "dtype": (uc.get("dtype") or "").strip(),
+        "mtype": uc.get("mtype") or [],
+    }
+
+
+def _extract_base_search_terms(stage):
+    """Pull index/sourcetype/host from a base-search stage for cross-checking with Data Sources."""
+    st = (stage or "").strip()
+    out = {"indexes": [], "sourcetypes": [], "hosts": []}
+    if not st:
+        return out
+    seen_i, seen_s, seen_h = set(), set(), set()
+    for m in re.finditer(r"index\s*=\s*([^\s\)]+)", st, re.I):
+        val = m.group(1).strip("`,\"'")
+        if val and val not in seen_i:
+            seen_i.add(val)
+            out["indexes"].append(val)
+    for m in re.finditer(r'sourcetype\s*=\s*("(?:\\.|[^"])*"|[^\s\)]+)', st, re.I):
+        val = m.group(1).strip('"')
+        if val and val not in seen_s:
+            seen_s.add(val)
+            out["sourcetypes"].append(val)
+    for m in re.finditer(r"host\s*=\s*([^\s\)]+)", st, re.I):
+        val = m.group(1).strip("`,\"'")
+        if val and val not in seen_h:
+            seen_h.add(val)
+            out["hosts"].append(val)
+    return out
+
+
+def _data_sources_mention_sourcetype(data_sources, sourcetype):
+    """True if documented data sources text references this sourcetype (substring match)."""
+    if not (data_sources and sourcetype):
+        return False
+    ds_low = data_sources.lower()
+    st_low = sourcetype.lower()
+    if st_low in ds_low:
+        return True
+    # backtick-wrapped in markdown often becomes plain in d
+    bare = re.sub(r"^[^\w]+|[^\w]+$", "", sourcetype)
+    return bare.lower() in ds_low
+
+
+def _spl_explain_intro(spl, ctx, cim_variant=False):
+    """2–4 short paragraphs tying the search to this use case and documented sources."""
+    if not ctx:
+        return ""
+    lines = []
+    title = ctx["title"]
+    value = _truncate_words(ctx["value"], 480)
+    ds = ctx["data_sources"]
+    ta = ctx["app_ta"]
+    if title and value:
+        lines.append("**%s** — %s" % (title, value))
+    elif title:
+        lines.append("**%s**" % title)
+    elif value:
+        lines.append(_truncate_words(value, 480))
+    env = []
+    if ds:
+        env.append("Documented **Data sources**: %s." % ds.rstrip("."))
+    if ta:
+        env.append("**App/TA** (typical add-on context): %s." % ta.rstrip("."))
+    if env:
+        lines.append(
+            " ".join(env)
+            + " The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs."
+        )
+    if cim_variant:
+        lines.append(
+            "This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. "
+            "Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing."
+        )
+    stages = _split_spl_stages(spl)
+    if stages:
+        terms = _extract_base_search_terms(stages[0])
+        bits = []
+        if terms["indexes"]:
+            bits.append("**index**: " + ", ".join(terms["indexes"][:4]))
+        if terms["sourcetypes"]:
+            bits.append("**sourcetype**: " + ", ".join(terms["sourcetypes"][:4]))
+        hosts_f = [h for h in terms["hosts"][:4] if h not in ("*", '"*"', "'*'")]
+        if hosts_f:
+            bits.append("**host** filter: " + ", ".join(hosts_f))
+        if bits:
+            cross = "The first pipeline stage scopes events using " + "; ".join(bits) + "."
+            if ds and terms["sourcetypes"]:
+                matched = [s for s in terms["sourcetypes"] if _data_sources_mention_sourcetype(ds, s)]
+                if matched:
+                    cross += (
+                        " That sourcetype matches what this use case lists under Data sources."
+                        if len(matched) == 1
+                        else " Those sourcetypes align with what this use case lists under Data sources."
+                    )
+                else:
+                    cross += (
+                        " If that sourcetype is not mentioned in Data sources, double-check parsing or "
+                        "update the documentation to match the feed you actually ingest."
+                    )
+            lines.append(cross)
+    if ctx.get("dtype"):
+        lines.append(
+            "**Detection type** for this use case: %s — interpret thresholds and fields in that context."
+            % ctx["dtype"]
+        )
+    return "\n\n".join(lines)
+
+
+def _extract_by_clause(st):
+    """Return text after 'by' for stats/timechart/chart/top (truncated)."""
+    bm = re.search(r"\bby\s+([^|]+)", st, re.I)
+    if not bm:
+        return ""
+    return " ".join(bm.group(1).split())[:160]
+
+
+def _extract_span_clause(st):
+    m = re.search(r"\bspan\s*=\s*([^\s|]+)", st, re.I)
+    return m.group(1).strip() if m else ""
+
+
+def _explain_one_spl_stage(stage, stage_index=0, ctx=None):
     """Return one bullet line (without leading •) describing a pipeline stage, or None to skip."""
     st = (stage or "").strip()
     if not st:
@@ -849,19 +988,64 @@ def _explain_one_spl_stage(stage):
     if low.startswith("search"):
         return "Applies an explicit `search` filter to narrow the current result set."
     if low.startswith("stats") or low.startswith("eventstats") or low.startswith("streamstats"):
-        return "Aggregates with `stats`/`eventstats`/`streamstats` (counts, dc, sums, percentiles, etc.)."
+        cmd = "stats"
+        if low.startswith("eventstats"):
+            cmd = "eventstats"
+        elif low.startswith("streamstats"):
+            cmd = "streamstats"
+        by_c = _extract_by_clause(st)
+        if by_c:
+            return (
+                "`%s` rolls up events into metrics; results are split **by %s** so each row reflects one combination "
+                "of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case)."
+                % (cmd, by_c)
+            )
+        return (
+            "`%s` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows."
+            % cmd
+        )
     if low.startswith("timechart"):
-        return "Buckets time and plots values per interval with `timechart`."
+        span_s = _extract_span_clause(st)
+        by_c = _extract_by_clause(st)
+        parts = ["`timechart` plots the metric over time"]
+        if span_s:
+            parts.append("using **span=%s** buckets" % span_s)
+        if by_c:
+            parts.append("with a separate series **by %s**" % by_c)
+        parts.append("— ideal for trending and alerting on this use case.")
+        return " ".join(parts)
     if low.startswith("chart") and not low.startswith("timechart"):
-        return "Builds a non-time chart with `chart` (e.g. by category)."
+        by_c = _extract_by_clause(st)
+        if by_c:
+            return "`chart` builds a categorical visualization, grouping **by %s**." % by_c
+        return "Builds a non-time chart with `chart` (categories or split-by fields)."
     if low.startswith("top"):
-        return "Shows the most frequent field values with `top`."
+        by_c = _extract_by_clause(st)
+        if by_c:
+            return "`top` lists the most common values, **by %s**, for quick hotspot analysis." % by_c
+        return "`top` shows the most frequent field values (limit with an explicit `limit=` if needed)."
     if low.startswith("rare"):
+        by_c = _extract_by_clause(st)
+        if by_c:
+            return "`rare` surfaces the least common values, **by %s** — helpful for outliers tied to this scenario." % by_c
         return "Shows the least frequent field values with `rare`."
     if low.startswith("eval"):
-        return "Computes or normalizes fields using `eval`."
+        ev = re.search(r"eval\s+([^=]+)=", st, re.I)
+        if ev:
+            fld = ev.group(1).strip().split()[0]
+            return "`eval` defines or adjusts **%s** — often to normalize units, derive a ratio, or prepare for thresholds." % fld
+        return "Computes or normalizes fields using `eval` (ratios, coalesce, string prep)."
     if low.startswith("where"):
-        return "Filters rows with `where` (often after `stats`/`eval`)."
+        wm = re.search(r"^\s*where\s+(.+)$", st, re.I | re.S)
+        cond = wm.group(1).strip() if wm else ""
+        if len(cond) > 120:
+            cond = cond[:117] + "…"
+        if cond:
+            return (
+                "Filters the current rows with `where %s` — typically the threshold or rule expression for this monitoring goal."
+                % cond
+            )
+        return "Filters rows with `where` (conditions on aggregated or computed fields)."
     if low.startswith("fields"):
         return "Keeps or drops fields with `fields` to shape columns and size."
     if low.startswith("rename"):
@@ -938,7 +1122,12 @@ def _explain_one_spl_stage(stage):
         if re.search(r"\btag\s*=", low):
             bits.append("tags")
         if bits:
-            return "Scopes the data: " + ", ".join(bits[:4]) + ("…" if len(bits) > 4 else "") + "."
+            line = "Scopes the data: " + ", ".join(bits[:4]) + ("…" if len(bits) > 4 else "") + "."
+            if ctx and ctx.get("data_sources"):
+                line += " Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion."
+            elif ctx:
+                line += " Adjust names if your deployment uses different index or sourcetype conventions."
+            return line
         return "Filters the initial event set (index, sourcetype, host, time, tags, etc.)."
     if st.startswith("["):
         return "Uses a bracketed subsearch `[ ... ]` whose results constrain or feed the outer search."
@@ -946,13 +1135,17 @@ def _explain_one_spl_stage(stage):
     one = " ".join(st.split())
     if len(one) > 140:
         one = one[:137] + "…"
-    return "Pipeline stage: %s" % one
+    hint = ""
+    if ctx and ctx.get("title"):
+        hint = " (see **%s**)" % ctx["title"]
+    return "Pipeline stage%s: %s" % (hint, one)
 
 
-def explain_spl_pipeline(spl, max_bullets=24):
-    """Plain-language bullets describing SPL pipeline stages (heuristic)."""
+def explain_spl_pipeline(spl, max_bullets=24, uc=None, cim_variant=False):
+    """Plain-language walkthrough: use-case context plus per-stage notes (heuristic)."""
     if not (spl or "").strip():
         return ""
+    ctx = _spl_explain_context(uc) if uc else None
     stages = _split_spl_stages(spl)
     if not stages:
         return ""
@@ -961,15 +1154,25 @@ def explain_spl_pipeline(spl, max_bullets=24):
     for si, stage in enumerate(stages):
         if len(bullets) >= cap - 1:
             bullets.append(
-                "Additional pipeline stages follow — adjust indexes, fields, macros, and thresholds for your environment."
+                "Additional pipeline stages follow — tune fields, macros, and thresholds for **%s** and your environment."
+                % (ctx.get("title") or "this use case")
+                if ctx
+                else "Additional pipeline stages follow — adjust indexes, fields, macros, and thresholds for your environment."
             )
             break
-        line = _explain_one_spl_stage(stage)
+        line = _explain_one_spl_stage(stage, stage_index=si, ctx=ctx)
         if line:
             bullets.append(line)
     if not bullets:
         return ""
-    out = ["Understanding this SPL", ""]
+    title_heading = "Understanding this CIM / accelerated SPL" if cim_variant else "Understanding this SPL"
+    out = [title_heading, ""]
+    intro = _spl_explain_intro(spl, ctx, cim_variant=cim_variant) if ctx else ""
+    if intro:
+        out.append(intro)
+        out.append("")
+    out.append("**Pipeline walkthrough**")
+    out.append("")
     for b in bullets:
         out.append("• " + b)
     return "\n".join(out)
@@ -1004,7 +1207,7 @@ def generate_detailed_impl(uc):
         lines.append(q)
         lines.append("```")
         lines.append("")
-        expl = explain_spl_pipeline(q)
+        expl = explain_spl_pipeline(q, uc=uc)
         if expl:
             lines.append(expl)
             lines.append("")
@@ -1015,13 +1218,9 @@ def generate_detailed_impl(uc):
             lines.append(qs)
             lines.append("```")
             lines.append("")
-            expl_cim = explain_spl_pipeline(qs, max_bullets=18)
+            expl_cim = explain_spl_pipeline(qs, max_bullets=18, uc=uc, cim_variant=True)
             if expl_cim:
-                lines.append("CIM / accelerated variant — what this SPL does")
-                lines.append("")
-                # Drop duplicate H2; keep bullets only
-                cim_body = expl_cim.replace("Understanding this SPL", "").strip()
-                lines.append(cim_body)
+                lines.append(expl_cim)
                 lines.append("")
         needs_dma = (
             "tstats" in q.lower()

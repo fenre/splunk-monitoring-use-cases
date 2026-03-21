@@ -25,7 +25,7 @@ index=scada sourcetype="scada:alarm"
 | where alarm_count > 50 OR z_score > 3 OR shelved_count > 20
 | table _time, substation_id, alarm_count, distinct_alarms, shelved_count, z_score
 ```
-- **Implementation:** Ingest SCADA alarm events via HEC from the EMS or alarm management system; normalize shelved and priority fields in props/transforms. Schedule saved searches for 5-minute windows and route alerts to the control room. Optionally join with OT Intelligence asset context for substation names.
+- **Implementation:** Ingest SCADA alarm events via HEC from the EMS or alarm management system; normalize shelved and priority fields in props/transforms. Schedule saved searches for 5-minute windows and route alerts to the control room. Optionally join with OT Intelligence asset context for substation names. **Domain context:** Alarm flooding is a core concern in ISA-18.2 / IEC 62682 alarm management—high alarm rates mask genuine faults and violate “manageable” alarm load targets; track shelved and suppressed alarms explicitly because they still represent operational risk. **Splunk:** Use `scada:alarm` as a custom sourcetype with indexed `substation_id` and `alarm_id`; ensure `_time` is alarm occurrence time (not HEC receipt time). If using Splunk OT Intelligence, map assets so `substation_id` joins to asset hierarchy for drill-downs.
 - **Visualization:** Line chart (alarm rate by substation), Single value (stations in flood state), Area chart (shelved alarm accumulation), Table (top substations by alarm count).
 - **CIM Models:** N/A
 
@@ -46,7 +46,7 @@ index=scada sourcetype="scada:rtu"
 | where lower(last_status)!="ok" OR last_ms>5000 OR age_sec>600
 | table substation_id, rtu_id, last_status, last_ms, age_sec
 ```
-- **Implementation:** Forward RTU poll logs from the SCADA front end or protocol gateway (DNP3/IEC 104) via Edge Hub syslog or file monitor. Map poll success, timeout, and RTU identifiers. Alert when no successful poll is seen for longer than the expected scan period or when consecutive failures exceed threshold.
+- **Implementation:** Forward RTU poll logs from the SCADA front end or protocol gateway (DNP3/IEC 104) via Edge Hub syslog or file monitor. Map poll success, timeout, and RTU identifiers. Alert when no successful poll is seen for longer than the expected scan period or when consecutive failures exceed threshold. **Domain context:** RTU/IED communication is the field-to-control-room path in IEC 60870-5-104 and IEEE 1815 (DNP3); silent polling loss often precedes visibility gaps during storms or cyber events—compare `age_sec` to your scan table (e.g. 2–10 s for critical RTUs). **Splunk:** Normalize `poll_status` values (OK, TIMEOUT, etc.) to lowercase in transforms; use `latest()` carefully in dashboards—pair with `age_sec` so stale “OK” rows do not hide a dead RTU.
 - **Visualization:** Status grid (RTU × health), Timeline (poll failures), Table (silent RTUs), Line chart (response time trend).
 - **CIM Models:** N/A
 
@@ -72,7 +72,7 @@ index=ami sourcetype="ami:meter"
 | sort - gap_events
 | table meter_id, gap_events, max_gap_sec, avg_gap_sec
 ```
-- **Implementation:** Load 15-minute (or hourly) register reads from the MDMS into Splunk via HEC with consistent timestamps. Use a lookup for meter service territory if needed. Schedule daily to flag meters exceeding expected inter-read gap; integrate with work management for field verification.
+- **Implementation:** Load 15-minute (or hourly) register reads from the MDMS into Splunk via HEC with consistent timestamps. Use a lookup for meter service territory if needed. Schedule daily to flag meters exceeding expected inter-read gap; integrate with work management for field verification. **Domain context:** Utilities often use 15–60 minute interval reads for billing determinants; gaps can indicate meter communication failure, relay issues, or mesh backhaul problems—prioritize revenue-critical meters and regulatory reporting periods. **Splunk:** `strptime` format must match MDMS export exactly; if reads are UTC, document that in props. Consider `summary indexing` for large AMI populations to speed daily gap reports.
 - **Visualization:** Bar chart (gaps per meter), Map (if lat/long in data), Table (worst meters), Single value (meters with gaps %).
 - **CIM Models:** N/A
 
@@ -95,7 +95,7 @@ index=power sourcetype="power:quality"
 | eval severity=case(max_thd>10,"high", event_count>=5,"high", true(),"medium")
 | table _time, site_id, event_count, types, max_thd, min_v, max_v, severity
 ```
-- **Implementation:** Stream PQ event records from fixed analyzers or smart relays through HEC; normalize nominal voltage per site via lookup. Use transactions or `stats` by feeder if `feeder_id` is present. Dashboard overlays with SCADA breaker operations for root-cause sessions.
+- **Implementation:** Stream PQ event records from fixed analyzers or smart relays through HEC; normalize nominal voltage per site via lookup. Use transactions or `stats` by feeder if `feeder_id` is present. Dashboard overlays with SCADA breaker operations for root-cause sessions. **Domain context:** IEEE 1159 / EN 50160 frame categories like sag, swell, and interruption; nominal voltage differs by region (e.g. 120/208 V vs 230/400 V)—the sample thresholds (0.9×/1.1× 120) are illustrative; replace with your nominal voltage lookup. **Splunk:** Index `site_id` and `event_type`; if combining multiple nominal voltages, use `eval nominal_v` from a lookup before comparing `v_rms`.
 - **Visualization:** Timeline (PQ events), Line chart (THD and RMS by site), Heatmap (site × hour event count), Table (severe events).
 - **CIM Models:** N/A
 
@@ -118,7 +118,7 @@ index=generation sourcetype="pi:historian" fuel_type IN ("solar","wind")
 | where mape_pct>15 OR mae_mw>5
 | table _time, asset_id, fuel_type, avg_actual, avg_fcst, mae_mw, mape_pct
 ```
-- **Implementation:** Ingest both forecast (day-ahead or hour-ahead) and telemetered MW from PI or EMS via HEC with aligned timestamps. Tag fuel type for filtering. Alert when MAPE or absolute error exceeds trading/risk thresholds; feed back to forecasting vendor with Splunk export.
+- **Implementation:** Ingest both forecast (day-ahead or hour-ahead) and telemetered MW from PI or EMS via HEC with aligned timestamps. Tag fuel type for filtering. Alert when MAPE or absolute error exceeds trading/risk thresholds; feed back to forecasting vendor with Splunk export. **Domain context:** In markets with high renewable penetration, forecast error drives imbalance costs and reserve procurement; align on whether the forecast is system-wide, nodal, or plant-level. **Splunk:** Use `Splunk Add-on for OSIsoft PI` or HEC from PI integrators; if `pi:historian` is custom, ensure `mw_forecast` and `mw_actual` share the same `asset_id` and `_time` grain (e.g. hourly).
 - **Visualization:** Line chart (forecast vs actual), Area chart (error envelope), Bar chart (MAPE by plant), Single value (portfolio forecast error).
 - **CIM Models:** N/A
 
@@ -142,7 +142,7 @@ index=scada sourcetype="pi:historian"
 | stats max(imbalance_pct) as peak_imbalance_pct, latest(ia_amps) as ia, latest(ib_amps) as ib, latest(ic_amps) as ic by feeder_id, _time
 | table _time, feeder_id, peak_imbalance_pct, ia, ib, ic
 ```
-- **Implementation:** Ingest per-phase current from DMS or AMI aggregation via historian tags mapped to feeder IDs. Schedule near-real-time checks during peak load. Combine with OMS for customer complaints on the same feeder. Use lookups for feeder voltage class and limits.
+- **Implementation:** Ingest per-phase current from DMS or AMI aggregation via historian tags mapped to feeder IDs. Schedule near-real-time checks during peak load. Combine with OMS for customer complaints on the same feeder. Use lookups for feeder voltage class and limits. **Domain context:** Phase imbalance increases neutral current and transformer heating (NESC / utility design practice); thresholds (~10% imbalance) vary by utility—tune from engineering. **Splunk:** If `pi:historian` mixes multiple tag naming schemes, normalize `ia_amps`/`ib_amps`/`ic_amps` in CALC fields or transforms before `eval`.
 - **Visualization:** Line chart (imbalance % over time), Bar chart (feeders over threshold), Gauge (worst feeder imbalance), Table (phase currents).
 - **CIM Models:** N/A
 
@@ -167,7 +167,7 @@ index=assets sourcetype="pi:historian"
 | sort - ch4
 | table transformer_id, ch4, c2h2, h2, ch4_delta
 ```
-- **Implementation:** Load lab DGA results via HEC from LIMS or manual CSV ingestion; align `sample_date` with asset IDs. Maintain lookup tables for IEEE/IEC thresholds by oil type if required. Quarterly dashboards for reliability planning; alerts on sudden gas generation rates.
+- **Implementation:** Load lab DGA results via HEC from LIMS or manual CSV ingestion; align `sample_date` with asset IDs. Maintain lookup tables for IEEE/IEC thresholds by oil type if required. Quarterly dashboards for reliability planning; alerts on sudden gas generation rates. **Domain context:** IEEE C57.104 and IEC 60599 guide DGA interpretation; acetylene (`c2h2_ppm`) often indicates arcing, methane/ethane ratios suggest thermal faults—rates of change matter as much as absolute PPM. **Splunk:** Use `streamstats` on sparse lab data; if samples are months apart, consider `delta` over `sample_epoch` rather than only latest values.
 - **Visualization:** Line chart (gas PPM trends per transformer), Table (units exceeding limits), Scatter (CH₄ vs C₂H₂), Single value (transformers in alert).
 - **CIM Models:** N/A
 
@@ -193,7 +193,7 @@ index=scada sourcetype="scada:alarm" (match(_raw,"(?i)trip|generator"))
 | eval trip_time=strftime(_time,"%Y-%m-%d %H:%M:%S")
 | table unit_id, trip_time, relays, mw_at_event, hz_at_event
 ```
-- **Implementation:** Normalize unit and breaker IDs across alarm and RTU streams. Prefer `transaction` or `stats` with `maxspan=120s` on `unit_id` if join cardinality is high. Store NERC reportable fields in summary indexing for audit. Edge Hub can timestamp-align IEC 61850 GOOSE if available.
+- **Implementation:** Normalize unit and breaker IDs across alarm and RTU streams. Prefer `transaction` or `stats` with `maxspan=120s` on `unit_id` if join cardinality is high. Store NERC reportable fields in summary indexing for audit. Edge Hub can timestamp-align IEC 61850 GOOSE if available. **Domain context:** NERC PRC-005 / regional reporting often requires auditable trip timelines; correlate generator trips with underfrequency, distance relay, or loss-of-field elements where present. **Splunk:** The sample uses `match(_raw,"(?i)trip|generator")`—prefer a structured `alarm_type` or `event_code` field from the EMS if available (faster, more accurate). For `join`, add `max=0` or a safe `max` and time-bin both sides to the same `_time` granularity to avoid cardinality blow-ups.
 - **Visualization:** Timeline (trip and relay sequence), Table (correlated events), Line chart (MW and Hz around trip), Sankey (optional cause paths).
 - **CIM Models:** N/A
 
@@ -215,7 +215,7 @@ index=trading sourcetype="energy:trade"
 | sort - total_abs_diff_mw
 | table trade_date, product, mismatch_trades, total_abs_diff_mw, trade_ids
 ```
-- **Implementation:** Ingest internal ETRM positions and ISO/utility settlement extracts on the same schedule via HEC. Use lookups for product naming alignment. Alert on any non-zero difference above tolerance; restrict dashboards to trading operations roles.
+- **Implementation:** Ingest internal ETRM positions and ISO/utility settlement extracts on the same schedule via HEC. Use lookups for product naming alignment. Alert on any non-zero difference above tolerance; restrict dashboards to trading operations roles. **Domain context:** ISO/RTO settlements (e.g. day-ahead/real-time) use defined shadow settlement and true-up timelines—reconciliation tolerances are often contract-specific (MW or $). **Splunk:** Restrict `index=trading` with role-based access; use HEC tokens per environment; never log customer PII in raw trade events.
 - **Visualization:** Table (mismatches by product), Bar chart (diff MW by day), Single value (open reconciliation count), Line chart (reconciliation trend).
 - **CIM Models:** N/A
 
@@ -237,7 +237,7 @@ index=ami sourcetype="ami:mesh"
 | where degraded_nodes>=5 OR avg_latency>800
 | table _time, parent_id, degraded_nodes, avg_latency, avg_rssi
 ```
-- **Implementation:** Export mesh diagnostics from the RF network manager via scheduled JSON to HEC. Baseline RSSI and hop count per region. Alert on concentration of offline nodes under a collector; map to GIS if coordinates are loaded as lookup.
+- **Implementation:** Export mesh diagnostics from the RF network manager via scheduled JSON to HEC. Baseline RSSI and hop count per region. Alert on concentration of offline nodes under a collector; map to GIS if coordinates are loaded as lookup. **Domain context:** AMI mesh (e.g. RF mesh under ANSI C12) degrades with foliage, new construction, and concentrator load—degraded `parent_id` clusters often indicate backhaul or relay stress. **Splunk:** Cast `online`, `latency_ms`, and `rssi_dbm` to consistent types at index time; string `"false"` vs boolean breaks `where` clauses.
 - **Visualization:** Network graph (optional with app), Table (degraded parents), Heatmap (hour × region latency), Line chart (average hops).
 - **CIM Models:** N/A
 
@@ -259,7 +259,7 @@ index=dr sourcetype="dr:event"
 | stats min(compliance_pct) as min_compliance_pct, avg(achieved_reduction_kw) as avg_reduction_kw by program_id, site_id
 | table program_id, site_id, min_compliance_pct, avg_reduction_kw
 ```
-- **Implementation:** Ingest DR event windows and interval load from MDMS or AMI aggregated by site. Align timestamps to local timezone of the program. Use summary indexing for monthly compliance scorecards. HEC from DRMS for event definitions is preferred over manual CSV.
+- **Implementation:** Ingest DR event windows and interval load from MDMS or AMI aggregated by site. Align timestamps to local timezone of the program. Use summary indexing for monthly compliance scorecards. HEC from DRMS for event definitions is preferred over manual CSV. **Domain context:** OpenADR and utility DR programs define baseline methodologies (e.g. 10-in-10, day-matching); penalties apply when committed kW reductions are not met—document the baseline rule in Splunk lookups. **Splunk:** Store `event_start`/`event_end` in the program’s local TZ or UTC consistently; use `strftime`/`strptime` tests in QA before alerting.
 - **Visualization:** Bar chart (compliance % by program), Table (non-compliant sites), Line chart (load during event), Gauge (portfolio compliance).
 - **CIM Models:** N/A
 
@@ -284,7 +284,7 @@ index=oms sourcetype="oms:outage" status="open"
 ]
 | table outage_id, device_id, scada_state
 ```
-- **Implementation:** Maintain a canonical `device_id` lookup between OMS and SCADA naming. Schedule frequent correlation; handle multiphase devices with MVLV mapping table. Alert ETRM/OMS when mismatches exceed zero for active outages. Use Edge Hub only for SCADA side if needed.
+- **Implementation:** Maintain a canonical `device_id` lookup between OMS and SCADA naming. Schedule frequent correlation; handle multiphase devices with MVLV mapping table. Alert ETRM/OMS when mismatches exceed zero for active outages. Use Edge Hub only for SCADA side if needed. **Domain context:** OMS–DMS–SCADA alignment is central to safe switching and accurate SAIDI/SAIFI; energized devices during “open” outages are a safety and customer-trust issue. **Splunk:** `join type=inner` only shows matches—add a separate search for OMS open outages with *no* SCADA row (left anti-join pattern) to catch missing SCADA data. Ensure `breaker_state` enumerations match across sources.
 - **Visualization:** Table (mismatched devices), Single value (mismatch count), Timeline (OMS vs SCADA changes), Map (optional).
 - **CIM Models:** N/A
 
@@ -307,7 +307,7 @@ index=oms sourcetype="oms:outage"
 | where completed_orders < related_events
 | table work_order_id, related_events, completed_orders, feeders_affected, completion_rate
 ```
-- **Implementation:** Ingest vegetation work orders and outage records with shared feeder and span identifiers via HEC from the enterprise work system. Use lookups for span-to-feeder if needed. Monthly reporting for regulatory vegetation cycles; optional join with `fleet:gps` for crew verification.
+- **Implementation:** Ingest vegetation work orders and outage records with shared feeder and span identifiers via HEC from the enterprise work system. Use lookups for span-to-feeder if needed. Monthly reporting for regulatory vegetation cycles; optional join with `fleet:gps` for crew verification. **Domain context:** Many jurisdictions require traceable vegetation clearance cycles near conductors; repeat vegetation-caused outages on uncleared spans are regulatory and wildfire risk signals (where applicable). **Splunk:** `match(lower(outage_cause),"veg|tree|limb")` complements structured `work_type`; tune regex for your OMS vocabulary.
 - **Visualization:** Table (open vegetation orders), Bar chart (outages vs completed trims by feeder), Timeline (work order lifecycle), Map (feeder segments).
 - **CIM Models:** N/A
 
@@ -331,7 +331,7 @@ index=fleet sourcetype="fleet:gps"
 | where issues>=3
 | table _time, vehicle_id, crew_id, missing_reports, speed_flags, issues
 ```
-- **Implementation:** Stream AVL points from telematics vendor to HEC with API key authentication. Join to open OMS tickets in a separate search or data model for dispatch boards. Alert on GPS gaps during active storm windows. Respect privacy policies for off-duty masking if required.
+- **Implementation:** Stream AVL points from telematics vendor to HEC with API key authentication. Join to open OMS tickets in a separate search or data model for dispatch boards. Alert on GPS gaps during active storm windows. Respect privacy policies for off-duty masking if required. **Domain context:** Mutual assistance and storm response metrics (crew proximity, ETR) are increasingly scrutinized after major events—GPS gaps during restoration can indicate dead zones or device issues. **Splunk:** HEC ACK settings and token rotation for telematics APIs; hash or role-mask `crew_id` on shared dashboards if required by bargaining agreements.
 - **Visualization:** Map (vehicle positions), Table (crews with stale GPS), Line chart (fleet utilization), Bar chart (response time by district).
 - **CIM Models:** N/A
 
@@ -353,7 +353,7 @@ index=billing sourcetype="billing:exception"
 | sort - exception_count
 | table bill_cycle, read_type, exception_count, total_at_risk
 ```
-- **Implementation:** CIS exports exception flags and variance versus prior period to Splunk nightly via HEC. Join AMI gap detection (UC-21.1.3) for upstream cause analysis. Route alerts to billing operations before print/mail. Mask PII in dashboards using Splunk field filters or role-based search filters.
+- **Implementation:** CIS exports exception flags and variance versus prior period to Splunk nightly via HEC. Join AMI gap detection (UC-21.1.3) for upstream cause analysis. Route alerts to billing operations before print/mail. Mask PII in dashboards using Splunk field filters or role-based search filters. **Domain context:** Estimated reads and exceptional bills are common PUC complaint drivers; many regulators require investigation SLAs for high-bill disputes. **Splunk:** Do not expose full `account_id` in shared panels—use tokenization or last-4; confirm `variance_pct` uses the same billing period as CIS.
 - **Visualization:** Bar chart (exceptions by cycle), Table (top accounts — masked), Line chart (estimated read rate trend), Single value (exceptions pending review).
 - **CIM Models:** N/A
 
@@ -386,7 +386,7 @@ index=mfg sourcetype="mes:production"
 | where avg_oee < 0.65 OR avg_a < 0.9 OR avg_q < 0.95
 | table _time, line_id, avg_a, avg_p, avg_q, avg_oee
 ```
-- **Implementation:** Ingest MES counters from each line via HEC; validate ideal cycle time from routing master data lookup. Edge Hub can supply machine states if MES gaps exist. Schedule hourly OEE and daily rollups for plant reviews.
+- **Implementation:** Ingest MES counters from each line via HEC; validate ideal cycle time from routing master data lookup. Edge Hub can supply machine states if MES gaps exist. Schedule hourly OEE and daily rollups for plant reviews. **Domain context:** OEE = Availability × Performance × Quality (ISO 22400 / TPM); world-class plants often target ~85% OEE on bottlenecks—thresholds in the SPL are illustrative. **Splunk:** Ensure `planned_time_min` and `run_time_min` share the same accounting period; exclude changeover if your MES encodes it separately or OEE will be biased.
 - **Visualization:** Line chart (OEE trend), Breakdown bar (A, P, Q), Table (line ranking), Single value (plant OEE).
 - **CIM Models:** N/A
 
@@ -401,14 +401,15 @@ index=mfg sourcetype="mes:production"
 - **Data Sources:** `index=mfg` `sourcetype="mes:production"` (line_id, state), `index=mfg` `sourcetype="cmms:workorder"` (asset_id, wo_id, priority), `index=ot` `sourcetype="opc:tag"` (asset_id, alarm_text)
 - **SPL:**
 ```spl
-(index=mfg sourcetype="mes:production" state="down") OR (index=mfg sourcetype="cmms:workorder" priority="emergency") OR (index=ot sourcetype="opc:tag" match(alarm_text,"(?i)fault|alarm|trip"))
+(index=mfg sourcetype="mes:production" state="down") OR (index=mfg sourcetype="cmms:workorder" priority="emergency") OR (index=ot sourcetype="opc:tag")
 | eval key=coalesce(line_id, asset_id)
+| where sourcetype!="opc:tag" OR match(alarm_text, "(?i)fault|alarm|trip")
 | transaction key maxspan=30m maxevents=50
 | eval duration_sec=duration
 | where duration_sec>60
 | table _time, key, duration_sec, state, wo_id, alarm_text
 ```
-- **Implementation:** Normalize asset and line keys across MES, CMMS, and OPC-UA. Use `transaction` or `stats` with `maxspan` tuned to line stop characteristics. Ingest OPC alarms via Edge Hub. Store exemplar searches in OT Intelligence workbench for engineers.
+- **Implementation:** Normalize asset and line keys across MES, CMMS, and OPC-UA. Use `transaction` or `stats` with `maxspan` tuned to line stop characteristics. Ingest OPC alarms via Edge Hub. Store exemplar searches in OT Intelligence workbench for engineers. **Domain context:** ISA-95 and ISO 22400 frame downtime analytics; RCA typically sequences MES state → CMMS work order → OT alarm text—tune `maxspan` to your line’s stop/start cadence. **Splunk:** The base search must not put `match()` inside the initial boolean (invalid); filter `opc:tag` rows with `where` after the first line. If `transaction` is heavy, use `stats` + `maxspan` windowing instead.
 - **Visualization:** Timeline (downtime episodes), Table (correlated WO and alarms), Sankey (cause categories), Bar chart (duration by line).
 - **CIM Models:** N/A
 
@@ -431,7 +432,7 @@ index=mfg sourcetype="mes:production"
 | where avg_yield < sku_median*0.95 OR yield_jitter>5
 | table _time, sku, batch_id, avg_yield, sku_median, yield_jitter
 ```
-- **Implementation:** MES batch completion records to HEC with weights from scales integrated via OPC if needed. Maintain golden batch yield per SKU in a lookup for static targets. Alert on statistically significant drops; integrate with QMS for hold codes.
+- **Implementation:** MES batch completion records to HEC with weights from scales integrated via OPC if needed. Maintain golden batch yield per SKU in a lookup for static targets. Alert on statistically significant drops; integrate with QMS for hold codes. **Domain context:** Yield is central to IATF 16949 / food & pharma traceability—tie `batch_id` to lot genealogy in QMS when required. **Splunk:** `good_kg` + `scrap_kg` should reconcile to total material; if not, fix extraction before trusting `yield_pct`.
 - **Visualization:** Line chart (yield by batch), Bar chart (yield by SKU), Table (worst batches), Control chart (yield with limits).
 - **CIM Models:** N/A
 
@@ -454,7 +455,7 @@ index=quality sourcetype="qms:inspection"
 | where rule1=1 OR rule2=1
 | table _time, part_id, characteristic, measured_value, lsl, usl, ma20, ms20, rule1, rule2
 ```
-- **Implementation:** Stream inspection measurements from CMM or inline gauges via QMS API to HEC. Tune window (e.g., 20 subgroups) per characteristic. Alert quality engineers on rule breaches; archive results for audit. Optional `predict` for advanced drift on stable lines.
+- **Implementation:** Stream inspection measurements from CMM or inline gauges via QMS API to HEC. Tune window (e.g., 20 subgroups) per characteristic. Alert quality engineers on rule breaches; archive results for audit. Optional `predict` for advanced drift on stable lines. **Domain context:** Western Electric / Nelson rules are standard SPC; automotive PPAP often requires control plan evidence—retention must match your quality program. **Splunk:** `streamstats` is order-dependent—confirm events arrive time-sorted per `part_id`/`characteristic`; use `sort 0` before `streamstats` as in the search.
 - **Visualization:** Control chart (X-bar style), Table (rule violations), Line chart (measurement trend), Heatmap (characteristic × line).
 - **CIM Models:** N/A
 
@@ -478,7 +479,7 @@ index=ot sourcetype="opc:tag"
 | where z>3 OR v_rms>7.1 OR temp>85
 | table _time, asset_id, v_rms, baseline_v, z, temp
 ```
-- **Implementation:** Sample vibration tags from Edge Hub OPC-UA at 1 Hz aggregated to 5-minute RMS in Splunk or at the edge. Establish baselines per asset with seasonal retuning. Integrate CMMS to auto-create work orders when z-score exceeds policy.
+- **Implementation:** Sample vibration tags from Edge Hub OPC-UA at 1 Hz aggregated to 5-minute RMS in Splunk or at the edge. Establish baselines per asset with seasonal retuning. Integrate CMMS to auto-create work orders when z-score exceeds policy. **Domain context:** ISO 20816 / API 670 family defines vibration severity zones; 7.1 mm/s RMS is a common alert zone for general machinery but depends on machine class—replace with your engineering limits. **Splunk:** Baseline `streamstats` windows (288 = ~24h at 5m) need enough history; cold-start assets may false-positive until history exists.
 - **Visualization:** Line chart (RMS vs baseline), Heatmap (asset × week), Table (assets in alert), Gauge (worst z-score).
 - **CIM Models:** N/A
 
@@ -507,7 +508,7 @@ index=mfg (sourcetype="energy:meter" OR sourcetype="mes:production")
 | where sec_kwh > med_sec*1.15
 | table _time, line_id, kwh, units, sec_kwh, med_sec
 ```
-- **Implementation:** Align meter rollups to MES production intervals using common `line_id` and time bucketing. Calibrate meters annually and store correction factors in lookup. Dashboard SEC for sustainability reporting and cost per unit.
+- **Implementation:** Align meter rollups to MES production intervals using common `line_id` and time bucketing. Calibrate meters annually and store correction factors in lookup. Dashboard SEC for sustainability reporting and cost per unit. **Domain context:** ISO 50001 energy baselines and CDP/GHG reporting often use kWh per unit—allocate shared plant meters by line if multi-line feeds share one meter. **Splunk:** The sample `join` assumes `line_id` on MES can be renamed to align with meter scope; if meters are plant-level, aggregate MES `units` at plant grain before joining.
 - **Visualization:** Line chart (SEC trend), Bar chart (SEC by line), Table (outliers), Single value (plant kWh per unit).
 - **CIM Models:** N/A
 
@@ -530,7 +531,7 @@ index=mfg sourcetype="mes:production"
 | sort due
 | table order_id, sku, milestone, status, due
 ```
-- **Implementation:** Ingest order status transitions from MES via HEC with full milestone model. Join to ERP promise date if synced through nightly batch. Alert planners when orders approach due window without final completion event.
+- **Implementation:** Ingest order status transitions from MES via HEC with full milestone model. Join to ERP promise date if synced through nightly batch. Alert planners when orders approach due window without final completion event. **Domain context:** APS/ERP often owns the promise date while MES owns WIP state—misalignment between systems is a common root cause of “phantom” late risk. **Splunk:** `late_risk` compares `_time` to `due_epoch`; ensure MES event time reflects status change, not report generation time.
 - **Visualization:** Gantt-style table (milestones), Bar chart (orders by status), Timeline (order events), Single value (orders at risk).
 - **CIM Models:** N/A
 
@@ -553,7 +554,7 @@ index=edi sourcetype="edi:message"
 | where fail_rate>2 OR fail>10
 | table _time, partner_id, message_type, total, fail, fail_rate
 ```
-- **Implementation:** Export gateway logs with MDN and ACK status to HEC; mask payload content. Per-partner SLOs in lookup table. Page integrations team when failure rate exceeds threshold for two consecutive intervals.
+- **Implementation:** Export gateway logs with MDN and ACK status to HEC; mask payload content. Per-partner SLOs in lookup table. Page integrations team when failure rate exceeds threshold for two consecutive intervals. **Domain context:** AS2 MDN (message disposition notification) and X12/EDIFACT functional acks are distinct—track both; partner scorecards often use 997/999 or EDIFACT CONTRL success rates. **Splunk:** Never index full EDI payloads (PHI/PII/BOM data); log metadata and correlation IDs only.
 - **Visualization:** Line chart (failure rate by partner), Table (top failing partners), Bar chart (failures by message type), Single value (global EDI health).
 - **CIM Models:** N/A
 
@@ -579,7 +580,7 @@ index=erp sourcetype="erp:event" event_type="bom"
 | where abs(delta)>0.5*qty_plan OR abs(delta)>5
 | table order_id, material_id, qty_plan, qty_cons, delta
 ```
-- **Implementation:** Publish planned BOM lines from ERP and consumption from MES on shared keys. Schedule hourly reconciliation; handle unit of measure conversion via lookup. Route discrepancies to production control before period close.
+- **Implementation:** Publish planned BOM lines from ERP and consumption from MES on shared keys. Schedule hourly reconciliation; handle unit of measure conversion via lookup. Route discrepancies to production control before period close. **Domain context:** BOM accuracy supports traceability (e.g. medical device UDI, automotive PPAP); backflush timing vs physical issue can create false deltas. **Splunk:** `join type=outer` can be expensive—consider `lookup` from a KV store populated by scheduled searches for large order volumes.
 - **Visualization:** Table (BOM variances), Bar chart (variance by material), Line chart (discrepancy count over time), Heatmap (SKU × material).
 - **CIM Models:** N/A
 
@@ -602,7 +603,7 @@ index=wms sourcetype="wms:order"
 | sort - breach_count
 | table order_id, avg_cycle, p95_cycle, sla_minutes, breach_count
 ```
-- **Implementation:** WMS event stream to HEC with timestamps at pick, pack, and ship scan. Define SLA per customer tier in lookup. Real-time panel for operations; weekly review of p95 versus staffing model.
+- **Implementation:** WMS event stream to HEC with timestamps at pick, pack, and ship scan. Define SLA per customer tier in lookup. Real-time panel for operations; weekly review of p95 versus staffing model. **Domain context:** OTIF and carrier cutoffs (e.g. parcel pickup windows) drive SLA design—`sla_minutes` should reflect channel (retail vs e-commerce). **Splunk:** Validate `strptime` against actual WMS timestamp format and timezone; null `ship_confirm` rows indicate in-flight orders—exclude or bucket separately in KPIs.
 - **Visualization:** Histogram (cycle time distribution), Line chart (p95 trend), Table (orders breaching SLA), Bar chart (breaches by dock).
 - **CIM Models:** N/A
 
@@ -625,7 +626,7 @@ index=mfg sourcetype="robot:cycle"
 | where avg_delta_pct>10 OR cycle_jitter>3
 | table _time, cell_id, program_id, avg_cycle, avg_target, avg_delta_pct, cycle_jitter
 ```
-- **Implementation:** Ingest cycle completion messages from robot OEM or PLC via Edge Hub syslog. Baseline `target_sec` per program revision in lookup when recipes change. Alert maintenance when sustained positive delta exceeds policy.
+- **Implementation:** Ingest cycle completion messages from robot OEM or PLC via Edge Hub syslog. Baseline `target_sec` per program revision in lookup when recipes change. Alert maintenance when sustained positive delta exceeds policy. **Domain context:** Robot takt-time drift often tracks EOAT wear, TCP calibration, or upstream material variation—correlate with CMMS on the same `cell_id`. **Splunk:** OEM syslog formats vary; use `props.conf` to extract `cycle_sec`/`program_id` consistently across firmware versions.
 - **Visualization:** Line chart (cycle time vs target), Control chart, Table (cells in deviation), Bar chart (delta by program).
 - **CIM Models:** N/A
 
@@ -647,7 +648,7 @@ index=ot sourcetype="conveyor:sensor"
 | where avg_speed < 10 OR jam_flag=1 OR avg_amps>25
 | table _time, line_id, belt_id, avg_speed, avg_amps, jam_flag
 ```
-- **Implementation:** Map photo-eye, encoder, and VFD feedback through OPC-UA into Edge Hub with 1-second sampling aggregated in Splunk. Set nominal speed per SKU from MES lookup if variable. Tie jam events to video timestamp if optional stream metadata is ingested.
+- **Implementation:** Map photo-eye, encoder, and VFD feedback through OPC-UA into Edge Hub with 1-second sampling aggregated in Splunk. Set nominal speed per SKU from MES lookup if variable. Tie jam events to video timestamp if optional stream metadata is ingested. **Domain context:** Jam cascades are a common OEE loss; nominal speed and amp draw thresholds depend on belt load and SKU—tune `avg_speed`/`avg_amps` limits per line. **Splunk:** Aggregate before alert noise—1m `bin` as shown; lift raw sampling rate only for RCA, not for 24/7 alerting cost.
 - **Visualization:** Line chart (speed and amps), Status timeline (jam), Table (active issues), Single value (lines stopped).
 - **CIM Models:** N/A
 
@@ -676,7 +677,7 @@ index=mfg sourcetype="air:compressor"
 | where idle_compressor=1 AND specific_kw>22
 | table _time, plant_id, avg_kw, avg_cfm, specific_kw, units
 ```
-- **Implementation:** Instrument compressors with power and flow meters; infer non-production from MES aggregate line state. Baseline specific power during known good weekends after leak surveys. Alert facilities when idle load exceeds threshold; track savings from repair campaigns.
+- **Implementation:** Instrument compressors with power and flow meters; infer non-production from MES aggregate line state. Baseline specific power during known good weekends after leak surveys. Alert facilities when idle load exceeds threshold; track savings from repair campaigns. **Domain context:** Compressed air is often 20–30% of industrial electricity; leak detection programs pair ultrasonic surveys with kW/cfm baselines. **Splunk:** The sample renames `line_id` to `plant_id` for join—only valid if your data model maps lines to plants that way; otherwise join on a real `plant_id` field.
 - **Visualization:** Line chart (specific power trend), Bar chart (plant comparison), Table (suspect compressors), Single value (estimated wasted kW).
 - **CIM Models:** N/A
 
@@ -698,7 +699,7 @@ index=mfg sourcetype="cip:cycle"
 | where cycle_pass=0 OR total_duration < 600 OR total_duration > 7200
 | table _time, skid_id, recipe_id, cycle_pass, total_duration
 ```
-- **Implementation:** Ingest skid PLC tags via Edge Hub with one event per step or minute rollups. Store recipe limits in lookup keyed by `recipe_id` and `step`. Electronic batch records can consume Splunk alerts for QA hold. Retain data for audit trail per 21 CFR Part 11 policy if applicable.
+- **Implementation:** Ingest skid PLC tags via Edge Hub with one event per step or minute rollups. Store recipe limits in lookup keyed by `recipe_id` and `step`. Electronic batch records can consume Splunk alerts for QA hold. Retain data for audit trail per 21 CFR Part 11 policy if applicable. **Domain context:** CIP validation is GMP-critical in pharma and food; recipe bands (flow/temp/conductivity) must match the validated master recipe—replace hardcoded `eval` limits with lookups per `recipe_id`/`step`. **Splunk:** Use `stats`/`eventstats` per step if one event spans multiple steps; ensure time ordering for step sequences.
 - **Visualization:** Timeline (CIP steps), Table (failed cycles), Line chart (temperature and conductivity), Gauge (cycle compliance %).
 - **CIM Models:** N/A
 
@@ -721,7 +722,7 @@ index=mfg sourcetype="mes:production"
 | sort _time, line_id, shift
 | table _time, line_id, shift, units, down_m, scrap, scrap_rate
 ```
-- **Implementation:** Schedule a saved search at shift change to email PDF or post to Teams via alert action. Pull `shift_id` from MES when available instead of inferred buckets. Optional append subsearch for top downtime reasons from OPC alarms. Store outputs in summary index for trend comparison.
+- **Implementation:** Schedule a saved search at shift change to email PDF or post to Teams via alert action. Pull `shift_id` from MES when available instead of inferred buckets. Optional append subsearch for top downtime reasons from OPC alarms. Store outputs in summary index for trend comparison. **Domain context:** Shift handover is a known safety and quality interface in 24/7 operations (ISA-18 / human factors); align shift boundaries to plant calendar and collective agreements. **Splunk:** `hour(_time)` uses indexer TZ unless search TZ is set—use explicit `shift_id` from MES when possible; `aligntime` on `bin` may not match all plants’ shift start times.
 - **Visualization:** Table (shift KPI summary), Column chart (units by shift), Line chart (scrap rate trend), Single value (plant output per shift).
 - **CIM Models:** N/A
 
@@ -750,7 +751,7 @@ index=healthcare sourcetype="ehr:audit"
 | where p95_rt > 3000
 | table _time, server_node, avg_rt, p95_rt, count
 ```
-- **Implementation:** Ingest EHR application performance logs via HEC. Set thresholds based on clinical workflow requirements (typically p95 < 3 seconds). Alert on sustained degradation and correlate with infrastructure metrics.
+- **Implementation:** Ingest EHR application performance logs via HEC. Set thresholds based on clinical workflow requirements (typically p95 < 3 seconds). Alert on sustained degradation and correlate with infrastructure metrics. **Domain context:** EHR latency affects clinician cognitive load and patient safety during high-acuity workflows; many organizations align targets with internal clinical SLA committees, not a single vendor default. **Splunk:** Epic/Cerner often emit separate logs per app tier—normalize `transaction_type` and exclude batch jobs from clinician-facing p95. Ensure PHI minimization: aggregate by `server_node`, not patient context in metrics indexes.
 - **Visualization:** Line chart (p95 response time by server), Heatmap (server × time), Single value (current p95).
 - **CIM Models:** N/A
 
@@ -773,7 +774,7 @@ index=healthcare sourcetype="app:health"
 | where avail_pct < 99.9
 | table _time, app_name, avail_pct
 ```
-- **Implementation:** Deploy health check probes against critical clinical applications. Calculate availability per hour and month. Generate SLA compliance reports for governance.
+- **Implementation:** Deploy health check probes against critical clinical applications. Calculate availability per hour and month. Generate SLA compliance reports for governance. **Domain context:** Healthcare SLAs often distinguish scheduled maintenance vs unplanned outage; exclude planned windows from availability math if your governance requires it. **Splunk:** `avg(up)` per hour is binary uptime only if probes are evenly spaced—prefer explicit downtime events or `sum(up)/count` with fixed probe interval.
 - **Visualization:** Line chart (availability over time), Gauge (monthly SLA %), Table (apps below target).
 - **CIM Models:** N/A
 
@@ -795,7 +796,7 @@ index=healthcare sourcetype="nursecall:event"
 | where p95_response > 300
 | table _time, unit, avg_response, p95_response, count
 ```
-- **Implementation:** Integrate nurse call system events via syslog or API. Track response times by unit and shift. Alert when p95 exceeds 5 minutes. Report for CMS quality metrics.
+- **Implementation:** Integrate nurse call system events via syslog or API. Track response times by unit and shift. Alert when p95 exceeds 5 minutes. Report for CMS quality metrics. **Domain context:** Response time is a common patient experience and safety proxy; thresholds vary by acuity level (e.g. ICU vs med-surg)—segment by `unit` or priority if available. **Splunk:** Confirm whether `response_time` is seconds or milliseconds; normalize before `stats`.
 - **Visualization:** Bar chart (avg response by unit), Line chart (trend over shifts), Table (units exceeding threshold).
 - **CIM Models:** N/A
 
@@ -816,7 +817,7 @@ index=healthcare sourcetype="bloodbank:temp"
 | eval duration_min=round((excursion_end-excursion_start)/60,1)
 | table unit_id, excursion_start, excursion_end, duration_min, min_temp, max_temp
 ```
-- **Implementation:** Deploy temperature sensors on all blood storage units with 1-minute sampling. Alert immediately on out-of-range readings. Generate compliance documentation for AABB accreditation.
+- **Implementation:** Deploy temperature sensors on all blood storage units with 1-minute sampling. Alert immediately on out-of-range readings. Generate compliance documentation for AABB accreditation. **Domain context:** AABB Standards require controlled storage with documented excursion investigation; cumulative time out of range may matter as much as a single point breach. **Splunk:** Use stateful alerting (e.g. duration of excursion) rather than raw `where temp_c` on every row if sensors are noisy.
 - **Visualization:** Line chart (temperature trend with range bands), Alert timeline, Table (excursions by unit).
 - **CIM Models:** N/A
 
@@ -839,7 +840,7 @@ index=healthcare sourcetype="coldchain:sensor"
 | eval duration_min=round((end-start)/60,1)
 | table location, start, end, duration_min, max_deviation
 ```
-- **Implementation:** Integrate cold chain sensors across pharmacy, lab, and storage areas. Configure product-specific setpoints and tolerances. Alert pharmacy immediately on excursions for product assessment.
+- **Implementation:** Integrate cold chain sensors across pharmacy, lab, and storage areas. Configure product-specific setpoints and tolerances. Alert pharmacy immediately on excursions for product assessment. **Domain context:** USP <797>/<800> and manufacturer product information define storage; MAP excursions often require QA disposition—Splunk should log excursion duration and product lot if integrated from WMS. **Splunk:** Drive `low`/`high` from a lookup by product SKU rather than a single `setpoint_c` if mixed inventory.
 - **Visualization:** Time series (temperature vs bounds), Table (active excursions), Duration chart.
 - **CIM Models:** N/A
 
@@ -861,7 +862,7 @@ index=healthcare sourcetype="lis:result"
 | sort - p95_tat
 | table test_type, avg_tat, p95_tat, count
 ```
-- **Implementation:** Parse HL7 ORM/ORU messages or LIS exports for specimen collection and result times. Track by test type and priority. Alert on stat tests exceeding critical TAT thresholds.
+- **Implementation:** Parse HL7 ORM/ORU messages or LIS exports for specimen collection and result times. Track by test type and priority. Alert on stat tests exceeding critical TAT thresholds. **Domain context:** CAP / CLIA programs often set TAT expectations by test class; stat vs routine must be modeled separately. **Splunk:** `collected_time`/`resulted_time` must be epoch seconds or coerced with `strptime`—HL7 timestamps are often local time with timezone.
 - **Visualization:** Bar chart (TAT by test type), Line chart (TAT trend), Table (tests exceeding target).
 - **CIM Models:** N/A
 
@@ -883,7 +884,7 @@ index=healthcare sourcetype="esig:audit"
 | where sig_issues > 0
 | table system, user, total_sigs, sig_issues
 ```
-- **Implementation:** Configure GxP systems to export electronic signature audit trails to Splunk. Track signature validity, sequential signing, and unauthorized signature attempts. Generate periodic compliance reports.
+- **Implementation:** Configure GxP systems to export electronic signature audit trails to Splunk. Track signature validity, sequential signing, and unauthorized signature attempts. Generate periodic compliance reports. **Domain context:** 21 CFR Part 11 requires unique, attributable signatures, audit trails, and record retention—align Splunk retention with your validated records policy. **Splunk:** Use `validate`/`warrant` searches in non-prod first; restrict access to `esig:audit` index; consider signing exports if used as system of record.
 - **Visualization:** Table (signature audit), Bar chart (issues by system), Timeline (signature events).
 - **CIM Models:** N/A
 
@@ -904,7 +905,7 @@ index=healthcare sourcetype="gxp:change"
 | sort - count
 | table system, change_type, approved, count
 ```
-- **Implementation:** Ingest change control system events. Alert on unapproved changes to validated systems. Cross-reference with change advisory board records. Generate deviation reports for QA review.
+- **Implementation:** Ingest change control system events. Alert on unapproved changes to validated systems. Cross-reference with change advisory board records. Generate deviation reports for QA review. **Domain context:** GAMP 5 and CSV/CSA practices expect traceability from change ticket to validation evidence—map `change_id` to ITSM. **Splunk:** `approved!="yes"` may miss locale variants (`Y`, `Approved`); normalize with `case`/`lookup`.
 - **Visualization:** Table (unapproved changes), Bar chart (changes by system), Timeline (change events).
 - **CIM Models:** N/A
 
@@ -926,7 +927,7 @@ index=healthcare sourcetype="ctms:audit"
 | sort - modifications
 | table study_id, site_id, modifications, fields_changed, users
 ```
-- **Implementation:** Export EDC/CTMS audit trails to Splunk. Flag excessive modifications, unusual data patterns, and retrospective changes. Generate risk-based monitoring reports for clinical operations.
+- **Implementation:** Export EDC/CTMS audit trails to Splunk. Flag excessive modifications, unusual data patterns, and retrospective changes. Generate risk-based monitoring reports for clinical operations. **Domain context:** ICH E6(R2) encourages risk-based monitoring; ALCOA+ applies to source data—blind-breaking `unblind` actions require heightened scrutiny. **Splunk:** De-identify subjects in dashboards; use `study_id`/`site_id` only per protocol privacy plan.
 - **Visualization:** Table (sites by modification count), Bar chart (changes by study), Timeline (high-activity periods).
 - **CIM Models:** N/A
 
@@ -948,7 +949,7 @@ index=healthcare sourcetype="ris:report"
 | sort priority, -p95_tat
 | table modality, priority, avg_tat, p95_tat
 ```
-- **Implementation:** Parse RIS events for exam completion and report finalization timestamps. Track by modality (CT, MR, XR) and priority (stat, urgent, routine). Alert on stat studies exceeding 1-hour TAT.
+- **Implementation:** Parse RIS events for exam completion and report finalization timestamps. Track by modality (CT, MR, XR) and priority (stat, urgent, routine). Alert on stat studies exceeding 1-hour TAT. **Domain context:** Joint Commission and operational targets often use modality-specific TAT; peer review and resident reads can skew distributions—segment when possible. **Splunk:** Use `strptime` if times are strings; ensure `exam_complete_time` reflects acquisition end, not order start.
 - **Visualization:** Bar chart (TAT by modality), Line chart (TAT trend), Table (exams exceeding SLA).
 - **CIM Models:** N/A
 
@@ -970,7 +971,7 @@ index=healthcare sourcetype="adtflow:event"
 | eval net_flow=admits-discharges
 | table _time, unit, beds_used, admits, discharges, net_flow
 ```
-- **Implementation:** Ingest ADT (Admit-Discharge-Transfer) HL7 messages. Calculate real-time census by unit. Track length of stay distributions and boarding times. Support capacity planning.
+- **Implementation:** Ingest ADT (Admit-Discharge-Transfer) HL7 messages. Calculate real-time census by unit. Track length of stay distributions and boarding times. Support capacity planning. **Domain context:** ADT feeds drive bed management and surge planning; HL7 v2 ADT^Axx messages must be de-duplicated (ACK/re-send storms). **Splunk:** Use message control ID in `props` to drop duplicates; PHI handling—minimize patient identifiers in analytics indexes.
 - **Visualization:** Stacked area (census by unit), Line chart (admits vs discharges), Table (units at capacity).
 - **CIM Models:** N/A
 
@@ -993,7 +994,7 @@ index=healthcare sourcetype="edis:event"
 | stats avg(door_to_provider_min) as avg_wait, perc95(door_to_provider_min) as p95_wait, avg(total_los_min) as avg_los by _time
 | table _time, avg_wait, p95_wait, avg_los
 ```
-- **Implementation:** Integrate EDIS timestamps for triage, provider evaluation, and disposition. Track door-to-provider time as key metric. Alert when wait times exceed CMS benchmarks. Correlate with arrival volume and staffing.
+- **Implementation:** Integrate EDIS timestamps for triage, provider evaluation, and disposition. Track door-to-provider time as key metric. Alert when wait times exceed CMS benchmarks. Correlate with arrival volume and staffing. **Domain context:** ED crowding metrics tie to quality programs (e.g. left-without-being-seen); triage level (ESI) should filter comparisons. **Splunk:** `triage_time`/`provider_time` must share timezone and epoch representation—validate with `strptime` if string-formatted.
 - **Visualization:** Line chart (wait time trend), Gauge (current avg wait), Bar chart (wait by acuity level).
 - **CIM Models:** N/A
 
@@ -1015,7 +1016,7 @@ index=healthcare sourcetype="or:schedule"
 | eval utilization_pct=round((avg_case*cases)/((avg_case+avg_turnover)*cases)*100,1)
 | table or_room, cases, avg_case, avg_turnover, utilization_pct
 ```
-- **Implementation:** Ingest OR scheduling and tracking data. Calculate prime time utilization and turnover metrics. Identify rooms with excessive turnover for process improvement. Report weekly for surgical services leadership.
+- **Implementation:** Ingest OR scheduling and tracking data. Calculate prime time utilization and turnover metrics. Identify rooms with excessive turnover for process improvement. Report weekly for surgical services leadership. **Domain context:** Block utilization vs staffed hours differs—use `or_room` master data for staffed hours if available. **Splunk:** The sample `utilization_pct` is a rough heuristic; prefer block minutes scheduled vs used from the scheduling system when possible.
 - **Visualization:** Bar chart (utilization by room), Line chart (turnover trend), Table (room performance).
 - **CIM Models:** N/A
 
@@ -1037,7 +1038,7 @@ index=healthcare sourcetype="cmms:biomed"
 | sort - overdue_count
 | table risk_level, overdue_count
 ```
-- **Implementation:** Integrate CMMS biomedical work orders. Track PM completion rates by risk level and department. Alert on overdue high-risk equipment. Generate compliance dashboards for accreditation readiness.
+- **Implementation:** Integrate CMMS biomedical work orders. Track PM completion rates by risk level and department. Alert on overdue high-risk equipment. Generate compliance dashboards for accreditation readiness. **Domain context:** Joint Commission EC.02.04.01 and related CMS expectations reference equipment risk stratification and PM completion. **Splunk:** `pm_due_date` comparisons must be epoch-aligned; `now()` uses search-time TZ.
 - **Visualization:** Gauge (PM compliance %), Bar chart (overdue by risk level), Table (overdue equipment).
 - **CIM Models:** N/A
 
@@ -1065,7 +1066,7 @@ index=healthcare sourcetype="mar:record"
 | sort - count
 | table issue, med_name, count
 ```
-- **Implementation:** Parse MAR events from EHR. Compare scheduled vs actual administration times. Flag missed, held, and significantly late administrations. Report to nursing leadership and pharmacy for investigation.
+- **Implementation:** Parse MAR events from EHR. Compare scheduled vs actual administration times. Flag missed, held, and significantly late administrations. Report to nursing leadership and pharmacy for investigation. **Domain context:** MAR variance is a patient safety signal; align with ISMP guidelines and high-alert medication lists. **Splunk:** Use `lookup` for high-alert meds; avoid exposing patient identifiers in shared dashboards.
 - **Visualization:** Pie chart (issue distribution), Table (top discrepancies by medication), Timeline (missed doses).
 - **CIM Models:** N/A
 
@@ -1086,7 +1087,7 @@ index=healthcare sourcetype="telehealth:session"
 | sort - poor_sessions
 | table provider_id, poor_sessions, avg_video, avg_audio
 ```
-- **Implementation:** Integrate telehealth platform quality metrics via API. Track session quality by provider and patient location. Correlate with network conditions. Alert on sustained quality degradation.
+- **Implementation:** Integrate telehealth platform quality metrics via API. Track session quality by provider and patient location. Correlate with network conditions. Alert on sustained quality degradation. **Domain context:** Audio/video quality and disconnects affect telehealth efficacy; some payers track quality as part of digital health programs. **Splunk:** Aggregate at provider level only; avoid patient location precision that violates privacy.
 - **Visualization:** Line chart (quality scores over time), Bar chart (poor sessions by provider), Table (session details).
 - **CIM Models:** N/A
 
@@ -1107,7 +1108,7 @@ index=healthcare sourcetype="cds:query"
 | where p95_ms > 500
 | table _time, rule_id, avg_ms, p95_ms, count
 ```
-- **Implementation:** Instrument CDS engine with response time logging. Track by rule type and clinical context. Optimize slow rules that impact order entry workflows. Alert when latency exceeds clinical usability thresholds.
+- **Implementation:** Instrument CDS engine with response time logging. Track by rule type and clinical context. Optimize slow rules that impact order entry workflows. Alert when latency exceeds clinical usability thresholds. **Domain context:** CDS Hooks / SMART targets sub-second response for interruptive alerts in some workflows; batch analytics rules differ. **Splunk:** Separate interruptive vs background CDS if `rule_id` encodes workflow type.
 - **Visualization:** Line chart (response time by rule), Heatmap (rule × time), Table (slowest rules).
 - **CIM Models:** N/A
 
@@ -1136,7 +1137,7 @@ index=logistics sourcetype="gps:telematics"
 | stats earliest(_time) as entered, latest(_time) as last_seen, avg(speed_kmh) as avg_speed by vehicle_id, boundary_name
 | table vehicle_id, boundary_name, entered, last_seen, avg_speed
 ```
-- **Implementation:** Ingest GPS data at 30-60 second intervals. Define geofences as lookup tables. Alert on boundary violations, after-hours movement, and unauthorized stops. Correlate with driver assignment.
+- **Implementation:** Ingest GPS data at 30-60 second intervals. Define geofences as lookup tables. Alert on boundary violations, after-hours movement, and unauthorized stops. Correlate with driver assignment. **Domain context:** DOT hours-of-service and privacy rules (driver personal vehicle use) may limit monitoring scope—align geofences with depots, yards, and job sites per policy. **Splunk:** Maintain `geofence_boundaries` as a KV/lookup with `allowed` and refresh when routes change; `lookup` requires `geofence_id` on each event—compute at index time if the platform only sends lat/long.
 - **Visualization:** Map (vehicle positions with geofences), Table (violations), Timeline (vehicle movements).
 - **CIM Models:** N/A
 
@@ -1160,7 +1161,7 @@ index=logistics sourcetype="gps:telematics"
 | sort score
 | table driver_id, score, speed_events, harsh_events, total_idle_min
 ```
-- **Implementation:** Ingest telematics events with driving behavior flags. Calculate composite scores weekly. Provide driver coaching based on trends. Share top performers and improvement areas.
+- **Implementation:** Ingest telematics events with driving behavior flags. Calculate composite scores weekly. Provide driver coaching based on trends. Share top performers and improvement areas. **Domain context:** Fleet safety programs often align with CSA SMS categories (speeding, harsh brake); scoring weights should be validated with risk/legal. **Splunk:** `harsh_brake` string vs numeric—normalize in `props`; scoring is illustrative—tune weights per fleet.
 - **Visualization:** Bar chart (scores by driver), Line chart (score trend), Table (detailed events).
 - **CIM Models:** N/A
 
@@ -1182,7 +1183,7 @@ index=logistics sourcetype="fuel:consumption"
 | where z_score > 2
 | table vehicle_id, fuel_rate, fleet_avg, z_score, distance_km
 ```
-- **Implementation:** Normalize fuel consumption by distance and load. Baseline per vehicle type. Alert on sustained deviations. Correlate with maintenance records and route data.
+- **Implementation:** Normalize fuel consumption by distance and load. Baseline per vehicle type. Alert on sustained deviations. Correlate with maintenance records and route data. **Domain context:** Fuel theft and inefficient routing show as outliers; `vehicle_type` should feed `eventstats`—without it, mixed fleets skew z-scores. **Splunk:** Ensure `distance_km` > 0 excludes idling-only rows or `fuel_rate` explodes.
 - **Visualization:** Scatter plot (fuel rate vs distance), Bar chart (outliers), Line chart (fuel rate trend).
 - **CIM Models:** N/A
 
@@ -1203,7 +1204,7 @@ index=logistics sourcetype="obd2:dtc"
 | sort - count
 | table vehicle_id, dtc_code, descriptions, severity, count, last_seen
 ```
-- **Implementation:** Ingest DTC codes from fleet telematics. Prioritize by severity. Generate automated maintenance work orders for critical codes. Track recurring DTCs by vehicle and fleet-wide.
+- **Implementation:** Ingest DTC codes from fleet telematics. Prioritize by severity. Generate automated maintenance work orders for critical codes. Track recurring DTCs by vehicle and fleet-wide. **Domain context:** SAE J2012 defines OBD-II DTC formats; emissions-related codes may have regulatory implications—map `dtc_code` to OEM descriptions via lookup. **Splunk:** DTCs can latch until cleared—dedupe by `vehicle_id`+`dtc_code` with `latest(_time)` for active fault panels.
 - **Visualization:** Table (active DTCs), Bar chart (DTCs by code), Timeline (DTC occurrences).
 - **CIM Models:** N/A
 
@@ -1224,7 +1225,7 @@ index=logistics sourcetype="crane:cycle"
 | eval moves_per_hour=moves
 | table _time, crane_id, avg_cycle, p95_cycle, moves_per_hour
 ```
-- **Implementation:** Capture crane PLM (Position Location Measurement) data. Calculate gross and net crane rates. Compare operators and shifts. Identify delays from vessel configuration and weather.
+- **Implementation:** Capture crane PLM (Position Location Measurement) data. Calculate gross and net crane rates. Compare operators and shifts. Identify delays from vessel configuration and weather. **Domain context:** Port productivity is often measured in moves per hour (MPH) per crane and ship working rate—weather and twin lifts materially affect cycle time. **Splunk:** `moves_per_hour` in the sample equals `count` per bin—rename to `moves_in_bin` unless you normalize to hourly rate explicitly.
 - **Visualization:** Line chart (cycle time trend), Bar chart (MPH by crane), Table (shift performance).
 - **CIM Models:** N/A
 
@@ -1245,7 +1246,7 @@ index=logistics sourcetype="rail:signal"
 | sort - count
 | table signal_id, location, fault_codes, count, last_fault
 ```
-- **Implementation:** Integrate signaling system diagnostic logs. Alert on persistent faults and degraded modes. Track mean time between failures by signal type. Report for infrastructure maintenance planning.
+- **Implementation:** Integrate signaling system diagnostic logs. Alert on persistent faults and degraded modes. Track mean time between failures by signal type. Report for infrastructure maintenance planning. **Domain context:** Rail signaling architectures vary (CBTC, ETCS, legacy relay interlocking); safety-critical alerts belong in the wayside/ATP system of record—Splunk is for diagnostics and trend, not interlocking. **Splunk:** Restrict access; avoid exposing safety-critical topology in shared dashboards.
 - **Visualization:** Map (signal status by location), Table (faulted signals), Timeline (fault history).
 - **CIM Models:** N/A
 
@@ -1266,7 +1267,7 @@ index=logistics sourcetype="bhs:throughput"
 | where jams > 0 OR diverts > 5
 | table _time, lane_id, total_bags, jams, diverts
 ```
-- **Implementation:** Ingest BHS SCADA events for bag counts, jams, and screening diversions. Track throughput by lane and terminal. Alert on sustained throughput drops or jam accumulation. Correlate with flight schedules.
+- **Implementation:** Ingest BHS SCADA events for bag counts, jams, and screening diversions. Track throughput by lane and terminal. Alert on sustained throughput drops or jam accumulation. Correlate with flight schedules. **Domain context:** IATA RP 1745 defines BSM messaging; throughput and jam metrics tie to MHB (mishandled baggage) programs. **Splunk:** `bags_per_hour` field naming may be ambiguous—confirm whether source provides hourly aggregates or per-sample rates before summing.
 - **Visualization:** Line chart (throughput trend), Bar chart (jams by lane), Table (performance summary).
 - **CIM Models:** N/A
 
@@ -1289,7 +1290,7 @@ index=logistics sourcetype="wms:order"
 | sort accuracy_pct
 | table zone, picker_id, accuracy_pct, total_picks
 ```
-- **Implementation:** Capture pick confirmation events from WMS. Calculate accuracy rates by zone and picker. Alert on accuracy below threshold. Identify systemic issues vs individual training needs.
+- **Implementation:** Capture pick confirmation events from WMS. Calculate accuracy rates by zone and picker. Alert on accuracy below threshold. Identify systemic issues vs individual training needs. **Domain context:** Pick accuracy impacts OTIF and returns; voice-pick and scan-to-light systems have different baseline error modes. **Splunk:** `stats avg(correct)` on binary picks yields accuracy per aggregation grain—ensure enough `total_picks` per cell before ranking pickers.
 - **Visualization:** Bar chart (accuracy by zone), Table (picker performance), Gauge (overall accuracy).
 - **CIM Models:** N/A
 
@@ -1312,7 +1313,7 @@ index=logistics sourcetype="delivery:event" status="delivered"
 | eval otd_pct=round(otd_rate*100,2)
 | table _time, deliveries, otd_pct, avg_late_min
 ```
-- **Implementation:** Integrate delivery completion events with promised timestamps. Calculate on-time delivery percentage daily. Alert on drops below SLA threshold. Analyze late deliveries by route and driver.
+- **Implementation:** Integrate delivery completion events with promised timestamps. Calculate on-time delivery percentage daily. Alert on drops below SLA threshold. Analyze late deliveries by route and driver. **Domain context:** Last-mile SLAs often exclude force majeure; “promised_time” may be customer slot vs carrier internal SLA—document definitions. **Splunk:** `actual_time` and `promised_time` must be epoch-consistent; `status="delivered"` should exclude cancelled/returned.
 - **Visualization:** Line chart (OTD trend), Gauge (current OTD %), Bar chart (late deliveries by reason).
 - **CIM Models:** N/A
 
@@ -1335,7 +1336,7 @@ index=logistics sourcetype="coldchain:transit"
 | eval duration_min=round((end-start)/60,1)
 | table shipment_id, start, end, duration_min, max_dev
 ```
-- **Implementation:** Tag readings with shipment and setpoint. Escalate by duration and deviation magnitude. Integrate with claims and receiver QA for traceability.
+- **Implementation:** Tag readings with shipment and setpoint. Escalate by duration and deviation magnitude. Integrate with claims and receiver QA for traceability. **Domain context:** FDA FSMA and EU GDP for pharma/food logistics often require excursion investigation and disposition—retain evidence per policy. **Splunk:** Same pattern as healthcare cold chain—use product-specific lookups for `setpoint_c`/`tolerance_c` when mixed loads.
 - **Visualization:** Time series (temp vs bounds), Table (excursions), Duration chart.
 - **CIM Models:** N/A
 
@@ -1356,7 +1357,7 @@ index=logistics sourcetype="container:dwell"
 | sort - p95_dwell
 | table facility, avg_dwell, p95_dwell, max_dwell
 ```
-- **Implementation:** Define dwell from ingate to outgate. Compare rail vs truck facilities. Target reduction projects at high-p95 sites.
+- **Implementation:** Define dwell from ingate to outgate. Compare rail vs truck facilities. Target reduction projects at high-p95 sites. **Domain context:** Demurrage/detention charges incentivize dwell reduction; intermodal metrics often feed into shipper scorecards (OTIF). **Splunk:** If `dwell_hours` is snapshot, not event-derived, confirm refresh cadence to avoid stale rankings.
 - **Visualization:** Bar chart (p95 by facility), Histogram (dwell distribution), Trend of avg dwell.
 - **CIM Models:** N/A
 
@@ -1379,7 +1380,7 @@ index=logistics sourcetype="tms:sensor"
 | where avail_pct < 95
 | table sensor_id, avail_pct
 ```
-- **Implementation:** Monitor sensor heartbeats. Tune stale threshold per sensor class. Alert maintenance when availability drops below target.
+- **Implementation:** Monitor sensor heartbeats. Tune stale threshold per sensor class. Alert maintenance when availability drops below target. **Domain context:** ATMS data feeds ITS and traveler information systems—stale speed/occupancy sensors degrade routing algorithms and public-facing travel times. **Splunk:** `stats avg(online)` across all rows per sensor assumes one row per poll—if multiple rows per sensor per bucket, use `latest(online)` or `timechart` instead.
 - **Visualization:** Map (sensor status), Table (offline sensors), Time chart (online %).
 - **CIM Models:** N/A
 
@@ -1408,7 +1409,7 @@ index=ot sourcetype="pipeline:pressure"
 | where dev_p > 15 OR flow_bbl_h < med_f*0.5 OR flow_bbl_h > med_f*1.5
 | stats latest(pressure_psi) as pressure, latest(flow_bbl_h) as flow, latest(med_p) as expected_p by segment_id
 ```
-- **Implementation:** Ingest high-resolution historian samples. Tune thresholds per segment. Route findings to the control room. Do not use Splunk alone for automatic shutdown.
+- **Implementation:** Ingest high-resolution historian samples. Tune thresholds per segment. Route findings to the control room. Do not use Splunk alone for automatic shutdown. **Domain context:** Pipeline leak detection often combines pressure/flow with SCADA leak detection systems and regulatory PHMSA reporting—analytics here support operations, not primary safety instrumented functions. **Splunk:** `eventstats median` is sensitive to outliers—consider robust baselines per `segment_id` seasonally; validate field units (PSI vs barg).
 - **Visualization:** Time chart (pressure and flow), Anomaly overlay, Segment map.
 - **CIM Models:** N/A
 
@@ -1431,7 +1432,7 @@ index=ot sourcetype="wellhead:telemetry"
 | sort - gap_sec
 | table well_id, last_seen, gap_min
 ```
-- **Implementation:** Include expected interval on each event or use 3x scan rate as threshold. Verify against planned shutdowns via a maintenance lookup.
+- **Implementation:** Include expected interval on each event or use 3x scan rate as threshold. Verify against planned shutdowns via a maintenance lookup. **Domain context:** Wellhead SCADA gaps can mask unsafe operating conditions or production loss—align thresholds with RTU poll schedule (minutes vs seconds). **Splunk:** `now()-last_seen` in scheduled searches uses search time; use `latest(_time)` from a summarization for fleet-wide freshness.
 - **Visualization:** Table (wells by gap), Single value (stale well count), Timeline (last seen).
 - **CIM Models:** N/A
 
@@ -1449,7 +1450,7 @@ index=ot sourcetype="wellhead:telemetry"
 index=ot sourcetype="compressor:vibration"
 | timechart span=1h avg(vibration_mm_s) as avg_vib, perc95(vibration_mm_s) as p95_vib by asset_id
 ```
-- **Implementation:** Align units with your vibration program. Set rising-rate alerts against maintenance baselines. Compare bearing locations on the same train for imbalance context.
+- **Implementation:** Align units with your vibration program. Set rising-rate alerts against maintenance baselines. Compare bearing locations on the same train for imbalance context. **Domain context:** API 670 / ISO 10816 severity zones apply to rotating equipment—gas compressors may have multiple casings; trend relative change, not only absolute mm/s. **Splunk:** `timechart` alone has no alert—wrap in saved search or use `predict`/MLTK for sustained rise if desired.
 - **Visualization:** Multi-series time chart, Heatmap (asset × week), Threshold bands.
 - **CIM Models:** N/A
 
@@ -1471,7 +1472,7 @@ index=ot sourcetype="flare:event"
 | sort - hours_flared
 | table site_id, day, flare_events, hours_flared
 ```
-- **Implementation:** Normalize flare start/stop events. Validate volume methods against regulatory calculation approach. Join wind or process tags for correlation.
+- **Implementation:** Normalize flare start/stop events. Validate volume methods against regulatory calculation approach. Join wind or process tags for correlation. **Domain context:** Flaring reports often tie to air permits and GHG inventories (e.g. EPA flare monitoring requirements where applicable); mass balance vs duration-based estimates must match compliance methodology. **Splunk:** Deduplicate start/stop pairs; `duration_min` summation assumes one event per period—validate for overlapping flares.
 - **Visualization:** Time chart (flare hours), Stacked bar by site, Correlation panel with permit limits.
 - **CIM Models:** N/A
 
@@ -1490,7 +1491,7 @@ index=ot sourcetype="process:throughput"
 | eval rate_ratio=round(tph/nullif(target_tph,0)*100,1)
 | timechart span=15m avg(tph) as avg_tph, avg(rate_ratio) as pct_of_target by line_id
 ```
-- **Implementation:** Align tph with shift plans. Alert when sustained underperformance indicates blockage or wear. Share outputs with metallurgy and maintenance planning.
+- **Implementation:** Align tph with shift plans. Alert when sustained underperformance indicates blockage or wear. Share outputs with metallurgy and maintenance planning. **Domain context:** Comminution circuits are energy-intensive; throughput drops may correlate with ore hardness—join geology blends when available. **Splunk:** `timechart` outputs are visualization-friendly; add `where` in a post-process for alerting on `pct_of_target`.
 - **Visualization:** Time chart (tph vs target), Gauge (utilization), Bar by shift.
 - **CIM Models:** N/A
 
@@ -1512,7 +1513,7 @@ index=ot sourcetype="haultruck:telematics"
 | sort - total_payload
 | table truck_id, total_payload, total_hours, tons_per_hour
 ```
-- **Implementation:** Ingest load cycles with valid payload. Reconcile with scale house periodically. Use engine hours for maintenance scheduling alongside production KPIs.
+- **Implementation:** Ingest load cycles with valid payload. Reconcile with scale house periodically. Use engine hours for maintenance scheduling alongside production KPIs. **Domain context:** Mining production metrics often reconcile truck counts with shovel/fleet management systems—empty haul vs loaded haul should be modeled. **Splunk:** `loaded=1 OR lower(loaded)="true"` covers string/boolean variants; confirm with telematics vendor.
 - **Visualization:** Bar chart (payload by truck), Scatter (hours vs tons), Fleet summary.
 - **CIM Models:** N/A
 
@@ -1534,7 +1535,7 @@ index=ot sourcetype="drillrig:sensor"
 | where health_pct < 99
 | table rig_id, channel, health_pct
 ```
-- **Implementation:** Tune value_age_sec threshold per channel type. Alert the rig supervisor when channels degrade. Align with planned rig maintenance.
+- **Implementation:** Tune value_age_sec threshold per channel type. Alert the rig supervisor when channels degrade. Align with planned rig maintenance. **Domain context:** Drilling instrumentation supports MWD/LWD and well control awareness—loss of WOB/RPM/torque channels can indicate surface or downhole sensor faults. **Splunk:** `stats avg(ok)` assumes evenly spaced samples—prefer `timechart` + fill for irregular logger intervals.
 - **Visualization:** Matrix (rig × channel), Time chart (stale count), Table (bad channels).
 - **CIM Models:** N/A
 
@@ -1554,7 +1555,7 @@ index=ot sourcetype="sis:trip"
 | sort - trips
 | table demand_type, trips, loops_affected, causes
 ```
-- **Implementation:** Apply strict change control on parsers. Use for post-event analysis and trending trip rates per loop. Never bypass safety systems from analytics.
+- **Implementation:** Apply strict change control on parsers. Use for post-event analysis and trending trip rates per loop. Never bypass safety systems from analytics. **Domain context:** IEC 61511 / ISA-84 lifecycle applies to SIS; nuisance vs demand trips should be classified for SIL verification—Splunk supports investigation, not SIL calculations alone. **Splunk:** Restrict `sis:trip` data; partner with functional safety team on definitions of `demand_type`.
 - **Visualization:** Bar chart (trips by cause), Timeline, Pareto of loops.
 - **CIM Models:** N/A
 
@@ -1575,7 +1576,7 @@ index=ot sourcetype="effluent:monitor"
 | stats earliest(_time) as first_exceed, max(value_mg_l) as peak_value by outfall_id, parameter
 | table outfall_id, parameter, first_exceed, peak_value, limit_mg_l
 ```
-- **Implementation:** Align sampling frequency with permit requirements. Add separate searches for daily max vs monthly average if your permit uses both formats.
+- **Implementation:** Align sampling frequency with permit requirements. Add separate searches for daily max vs monthly average if your permit uses both formats. **Domain context:** NPDES-type permits specify limits, averaging periods, and bypass reporting—mirror legal definitions in Splunk (instantaneous vs composite samples). **Splunk:** `exceed=1` per row may over-count—use duration above limit for chronic breaches.
 - **Visualization:** Time chart (value vs limit), Alert table, Gauge (margin to limit).
 - **CIM Models:** N/A
 
@@ -1597,7 +1598,7 @@ index=ot sourcetype="tankfarm:level"
 | sort - current_level
 | table tank_id, current_level, fill_rate
 ```
-- **Implementation:** Keep primary alarms in BPCS/SIS. Splunk provides visibility and trending. Add roof and temperature for floating-roof tanks if available.
+- **Implementation:** Keep primary alarms in BPCS/SIS. Splunk provides visibility and trending. Add roof and temperature for floating-roof tanks if available. **Domain context:** API 2350 / EEMUA 159 inform tank overfill prevention; high-high alarms and independent layers remain on the SIS—Splunk is supplementary visibility. **Splunk:** `eval risk` thresholds should match alarm setpoints from the tank table, not arbitrary constants, for consistency.
 - **Visualization:** Tank-style gauge, Time chart (level), Trend (fill rate).
 - **CIM Models:** N/A
 
@@ -1620,7 +1621,7 @@ index=ot sourcetype="cp:reading"
 | where pct_protected < 95
 | table test_point_id, pct_protected
 ```
-- **Implementation:** Confirm sign convention for your CP system. Alert on sustained under-protection. Survey intervals may be daily.
+- **Implementation:** Confirm sign convention for your CP system. Alert on sustained under-protection. Survey intervals may be daily. **Domain context:** NACE/ISO standards define CP criteria (e.g. −850 mV CSE for steel)—criteria vary by coating and environment; engineering must validate `min_protect_v`. **Splunk:** `pct_protected` from `avg(protected)` assumes one row per interval per test point—verify sampling frequency.
 - **Visualization:** Map (test points), Time chart (potential), Table (under-protected sites).
 - **CIM Models:** N/A
 
@@ -1643,7 +1644,7 @@ index=ot sourcetype="seismic:data"
 | where pass_pct < 98
 | table station_id, pass_pct
 ```
-- **Implementation:** Baseline SNR thresholds by site noise. Alert on missing traces or repeated gaps. Support field crew dispatch for sensor issues.
+- **Implementation:** Baseline SNR thresholds by site noise. Alert on missing traces or repeated gaps. Support field crew dispatch for sensor issues. **Domain context:** Seismic acquisition QC ties to contract specifications for mineral exploration or induced seismicity monitoring—completeness and SNR thresholds are survey-specific. **Splunk:** `pass_rate` from `avg(quality_ok)` needs representative event granularity; dedupe traces if ingested per file.
 - **Visualization:** Time chart (completeness), SNR distribution, Station ranking table.
 - **CIM Models:** N/A
 
@@ -1673,7 +1674,7 @@ index=retail sourcetype="pos:transaction"
 | eval breach=if(p95_ms>2000,"p95","avg")
 | table _time, store_id, terminal_id, avg_ms, p95_ms, txn_count, breach
 ```
-- **Implementation:** Ingest authorization round-trip times from the POS middleware or switch logs via HEC; normalize milliseconds and exclude void-only events. Schedule alerts for sustained breaches and drill down by VLAN or terminal firmware version using optional lookups.
+- **Implementation:** Ingest authorization round-trip times from the POS middleware or switch logs via HEC; normalize milliseconds and exclude void-only events. Schedule alerts for sustained breaches and drill down by VLAN or terminal firmware version using optional lookups. **Domain context:** Card-present authorization latency ties to EMV kernel, host connectivity, and store LAN—PCI DSS scope still applies to log collection (segment networks, minimize PAN in logs). **Splunk:** Exclude or tokenize cardholder data; index `terminal_id` + `store_id` only.
 - **Visualization:** Time chart (avg vs p95 by terminal), Heatmap (store × hour), Table (worst terminals).
 - **CIM Models:** N/A
 
@@ -1695,7 +1696,7 @@ index=retail sourcetype="selfcheckout:event"
 | where error_rate > 8 OR total_ev < 5
 | table _time, store_id, lane_id, total_ev, err_ev, error_rate
 ```
-- **Implementation:** Map kiosk heartbeat and transaction error streams into a single sourcetype; use `error_code` only when present. Tune thresholds by store format (grocery vs big-box). Route alerts to store ops and vendor support queues.
+- **Implementation:** Map kiosk heartbeat and transaction error streams into a single sourcetype; use `error_code` only when present. Tune thresholds by store format (grocery vs big-box). Route alerts to store ops and vendor support queues. **Domain context:** SCO interventions are a major labor and shrink discussion point—high `error_rate` often correlates with scale, age-gate, or item recognition issues. **Splunk:** `total_ev < 5` flags low-traffic lanes—tune or filter to avoid noise on quiet stores.
 - **Visualization:** Bar chart (error rate by lane), Stacked area (errors vs total events), Single value (lanes over threshold).
 - **CIM Models:** N/A
 
@@ -1717,7 +1718,7 @@ index=retail sourcetype="wifi:controller"
 | where fails > 20 OR max_cpu > 85 OR fail_rate > 2
 | table _time, store_id, ap_name, fails, avg_clients, max_cpu, fail_rate
 ```
-- **Implementation:** Normalize vendor-specific fields in props/transforms; retain `ap_name` and `store_id` on every sample. Alert on controller CPU and on APs with repeated association failures compared to peers in the same store.
+- **Implementation:** Normalize vendor-specific fields in props/transforms; retain `ap_name` and `store_id` on every sample. Alert on controller CPU and on APs with repeated association failures compared to peers in the same store. **Domain context:** Guest Wi-Fi and mPOS share airtime—high `assoc_failures` during promotions may be RF contention, not controller fault. **Splunk:** `fail_rate` uses fails per avg_clients—validate denominator when client counts are sampled sparsely.
 - **Visualization:** Time chart (assoc failures), Status grid (AP health), Line chart (controller CPU).
 - **CIM Models:** N/A
 
@@ -1742,7 +1743,7 @@ index=retail sourcetype="foottraffic:sensor"
 | where ratio < 0.5 OR ratio > 1.8
 | table _time, store_id, zone_id, entries, exits, med_ent, ratio
 ```
-- **Implementation:** Align counts to store local time and exclude maintenance windows via a lookup. Compare same day-of-week baselines; investigate zones with sudden drops (blocked sensor) or spikes (configuration error).
+- **Implementation:** Align counts to store local time and exclude maintenance windows via a lookup. Compare same day-of-week baselines; investigate zones with sudden drops (blocked sensor) or spikes (configuration error). **Domain context:** People-counting is used for labor scheduling and lease performance—GDPR/CCPA may apply if combined with identifiers; use aggregates only. **Splunk:** `eventstats median` needs several weeks of history for stable `med_ent` per `dow`/`hr`.
 - **Visualization:** Time chart (entries by zone), Heatmap (store × hour), Bar chart (week-over-week delta).
 - **CIM Models:** N/A
 
@@ -1767,7 +1768,7 @@ index=retail sourcetype="bopis:order" status="fulfilled"
 | eval avg_min=round(avg_sec/60,1), p95_min=round(p95_sec/60,1)
 | table _time, store_id, orders, avg_min, p95_min
 ```
-- **Implementation:** Ensure `placed_epoch` and `ready_epoch` share a common clock (UTC). Join `order_id` to cancellation reasons in a separate search if needed. Tune SLA minutes per retail banner; alert operations when p95 exceeds the published pickup promise.
+- **Implementation:** Ensure `placed_epoch` and `ready_epoch` share a common clock (UTC). Join `order_id` to cancellation reasons in a separate search if needed. Tune SLA minutes per retail banner; alert operations when p95 exceeds the published pickup promise. **Domain context:** BOPIS/curbside SLAs are competitive differentiators; peak days need dynamic staffing models not static thresholds. **Splunk:** Filter `status="fulfilled"` excludes cancelled—add parallel panel for cancellations.
 - **Visualization:** Histogram (cycle time distribution), Time chart (avg vs p95), Table (stores breaching SLA).
 - **CIM Models:** N/A
 
@@ -1790,7 +1791,7 @@ index=retail sourcetype="ecom:checkout"
 | sort step_name, _time
 | table _time, step_name, n, avg_ms, p95_ms
 ```
-- **Implementation:** Instrument each funnel step with consistent `step_name` values. Filter bots via a flag if present. Use side-by-side panels for web vs mobile app sessions if `channel` exists.
+- **Implementation:** Instrument each funnel step with consistent `step_name` values. Filter bots via a flag if present. Use side-by-side panels for web vs mobile app sessions if `channel` exists. **Domain context:** Checkout latency impacts cart abandonment; payment and tax steps often dominate—segment accordingly. **Splunk:** `http_status < 400` removes errors from latency stats—track 5xx in a companion search for completeness.
 - **Visualization:** Time chart (p95 by step), Bar chart (step ranking), Funnel diagram (conversion counts, separate panel).
 - **CIM Models:** N/A
 
@@ -1813,7 +1814,7 @@ index=retail sourcetype="inventory:reorder"
 | where bad_pct > 10 OR hit_rate < 60
 | table store_id, evals, hits, hit_rate, bad_triggers, bad_pct
 ```
-- **Implementation:** Snapshot replenishment evaluations daily or per batch run. Join promotional calendars to explain expected volatility. Feed findings to supply-chain analysts to tune safety stock parameters.
+- **Implementation:** Snapshot replenishment evaluations daily or per batch run. Join promotional calendars to explain expected volatility. Feed findings to supply-chain analysts to tune safety stock parameters. **Domain context:** Inventory accuracy (cycle counting) feeds replenishment quality—bad on-hand data drives false `bad_triggers`. **Splunk:** `overshoot` heuristic is illustrative; align with your IMS logic for phantom suggestions.
 - **Visualization:** Scatter (on_hand vs reorder_point), Bar chart (bad trigger % by store), Table (SKUs with repeated misfires).
 - **CIM Models:** N/A
 
@@ -1837,7 +1838,7 @@ index=retail sourcetype="store:energy"
 | where energy_ratio > 1.35 OR avg_temp < 65 OR avg_temp > 78
 | table _time, store_id, kwh_h, med_kwh, energy_ratio, avg_temp, modes
 ```
-- **Implementation:** Align BMS points to store open hours via lookup. Exclude demand-response events if tagged. Pair with foot traffic from `foottraffic:sensor` in a dashboard for joint review.
+- **Implementation:** Align BMS points to store open hours via lookup. Exclude demand-response events if tagged. Pair with foot traffic from `foottraffic:sensor` in a dashboard for joint review. **Domain context:** Retail energy intensity (kWh/ft²) appears in sustainability reporting (GRESB, CDP)—document methodology. **Splunk:** `eventstats median(kwh_h)` by `wday`/`hour` needs seasonal refresh for weather shifts.
 - **Visualization:** Time chart (kWh vs baseline), Line chart (zone temp vs OA temp), Bar chart (energy ratio by store).
 - **CIM Models:** N/A
 
@@ -1860,7 +1861,7 @@ index=retail sourcetype="signage:health"
 | where health_pct < 95
 | table store_id, player_id, health_pct
 ```
-- **Implementation:** Standardize `download_status` across vendors. Alert when players miss sync for longer than the campaign refresh interval. Group by region for NOC-style triage.
+- **Implementation:** Standardize `download_status` across vendors. Alert when players miss sync for longer than the campaign refresh interval. Group by region for NOC-style triage. **Domain context:** Promotional compliance often requires proof-of-play; failed syncs can breach vendor agreements in franchise networks. **Splunk:** `now()-last_sync_epoch` must use the same clock as the player—prefer player-reported epoch to search `now()`.
 - **Visualization:** Status grid (player × store), Single value (unhealthy %), Timeline (failed downloads).
 - **CIM Models:** N/A
 
@@ -1883,7 +1884,7 @@ index=retail sourcetype="mpos:device"
 | sort store_id, - max_age
 | table store_id, device_id, batt, rssi, max_age
 ```
-- **Implementation:** Ingest periodic telemetry from MDM or the payment app SDK. Map `device_id` to assigned associate in a lookup for dispatch. Exclude devices in charging cradles if `docked` is available.
+- **Implementation:** Ingest periodic telemetry from MDM or the payment app SDK. Map `device_id` to assigned associate in a lookup for dispatch. Exclude devices in charging cradles if `docked` is available. **Domain context:** mPOS reliability affects peak-hour throughput; PCI and labor policies may govern device reassignment workflows. **Splunk:** `now()-last_seen_epoch` on stale devices—confirm MDM poll interval to avoid false offline.
 - **Visualization:** Table (at-risk devices), Histogram (battery distribution), Map (store locations if lat/long present).
 - **CIM Models:** N/A
 
@@ -1906,7 +1907,7 @@ index=retail sourcetype="camera:status"
 | where uptime_pct < 99
 | table store_id, camera_id, uptime_pct
 ```
-- **Implementation:** Poll or stream VMS health every minute; normalize `stream_state` vocabulary. Exclude planned maintenance windows via lookup. Escalate to LP and facilities when entire aisles show degraded uptime.
+- **Implementation:** Poll or stream VMS health every minute; normalize `stream_state` vocabulary. Exclude planned maintenance windows via lookup. Escalate to LP and facilities when entire aisles show degraded uptime. **Domain context:** Video retention policies (e.g. 30–90 days) are separate from stream health—health proves capability to capture, not retention compliance. **Splunk:** Bitrate thresholds vary by resolution/codec—tune `bitrate_kbps` per camera model.
 - **Visualization:** Heatmap (camera × hour uptime), Table (worst cameras), Single value (stores below target).
 - **CIM Models:** N/A
 
@@ -1930,7 +1931,7 @@ index=retail sourcetype="store:infra"
 | sort health
 | table _time, store_id, health, med_health, avg_pos, pos_delta, wifi_issues, kwh
 ```
-- **Implementation:** Populate `store:infra` from nightly ETL that rolls up POS, Wi-Fi, and energy KPIs per store. Keep scoring methodology documented for audit. Use for regional scorecards rather than real-time alerting unless scores refresh hourly.
+- **Implementation:** Populate `store:infra` from nightly ETL that rolls up POS, Wi-Fi, and energy KPIs per store. Keep scoring methodology documented for audit. Use for regional scorecards rather than real-time alerting unless scores refresh hourly. **Domain context:** Multi-site benchmarking supports capital allocation (remodel vs close)—ensure `health_score` weighting is agreed with finance and ops. **Splunk:** `eventstats median` across stores on the same `_time` bucket compares peers—watch for missing data skewing medians.
 - **Visualization:** Bar chart (health score by store), Box plot (score distribution), Table (bottom quartile stores).
 - **CIM Models:** N/A
 
@@ -1961,7 +1962,7 @@ index=airport sourcetype="airport:baggage"
 | where misroute_pct > 2 OR bags < 50
 | table _time, belt_id, bags, misroutes, misroute_pct
 ```
-- **Implementation:** Parse BSM/BUM messages or vendor XML into normalized fields. Validate `sort_destination` against flight plan lookups when available. Alert BHS control for sustained misroute rates above SLA.
+- **Implementation:** Parse BSM/BUM messages or vendor XML into normalized fields. Validate `sort_destination` against flight plan lookups when available. Alert BHS control for sustained misroute rates above SLA. **Domain context:** IATA RP 1745 baggage messaging; mishandled-bag KPIs drive airline contracts—misroutes also stress rescreening/recirc paths. **Splunk:** `bags < 50` filters low-volume belts—tune for small terminals.
 - **Visualization:** Time chart (bags per belt), Bar chart (misroute %), Sankey (planned vs actual sort, if supported).
 - **CIM Models:** N/A
 
@@ -1983,7 +1984,7 @@ index=airport sourcetype="airport:security"
 | eval avg_wait_min=round(avg_wait/60,1)
 | table _time, terminal_id, lane_id, avg_wait_min, max_q, avg_thr
 ```
-- **Implementation:** Ingest lidar or camera analytics exports with consistent `lane_id`. Align with airport peak bank schedules via CSV lookup. Coordinate alerts with security operations, not for access control decisions alone.
+- **Implementation:** Ingest lidar or camera analytics exports with consistent `lane_id`. Align with airport peak bank schedules via CSV lookup. Coordinate alerts with security operations, not for access control decisions alone. **Domain context:** Checkpoint wait standards vary by program (PreCheck vs standard); privacy rules limit retention of video/lidar—prefer aggregated metrics in Splunk.
 - **Visualization:** Time chart (wait time by lane), Area chart (queue depth), Heatmap (terminal × hour).
 - **CIM Models:** N/A
 
@@ -2008,7 +2009,7 @@ index=airport sourcetype="acdm:turnaround" milestone_name="ACTUAL_OFF_BLOCK"
 | sort - avg_var
 | table stand_id, late_turns, avg_var_min
 ```
-- **Implementation:** Normalize all timestamps to UTC with clear time zone fields in raw data. Join to airline handler codes if present for accountability. Use for operational review; validate calculations against the airport CDM tool of record.
+- **Implementation:** Normalize all timestamps to UTC with clear time zone fields in raw data. Join to airline handler codes if present for accountability. Use for operational review; validate calculations against the airport CDM tool of record. **Domain context:** IATA A-CDM milestones (TOBT/TSAT/ASAT/ATOT) define turnaround—ensure field mapping matches your airport’s CDM implementation. **Splunk:** `block_on`/`actual_off` must be epoch-consistent; `milestone_name` filter should match vendor strings exactly.
 - **Visualization:** Gantt-style timeline (per flight), Histogram (turnaround distribution), Table (stands with chronic variance).
 - **CIM Models:** N/A
 
@@ -2030,7 +2031,7 @@ index=airport sourcetype="airfield:vehicle"
 | where events >= 2
 | table _time, vehicle_id, events, zones
 ```
-- **Implementation:** Stream or batch position fixes; compute `breach_flag` at the edge if possible for lower latency. Use Splunk for trending and investigation; pair with SMS alerts for real-time incursion systems. Retain maps for post-incident review only with proper access controls.
+- **Implementation:** Stream or batch position fixes; compute `breach_flag` at the edge if possible for lower latency. Use Splunk for trending and investigation; pair with SMS alerts for real-time incursion systems. Retain maps for post-incident review only with proper access controls. **Domain context:** ICAO Doc 9870 / runway safety areas—incursion risk management is separate from Splunk; this UC supports SMS evidence and training. **Splunk:** Speed threshold (40 km/h) is illustrative—set per movement area policy.
 - **Visualization:** Map (vehicle positions), Timeline (breach events), Table (repeat offenders).
 - **CIM Models:** N/A
 
@@ -2052,7 +2053,7 @@ index=airport sourcetype="fids:status"
 | where uptime_pct < 99 OR max_lag > 300
 | table terminal_id, display_id, uptime_pct, max_lag
 ```
-- **Implementation:** Ingest per-display polls every minute; join `content_version` to the master feed version from a KV store or lookup. Page duty manager when entire banks of displays degrade together (network path issue).
+- **Implementation:** Ingest per-display polls every minute; join `content_version` to the master feed version from a KV store or lookup. Page duty manager when entire banks of displays degrade together (network path issue). **Domain context:** AIDX/BIX messages often back FIDS—stale sync can desynchronize gate info from airline systems—correlate with AODB when troubleshooting. **Splunk:** `online_flag` may be string—normalize with `tonumber` or `case`.
 - **Visualization:** Status grid (display × terminal), Time chart (sync lag), Single value (offline count).
 - **CIM Models:** N/A
 
@@ -2073,7 +2074,7 @@ index=airport sourcetype="airport:wifi"
 | where avg_util > 75 OR avg_retry > 15 OR max_clients > 200
 | table _time, terminal_id, ap_name, avg_util, max_clients, avg_retry
 ```
-- **Implementation:** Normalize vendor metrics to `channel_util_pct` and `retry_rate_pct`. Compare concourse peers; exclude maintenance SSIDs. Correlate with passenger counts from `terminal:flow` when available.
+- **Implementation:** Normalize vendor metrics to `channel_util_pct` and `retry_rate_pct`. Compare concourse peers; exclude maintenance SSIDs. Correlate with passenger counts from `terminal:flow` when available. **Domain context:** High-density Wi-Fi (802.11ax) in terminals is interference-limited—`channel_util_pct` above ~75% often correlates with retries and sticky clients. **Splunk:** Vendor-specific metrics may need `eval` scaling (0–1 vs 0–100).
 - **Visualization:** Heatmap (AP × hour utilization), Line chart (client count), Bar chart (top congested APs).
 - **CIM Models:** N/A
 
@@ -2095,7 +2096,7 @@ index=airport sourcetype="airfield:lighting"
 | sort runway_id, circuit_id
 | table runway_id, circuit_id, intensity, alarm, comm_ok
 ```
-- **Implementation:** Map SCADA points to runway/taxi identifiers used in NOTAM workflows. Do not replace airfield lighting control systems; Splunk is for visibility and trending. Filter planned test events via maintenance tags.
+- **Implementation:** Map SCADA points to runway/taxi identifiers used in NOTAM workflows. Do not replace airfield lighting control systems; Splunk is for visibility and trending. Filter planned test events via maintenance tags. **Domain context:** FAA/EASA lighting requirements tie to LVP/LVO operations—control remains in the field lighting system, not Splunk. **Splunk:** `comm_ok` and `intensity_pct` types must be numeric for comparisons.
 - **Visualization:** Single value (circuits in fault), Table (runway × circuit), Timeline (alarm transitions).
 - **CIM Models:** N/A
 
@@ -2118,7 +2119,7 @@ index=airport sourcetype="gate:allocation"
 | sort - change_rate
 | table gate_id, flights, changes, change_rate, tows
 ```
-- **Implementation:** Refresh from AODB snapshots or event stream on gate changes. Join aircraft size class if available to explain constraints. Use monthly reports for planning rather than minute-by-minute alerts.
+- **Implementation:** Refresh from AODB snapshots or event stream on gate changes. Join aircraft size class if available to explain constraints. Use monthly reports for planning rather than minute-by-minute alerts. **Domain context:** Gate changes drive towing and turnaround—ICAO Doc 9644 addresses apron management coordination. **Splunk:** `gate_mismatch` counts per `gate_id` may mix cause (airline swap vs airport reassignment)—add `reason_code` if available.
 - **Visualization:** Bar chart (change rate by gate), Stacked bar (tows vs no tow), Table (top volatile gates).
 - **CIM Models:** N/A
 
@@ -2142,7 +2143,7 @@ index=airport sourcetype="terminal:flow"
 | where occ > 5000 OR occ_ratio > 1.4 OR peak_flow > 120
 | table _time, terminal_id, zone_id, occ, med_occ, occ_ratio, peak_flow
 ```
-- **Implementation:** Calibrate occupancy models against manual counts quarterly. Mask precise sensor locations in dashboards if required by security. Combine with `airport:security` wait times for holistic terminal health.
+- **Implementation:** Calibrate occupancy models against manual counts quarterly. Mask precise sensor locations in dashboards if required by security. Combine with `airport:security` wait times for holistic terminal health. **Domain context:** Fire/life safety codes cap occupancy; operational analytics should not be confused with legal occupancy limits. **Splunk:** `occ > 5000` is illustrative—scale thresholds per terminal design.
 - **Visualization:** Heatmap (zone × time occupancy), Line chart (flow rate), Area chart (terminal totals).
 - **CIM Models:** N/A
 
@@ -2164,7 +2165,7 @@ index=airport sourcetype="airport:scada"
 | where open_alarms > 10
 | table _time, subsystem, open_alarms, distinct_points
 ```
-- **Implementation:** Normalize priority enumerations across subsystems. Route critical unacked alarms to facilities NOC; use dedup keys on `alarm_id` to avoid double counting. Pair with maintenance windows lookup to suppress expected noise.
+- **Implementation:** Normalize priority enumerations across subsystems. Route critical unacked alarms to facilities NOC; use dedup keys on `alarm_id` to avoid double counting. Pair with maintenance windows lookup to suppress expected noise. **Domain context:** Airport SCADA spans jet bridges, baggage, HVAC, fuel—subsystem taxonomy should map to runbooks for IROPS. **Splunk:** `lower(ack_state)!="acked"` may miss variants (`Acknowledged`); use `match` or lookup normalization.
 - **Visualization:** Timeline (alarm bursts), Bar chart (open alarms by subsystem), Single value (unacked critical count).
 - **CIM Models:** N/A
 
@@ -2194,7 +2195,7 @@ index=telecom sourcetype="ran:cellsite"
 | where min_state=0 OR avail_pct < 99.5
 | table _time, site_id, cell_id, avail_pct, min_state
 ```
-- **Implementation:** Ingest periodic SNMP or EMS polls with normalized `operational_state` strings. Align site identifiers with inventory CMDB. Alert on sustained down segments and flapping (multiple transitions per hour) using a follow-on search on `last_transition_epoch`.
+- **Implementation:** Ingest periodic SNMP or EMS polls with normalized `operational_state` strings. Align site identifiers with inventory CMDB. Alert on sustained down segments and flapping (multiple transitions per hour) using a follow-on search on `last_transition_epoch`. **Domain context:** RAN availability is a 3GPP/O-RAN operational KPI; distinguish planned work (RET/antenna) from faults—use `last_transition_epoch` flapping logic for churn. **Splunk:** `avail_pct < 99.5` on 5m buckets is strict—use longer windows for SLA reporting; ensure `operational_state` vocabulary is normalized across vendors.
 - **Visualization:** Time chart (availability % by site), Status grid (cell × site), Single value (sites below SLA).
 - **CIM Models:** N/A
 
@@ -2216,7 +2217,7 @@ index=telecom sourcetype="core:element"
 | stats max(cpu_pct) as max_cpu, max(active_sessions) as max_sess, max(sev_score) as max_alarm by element_id, element_type, _time
 | table _time, element_id, element_type, max_cpu, max_sess, max_alarm
 ```
-- **Implementation:** Map vendor counter names into `cpu_pct` and `active_sessions` in transforms. Exclude planned maintenance windows via lookup on `element_id`. Thresholds vary by platform—tune per NE class and license limits.
+- **Implementation:** Map vendor counter names into `cpu_pct` and `active_sessions` in transforms. Exclude planned maintenance windows via lookup on `element_id`. Thresholds vary by platform—tune per NE class and license limits. **Domain context:** 4G EPC (MME/SGW/PGW) vs 5GC (SMF/UPF/AMF) differ in counters and scale—tag `element_type` consistently for apples-to-apples dashboards. **Splunk:** `active_sessions > 800000` is illustrative; align with chassis capacity and license entitlements.
 - **Visualization:** Line chart (CPU and sessions by element), Table (top loaded nodes), Single value (elements in alarm).
 - **CIM Models:** N/A
 
@@ -2239,7 +2240,7 @@ index=telecom sourcetype="provisioning:workflow"
 | sort success_pct
 | table step_name, total, ok_n, success_pct
 ```
-- **Implementation:** Emit one event per workflow step completion with consistent `workflow_id` for optional transaction tracing. Schedule hourly; drill into `status` values for failure taxonomy. Keep separate from mediation latency (UC-21.8.5).
+- **Implementation:** Emit one event per workflow step completion with consistent `workflow_id` for optional transaction tracing. Schedule hourly; drill into `status` values for failure taxonomy. Keep separate from mediation latency (UC-21.8.5). **Domain context:** Provisioning spans HLR/HSS/UDM, PCRF/PCF, and BSS—name `step_name` so failures map to the right team (radio vs core vs billing). **Splunk:** `total < 10` filters low-volume steps—may hide spikes; use `sum` over 24h for rare steps.
 - **Visualization:** Bar chart (success % by step), Time chart (daily success trend), Table (worst steps).
 - **CIM Models:** N/A
 
@@ -2263,7 +2264,7 @@ index=telecom sourcetype="spectrum:utilization"
 | where p95_peak > 85 OR growth_ratio > 1.15
 | table _time, site_id, cell_id, avg_peak, p95_peak, growth_ratio
 ```
-- **Implementation:** Aggregate busy-hour samples per operator policy; store `sample_period_sec` for weighting. Join sector metadata (band, azimuth) via lookup for planning reports. Use weekly baselines to smooth day-of-week noise.
+- **Implementation:** Aggregate busy-hour samples per operator policy; store `sample_period_sec` for weighting. Join sector metadata (band, azimuth) via lookup for planning reports. Use weekly baselines to smooth day-of-week noise. **Domain context:** LTE PRB utilization drives capacity; LTE vs NR reporting periods differ—align `bin` span with PM file granularity. **Splunk:** `eventstats median(avg_peak) as med_site by site_id` compares cells to site median—use `cell_id` if site-level median masks hot sectors.
 - **Visualization:** Line chart (PRB util trend), Heatmap (cell × week), Bar chart (sectors over 85% p95).
 - **CIM Models:** N/A
 
@@ -2285,7 +2286,7 @@ index=telecom sourcetype="mediation:event"
 | eval avg_min=round(avg_lat/60000,2), p95_min=round(p95_lat/60000,2)
 | table _time, avg_min, p95_min, max_q, vol
 ```
-- **Implementation:** Normalize timestamps to when batches complete, not file arrival. Alert on sustained queue growth with derivative search on `queue_depth`. Coordinate thresholds with billing close calendar.
+- **Implementation:** Normalize timestamps to when batches complete, not file arrival. Alert on sustained queue growth with derivative search on `queue_depth`. Coordinate thresholds with billing close calendar. **Domain context:** Mediation/rating sits between network CDRs and billing—latency spikes near invoice close or rate plan changes are common; separate batch vs streaming pipelines in tagging. **Splunk:** Thresholds `120000`/`300000` ms are examples—tie to billing window SLAs; `avg_lat`/`p95_lat` on 5m buckets can be noisy for hourly batches.
 - **Visualization:** Time chart (latency and queue depth), Area chart (records processed), Single value (backlog breach).
 - **CIM Models:** N/A
 
@@ -2308,7 +2309,7 @@ index=telecom sourcetype="ossbss:integration"
 | where fail_pct > 2 OR avg_ms > 3000
 | table _time, interface_id, calls, fails, fail_pct, avg_ms
 ```
-- **Implementation:** Tag interfaces in the gateway; exclude health-check paths. Add optional `partner_system` field for drilldown. Pair with synthetic probes where logs alone miss silent drops.
+- **Implementation:** Tag interfaces in the gateway; exclude health-check paths. Add optional `partner_system` field for drilldown. Pair with synthetic probes where logs alone miss silent drops. **Domain context:** TM Forum Open APIs and eTOM-style process boundaries (CRM → OSS) help name `interface_id` for runbooks—timeouts often indicate partner capacity, not your gateway. **Splunk:** `error_code` may be sparse—use `http_status>=500 OR isnotnull(error_code)` but add `http_status=0` or connection reset patterns if logged.
 - **Visualization:** Time chart (fail % and latency), Bar chart (worst interfaces), Table (error_code top values).
 - **CIM Models:** N/A
 
@@ -2332,7 +2333,7 @@ index=telecom sourcetype="troubleticket:event" lower(status)="resolved"
 | eval avg_mtr_r=round(avg_mtr,2), p90_mtr_r=round(p90_mtr,2)
 | table _time, category, region, tickets, avg_mtr_r, p90_mtr_r
 ```
-- **Implementation:** Ensure `created_epoch`/`resolved_epoch` are UTC. Exclude cancelled tickets in a separate clause if needed. Refresh from ITSM nightly or near-real-time for NOC dashboards.
+- **Implementation:** Ensure `created_epoch`/`resolved_epoch` are UTC. Exclude cancelled tickets in a separate clause if needed. Refresh from ITSM nightly or near-real-time for NOC dashboards. **Domain context:** MTTR definitions vary (clock vs work hours); align with ITIL reporting and vendor SLA clocks before publishing leadership SLAs. **Splunk:** Resolved tickets may arrive late—use `_time` from resolution event or `resolved_epoch` consistently for bucketing.
 - **Visualization:** Box plot (MTTR distribution), Line chart (trend by region), Bar chart (category comparison).
 - **CIM Models:** N/A
 
@@ -2355,7 +2356,7 @@ index=telecom sourcetype="gnodeb:metrics"
 | where avg_drop > 1 OR avg_lat > 40 OR thr_ratio < 0.7
 | table _time, gnb_id, cell_id, avg_dl, avg_ul, avg_drop, avg_lat, thr_ratio
 ```
-- **Implementation:** Align PM file periods (15m/5m) and handle DST in `_time`. Use cell-level baselines for `thr_ratio`. Optional: join transport path ID if backhaul congestion is suspected.
+- **Implementation:** Align PM file periods (15m/5m) and handle DST in `_time`. Use cell-level baselines for `thr_ratio`. Optional: join transport path ID if backhaul congestion is suspected. **Domain context:** 4G/5G KPIs (RLC drops, latency) are vendor-specific—map to 3GPP-style counters where possible for multi-vendor comparisons. **Splunk:** `thr_ratio < 0.7` compares to `med_dl` from `eventstats` on same bucket—ensure enough samples per `cell_id` or median is unstable.
 - **Visualization:** Time chart (throughput and drops), Heatmap (cell × hour), Table (worst cells).
 - **CIM Models:** N/A
 
@@ -2377,7 +2378,7 @@ index=telecom sourcetype="slice:utilization"
 | where avg_util > 90 OR peak_sess > 50000
 | table _time, slice_id, dnn, avg_util, peak_sess
 ```
-- **Implementation:** Normalize `committed_mbps` from slice templates; refresh when contracts change via KV. Alert enterprise account teams when sustained util > 90%. Distinct from generic core health (UC-21.8.2).
+- **Implementation:** Normalize `committed_mbps` from slice templates; refresh when contracts change via KV. Alert enterprise account teams when sustained util > 90%. Distinct from generic core health (UC-21.8.2). **Domain context:** Network slicing (5G) binds QoS to S-NSSAI/DNN—`committed_mbps` should reflect the product template, not link capacity. **Splunk:** `used_mbps` and `committed_mbps` must share units (b/s vs kbps); validate extraction from NSSF/NSMF exports.
 - **Visualization:** Line chart (util % by slice), Stacked area (sessions), Table (slices near exhaustion).
 - **CIM Models:** N/A
 
@@ -2400,7 +2401,7 @@ index=telecom sourcetype="cdn:performance"
 | where hit_ratio < 85 AND reqs > 1000
 | table _time, pop_id, reqs, hit_reqs, hit_ratio
 ```
-- **Implementation:** Map vendor cache hit tokens to `cache_status` in props. Exclude purge and error responses from denominator if tagged. Compare POPs to identify misconfigured origins.
+- **Implementation:** Map vendor cache hit tokens to `cache_status` in props. Exclude purge and error responses from denominator if tagged. Compare POPs to identify misconfigured origins. **Domain context:** CDN hit ratio varies by content type (live vs static) and TTL policy—compare POPs with similar traffic mix. **Splunk:** Extend `hit`/`cache_status` mapping for Fastly/Akamai/CloudFront variants (`MISS`, `STALE`, etc.); `reqs > 1000` avoids noise on low-traffic POPs.
 - **Visualization:** Line chart (hit ratio by POP), Bar chart (worst POPs), Map (if geo coordinates available).
 - **CIM Models:** N/A
 
@@ -2431,7 +2432,7 @@ index=water sourcetype="treatment:process"
 | stats latest(ph) as ph, latest(turbidity_ntu) as turb, latest(chlorine_mg_l) as cl2, max(ph_breach) as ph_br, max(turb_breach) as tb_br, max(chlorine_breach) as cl_br by plant_id, basin_id
 | table plant_id, basin_id, ph, turb, cl2, ph_br, tb_br, cl_br
 ```
-- **Implementation:** Ingest DCS/PLC tags at 1–5 minute intervals; align limits per permit in fields or lookup. Route alerts to plant operators; retain Splunk as supervisory visibility alongside SCADA alarms.
+- **Implementation:** Ingest DCS/PLC tags at 1–5 minute intervals; align limits per permit in fields or lookup. Route alerts to plant operators; retain Splunk as supervisory visibility alongside SCADA alarms. **Domain context:** Surface water treatment limits (pH, turbidity, disinfectant residual) are jurisdiction-specific (e.g., U.S. EPA/State primacy rules)—mirror permit limits in lookups, not hardcoded SPL. **Splunk:** `latest()` in `stats` favors last sample in window—use `max(breach)` or time-weighted logic if multiple basins report per event.
 - **Visualization:** Time chart (pH, turbidity, chlorine), Gauge (distance to limit), Table (active breaches).
 - **CIM Models:** N/A
 
@@ -2455,7 +2456,7 @@ index=water sourcetype="pump:station" run_state=1
 | where run_hrs > 20 OR ratio > 1.2
 | table _time, station_id, pump_id, run_hrs, avg_intensity, ratio
 ```
-- **Implementation:** Normalize `run_state` (1=on). Fill gaps in flow with null checks to avoid divide-by-zero. Baseline `kwh_per_m3` seasonally for irrigation-influenced stations.
+- **Implementation:** Normalize `run_state` (1=on). Fill gaps in flow with null checks to avoid divide-by-zero. Baseline `kwh_per_m3` seasonally for irrigation-influenced stations. **Domain context:** Specific energy (kWh/m³) is a common efficiency metric for water/wastewater pumping—compare like pump curves and wet-well levels. **Splunk:** `eventstats median(avg_intensity) as med_int by station_id, pump_id` may be thin on single pump—use `streamstats` or weekly baseline lookup.
 - **Visualization:** Line chart (run hours and intensity), Bar chart (stations over baseline), Table (worst pumps).
 - **CIM Models:** N/A
 
@@ -2477,7 +2478,7 @@ index=water sourcetype="pressure:zone"
 | where any_breach=1
 | table _time, zone_id, min_p, max_p, any_breach
 ```
-- **Implementation:** Multiple sensors per zone—use `stats` to aggregate. Join PRV asset IDs via lookup for work orders. Pair with demand forecasts during fire flow tests.
+- **Implementation:** Multiple sensors per zone—use `stats` to aggregate. Join PRV asset IDs via lookup for work orders. Pair with demand forecasts during fire flow tests. **Domain context:** Pressure zones must maintain minimum service pressure per utility design standards—breaches can indicate main breaks, PRV faults, or pump/VFD issues. **Splunk:** `min(pressure_psi)` / `max` over 5m hides transient dips—add `max(breach)` or shorter `bin` for critical zones.
 - **Visualization:** Time chart (pressure by zone), Single value (zones in breach), Map (zone centroids if GIS joined).
 - **CIM Models:** N/A
 
@@ -2501,7 +2502,7 @@ index=water sourcetype="sewer:level"
 | where risk=1
 | table _time, structure_id, level_ft, high_alarm_ft, rainfall_in_hr, rise_ft_hr
 ```
-- **Implementation:** Align rain gauge timestamps to SCADA time zone. Tune `rise_ft_hr` using 1-minute samples if available. Integrate with CMMS for crew dispatch; document for NPDES reporting workflows.
+- **Implementation:** Align rain gauge timestamps to SCADA time zone. Tune `rise_ft_hr` using 1-minute samples if available. Integrate with CMMS for crew dispatch; document for NPDES reporting workflows. **Domain context:** SSO/CSO events often drive NPDES reporting and consent schedules—Splunk supports early warning, not regulatory submission. **Splunk:** `streamstats window=2` is sensitive to noise—use `trendline` or longer window for stable `rise_ft_hr`; verify `sort 0` order.
 - **Visualization:** Combo chart (level vs rainfall), Timeline (risk flags), Map (structures at risk).
 - **CIM Models:** N/A
 
@@ -2523,7 +2524,7 @@ index=water sourcetype="water:compliance"
 | stats count as issues, dc(site_id) as sites_affected by parameter_set
 | table parameter_set, issues, sites_affected
 ```
-- **Implementation:** Ingest lifecycle events from LIMS and field mobile apps. Handle partial collections with status fields. Dashboard for compliance team; not a substitute for chain-of-custody systems.
+- **Implementation:** Ingest lifecycle events from LIMS and field mobile apps. Handle partial collections with status fields. Dashboard for compliance team; not a substitute for chain-of-custody systems. **Domain context:** Drinking water compliance sampling schedules are rule-driven (e.g., RTCR/LT2 where applicable)—map `parameter_set` to regulatory minimums. **Splunk:** `collected_epoch` null vs zero—use `isnull` explicitly; `lab_received_epoch` requires lab integration.
 - **Visualization:** Table (overdue samples), Bar chart (issues by parameter set), Calendar heatmap (collection completion).
 - **CIM Models:** N/A
 
@@ -2544,7 +2545,7 @@ index=water sourcetype="scada:rtu"
 | where last_poll=0 OR age_sec > 900 OR last_ms > 5000
 | table site_id, rtu_id, last_poll, last_ms, age_sec
 ```
-- **Implementation:** Map protocol timeouts to `poll_ok=0`. Set `age_sec` threshold to 3× expected scan period. Exclude maintenance windows via site lookup.
+- **Implementation:** Map protocol timeouts to `poll_ok=0`. Set `age_sec` threshold to 3× expected scan period. Exclude maintenance windows via site lookup. **Domain context:** Water RTUs often use poll/response over radio or cellular—staleness is a common failure mode before SCADA shows “last good” values. **Splunk:** `stats latest(_time)` without time window uses all data—scope with `| where _time>relative_time(now(),"-24h")` or use `last` in a time-bounded subsearch for dashboards.
 - **Visualization:** Status grid (RTU × site), Table (oldest staleness), Line chart (response time trend).
 - **CIM Models:** N/A
 
@@ -2567,7 +2568,7 @@ index=water sourcetype="water:flow"
 | sort - nrw_pct
 | table _time, zone_id, nrw_pct, mnf
 ```
-- **Implementation:** Align daily rollups to billing cycles. Use minimum night flow from 2–4 AM window. Join pipe age and material via GIS for remediation prioritization.
+- **Implementation:** Align daily rollups to billing cycles. Use minimum night flow from 2–4 AM window. Join pipe age and material via GIS for remediation prioritization. **Domain context:** NRW (non-revenue water) programs align with IWA/AWWA water balance methods—interpret `nrw_pct` with unmetered consumption and authorized unbilled use in mind. **Splunk:** `supply_m3_day` vs `billed_m3_day` timing must align; AMI lag can inflate apparent NRW.
 - **Visualization:** Choropleth or map (NRW % by zone), Time chart (NRW trend), Bar chart (zones over threshold).
 - **CIM Models:** N/A
 
@@ -2590,7 +2591,7 @@ index=water sourcetype="liftstation:sensor" running_flag=1
 | where vib_ratio > 1.5 OR amp_ratio > 1.25
 | table _time, station_id, pump_id, vib, amps, lvl, vib_ratio, amp_ratio
 ```
-- **Implementation:** Baseline per pump when healthy; exclude dry-run periods with `running_flag`. Optional: send features to ML Toolkit for supervised models. Maintain safety interlocks in PLC, not Splunk.
+- **Implementation:** Baseline per pump when healthy; exclude dry-run periods with `running_flag`. Optional: send features to ML Toolkit for supervised models. Maintain safety interlocks in PLC, not Splunk. **Domain context:** Vibration (ISO 10816) and motor current trends support predictive maintenance—confirm sensor mounting and RPM for comparable `vibration_mm_s`. **Splunk:** `eventstats median` by `pump_id` needs history in the search window—use a saved baseline lookup for new pumps.
 - **Visualization:** Time chart (vibration and current), Scatter (vibration vs level), Table (pumps flagged).
 - **CIM Models:** N/A
 
@@ -2622,7 +2623,7 @@ index=insurance sourcetype="claims:lifecycle" lower(status)="settled"
 | eval avg_days_r=round(avg_days,1), p90_days_r=round(p90_days,1)
 | table _time, lob, claims, avg_days_r, p90_days_r
 ```
-- **Implementation:** Normalize epoch fields from the claims platform; exclude reopened claims with a flag if present. Tune SLAs by LOB. Pair with staffing dashboards for operational planning—not banking fraud (Cat 10.12).
+- **Implementation:** Normalize epoch fields from the claims platform; exclude reopened claims with a flag if present. Tune SLAs by LOB. Pair with staffing dashboards for operational planning—not banking fraud (Cat 10.12). **Domain context:** Cycle time KPIs vary by line (auto physical damage vs workers comp vs liability)—publish LOB-specific targets; regulators may review unfair claims practices in some jurisdictions. **Splunk:** `lower(status)="settled"` must match platform values (`Closed`, `Paid`); use a lookup for canonical statuses.
 - **Visualization:** Line chart (cycle time trend), Box plot (by LOB), Table (breaches).
 - **CIM Models:** N/A
 
@@ -2645,7 +2646,7 @@ index=insurance sourcetype="fnol:event"
 | where success_pct < 95 OR avg_lat > 3000
 | table _time, channel, region, fnols, success_pct, avg_lat
 ```
-- **Implementation:** Map vendor channel codes to a canonical list. Filter bot traffic if tagged. Useful for post-mortems after marketing pushes to digital FNOL.
+- **Implementation:** Map vendor channel codes to a canonical list. Filter bot traffic if tagged. Useful for post-mortems after marketing pushes to digital FNOL. **Domain context:** FNOL channel mix shifts during CAT events and regulatory changes (e.g., digital-first mandates)—segment by product and state where applicable. **Splunk:** `success_flag` may be string or numeric—`eval ok=` pattern covers both; watch for duplicate events per `fnol_id`.
 - **Visualization:** Stacked bar (FNOL volume by channel), Line chart (success %), Heatmap (region × channel).
 - **CIM Models:** N/A
 
@@ -2667,7 +2668,7 @@ index=insurance sourcetype="adjuster:workload"
 | sort team, - max_open
 | table team, adjuster_id, max_open, avg_ratio
 ```
-- **Implementation:** Refresh snapshot frequency aligned to work management (hourly/daily). Join `team` to supervisor roster via lookup. Use for operations review; respect labor agreements on monitoring scope.
+- **Implementation:** Refresh snapshot frequency aligned to work management (hourly/daily). Join `team` to supervisor roster via lookup. Use for operations review; respect labor agreements on monitoring scope. **Domain context:** Open-claim counts ignore complexity/severity—pair with reserves or injury type where possible for fair workload views. **Splunk:** `capacity_target` should be numeric; if missing, `load_ratio` is null—coalesce defaults.
 - **Visualization:** Bar chart (open claims by adjuster), Box plot (team distribution), Single value (adjusters over capacity).
 - **CIM Models:** N/A
 
@@ -2688,7 +2689,7 @@ index=insurance sourcetype="subrogation:recovery"
 | where recovery_pct < 30 AND age_days > 180 AND lower(outcome)!="closed_no_recovery"
 | table claim_id, demand_amt, recovered_amt, recovery_pct, age_days, outcome
 ```
-- **Implementation:** Clarify accounting for partial payments in `recovered_amt`. Schedule weekly for aged inventory. Legal holds may restrict fields—mask PII per policy.
+- **Implementation:** Clarify accounting for partial payments in `recovered_amt`. Schedule weekly for aged inventory. Legal holds may restrict fields—mask PII per policy. **Domain context:** Subrogation success depends on liability findings and statute of limitations—`recovery_pct` thresholds should be counsel-reviewed, not purely operational. **Splunk:** `now()-opened_epoch` uses search-time clock—prefer `closed_epoch` or event time for aging if backfilled.
 - **Visualization:** Line chart (recovery rate trend), Bar chart (aging buckets), Table (low-recovery claims).
 - **CIM Models:** N/A
 
@@ -2711,7 +2712,7 @@ index=insurance sourcetype="underwriting:audit"
 | where decisions > 50 AND bind_ratio > 85 AND rules_fired < 2
 | table _time, user_id, decisions, binds, bind_ratio, rules_fired
 ```
-- **Implementation:** Ingest append-only decision events with tamper-evident hashing if required by compliance. Tune alert for unusual auto-approval patterns; investigate false positives with underwriting leadership. Not a replacement for GRC workflow.
+- **Implementation:** Ingest append-only decision events with tamper-evident hashing if required by compliance. Tune alert for unusual auto-approval patterns; investigate false positives with underwriting leadership. Not a replacement for GRC workflow. **Domain context:** Model governance (SR 11-7 style expectations for larger insurers) requires explainability—`rule_id` diversity alone is a coarse anomaly signal. **Splunk:** Restrict index to compliance roles; hash/lineage often lives in the policy admin system of record.
 - **Visualization:** Timeline (decision volume), Table (suspicious users), Bar chart (bind ratio by rule).
 - **CIM Models:** N/A
 
@@ -2733,7 +2734,7 @@ index=insurance sourcetype="fraud:network"
 | sort - fanout
 | table entity_id, fanout, claim_cnt, rel_cnt, types
 ```
-- **Implementation:** Build nightly entity extracts from claims and vendor data; load into Splunk or external graph with summaries back. Coordinate with legal for PII handling. Pair with Behavioral Profiling App scores for triage.
+- **Implementation:** Build nightly entity extracts from claims and vendor data; load into Splunk or external graph with summaries back. Coordinate with legal for PII handling. Pair with Behavioral Profiling App scores for triage. **Domain context:** SIU investigations blend fraud scoring with privileged legal strategy—Splunk supports prioritization, not case disposition. **Splunk:** `stats dc(claim_id)` dedupes per entity—tune `fanout` thresholds; consider Splunk App for Fraud Analytics for graph-assisted workflows.
 - **Visualization:** Node-link diagram (external viz or custom), Table (high-fanout entities), Bar chart (claims per entity).
 - **CIM Models:** N/A
 
@@ -2756,7 +2757,7 @@ index=insurance sourcetype="workcomp:rtw" lost_time_flag=1
 | sort - avg_lost_r
 | table employer_class, claims, avg_lost_r, p90_lost_r
 ```
-- **Implementation:** De-identify claimants in dashboards. Handle jurisdictional differences in reporting latency. Integrate with nurse case management milestones if available.
+- **Implementation:** De-identify claimants in dashboards. Handle jurisdictional differences in reporting latency. Integrate with nurse case management milestones if available. **Domain context:** Workers comp is state-regulated—RTW and lost-time definitions vary; PHI/HIPAA and state privacy rules may apply to health fields. **Splunk:** `lost_time_flag=1` must align with carrier coding; `days_lost` for open claims uses `now()`—refresh searches for accuracy.
 - **Visualization:** Histogram (days lost), Bar chart (by employer class), Line chart (RTW trend).
 - **CIM Models:** N/A
 
@@ -2779,7 +2780,7 @@ index=insurance sourcetype="cat:surge"
 | where max_surge > 1.2 OR max_q > 500 OR max_p95 > 600
 | table _time, cat_event_id, max_surge, max_q, max_p95
 ```
-- **Implementation:** Parameterize `capacity_est` from actual handles-per-hour by channel. Tag `cat_event_id` from peril models. Coordinate with BCP playbooks; thresholds are scenario-specific.
+- **Implementation:** Parameterize `capacity_est` from actual handles-per-hour by channel. Tag `cat_event_id` from peril models. Coordinate with BCP playbooks; thresholds are scenario-specific. **Domain context:** CAT surge blends claims intake, FNOL, and field adjuster capacity—`active_adjusters*4` is a placeholder; replace with WFM actual productivity. **Splunk:** `bin _time span=1h` aligns FNOL rates—ensure `fnol_per_hr` is pre-aggregated or computed per hour consistently.
 - **Visualization:** Time chart (FNOL vs capacity), Area chart (queue depth), Single value (surge ratio).
 - **CIM Models:** N/A
 

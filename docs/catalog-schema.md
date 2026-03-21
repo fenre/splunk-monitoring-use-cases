@@ -59,7 +59,7 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `q` | string | **SPL:** main search query. |
 | `qs` | string | **CIM SPL:** tstats/accelerated query (optional). |
 | `m` | string | **Implementation:** short deployment summary. |
-| `md` | string | **Detailed implementation:** step-by-step (optional). When not authored in markdown, `build.py` generates this text; it includes **Understanding this SPL** — heuristic, plain-language bullets per pipeline stage — plus optional **CIM / accelerated variant** notes when `qs` is present. |
+| `md` | string | **Detailed implementation:** step-by-step (optional). When not authored in markdown, `build.py` generates this text; it includes **Understanding this SPL** with a short intro tied to the use case (**Value**, **Data sources**, **App/TA**), a **Pipeline walkthrough** with per-command detail, and optional **Understanding this CIM / accelerated SPL** when `qs` is present. |
 | `z` | string | **Visualization:** suggested panels/charts. |
 | `a` | array | **CIM models:** e.g. `["Performance", "Network_Traffic"]` (optional). |
 | `dma` | string | **Data model acceleration** note (optional). |
