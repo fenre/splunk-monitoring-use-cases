@@ -185,7 +185,7 @@ index=assets sourcetype="pi:historian"
 index=scada sourcetype="scada:alarm" (match(_raw,"(?i)trip|generator"))
 | bin _time span=1m
 | stats values(relay_element) as relays by unit_id, _time
-| join type=left unit_id _time [
+| join type=left max=1 unit_id _time [
     search index=scada sourcetype="scada:rtu"
     | bin _time span=1m
     | stats avg(mw) as mw_at_event, avg(hz) as hz_at_event by unit_id, _time
@@ -276,7 +276,7 @@ index=dr sourcetype="dr:event"
 ```spl
 index=oms sourcetype="oms:outage" status="open"
 | fields device_id, _time, outage_id
-| join type=inner device_id [
+| join type=inner max=1 device_id [
     search index=scada (sourcetype="scada:rtu" OR sourcetype="scada:alarm")
     | eval breaker_state=coalesce(breaker_state, device_state)
     | where lower(breaker_state) IN ("closed","energized","1")
@@ -497,7 +497,7 @@ index=ot sourcetype="opc:tag"
 index=mfg (sourcetype="energy:meter" OR sourcetype="mes:production")
 | bin _time span=1h
 | stats sum(kwh) as kwh by line_id, _time
-| join type=inner line_id _time [
+| join type=inner max=1 line_id _time [
     search index=mfg sourcetype="mes:production"
     | bin _time span=1h
     | stats sum(units_good) as units by line_id, _time
@@ -571,7 +571,7 @@ index=edi sourcetype="edi:message"
 ```spl
 index=erp sourcetype="erp:event" event_type="bom"
 | rename qty_planned as qty_plan
-| join type=outer order_id material_id [
+| join type=outer max=1 order_id material_id [
     search index=mfg sourcetype="mes:production"
     | stats sum(qty_consumed) as qty_cons by order_id, material_id
 ]
@@ -666,7 +666,7 @@ index=ot sourcetype="conveyor:sensor"
 index=mfg sourcetype="air:compressor"
 | bin _time span=15m
 | stats avg(kw) as avg_kw, avg(cfm) as avg_cfm, max(run_state) as run_state by plant_id, _time
-| join type=left plant_id _time [
+| join type=left max=1 plant_id _time [
     search index=mfg sourcetype="mes:production"
     | bin _time span=15m
     | stats sum(units_good) as units by line_id, _time

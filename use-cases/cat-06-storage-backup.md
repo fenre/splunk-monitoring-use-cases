@@ -120,7 +120,7 @@ index=storage sourcetype="netapp:ontap:ems"
 | search "cf.takeover*" OR "cf.giveback*" OR failover
 | table _time, node, event, message
 ```
-- **Implementation:** Forward array event logs (syslog or API) to Splunk. Filter for failover/takeover events. Create critical alert with incident auto-creation. Track MTBF between failover events per controller.
+- **Implementation:** For NetApp ONTAP: ingest EMS events via syslog (UDP/TCP) or use `TA-netapp_ontap` for REST-based EMS polling. Key EMS message families: `cf.takeover`, `cf.giveback`, `ha.interconnect`. Alert on any takeover outside a scheduled change window, or any giveback failure. Include `cluster`, `node`, and `partner` fields in the alert for storage operations handoff.
 - **Visualization:** Timeline (failover events), Single value (days since last failover), Table (event details).
 - **CIM Models:** N/A
 
@@ -794,7 +794,7 @@ index=backup sourcetype="veeam:job"
 | where success_rate < 100
 | sort success_rate
 ```
-- **Implementation:** Install vendor TA or configure scripted input to poll backup API. Ingest job completion events. Create daily report of job outcomes. Alert immediately on any failure for critical systems.
+- **Implementation:** For Veeam: use the Veeam App for Splunk or ingest via HEC from Enterprise Manager REST (`/api/v1/jobSessions`); normalize `job_name`, `result`, `end_time` fields. For Veritas NetBackup: forward master/media server syslog or use the OpsCenter REST export. Alert when `result!=Success` for jobs flagged as `backup_tier=critical` in a lookup. Throttle per `job_name` to avoid alert storms during infrastructure outages.
 - **Visualization:** Single value (overall success rate %), Table (failed jobs with details), Bar chart (success/fail by job), Trend line (daily success rate).
 - **CIM Models:** N/A
 
@@ -829,7 +829,7 @@ index=backup sourcetype="veeam:job" status="Success"
 - **SPL:**
 ```spl
 | inputlookup backup_schedule.csv
-| join type=left job_name
+| join type=left max=1 job_name
     [search index=backup sourcetype="veeam:job" earliest=-24h
      | stats latest(_time) as last_run by job_name]
 | where isnull(last_run) OR last_run < relative_time(now(), "-26h")
@@ -892,7 +892,7 @@ index=backup sourcetype="restore_test"
 - **SPL:**
 ```spl
 | inputlookup cmdb_systems.csv WHERE requires_backup="yes"
-| join type=left system_name
+| join type=left max=1 system_name
     [search index=backup sourcetype="veeam:job" status="Success" earliest=-7d
      | stats latest(_time) as last_backup, max(data_size) as backup_size by system_name]
 | eval compliant=if(isnotnull(last_backup),"Yes","No")

@@ -1160,7 +1160,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 - **SPL:**
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
-| join host [| mstats avg(light_level) as lux by host, _time span=5m | where lux < 10]
+| join max=1 host [| mstats avg(light_level) as lux by host, _time span=5m | where lux < 10]
 | stats count as false_positives by host
 | eval false_positive_rate=(false_positives / (false_positives + true_detections)) * 100
 ```
@@ -1182,7 +1182,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **SPL:**
 ```spl
 | mstats avg(light_level) as lux by host, _time span=15m
-| join host [index=edge-hub-logs camera_occupancy_count > 0 | stats count as people_detected by host, _time span=15m]
+| join max=1 host [index=edge-hub-logs camera_occupancy_count > 0 | stats count as people_detected by host, _time span=15m]
 | eval hvac_mode=case(people_detected > 0 AND lux < 500, "COMFORT", people_detected = 0 AND lux > 500, "ECO", 1=1, "TRANSITION")
 | stats count by hvac_mode, host
 ```
@@ -1399,7 +1399,7 @@ index=edge-hub-data metric_name=pressure
 - **SPL:**
 ```spl
 | mstats avg(pressure) as edge_press by host, _time span=1h
-| join host [| mstats avg(external_pressure) as ext_press by host, _time span=1h]
+| join max=1 host [| mstats avg(external_pressure) as ext_press by host, _time span=1h]
 | eval altitude_diff = (44330 * (1.0 - ((edge_press / ext_press)^(1/5.255))))
 | where altitude_diff != 0
 | eval altitude_compensated_reading = edge_press - (altitude_diff * 0.0001198)
@@ -1598,7 +1598,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log predictive_model_inference fa
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_opcua opcua_tag=* opcua_value=*
 | stats latest(opcua_value) as latest_val, latest(opcua_data_type) as latest_type by opcua_tag, host
-| join opcua_tag [| rest /services/saved/data-model/indexes/OT_Industry_Process_Assets | fields asset_id, tag_name, expected_data_type]
+| join max=1 opcua_tag [| rest /services/saved/data-model/indexes/OT_Industry_Process_Assets | fields asset_id, tag_name, expected_data_type]
 | where latest_type != expected_data_type
 | eval change_alert="DATA_TYPE_MISMATCH"
 ```
@@ -1725,7 +1725,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua alarm_event=true
 ```spl
 index=edge-hub-logs sourcetype=edge_hub modbus_register meter_type=energy modbus_register_name=total_energy_kwh
 | stats latest(register_value) as total_kwh, latest(_time) as latest_time by meter_id
-| join meter_id [| rest /services/saved/data-model/indexes/energy_meter_cost_model | fields meter_id, cost_per_kwh]
+| join max=1 meter_id [| rest /services/saved/data-model/indexes/energy_meter_cost_model | fields meter_id, cost_per_kwh]
 | eval daily_cost=(total_kwh * cost_per_kwh)
 | stats sum(daily_cost) as total_daily_cost by meter_id
 | where total_daily_cost > threshold
@@ -1749,7 +1749,7 @@ index=edge-hub-logs sourcetype=edge_hub modbus_register meter_type=energy modbus
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_opcua program_timestamp_event
 | stats latest(program_last_modified) as current_timestamp by program_id, plc_ip
-| join program_id [| rest /services/saved/data-model/indexes/plc_program_baseline | fields program_id, last_known_timestamp, last_known_user]
+| join max=1 program_id [| rest /services/saved/data-model/indexes/plc_program_baseline | fields program_id, last_known_timestamp, last_known_user]
 | where current_timestamp != last_known_timestamp
 | eval program_change="DETECTED"
 | eval time_since_change_hours=((now() - current_timestamp) / 3600)
@@ -1800,7 +1800,7 @@ index=edge-hub-health sourcetype=edge_hub
 | stats dc(fw_version) as unique_versions, count as total_devices by location
 | where unique_versions > 1
 | eval compliance="DRIFTED"
-| join location [| rest /services/data-model/indexes/edge_hub_fleet_baseline | fields location, target_firmware_version]
+| join max=1 location [| rest /services/data-model/indexes/edge_hub_fleet_baseline | fields location, target_firmware_version]
 | where fw_version != target_firmware_version
 ```
 - **Implementation:** Central Splunk instance receives health data from all Edge Hubs via HEC (HTTP Event Collector). Health heartbeat includes firmware_version + build_number every 5 minutes (stored in edge-hub-health index). Create baseline search for target firmware per location/site. Alert when devices drift from baseline (old firmware detected). Implement scheduled search that flags out-of-compliance devices for manual firmware update. Store update history in edge-hub-logs for audit trail. For multi-region deployments, allow per-region firmware versions.
@@ -1822,7 +1822,7 @@ index=edge-hub-health sourcetype=edge_hub
 ```spl
 index=edge-hub-logs sourcetype=edge_hub gnss_position=true
 | stats latest(latitude) as lat, latest(longitude) as lon, latest(accuracy_meters) as accuracy by device_id
-| join device_id [| rest /services/data-model/indexes/edge_hub_location_baseline | fields device_id, expected_latitude, expected_longitude, geofence_radius_meters]
+| join max=1 device_id [| rest /services/data-model/indexes/edge_hub_location_baseline | fields device_id, expected_latitude, expected_longitude, geofence_radius_meters]
 | eval distance=sqrt(((lat - expected_latitude)*111111)^2 + ((lon - expected_longitude)*111111*cos(expected_latitude*pi()/180))^2)
 | where distance > geofence_radius_meters
 | eval location_drift="ALERT"
@@ -1901,7 +1901,7 @@ index=edge-hub-health sourcetype=edge_hub configuration_snapshot=true
 | stats dc(current_hash) as unique_configs, count as total_devices by location
 | where unique_configs > 1
 | eval config_drift="DETECTED"
-| join location [| rest /services/data-model/indexes/approved_fleet_configs | fields location, approved_config_hash, approved_timestamp]
+| join max=1 location [| rest /services/data-model/indexes/approved_fleet_configs | fields location, approved_config_hash, approved_timestamp]
 | where current_hash != approved_config_hash
 ```
 - **Implementation:** Edge Hub computes MD5 hash of entire configuration (MQTT subscriptions, OPC-UA endpoints, Modbus registers, container definitions, sensor polling intervals) and reports to edge-hub-health index weekly. Central Splunk instance generates baseline config hash per location/site. Alert if device config hash differs (indicates manual configuration, failed deployment, or malicious modification). Implement remediation workflow: flag device for manual inspection or trigger automated config re-deployment via edge.json manifest update. Store configuration snapshots locally for historical comparison.
@@ -1951,7 +1951,7 @@ index=edge-hub-health sourcetype=edge_hub
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log people_count_event
 | stats latest(people_detected) as occupancy, latest(_time) as timestamp, max(people_detected) as peak_occupancy by location, camera_id
-| join location [| rest /services/data-model/indexes/facility_capacity_limits | fields location, max_occupancy_safe, max_occupancy_emergency]
+| join max=1 location [| rest /services/data-model/indexes/facility_capacity_limits | fields location, max_occupancy_safe, max_occupancy_emergency]
 | eval capacity_status=case(
     occupancy > max_occupancy_emergency, "EMERGENCY_EXCEEDED",
     occupancy > max_occupancy_safe, "OVERCROWDED",
@@ -1999,7 +1999,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log visual_inspection_event defec
 - **SPL:**
 ```spl
 index=edge-hub-data metric_name=temperature
-| join host [| mstats avg(temperature) as avg_temp by host | eval weather_context_available=1]
+| join max=1 host [| mstats avg(temperature) as avg_temp by host | eval weather_context_available=1]
 | stats avg(avg_temp) as sensor_temp, latest(external_air_temp_c) as api_air_temp by host
 | eval correlation=correlation(sensor_temp, api_air_temp)
 | where correlation < 0.5
@@ -2153,7 +2153,7 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 ```spl
 | mstats max(vibration_magnitude) as peak_vib by equipment_id, _time span=10s
 | eval equipment_class="PRECISION_MACHINERY"
-| join equipment_class [| rest /services/data-model/indexes/equipment_vibration_limits | fields equipment_class, vibration_max_safe_g, vibration_alarm_g]
+| join max=1 equipment_class [| rest /services/data-model/indexes/equipment_vibration_limits | fields equipment_class, vibration_max_safe_g, vibration_alarm_g]
 | where peak_vib > vibration_alarm_g
 | eval shutdown_required="YES"
 | stats count as alarm_count, max(peak_vib) as max_vibration by equipment_id
@@ -2536,7 +2536,7 @@ index=iot sourcetype="iot_platform:devices"
 ```spl
 index=iot sourcetype="iot:ota"
 | stats latest(target_version) as tgt by device_id
-| join device_id [
+| join max=1 device_id [
   search index=iot sourcetype="iot_platform:devices"
   | stats latest(firmware_version) as cur by device_id
 ]

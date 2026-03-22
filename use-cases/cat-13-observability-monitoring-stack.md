@@ -1155,13 +1155,13 @@ index=itsi_grouped_alerts
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
-- **Value:** Alerts on services in maintenance flood Episode Review; verifying `is_service_in_maintenance` usage reduces noise and false escalations.
+- **Value:** Incorrect maintenance flags hide real outages during change windows, while noisy KPI alerts during true maintenance erode analyst trust. This use case validates that ITSI `is_service_in_maintenance` flags align with ITSM change windows, catching both missing and stale flags.
 - **App/TA:** Splunk ITSI
 - **Data Sources:** `index=itsi_summary`, maintenance windows via REST
 - **SPL:**
 ```spl
 index=itsi_summary is_service_in_maintenance=0
-| join type=left service_name [
+| join type=left max=1 service_name [
   | rest /servicesNS/nobody/SA-ITOA/maintenance_services
   | table title, service_name
 ]
@@ -1206,7 +1206,7 @@ index=itsi_summary
 ```spl
 | inputlookup itsi_services
 | search is_enabled=1
-| join type=left service_name [
+| join type=left max=1 service_name [
   search index=itsi_summary is_service_in_maintenance=0
   | stats latest(health_score) as health by service_name
 ]
@@ -1270,7 +1270,7 @@ index=itsi_notable:audit OR index=notable sourcetype="itsi:notable_audit"
 ```spl
 index=itsi_summary is_service_in_maintenance=0
 | timechart span=1d count(eval(severity_value>=3)) as breaches by kpi_name
-| join kpi_name [
+| join max=1 kpi_name [
   search index=itsi_summary kpi_threshold_type="adaptive"
   | stats dc(kpi_name) as adaptive_kpis by kpi_name
 ]
@@ -1747,8 +1747,8 @@ index=pagerduty sourcetype="pagerduty:incident"
 - **SPL:**
 ```spl
 | inputlookup cmdb_hosts.csv
-| join type=left hostname [search index=_internal group=tcpin_connections | stats latest(_time) as splunk_last by hostname]
-| join type=left hostname [search index=edr sourcetype="*sensor*" | stats latest(_time) as edr_last by hostname]
+| join type=left max=1 hostname [search index=_internal group=tcpin_connections | stats latest(_time) as splunk_last by hostname]
+| join type=left max=1 hostname [search index=edr sourcetype="*sensor*" | stats latest(_time) as edr_last by hostname]
 | where isnull(splunk_last) AND isnull(edr_last)
 | table hostname, os, department
 ```
@@ -2108,7 +2108,7 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 ```spl
 `stream_index` thousandeyes.test.type="agent-to-server"
 | stats avg(network.latency) as avg_net_latency_s avg(network.loss) as avg_net_loss by server.address, _time span=5m
-| join type=outer server.address [
+| join type=outer max=1 server.address [
   search index=apm_traces
   | stats avg(duration_ms) as avg_app_latency_ms p99(duration_ms) as p99_app_latency_ms by service.name, server.address, _time span=5m
 ]
@@ -2135,7 +2135,7 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 `stream_index` sourcetype="thousandeyes:alerts"
 | stats earliest(_time) as alert_start latest(_time) as alert_end by alert.rule.name, alert.test.name
 | eval mtti_minutes=round((alert_end-alert_start)/60,1)
-| join type=outer alert.test.name [
+| join type=outer max=1 alert.test.name [
   search `event_index`
   | stats earliest(_time) as event_start latest(state) as final_state by thousandeyes.test.name
   | rename thousandeyes.test.name as alert.test.name

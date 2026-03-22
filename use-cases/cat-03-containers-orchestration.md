@@ -108,7 +108,7 @@ index=containers sourcetype="trivy:scan"
 | xyseries image Severity count
 | sort -CRITICAL -HIGH
 ```
-- **Implementation:** Run vulnerability scans in CI/CD pipeline (Trivy, Grype, or Snyk). Forward JSON results to Splunk via HEC. Create dashboard showing vulnerability counts per image by severity. Alert on CRITICAL vulnerabilities in production-tagged images.
+- **Implementation:** Run vulnerability scans in CI/CD pipeline (Trivy, Grype, or Snyk). Send Trivy/Grype scan results to Splunk via HEC with `sourcetype=trivy:scan` (or equivalent scanner output); batch results per image digest. Alert on `Severity=CRITICAL` for images whose `image_tag` matches production entries in a `prod_images` lookup. Exclude known-accepted CVEs via a `cve_exceptions.csv` lookup refreshed by the security team.
 - **Visualization:** Table (image, critical, high, medium, low), Stacked bar chart by image, Trend line.
 - **CIM Models:** N/A
 
@@ -177,7 +177,7 @@ index=containers sourcetype="docker:daemon" level="error" OR level="fatal"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Configuration
-- **Value:** Docker engine responsiveness and version mismatches across fleet.
+- **Value:** Mixed Docker Engine versions break image compatibility and CVE patching cadence; silent `ServerErrors` in the daemon log precede pull and run failures. Standardize on a patch channel and alert before user-facing container failures cascade.
 - **App/TA:** Custom scripted input (docker info, docker version)
 - **Data Sources:** docker info JSON output, docker version
 - **SPL:**
@@ -477,7 +477,7 @@ index=k8s sourcetype="kube:container:meta"
 | where restarts > 5
 | sort -restarts
 ```
-- **Implementation:** Deploy Splunk OTel Collector as a DaemonSet. It collects container metadata including restart counts. Alert when any pod exceeds 5 restarts in 1 hour. Include the pod's last termination reason.
+- **Implementation:** Deploy the Splunk OTel Collector as a DaemonSet for kube-state-metrics. The restart counter (`kube_pod_container_status_restarts_total`) is cumulative, so use a windowed increase (`streamstats` delta or `mstats` rate) rather than raw max. Alert when the 1-hour increase exceeds 5 for any pod outside `kube-system`. Filter known CronJob namespaces with a lookup to reduce noise.
 - **Visualization:** Table (namespace, pod, container, restarts), Bar chart by namespace, Trending line.
 - **CIM Models:** N/A
 
@@ -963,7 +963,7 @@ index=k8s sourcetype="kube:objects:events" involvedObject.kind="HorizontalPodAut
 | comment "Current replicas"
 index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_status_current_replicas"
 | stats latest(_value) as current by namespace, horizontalpodautoscaler
-| join type=left namespace horizontalpodautoscaler [
+| join type=left max=1 namespace horizontalpodautoscaler [
     search index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_spec_max_replicas"
     | stats latest(_value) as max_rep by namespace, horizontalpodautoscaler
 ]
@@ -987,7 +987,7 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_st
 ```spl
 index=k8s sourcetype="kube:metrics" metric_name="kubelet_volume_stats_used_bytes"
 | stats latest(_value) as used by namespace, persistentvolumeclaim, node
-| join type=left namespace persistentvolumeclaim node [
+| join type=left max=1 namespace persistentvolumeclaim node [
     search index=k8s sourcetype="kube:metrics" metric_name="kubelet_volume_stats_capacity_bytes"
     | stats latest(_value) as cap by namespace, persistentvolumeclaim, node
 ]
@@ -1259,7 +1259,7 @@ index=k8s sourcetype="kube:audit" objectRef.resource="pods" responseStatus.code=
 ```spl
 index=k8s sourcetype="kube:metrics" metric_name="kube_poddisruptionbudget_status_expected_pods"
 | stats latest(_value) as expected by namespace, poddisruptionbudget
-| join type=left namespace poddisruptionbudget [
+| join type=left max=1 namespace poddisruptionbudget [
     search index=k8s sourcetype="kube:metrics" metric_name="kube_poddisruptionbudget_status_current_healthy"
     | stats latest(_value) as healthy by namespace, poddisruptionbudget
 ]
@@ -1283,7 +1283,7 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_poddisruptionbudget_status
 ```spl
 index=k8s sourcetype="kube:metrics" metric_name="vpa_recommendation_target_cpu"
 | stats latest(_value) as target_millicores by namespace, verticalpodautoscaler
-| join type=left namespace verticalpodautoscaler [
+| join type=left max=1 namespace verticalpodautoscaler [
     search index=k8s sourcetype="kube:metrics" metric_name="kube_pod_container_resource_requests" resource="cpu"
     | stats latest(_value) as request_millicores by namespace, pod
 ]
@@ -1356,7 +1356,7 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_volume_snapshot_ready"
 ```spl
 index=k8s sourcetype="kube:metrics" metric_name="kube_endpoint_address_available"
 | stats latest(_value) as avail by namespace, service
-| join type=left namespace service [
+| join type=left max=1 namespace service [
     search index=k8s sourcetype="kube:metrics" metric_name="kube_endpoint_address_not_ready"
     | stats latest(_value) as not_ready by namespace, service
 ]
@@ -2017,7 +2017,7 @@ index=cloud sourcetype="aws:cloudwatch:metric" Namespace="AWS/ECS" MetricName="C
 ```spl
 index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.containerinstance/containergroups"
 | stats avg(average) as cpu_avg, max(maximum) as cpu_peak by resource_name, resource_group
-| join type=left resource_name [
+| join type=left max=1 resource_name [
     search index=cloud sourcetype="azure:diagnostics" Category="ContainerInstanceLog"
     | where match(_raw, "(?i)error|fail|OOM")
     | stats count as log_errors by resource_name
@@ -2148,7 +2148,7 @@ index=containers sourcetype="envoy:access"
 ```spl
 index=containers sourcetype="kubernetes:audit" objectRef.resource="pods"
 | eval has_sidecar=if(match(_raw, "istio-proxy"), 1, 0)
-| join type=left objectRef.namespace [
+| join type=left max=1 objectRef.namespace [
     search index=containers sourcetype="kube:objects" kind="Namespace"
     | eval inject=if(match(_raw, "istio-injection=enabled"), 1, 0)
     | stats max(inject) as should_inject by metadata.name

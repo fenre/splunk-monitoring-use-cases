@@ -20,7 +20,7 @@ index=nac sourcetype="cisco:ise:auth"
 | eval status=if(match(message,"PASS"),"success","failure")
 | timechart span=1h count by status
 ```
-- **Implementation:** Forward ISE syslog to Splunk. Parse authentication results, methods, and endpoints. Track success/failure rates per location and SSID. Alert on spike in failures (>10% rate). Report on authentication method adoption.
+- **Implementation:** Forward ISE PSN syslog (TCP/UDP 514) to a Heavy Forwarder. Configure `props.conf`/`transforms.conf` for field extraction of `AuthenticationPolicy`, `Passed/Failed`, `Calling-Station-ID`, and `NAS-IP-Address`. Alert on failure-rate spikes vs the 7-day same-hour baseline, segmented by `nas_ip` or `location`, to distinguish localized AP/switch issues from systemic RADIUS problems.
 - **Visualization:** Line chart (auth success/failure rates), Bar chart (failures by location), Pie chart (auth method distribution).
 - **CIM Models:** Authentication, Network_Sessions
 - **CIM SPL:**
@@ -1205,7 +1205,7 @@ index=vpn sourcetype="vpn:session" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
-- **Value:** Tracks zero-trust policy enforcement decisions, ensuring consistent security without creating user friction.
+- **Value:** A spike in policy blocks for a single application after a policy publish suggests a rule-order or identity claim error. Gradual deny-rate growth across multiple apps indicates posture drift or certificate expiry across a device cohort. Both patterns require different response workflows.
 - **App/TA:** SASE TA, Entra ID
 - **Data Sources:** SASE/ZT policy decision logs
 - **SPL:**

@@ -48,6 +48,10 @@ Edit `custom-text.js` to change hero text, roadmap labels, filter chip names, fo
 
 Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over vendor `*_ip` fields where practical. See **`docs/cim-and-data-models.md`** and optional bulk helper **`scripts/normalize_cim_fields.py`**.
 
+### Splunk Dashboard Studio (optional)
+
+The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which visualizes the **top two Quick-Start use cases per category** (44 UCs) from `use-cases/INDEX.md`. See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`).
+
 ---
 
 ## Repository Structure
@@ -64,6 +68,7 @@ Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over
 │   └── cat-22-regulatory-compliance.md
 ├── build.py                Parses markdown, emits data.js and catalog.json
 ├── validate_md.py          Validates structure and UC-ID consistency
+├── scripts/                Utilities (e.g. deploy Dashboard Studio via REST, regenerate catalog JSON)
 ├── index.html              Single-page dashboard UI
 ├── data.js                 Dashboard data (rebuild with build.py)
 ├── catalog.json            Machine-readable catalog (same data, JSON format)
@@ -73,6 +78,10 @@ Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over
 ├── llms-full.txt           Complete UC listing for LLMs
 ├── sitemap.xml             Search engine sitemap
 ├── robots.txt              Crawler directives
+├── dashboards/             Optional Splunk Dashboard Studio JSON (synthetic demo data)
+│   ├── README.md           Import instructions
+│   ├── catalog-quick-start-top2.json
+│   └── executive-health-dashboard.json
 ├── docs/                   Documentation
 │   ├── use-case-fields.md
 │   ├── implementation-guide.md

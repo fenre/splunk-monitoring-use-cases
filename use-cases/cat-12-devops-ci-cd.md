@@ -167,7 +167,7 @@ index=devops sourcetype="github:actions_billing"
 - **SPL:**
 ```spl
 index=devops sourcetype="github:audit" action="protected_branch.policy_override"
-| join type=left repo [search index=devops sourcetype="github:webhook" event="push" | fields repository, ref, pusher, _time]
+| join type=left max=1 repo [search index=devops sourcetype="github:webhook" event="push" | fields repository, ref, pusher, _time]
 | table _time, actor, repo, branch, action, pusher
 ```
 - **Implementation:** Require GitHub Advanced Security audit stream. Alert on any override; require VP approval ticket in lookup. Weekly report of overrides vs zero target.
@@ -739,14 +739,14 @@ index=cicd sourcetype="deployment_event" environment="production"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
-- **Value:** Many concurrent jobs on shared runners cause CPU steal and flaky tests—correlate job concurrency with duration outliers.
+- **Value:** Runner saturation lengthens CI pipelines and causes flaky tests that block releases. Correlating saturation metrics with P95 job duration justifies autoscaling investment and prevents false 'code regression' blame when infrastructure is the root cause.
 - **App/TA:** Jenkins metrics, Kubernetes node metrics
 - **Data Sources:** Active executor count, node CPU utilization, overlapping job IDs
 - **SPL:**
 ```spl
 index=cicd sourcetype="jenkins:metrics"
 | eval utilization_pct=round(busy_executors/total_executors*100,1)
-| join type=left _time [search index=infra sourcetype="kube:node" | stats avg(cpu_usage) as node_cpu by _time]
+| join type=left max=1 _time [search index=infra sourcetype="kube:node" | stats avg(cpu_usage) as node_cpu by _time]
 | where utilization_pct>90 AND node_cpu>85
 | table _time, computer, utilization_pct, node_cpu
 ```
@@ -914,7 +914,7 @@ index=cicd sourcetype="jenkins:build"
 ```spl
 index=cicd sourcetype="test_coverage" branch=main
 | eventstats latest(coverage_pct) as main_cov by project
-| join project [search index=cicd sourcetype="test_coverage" branch!=main | fields project, coverage_pct, pr]
+| join max=1 project [search index=cicd sourcetype="test_coverage" branch!=main | fields project, coverage_pct, pr]
 | eval delta=coverage_pct-main_cov
 | where delta < -1
 | table project, pr, coverage_pct, main_cov, delta
@@ -937,7 +937,7 @@ index=cicd sourcetype="test_coverage" branch=main
 index=infra sourcetype="kube:pod_metrics" label_app="ci-runner"
 | bin _time span=5m
 | stats avg(cpu_cores) as avg_cpu by pod_name
-| join pod_name [search index=cicd sourcetype="jenkins:build" | stats avg(duration) as job_dur by executor_pod]
+| join max=1 pod_name [search index=cicd sourcetype="jenkins:build" | stats avg(duration) as job_dur by executor_pod]
 | table pod_name, avg_cpu, job_dur
 ```
 - **Implementation:** Correlate runner pods with jobs. Identify over-provisioned runners. Recommend requests/limits tuning.

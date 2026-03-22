@@ -9,7 +9,7 @@
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
-- **Value:** UCS blade and rack servers host critical workloads. Monitoring component health (CPU, memory, PSU, fans) enables proactive hardware replacement before failures cause VM outages and unplanned downtime.
+- **Value:** A degraded DIMM or PSU often precedes an uncorrectable ECC error or power loss event. Proactive FRU RMA before HA capacity is exhausted on remaining paths prevents unplanned workload migration and potential data unavailability.
 - **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager syslog
 - **Equipment Models:** Cisco UCS B200 M5/M6/M7, UCS C220 M5/M6/M7, UCS C240 M5/M6/M7, UCS C480 M5, UCS X210c M6/M7, UCS X410c M6, UCS 6324 FI, UCS 6332 FI, UCS 6454 FI, UCS 6536 FI
 - **Data Sources:** UCS Manager faults, UCS Manager equipment API

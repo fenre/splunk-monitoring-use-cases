@@ -671,6 +671,502 @@ def assign_premium(uc):
     return ", ".join(sorted(set(matched)))
 
 
+# --- ESCU Detection Classification ------------------------------------------------
+# Detection types from ESCU that represent the methodology
+ESCU_METHODOLOGY_TYPES = {"ttp", "anomaly", "hunting", "baseline", "correlation"}
+
+# Detection types from ESCU that represent entity/risk_object_type rather than methodology
+ESCU_ENTITY_LABELS = {
+    "system": "host or system", "user": "user account",
+    "process_name": "process", "process": "process",
+    "parent_process_name": "parent process", "parent_process": "parent process",
+    "ip_address": "IP address", "file_name": "file", "file_path": "file path",
+    "file_hash": "file hash", "url": "URL", "domain": "domain",
+    "http_user_agent": "HTTP user agent", "signature": "detection signature",
+    "email_subject": "email", "email_address": "email address",
+    "service": "service", "registry_path": "registry key",
+    "registry_value_text": "registry value", "registry_value_name": "registry value",
+    "command": "command", "certificate_serial": "certificate",
+    "other": "entity", "operational metrics": "operational metric",
+}
+
+
+def is_escu_detection(uc):
+    """True if use case is an ESCU/SSE detection rule (has ESCU in App/TA and a detection type)."""
+    ta = (uc.get("t") or "").lower()
+    return ("escu" in ta or "security essentials" in ta) and bool((uc.get("dtype") or "").strip())
+
+
+def _escu_is_rba(uc):
+    """True if the ESCU detection uses Risk-Based Alerting."""
+    spl = (uc.get("q") or "").lower()
+    dtype_low = (uc.get("dtype") or "").strip().lower()
+    if "risk.all_risk" in spl or "risk_object" in spl:
+        return True
+    if dtype_low in ESCU_ENTITY_LABELS:
+        return True
+    return False
+
+
+def _escu_classify(uc):
+    """Classify an ESCU detection into (methodology, entity_label, is_rba)."""
+    dtype = (uc.get("dtype") or "TTP").strip()
+    dtype_low = dtype.lower()
+    is_rba = _escu_is_rba(uc)
+
+    if dtype_low in ESCU_METHODOLOGY_TYPES:
+        methodology = "TTP" if dtype_low == "ttp" else dtype_low.capitalize()
+        entity_label = None
+    elif dtype_low in ESCU_ENTITY_LABELS:
+        methodology = "TTP"
+        entity_label = ESCU_ENTITY_LABELS[dtype_low]
+    else:
+        methodology = "TTP"
+        entity_label = None
+
+    return methodology, entity_label, is_rba
+
+
+def generate_escu_short_impl(uc):
+    """Generate a concise, type-specific implementation summary for ESCU detections."""
+    methodology, entity_label, is_rba = _escu_classify(uc)
+    d = (uc.get("d") or "the required data sources").strip().rstrip(".")
+
+    if methodology == "Hunting":
+        return (
+            "ESCU Hunting detection \u2014 not designed for automated alerting. "
+            "Run ad-hoc or on a low-frequency schedule from Splunk Enterprise Security for analyst-driven investigation. "
+            "Requires %s ingested and CIM-normalized." % d
+        )
+    if methodology == "Anomaly":
+        return (
+            "ESCU Anomaly detection \u2014 requires a baseline period (7\u201314 days minimum) before results are actionable. "
+            "Enable in ES Content Management as a Correlation Search. "
+            "Requires %s ingested and CIM-normalized." % d
+        )
+    if methodology == "Baseline":
+        return (
+            "ESCU Baseline detection \u2014 establishes normal behavior patterns used by companion Anomaly detections. "
+            "Enable in ES Content Management; does not generate alerts independently. "
+            "Requires %s ingested and CIM-normalized." % d
+        )
+    if is_rba:
+        ec = " attributed to %s entities" % entity_label if entity_label else ""
+        return (
+            "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. "
+            "Generates risk events%s \u2014 Notable Events fire when an entity\u2019s cumulative risk "
+            "exceeds the configured threshold. Requires %s ingested and CIM-normalized." % (ec, d)
+        )
+    return (
+        "ESCU %s detection. Enable in ES Content Management as a Correlation Search. "
+        "Generates Notable Events directly when triggered. "
+        "Requires %s ingested and CIM-normalized." % (methodology, d)
+    )
+
+
+def generate_escu_detailed_impl(uc):
+    """Generate high-quality Enterprise Security implementation guidance for ESCU detections."""
+    name = (uc.get("n") or "Detection").strip()
+    data_sources = (uc.get("d") or "See Data Sources above").strip()
+    spl = (uc.get("q") or "").strip()
+    kfp = (uc.get("kfp") or "").strip()
+    mitre = uc.get("mitre") or []
+    cim_models = uc.get("a") or []
+    sdomain = (uc.get("sdomain") or "").strip()
+
+    methodology, entity_label, is_rba = _escu_classify(uc)
+
+    lines = []
+
+    # ---- Header ----
+    lines.append("Enterprise Security Detection Rule")
+    lines.append("")
+
+    method_descs = {
+        "TTP": "a TTP (Tactics, Techniques, and Procedures) detection that identifies known adversary behaviors with high fidelity",
+        "Hunting": "a Hunting detection designed for analyst-driven threat hunting rather than automated alerting",
+        "Anomaly": "an Anomaly detection that identifies statistical deviations from established baseline behavior",
+        "Baseline": "a Baseline detection that establishes normal behavior patterns to support companion Anomaly detections",
+        "Correlation": "a Correlation detection that aggregates and correlates signals from multiple detection sources",
+    }
+    method_desc = method_descs.get(methodology, "a %s detection" % methodology)
+
+    intro = '"%s" is %s, sourced from the Splunk Enterprise Security Content Update (ESCU).' % (name, method_desc)
+
+    if is_rba and methodology not in ("Hunting", "Baseline"):
+        if entity_label:
+            intro += (
+                " It operates within the Risk-Based Alerting (RBA) framework, attributing risk to %s entities."
+                " Rather than generating standalone alerts, each firing contributes a risk score to the identified"
+                " entity \u2014 Notable Events are created only when cumulative risk exceeds the configured threshold,"
+                " significantly reducing alert fatigue while preserving detection coverage." % entity_label
+            )
+        else:
+            intro += (
+                " It operates within the Risk-Based Alerting (RBA) framework."
+                " Rather than generating standalone alerts, it contributes risk scores to identified entities \u2014"
+                " Notable Events are created only when cumulative risk exceeds the threshold."
+            )
+    elif methodology == "Hunting":
+        intro += (
+            " Hunting detections are not intended for automated alerting."
+            " They are run on-demand or on a low-frequency schedule by security analysts"
+            " investigating specific threat hypotheses."
+        )
+    elif methodology == "Baseline":
+        intro += (
+            " Baseline detections do not generate alerts independently."
+            " They establish behavioral norms used by companion Anomaly detections."
+        )
+    elif methodology == "Anomaly":
+        intro += (
+            " Anomaly detections require a baseline period to learn normal behavior before"
+            " results become actionable. When triggered, deviations generate Notable Events"
+            " for analyst investigation."
+        )
+    else:
+        intro += " When triggered, it creates a Notable Event in the Incident Review dashboard for analyst triage."
+
+    lines.append(intro)
+    lines.append("")
+
+    # ---- Prerequisites ----
+    lines.append("Prerequisites")
+    lines.append("")
+    lines.append("\u2022 Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.")
+    lines.append(
+        "\u2022 Data sources: %s. Must be ingested into Splunk and normalized to the Common Information Model (CIM)"
+        " via the appropriate Technology Add-on." % data_sources
+    )
+
+    real_cim = [m for m in cim_models if m.upper() != "N/A"] if cim_models else []
+    if real_cim:
+        lines.append(
+            "\u2022 Data Model Acceleration: enable DMA for %s under Settings \u2192 Data Models."
+            " Set the acceleration summary range to cover the detection\u2019s lookback window"
+            " (typically 7 days minimum)." % ", ".join(real_cim)
+        )
+
+    if sdomain:
+        domain_prereqs = {
+            "endpoint": "Configure endpoint data collection (Sysmon, EDR agents, Windows Security Event Logs) and verify the Endpoint data model is populated and accelerated.",
+            "network": "Ensure network traffic, DNS, and proxy logs are flowing and the Network Traffic and Network Resolution data models are populated.",
+            "threat": "Configure threat intelligence feeds and verify the Threat Intelligence data model is populated for IOC matching.",
+            "identity": "Ensure authentication and identity logs are ingested. Configure the Asset and Identity framework with your CMDB and HR data sources for entity enrichment.",
+            "access": "Verify access control and authorization logs are ingested and the Authentication data model is accelerated.",
+            "audit": "Ensure audit trail data is ingested with proper timestamp parsing and CIM field mappings.",
+        }
+        desc = domain_prereqs.get(sdomain.lower(),
+                                  "Ensure data relevant to the %s security domain is ingested and CIM-normalized." % sdomain)
+        lines.append("\u2022 Security domain (%s): %s" % (sdomain, desc))
+
+    if mitre:
+        lines.append(
+            "\u2022 MITRE ATT&CK: %s. Review the ATT&CK matrix for adjacent techniques"
+            " to identify detection coverage gaps in your environment." % ", ".join(mitre)
+        )
+
+    lines.append("")
+
+    # ---- Deployment ----
+    lines.append("Deployment")
+    lines.append("")
+
+    if methodology == "Hunting":
+        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
+        lines.append('2. Search for "%s" or filter by Analytic Story.' % name)
+        lines.append(
+            "3. Hunting detections are typically left disabled for automated scheduling."
+            " Instead, run them on-demand from the Search bar or schedule at low frequency (daily or weekly)."
+        )
+        lines.append(
+            "4. Review results manually \u2014 hunting detections cast a wider net and expect"
+            " analyst judgment to separate signal from noise."
+        )
+        lines.append(
+            "5. When results warrant further investigation, create a Notable Event manually"
+            " or initiate your incident response workflow."
+        )
+    elif methodology == "Baseline":
+        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
+        lines.append('2. Search for "%s" or filter by Analytic Story.' % name)
+        lines.append(
+            "3. Enable the Baseline detection and allow it to run for at least 14 days"
+            " to establish reliable behavioral norms."
+        )
+        lines.append(
+            "4. Locate the companion Anomaly detection(s) in the same Analytic Story \u2014"
+            " they depend on the baseline data this detection produces."
+        )
+        lines.append(
+            "5. Baseline detections do not require alert actions."
+            " Focus on ensuring consistent data ingestion during the baseline period."
+        )
+    elif is_rba:
+        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
+        lines.append('2. Search for "%s" or filter by Analytic Story to locate the detection.' % name)
+        lines.append(
+            "3. Review the detection\u2019s configuration: scheduling interval, risk score weight,"
+            " and risk message template. The default risk score reflects the detection\u2019s relative"
+            " severity \u2014 adjust based on your organization\u2019s risk tolerance."
+        )
+        lines.append(
+            "4. Enable the detection. It will run as a scheduled Correlation Search and write risk events"
+            " to the risk index when conditions are met."
+        )
+        lines.append(
+            '5. Verify the Risk Notable aggregation rule is enabled (Content Management \u2192 search for "Risk Notable").'
+            " This is the correlation search that fires when an entity\u2019s cumulative risk score"
+            " crosses the configured threshold, creating the Notable Event that analysts investigate."
+        )
+        lines.append(
+            "6. Optionally configure Adaptive Response Actions on this detection \u2014 for example,"
+            " automatically enriching risk events with threat intelligence lookups, adding entities to a"
+            " triage watchlist, or triggering a SOAR playbook for high-confidence detections."
+        )
+    else:
+        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
+        lines.append('2. Search for "%s" or filter by Analytic Story.' % name)
+        lines.append(
+            "3. Review the detection configuration \u2014 verify the scheduling interval and"
+            " throttling settings match your operational tempo."
+        )
+        lines.append(
+            "4. Enable the detection as a Correlation Search."
+            " It will create Notable Events directly when triggered."
+        )
+        lines.append(
+            "5. Set the Notable Event severity and urgency appropriate to your environment\u2019s risk posture."
+        )
+        lines.append(
+            "6. Configure Adaptive Response Actions: email notifications, ServiceNow ticket creation,"
+            " SOAR playbook triggers, or other response workflows."
+        )
+
+    lines.append("")
+
+    # ---- Tuning ----
+    lines.append("Tuning and False Positive Management")
+    lines.append("")
+
+    if kfp and kfp.strip() not in ("", "|"):
+        lines.append("Known false positives for this detection: %s" % kfp)
+        lines.append("")
+
+    if is_rba and methodology not in ("Hunting", "Baseline"):
+        lines.append(
+            "\u2022 Adjust the risk score weight in Content Management."
+            " Start with the ESCU default and increase for detections that consistently"
+            " produce true positives in your environment; decrease for noisy detections."
+        )
+        lines.append(
+            "\u2022 Use the Risk Analysis dashboard in ES to identify which detections contribute"
+            " the most risk events and which entities are most frequently flagged \u2014"
+            " this reveals both coverage strengths and tuning opportunities."
+        )
+        lines.append(
+            "\u2022 Create lookup-based suppressions for known-good activity: approved administrative"
+            " tools, vulnerability scanner IPs, scheduled batch processes, and maintenance windows."
+        )
+        lines.append(
+            "\u2022 If the detection fires frequently on a specific entity that is consistently benign,"
+            " consider adding a per-entity risk exception rather than disabling the detection entirely \u2014"
+            " this preserves coverage for other entities."
+        )
+    elif methodology == "Anomaly":
+        lines.append(
+            "\u2022 Allow a minimum 7\u201314 day baseline period before treating results as actionable."
+            " Anomaly detections need sufficient data to establish reliable behavioral norms."
+        )
+        lines.append(
+            "\u2022 Review and adjust the statistical threshold (standard deviation multiplier or count threshold)"
+            " based on your environment\u2019s natural variance. Start conservative and tighten over time."
+        )
+        lines.append(
+            "\u2022 Exclude recurring legitimate patterns: automated processes, scheduled reports,"
+            " batch jobs, and other predictable activity that creates expected outliers."
+        )
+        lines.append(
+            "\u2022 Re-evaluate the baseline periodically \u2014 organizational changes"
+            " (mergers, new applications, infrastructure migrations) can shift behavioral norms."
+        )
+    elif methodology == "Hunting":
+        lines.append(
+            "\u2022 Hunting detections are expected to produce broader result sets that require analyst"
+            " interpretation. Focus on refining the search scope (time range, specific hosts or users)"
+            " rather than eliminating all noise."
+        )
+        lines.append(
+            "\u2022 Maintain a hunting journal documenting hypotheses tested, results found,"
+            " and detection improvements identified."
+        )
+        lines.append(
+            "\u2022 Share high-fidelity findings with the detection engineering team to convert"
+            " recurring hunting patterns into automated TTP or Anomaly detections."
+        )
+    else:
+        lines.append(
+            "\u2022 Review the detection\u2019s filter criteria and adjust for known-good activity in your environment."
+        )
+        lines.append(
+            "\u2022 Configure throttling in Content Management to prevent duplicate Notable Events"
+            " for the same entity within a configurable window"
+            " (typically 1\u201324 hours depending on detection frequency)."
+        )
+        lines.append(
+            "\u2022 Use Notable Event Suppression for entities or patterns that are consistently benign"
+            " after investigation."
+        )
+
+    lines.append("")
+
+    # ---- Analyst Workflow ----
+    if methodology != "Baseline":
+        lines.append("Analyst Response Workflow")
+        lines.append("")
+
+        if is_rba and methodology != "Hunting":
+            lines.append("When a Risk Notable fires for an entity associated with this detection:")
+            lines.append("")
+            lines.append(
+                "1. Open the Notable Event in Incident Review. Examine the entity\u2019s risk"
+                " timeline \u2014 this detection is one of potentially many contributing risk signals."
+                " The composite risk score provides more context than any single detection alone."
+            )
+            lines.append(
+                "2. Review the Risk Message and Analytic Story annotations to understand what"
+                " adversary behavior was detected and its position in the MITRE ATT&CK kill chain."
+            )
+
+            domain_investigation = {
+                "endpoint": (
+                    "3. Pivot to the Asset Investigator to review the host\u2019s recent process executions,"
+                    " file modifications, registry changes, and network connections."
+                    " Cross-reference with EDR telemetry for process trees and parent-child relationships."
+                ),
+                "network": (
+                    "3. Pivot to the Asset Investigator to review the device\u2019s network connections,"
+                    " DNS queries, and traffic volume patterns."
+                    " Check for beaconing behavior, unusual destination IPs, or data exfiltration indicators."
+                ),
+                "identity": (
+                    "3. Pivot to the Identity Investigator to review the user\u2019s authentication history,"
+                    " privilege usage, and access patterns across systems."
+                    " Check for impossible travel, off-hours activity, or access outside the user\u2019s normal scope."
+                ),
+                "access": (
+                    "3. Pivot to the Identity Investigator and the Access Anomalies dashboard to review"
+                    " authorization patterns, privilege escalation, and resource access."
+                    " Verify against the user\u2019s role and recent access requests."
+                ),
+            }
+            lines.append(domain_investigation.get(
+                sdomain.lower() if sdomain else "",
+                "3. Pivot to the Asset Investigator or Identity Investigator to review the entity\u2019s"
+                " full activity timeline and correlate with threat intelligence and other security events."
+            ))
+
+            lines.append(
+                "4. Assess the full scope: check for related risk events from the same Analytic Story"
+                " and from other entities that may indicate lateral movement or a coordinated attack."
+            )
+            lines.append(
+                "5. Determine disposition: True Positive (initiate incident response),"
+                " Benign True Positive (legitimate activity \u2014 document and consider tuning),"
+                " or False Positive (add suppression and adjust detection)."
+            )
+            lines.append(
+                "6. Update the Notable Event status, set the owner, and document findings"
+                " in the investigation notes for audit trail and team visibility."
+            )
+
+        elif methodology == "Hunting":
+            lines.append("When reviewing Hunting results:")
+            lines.append("")
+            lines.append(
+                "1. Run the search manually or review scheduled results."
+                " Evaluate each returned event against your threat hypothesis"
+                " \u2014 not every result indicates compromise."
+            )
+            lines.append(
+                "2. Cross-reference findings with current threat intelligence,"
+                " recent security advisories, and outputs from other detection sources."
+            )
+            lines.append(
+                "3. If suspicious activity is confirmed, create a Notable Event or"
+                " escalate directly to your incident response process with the supporting evidence."
+            )
+            lines.append(
+                "4. Document the hunting exercise: hypothesis, data sources queried,"
+                " time range, findings, and any detection engineering improvements identified."
+            )
+        else:
+            lines.append("When this detection generates a Notable Event:")
+            lines.append("")
+            lines.append(
+                "1. Open the Notable Event in Incident Review."
+                " Review the triggering event details, affected entities, and assigned severity."
+            )
+            lines.append(
+                "2. Investigate the involved entities using the Asset Investigator"
+                " and Identity Investigator dashboards for historical context and behavioral patterns."
+            )
+            lines.append(
+                "3. Correlate with related Notable Events and threat intelligence"
+                " to assess whether this is an isolated event or part of a broader campaign."
+            )
+            lines.append(
+                "4. Take appropriate response actions: contain, remediate, and recover."
+                " Leverage SOAR playbooks where available for consistent and rapid response."
+            )
+            lines.append(
+                "5. Update the Notable Event status and document investigation findings"
+                " for post-incident review and compliance."
+            )
+
+        lines.append("")
+
+    # ---- SPL Context for Risk Investigation searches ----
+    if spl and "risk.all_risk" in spl.lower():
+        lines.append("About the SPL Query Shown Above")
+        lines.append("")
+        lines.append(
+            "The SPL displayed for this use case is the Risk Investigation drilldown search \u2014"
+            " it queries the Risk data model to show all risk events associated with a specific entity."
+            " This is the search analysts use during investigation to understand what contributed"
+            " to an entity\u2019s risk score."
+        )
+        lines.append("")
+        lines.append(
+            "The actual detection logic is packaged within the ESCU Correlation Search definition"
+            " and runs automatically on schedule. To view or modify the detection\u2019s underlying"
+            " search logic, navigate to Configure \u2192 Content \u2192 Content Management"
+            " and click on the detection name."
+        )
+        lines.append("")
+
+    # ---- Validation ----
+    lines.append("Validation")
+    lines.append("")
+    lines.append("Confirm the required data sources are flowing:")
+    lines.append("")
+    lines.append("```spl")
+    lines.append("| tstats count where index=* by index, sourcetype | sort -count")
+    lines.append("```")
+    lines.append("")
+    lines.append("Verify the detection is enabled and firing:")
+    lines.append("")
+    lines.append("```spl")
+    lines.append('index=_audit action="alert_fired" ss_name="*"')
+    lines.append("| stats count by ss_name, trigger_time | sort -trigger_time")
+    lines.append("```")
+
+    return "\n".join(lines)
+
+
+ESCU_GENERIC_IMPL_PREFIX = "deploy the detection from splunk security essentials"
+
+
 def assign_pillar(uc, cat_id):
     """Auto-assign Splunk pillar (security/observability/both) based on UC fields and heuristics.
     If the UC already has a manually-set pillar field, respect it."""
@@ -1499,10 +1995,21 @@ def parse_category_file(filepath):
 
     # Fill detailed implementation, equipment tags, and pillar for every UC
     cat_id = category.get("i", 0)
+    escu_count = 0
     for sub in category.get("s", []):
         for uc in sub.get("u", []):
-            if not (uc.get("md") or "").strip():
+            # ESCU detection: generate ES-specific implementation
+            if is_escu_detection(uc):
+                escu_count += 1
+                uc["escu"] = True
+                uc["escu_rba"] = _escu_is_rba(uc)
+                uc["md"] = generate_escu_detailed_impl(uc)
+                m_text = (uc.get("m") or "").lower()
+                if m_text.startswith(ESCU_GENERIC_IMPL_PREFIX) or not m_text.strip():
+                    uc["m"] = generate_escu_short_impl(uc)
+            elif not (uc.get("md") or "").strip():
                 uc["md"] = generate_detailed_impl(uc)
+
             eq_ids, model_ids = equipment_ids_for_ta_string(uc.get("t"))
             uc["e"] = eq_ids
             uc["em"] = model_ids
@@ -1522,6 +2029,9 @@ def parse_category_file(filepath):
             final_regs = sorted(manual_regs | auto_regs)
             if final_regs:
                 uc["regs"] = final_regs
+
+    if escu_count:
+        print("    \u2192 %d ESCU detections tagged with ES-specific implementation" % escu_count)
 
     return category
 

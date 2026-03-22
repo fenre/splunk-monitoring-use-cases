@@ -18,7 +18,7 @@
 index=itsm sourcetype="snow:incident"
 | timechart span=1d count by priority
 ```
-- **Implementation:** Ingest ServiceNow incidents via TA. Track creation rates by category, priority, and assignment group. Alert on volume spikes. Compare against historical baselines. Report on trending categories for problem management input.
+- **Implementation:** Enable the incident input in `Splunk_TA_snow` with a 300-second polling interval. Baseline incident volume by computing the median count per `assignment_group` by hour-of-week over 30 days. Alert when the current interval exceeds 2x the baseline for two consecutive intervals. Exclude known maintenance windows via a `change_windows` lookup.
 - **Visualization:** Line chart (incident volume trend), Stacked bar (by priority), Pie chart (by category), Table (today's incidents).
 - **CIM Models:** N/A
 
@@ -95,7 +95,7 @@ index=itsm sourcetype="snow:change_request"
 ```spl
 index=itsm sourcetype="snow:change_request" state="scheduled"
 | eval change_window_start=start_date, change_window_end=end_date
-| join type=inner cmdb_ci [| search index=itsm sourcetype="snow:change_request" state="scheduled"]
+| join type=inner max=1 cmdb_ci [| search index=itsm sourcetype="snow:change_request" state="scheduled"]
 | where change_window_start < end_date AND change_window_end > start_date AND change_id!=other_change_id
 ```
 - **Implementation:** Analyze scheduled change windows for overlapping CIs. Cross-reference CI relationships for dependent systems. Alert when changes to related systems overlap. Create change calendar view for CAB review.
@@ -177,7 +177,7 @@ index=itsm sourcetype="snow:incident" state IN ("new","in_progress","on_hold")
 - **SPL:**
 ```spl
 index=itsm sourcetype="snow:incident" priority IN (1,2)
-| join type=left cmdb_ci
+| join type=left max=1 cmdb_ci
     [search index=itsm sourcetype="snow:change_request" close_code="successful" earliest=-24h
      | table cmdb_ci, number as change_number, short_description as change_desc, end_date]
 | where isnotnull(change_number)
@@ -443,7 +443,7 @@ index=itsm sourcetype="snow:incident" u_major_incident=true state="closed" earli
 index=itsm (sourcetype="snow:incident:activity" OR sourcetype="chat:war_room")
 | search war_room=true OR match(raw,"(?i)bridge|war room|command center")
 | stats earliest(_time) as first_bridge by incident_number
-| join incident_number [ search index=itsm sourcetype="snow:incident" u_major_incident=true | rename number as incident_number ]
+| join max=1 incident_number [ search index=itsm sourcetype="snow:incident" u_major_incident=true | rename number as incident_number ]
 | eval bridge_delay_mins=round((first_bridge-opened_at)/60,0)
 | table incident_number, opened_at, first_bridge, bridge_delay_mins
 ```
@@ -466,7 +466,7 @@ index=itsm sourcetype="snow:incident:audit" field_name="assignment_group"
 | eval from_group=old_value, to_group=new_value
 | eval step=from_group."->".to_group
 | stats values(step) as escalation_path, count as hops by number
-| join number [ search index=itsm sourcetype="snow:incident" priority IN (1,2) earliest=-90d | fields number, priority ]
+| join max=1 number [ search index=itsm sourcetype="snow:incident" priority IN (1,2) earliest=-90d | fields number, priority ]
 | where hops>4
 | table number, priority, escalation_path, hops
 ```
@@ -536,7 +536,7 @@ index=itsm sourcetype="snow:cmdb_ci"
 - **SPL:**
 ```spl
 | inputlookup discovered_assets.csv
-| join type=left hostname [search index=itsm sourcetype="snow:cmdb_ci" | table hostname, sys_id, ci_class]
+| join type=left max=1 hostname [search index=itsm sourcetype="snow:cmdb_ci" | table hostname, sys_id, ci_class]
 | where isnull(sys_id)
 | table hostname, ip_address, os, discovered_date
 ```
@@ -575,7 +575,7 @@ index=itsm sourcetype="snow:cmdb_ci" operational_status="operational"
 - **SPL:**
 ```spl
 index=itsm sourcetype="snow:cmdb_ci" ci_class IN ("cmdb_ci_server","cmdb_ci_app_server")
-| join type=left sys_id [search index=itsm sourcetype="snow:cmdb_rel_ci" | stats count as rel_count by child | rename child as sys_id]
+| join type=left max=1 sys_id [search index=itsm sourcetype="snow:cmdb_rel_ci" | stats count as rel_count by child | rename child as sys_id]
 | where isnull(rel_count) OR rel_count=0
 | table name, ci_class, rel_count
 ```
@@ -638,7 +638,7 @@ index=itsm sourcetype="snow:cmdb_rel_ci" earliest=-7d@d
 index=discovery sourcetype="discovery:asset" earliest=-1d
 | eval host_key=lower(mvindex(split(hostname,"."),0))
 | stats latest(_time) as last_seen by host_key, serial_number
-| join type=left host_key [ search index=itsm sourcetype="snow:cmdb_ci" | eval host_key=lower(mvindex(split(name,"."),0)) | table host_key, sys_id, last_discovered ]
+| join type=left max=1 host_key [ search index=itsm sourcetype="snow:cmdb_ci" | eval host_key=lower(mvindex(split(name,"."),0)) | table host_key, sys_id, last_discovered ]
 | eval match_state=if(isnotnull(sys_id) AND abs(last_seen-last_discovered)<86400,"synced","stale_or_missing")
 | stats count by match_state
 ```
@@ -703,7 +703,7 @@ index=cmdb sourcetype="cmdb:validation" earliest=-7d
 index=inventory sourcetype="vmware:inv:vm" earliest=-4h
 | eval host_key=lower(mvindex(split(name,"."),0))
 | stats latest(_time) as seen by host_key
-| join type=left host_key [ search index=itsm sourcetype="snow:cmdb_ci" ci_class="cmdb_ci_server" | eval host_key=lower(mvindex(split(name,"."),0)) | table host_key, sys_id ]
+| join type=left max=1 host_key [ search index=itsm sourcetype="snow:cmdb_ci" ci_class="cmdb_ci_server" | eval host_key=lower(mvindex(split(name,"."),0)) | table host_key, sys_id ]
 | where isnull(sys_id)
 | table host_key, seen
 ```
@@ -746,7 +746,7 @@ index=proxy sourcetype="zscaler:web" earliest=-24h
 ```spl
 index=sam sourcetype="sam:install" product_name="Microsoft*Visio*"
 | stats dc(host) as deployed by product_name
-| join product_name [ search index=itsm sourcetype="snow:alm_license" | stats sum(entitlement) as entitled by product_name ]
+| join max=1 product_name [ search index=itsm sourcetype="snow:alm_license" | stats sum(entitlement) as entitled by product_name ]
 | eval compliance_pct=if(entitled>0, round(min(deployed,entitled)/entitled*100, 1), null())
 | eval over_deployed=if(deployed>entitled, deployed-entitled, 0)
 | table product_name, deployed, entitled, compliance_pct, over_deployed
@@ -813,7 +813,7 @@ index=itsm sourcetype="snow:cmdb_ci"
 index=itsm sourcetype="snow:change_request" state="Closed" earliest=-30d
 | where match(lower(short_description),"(?i)decom|retire") OR lower(category)="retire"
 | rename cmdb_ci as ci_sys_id
-| join type=left ci_sys_id [ search index=itsm sourcetype="snow:cmdb_ci" | rename sys_id as ci_sys_id | table ci_sys_id, install_status, operational_status ]
+| join type=left max=1 ci_sys_id [ search index=itsm sourcetype="snow:cmdb_ci" | rename sys_id as ci_sys_id | table ci_sys_id, install_status, operational_status ]
 | where install_status!="retired" AND lower(operational_status)!="retired" AND lower(operational_status)!="non-operational"
 | table number, short_description, ci_sys_id, install_status, operational_status
 ```
@@ -1165,7 +1165,7 @@ index=itsm sourcetype="snow:change_request" state IN ("Closed","Implemented")
 index=itsm sourcetype="snow:change_request" state="Closed"
 | where lower(close_code)="unsuccessful"
 | eval ci=cmdb_ci
-| join type=left ci [
+| join type=left max=1 ci [
   search index=itsm sourcetype="snow:incident" earliest=-30d
   | rename cmdb_ci as ci
   | stats count as inc_count by ci

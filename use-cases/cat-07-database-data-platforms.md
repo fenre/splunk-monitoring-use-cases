@@ -10,7 +10,7 @@
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
-- **Value:** Slow queries degrade application performance and user experience. Identifying them enables targeted optimization.
+- **Value:** Slow queries at the P95/P99 level directly impact checkout, search, and reporting latency, hitting revenue and SLA commitments. They also hold locks and inflate CPU/IO, degrading performance for other tenants and queries. Prioritize fixes by business-critical endpoint and wait type, not just raw query duration.
 - **App/TA:** DB Connect, Splunk_TA_microsoft-sqlserver, MySQL slow query log
 - **Data Sources:** Slow query logs, SQL Server DMVs (`sys.dm_exec_query_stats`), PostgreSQL `pg_stat_statements`
 - **SPL:**
@@ -277,7 +277,7 @@ index=database sourcetype="mssql:audit" action_id IN ("CR","AL","DR")
 ```spl
 index=database sourcetype="dbconnect:query_store"
 | stats avg(avg_duration) as current_avg by query_id, plan_id
-| join query_id [| inputlookup query_baselines.csv]
+| join max=1 query_id [| inputlookup query_baselines.csv]
 | eval regression_pct=round((current_avg-baseline_avg)/baseline_avg*100,1)
 | where regression_pct > 50
 ```

@@ -158,7 +158,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="RunInstances" OR eventName="Te
 | table _time userIdentity.arn eventName requestParameters.instancesSet.items{}.instanceId responseElements.instancesSet.items{}.currentState.name
 | sort -_time
 ```
-- **Implementation:** Forward CloudTrail events. Create daily audit report of EC2 lifecycle events. Alert on terminations of tagged production instances.
+- **Implementation:** Ingest CloudTrail via the Splunk Add-on for AWS (`Splunk_TA_aws`) using the S3/SQS input from the organization trail. Alert on `TerminateInstances` where `requestParameters.instancesSet.items{}.instanceId` matches production-tagged instances from a `prod_instances` lookup. Suppress alerts during Auto Scaling scale-in events by checking `userIdentity.invokedBy=autoscaling.amazonaws.com`.
 - **Visualization:** Table (timeline), Bar chart (events by type per day), Line chart (instance count trending).
 - **CIM Models:** Change
 - **CIM SPL:**
@@ -287,7 +287,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" (metric_name="CPUUtili
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" (metric_name="Errors" OR metric_name="Throttles" OR metric_name="Duration")
 | timechart span=5m sum(Sum) by metric_name, FunctionName
 ```
-- **Implementation:** Collect CloudWatch metrics for Lambda namespace. Forward Lambda function logs via CloudWatch Logs. Alert on error rate >5% or any throttling events.
+- **Implementation:** Ingest CloudWatch metrics (namespace `AWS/Lambda`, metrics `Errors`, `Invocations`, `Throttles`) via the Splunk Add-on for AWS. Compute error rate as `Errors/Invocations` over a 5-minute window; alert when rate exceeds 5% AND invocations exceed 50 (to avoid low-traffic false positives). For throttles, alert on any non-zero value. Forward Lambda CloudWatch Logs for stack trace correlation.
 - **Visualization:** Line chart (errors/invocations over time), Bar chart (top error functions), Single value (error rate %).
 - **CIM Models:** N/A
 
@@ -297,7 +297,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" (metric_name="Error
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
-- **Value:** Managed container orchestration health ensures application workloads are running correctly across the AWS compute fabric.
+- **Value:** Unhealthy ECS/EKS control planes strand deployments and skew desired-vs-running task counts, causing user-visible errors before infrastructure metrics breach thresholds. Route platform-level failures (API server, scheduler) to the platform team and workload-level failures (CrashLoopBackOff, OOM) to the application owner.
 - **App/TA:** `Splunk_TA_aws`, Splunk OTel Collector
 - **Data Sources:** CloudWatch EKS/ECS metrics, container insights
 - **SPL:**
@@ -3967,7 +3967,7 @@ index=cloud (sourcetype="aws:acm:inventory" OR sourcetype="azure:keyvault:certs"
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" metric_name="Errors"
 | timechart span=5m sum(Sum) as errors by FunctionName
-| join FunctionName type=left
+| join max=1 FunctionName type=left
     [ search index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" metric_name="Invocations"
     | timechart span=5m sum(Sum) as invocations by FunctionName ]
 | eval error_rate=if(invocations>0, round(100*errors/invocations, 2), 0)
@@ -4069,7 +4069,7 @@ index=azure sourcetype="mscs:azure:metrics" metricName="FunctionExecutionDuratio
 ```spl
 index=azure sourcetype="mscs:azure:metrics" (metricName="QueueMessageCount" OR metricName="ActiveMessages")
 | timechart span=5m avg(average) as depth by resourceName, metricName
-| join type=left resourceName
+| join type=left max=1 resourceName
     [ search index=azure sourcetype="mscs:azure:diagnostics" Category="FunctionAppLogs" "QueueTrigger"
     | stats count as trigger_errors by resourceName ]
 | where depth > 1000 OR trigger_errors > 0

@@ -267,7 +267,7 @@ index=aws sourcetype="aws:cloudtrail" earliest=-30d
 ```spl
 index=finops sourcetype="aws:budget:alert" earliest=-7d
 | eval budget_name=coalesce(budget_name,BudgetName)
-| join type=left budget_name [ search index=cloud_cost sourcetype="cost:daily" earliest=-7d | stats sum(cost) as daily_cost by account_id, _time span=1d ]
+| join type=left max=1 budget_name [ search index=cloud_cost sourcetype="cost:daily" earliest=-7d | stats sum(cost) as daily_cost by account_id, _time span=1d ]
 | table _time, budget_name, threshold_type, daily_cost
 ```
 - **Implementation:** Ingest budget notifications via HEC or Lambda. Drill down to service cost change same day. Link to change tickets.

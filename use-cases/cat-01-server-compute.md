@@ -232,7 +232,7 @@ index=os sourcetype=linux_secure "Failed password"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Monitors privilege escalation attempts. Failed sudo attempts may indicate an attacker exploring what a compromised account can do.
+- **Value:** Repeated failed `sudo` attempts indicate attacker probing after account compromise; unexpected `sudo` success with destructive commands (e.g. `rm -rf`, `chmod 777`) may signal insider misuse or stolen credentials. Pair detection with IR steps: disable the account, revoke SSH keys, and review command history for lateral movement.
 - **App/TA:** `Splunk_TA_nix`, Syslog
 - **Data Sources:** `sourcetype=linux_secure`
 - **SPL:**
@@ -399,7 +399,7 @@ index=os sourcetype=interfaces host=*
 ```spl
 index=os sourcetype=package host=*
 | stats values(VERSION) as version by host, NAME
-| join NAME [| inputlookup known_cves.csv]
+| join max=1 NAME [| inputlookup known_cves.csv]
 | table host NAME version cve_id severity
 | sort -severity
 ```
@@ -491,7 +491,7 @@ index=os sourcetype=syslog ("Initializing cgroup subsys" OR "Linux version" OR "
 | sort hours_since_boot
 
 | comment "Cross-reference with maintenance windows"
-| join host [| inputlookup maintenance_windows.csv | where status="approved"]
+| join max=1 host [| inputlookup maintenance_windows.csv | where status="approved"]
 ```
 - **Implementation:** Forward syslog. Detect boot-up log patterns. Cross-reference boot times with maintenance window lookups to flag unplanned reboots. Alert on any reboot outside approved windows.
 - **Visualization:** Table (host, last boot, planned/unplanned), Timeline of reboots, Single value panel (unexpected reboots last 7d).
@@ -516,7 +516,7 @@ index=os sourcetype=linux_audit action=* syscall=init_module OR syscall=finit_mo
 | where count > 0
 ```
 - **Implementation:** Configure auditctl rules to monitor syscalls for module loading (init_module, finit_module). Create a search that alerts on any unexpected module loads outside maintenance windows. Correlate against a whitelist of approved modules per host.
-- **Visualization:** Table, Alert
+- **Visualization:** Table of module name, executable path, and loading user sorted by time; timechart of module load counts per host to spot anomalous spikes; single-value panel showing new (first-seen) modules in the last 24 hours for SOC triage.
 - **CIM Models:** N/A
 
 ---
@@ -553,7 +553,7 @@ index=os sourcetype=syslog "segfault at" OR "general protection fault" OR "doubl
 | stats count by host, message, user
 | eval severity="high"
 ```
-- **Implementation:** Monitor kernel logs for segmentation fault messages and core dump notifications. Configure systemd-coredump or standard core dump handling. Alert on any core dumps in production systems immediately.
+- **Implementation:** On the UF, enable `[monitor:///var/log/kern.log]` (Debian/Ubuntu) or `[monitor:///var/log/messages]` (RHEL/CentOS) with `sourcetype=syslog`; for journald-only distros use the `[journald://]` input. Alert on first occurrence of `segfault` or `core dumped` per host. Configure `systemd-coredump` to write dumps to `/var/lib/systemd/coredump/` and monitor the directory for new files to correlate dump metadata with syslog events.
 - **Visualization:** Alert, Stats Table
 - **CIM Models:** N/A
 

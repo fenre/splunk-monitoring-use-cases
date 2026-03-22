@@ -25,7 +25,7 @@
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
-- **Value:** Link state changes directly impact connectivity. Flapping interfaces cause intermittent outages.
+- **Value:** A hard-down uplink or WAN port can isolate an entire site or VLAN; flapping often manifests as application timeouts and VoIP drops before a ticket names 'the network.' Treat each DOWN on a trunk or uplink as a potential SEV-1 for that site; treat more than 3 transitions in 10 minutes as a stability risk requiring immediate investigation of optics, cabling, or port configuration.
 - **App/TA:** `TA-cisco_ios`, syslog
 - **Equipment Models:** Cisco Catalyst 9200, Catalyst 9300, Catalyst 9400, Catalyst 9500, Catalyst 9600, Catalyst 3650, Catalyst 3850, Catalyst 2960-X, ISR 1100, ISR 4221, ISR 4321, ISR 4331, ISR 4351, ISR 4431, ISR 4451, ASR 1001-X, ASR 1002-X, ASR 1006-X, IE 3200, IE 3300, IE 3400
 - **Data Sources:** `sourcetype=cisco:ios`
@@ -2930,7 +2930,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Roaming
 - **Monitoring type:** Performance
 - **Value:** Compares performance across multiple SSIDs to identify underperforming networks and optimize deployment strategy.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api sourcetype=meraki:api`
+- **Data Sources:** `sourcetype=meraki:api`
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki:api"
@@ -2950,7 +2950,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Monitoring type:** Performance
 - **Value:** Identifies channel congestion and interference sources to optimize channel assignments and reduce co-channel interference.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api sourcetype=meraki`
+- **Data Sources:** `sourcetype=meraki:api`
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki:api" device_type=MR
@@ -3250,7 +3250,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 - **Monitoring type:** Availability
 - **Value:** Monitors wireless mesh backhaul links to ensure reliability of remote AP connections.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MR sourcetype=meraki type=security_event`
+- **Data Sources:** `sourcetype=meraki:api` (MR), `sourcetype=meraki` (events, e.g. `type=security_event`)
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki:api" device_type=MR mesh_link_quality=*
@@ -3407,7 +3407,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" 
 - **Monitoring type:** Performance
 - **Value:** Detects VLAN configuration errors and tagging violations that disrupt network segmentation.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MS sourcetype=meraki`
+- **Data Sources:** `sourcetype=meraki:api` (MS), `sourcetype=meraki` (security/syslog)
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki" type=security_event signature="*VLAN*"
@@ -4156,7 +4156,7 @@ index=cisco_network sourcetype="meraki:api" license_expiry=*
 - **Monitoring type:** Configuration
 - **Value:** Maintains accurate inventory of network devices and tracks hardware/software changes.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api `sourcetype=meraki:api
+- **Data Sources:** `sourcetype=meraki:api`
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki:api"
@@ -4233,7 +4233,7 @@ index=cisco_network sourcetype="meraki:webhook"
 - **Monitoring type:** Availability
 - **Value:** Provides high-level network health metric for executive dashboards and trend reporting.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api `sourcetype=meraki:api
+- **Data Sources:** `sourcetype=meraki:api`
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki:api"
@@ -4273,7 +4273,7 @@ index=cisco_network sourcetype="meraki:api"
 - **Monitoring type:** Performance
 - **Value:** Compares metrics across organizations to identify best practices and outliers.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api `sourcetype=meraki:api
+- **Data Sources:** `sourcetype=meraki:api`
 - **SPL:**
 ```spl
 index=cisco_network sourcetype="meraki:api"
@@ -5503,7 +5503,7 @@ index=network sourcetype=snmptrap
 ```spl
 `event_index` type="Network Outage" state="active"
 | rename thousandeyes.test.name as test_name
-| join type=outer test_name [
+| join type=outer max=1 test_name [
   search index=itsi_tracked_alerts severity="critical"
   | rename service_name as test_name
 ]

@@ -69,7 +69,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
-- **Value:** Tracks time from ES notable creation through triage milestones so legal/DPO can demonstrate good-faith effort toward the 72-hour supervisory notification clock.
+- **Value:** The key GDPR Art. 33 evidence artifacts are time-to-DPO notification and time-to-supervisory authority filing, not just SOC notable age. This use case tracks both handoff milestones, preventing false compliance comfort from measuring queue time alone.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263)
 - **Premium Apps:** Splunk Enterprise Security
 - **Data Sources:** `` `notable` `` macro (rule_name, urgency, status, owner, status_description, _time)

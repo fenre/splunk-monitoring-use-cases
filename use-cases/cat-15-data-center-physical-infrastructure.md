@@ -20,7 +20,7 @@ index=power sourcetype="snmp:ups"
 | table ups_name, location, battery_status, charge_pct, runtime_min, battery_age_months
 ```
 - **Implementation:** Poll UPS battery metrics via SNMP every 5 minutes. Alert on replace indicator, low charge, or low runtime. Track battery age and capacity trend over time to predict replacement needs.
-- **Visualization:** Table (UPS battery status), Gauge (charge per UPS), Line chart (capacity trend), Single value (UPS needing replacement).
+- **Visualization:** Timechart of `runtime_min` and `charge_pct` by `ups_name` for battery health trending; table sorted by `runtime_min` ascending to surface units needing replacement; single-value gauge for fleet-wide minimum runtime as the critical KPI.
 - **CIM Models:** N/A
 
 ---
@@ -1078,7 +1078,7 @@ index=physical sourcetype="access_control"
 index=physical sourcetype="access_control" result="granted"
 | eval hour=strftime(_time,"%H")
 | where (hour < 6 OR hour > 22)
-| join type=left badge_id [
+| join type=left max=1 badge_id [
   search index=itsm sourcetype="servicenow:change" state="Implement"
   | eval wo_open=if(now() > planned_start AND now() < planned_end,1,0)
   | table badge_id, wo_open, change_number

@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.0] - 2026-03-22
+
+### Added
+
+- **Enterprise Security detection badges** — 2,070 ESCU detection rules now display a teal “ES Detection” badge on UC cards and modals. Risk-Based Alerting detections show “ES Detection — Risk-Based Alerting”. Badges are searchable via “escu”, “es detection”, “rba”.
+- **ESCU-specific implementation guidance** — build.py classifies ESCU detections by methodology (TTP, Hunting, Anomaly, Baseline, Correlation) and RBA status, then generates tailored implementation text covering ES Content Management deployment, risk score tuning, analyst response workflows per security domain, and SPL context for Risk Investigation drilldown searches. Replaces the previous generic “Deploy the detection from ESCU” boilerplate on 1,500+ use cases.
+
+### Changed
+
+- **SPL quality: join max=1** — Added explicit max=1 to 88 join statements across all category files to prevent silent data truncation.
+- **Text quality improvements** — Revised Value, Implementation, and Visualization fields for 30 use cases across 17 category files, replacing generic descriptions with specific, actionable guidance tailored to each use case context.
+- **Markdown fixes** — Corrected duplicate sourcetypes and broken backticks in cat-05-network-infrastructure.md.
+
+---
+
+## [2.1.12] - 2026-03-21
+
+### Added
+
+- **REST deploy for Dashboard Studio** — New **`scripts/deploy_dashboard_studio_rest.py`**: wraps the Studio JSON in the XML envelope required by Splunk’s **`data/ui/views`** API and **POST**s it (create, then update if the dashboard already exists). Documented in **`dashboards/README.md`** with `SPLUNK_TOKEN` or basic auth, app/owner/host options, and links to Splunk Docs.
+
+---
+
+## [2.1.11] - 2026-03-21
+
+### Added
+
+- **Dashboard Studio — Catalog Quick-Start Portfolio** — New **`dashboards/catalog-quick-start-top2.json`**: professional dark-theme Dashboard Studio layout with KPIs, category event bar chart, 24h trend, and a detail table for the **44** use cases (**top two** per category from **`use-cases/INDEX.md`** Quick Start). All data is **synthetic** (`makeresults` / `eval`). **`dashboards/README.md`** documents import into Splunk Enterprise/Cloud; **`scripts/generate_catalog_dashboard.py`** regenerates the JSON when Quick Start picks change.
+
+---
+
 ## [2.1.10] - 2026-03-21
 
 ### Changed

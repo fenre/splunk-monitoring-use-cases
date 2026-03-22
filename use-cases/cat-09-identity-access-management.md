@@ -20,7 +20,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
 | where count > 10
 | sort -count
 ```
-- **Implementation:** Forward Security logs from DCs via UF. Enable "Audit Logon Events" via GPO. Alert on >10 failures per account per 15 minutes. Correlate with lockout events (4740). Whitelist known service accounts with expected failures.
+- **Implementation:** Deploy the Universal Forwarder on all Domain Controllers with `[WinEventLog://Security]` enabled. Ensure the GPO enables Audit Logon Success and Failure. Alert with `stats count by Account_Name, src span=15m` when count exceeds 10. Suppress break-glass and service accounts via a `privileged_accounts` lookup to reduce false positives.
 - **Visualization:** Table (accounts with failure counts), Line chart (failure rate over time), Geo map (source IPs).
 - **CIM Models:** Authentication
 - **CIM SPL:**
@@ -65,7 +65,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Unauthorized privilege escalation is a primary attack technique. Immediate detection is essential for security.
+- **Value:** Adding accounts to Domain Admins or Enterprise Admins (EventCode 4728/4732/4756) in minutes limits blast radius from stolen Tier-0 credentials. Immediate detection supports audit evidence for privileged access changes and enables rapid containment before lateral movement escalates.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4728 — member added to security-enabled global group, 4732 — local group, 4756 — universal group)
 - **SPL:**

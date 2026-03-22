@@ -10,7 +10,7 @@
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
-- **Value:** Email is business-critical. Mail flow issues (queuing, NDRs) directly impact productivity and customer communication.
+- **Value:** Deferred or failed message traces directly hit revenue-dependent communications and support SLAs. Sustained delivery failure spikes should drive incident severity classification and trigger customer communication templates before users report the issue.
 - **App/TA:** `Splunk_TA_MS_O365`, Exchange message tracking
 - **Data Sources:** Exchange message tracking logs, O365 message trace
 - **SPL:**
@@ -18,7 +18,7 @@
 index=o365 sourcetype="ms:o365:messageTrace"
 | timechart span=1h count by Status
 ```
-- **Implementation:** Ingest Exchange message tracking logs or O365 message trace via Management Activity API. Track delivery rates, queue lengths, and NDR volumes. Alert on delivery failures exceeding baseline. Monitor mail flow latency.
+- **Implementation:** Ingest O365 message trace data via the Splunk Add-on for Microsoft Cloud Services (`sourcetype=ms:o365:messageTrace`). Key fields: `Status`, `RecipientStatus`, `SenderAddress`. Alert when the Failed/Deferred percentage exceeds the 14-day same-hour median, split by connector vs DNS vs policy rejection for targeted triage.
 - **Visualization:** Line chart (message volume by status), Single value (delivery success rate), Bar chart (top NDR reasons).
 - **CIM Models:** Email
 - **CIM SPL:**

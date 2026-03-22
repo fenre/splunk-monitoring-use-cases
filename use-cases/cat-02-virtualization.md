@@ -24,7 +24,7 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
 - **References:** [Splunk Add-on for VMware](https://splunkbase.splunk.com/app/2913), [vSphere API](https://developer.vmware.com/)
 - **Known false positives:** Short CPU ready spikes during boot or cloning; tune threshold or use rolling average.
 
-- **Implementation:** Install TA-vmware on a heavy forwarder or search head. Configure a vCenter service account with read-only permissions. Set up the VMware data collection in the TA (vCenter IP, credentials, collection interval). The TA pulls performance data via the vSphere API. Alert when CPU ready exceeds 5% per VM.
+- **Implementation:** Install `Splunk_TA_vmware` (Splunkbase 3215) on a Heavy Forwarder. Create a read-only vCenter service account with `System.View` and `VirtualMachine.Interact.ConsoleInteract` privileges. Configure collection intervals in the TA setup UI: 300s for performance metrics, 600s for inventory, 3600s for events. Set the `host_segment` to resolve ESXi hostnames. Verify data flow with `index=vmware sourcetype=vmware:perf:cpu | head 5`. Alert when CPU ready exceeds 5% per VM.
 - **Visualization:** Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).
 - **CIM Models:** Performance
 - **CIM SPL:**
@@ -53,7 +53,7 @@ index=vmware sourcetype="vmware:perf:mem" (counter="mem.vmmemctl.average" OR cou
 | sort -avg_value
 ```
 - **Implementation:** Collected automatically by TA-vmware via vCenter API. Alert when balloon or swap values are >0 for extended periods. Investigate by comparing total VM memory allocation vs. host physical memory.
-- **Visualization:** Table (VM, host, balloon KB, swap KB), Line chart over time, Stacked bar chart per host.
+- **Visualization:** Line chart for balloon/swap trend over time per VM; stacked bar for top 10 VMs by current balloon size; table drill-down to worst offenders with columns for VM name, balloon MB, swap MB, and host.
 - **CIM Models:** Performance
 - **CIM SPL:**
 ```spl
@@ -275,7 +275,7 @@ index=vmware sourcetype="vmware:events" (event_type="AlarmStatusChangedEvent") a
 ```spl
 index=vmware sourcetype="vmware:perf:cpu" counter="cpu.usage.average"
 | stats avg(Value) as avg_cpu by vm_name
-| join vm_name [search index=vmware sourcetype="vmware:inv:vm" | table vm_name numCpu memoryMB]
+| join max=1 vm_name [search index=vmware sourcetype="vmware:inv:vm" | table vm_name numCpu memoryMB]
 | where avg_cpu < 20
 | sort avg_cpu
 | table vm_name numCpu memoryMB avg_cpu
@@ -297,7 +297,7 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.usage.average"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Anomaly
-- **Value:** Centralizing all vCenter alarms in Splunk enables correlation with other infrastructure data, historical trending, and unified alerting.
+- **Value:** Centralizing vCenter alarms in Splunk reduces mean-time-to-repair during compound failures (e.g. datastore latency + host memory pressure) that appear as separate alarms in vSphere. Alarm storm correlation by shared datastore or maintenance window prevents alert fatigue and highlights the root cause rather than symptoms.
 - **App/TA:** `TA-vmware`
 - **Data Sources:** `sourcetype=vmware:events`
 - **SPL:**
@@ -876,8 +876,8 @@ index=vmware sourcetype="esxi_firewall"
 ```spl
 index=vmware sourcetype="vmware:perf:mem" counter="mem.llSwapUsed.average"
 | stats avg(Value) as ll_swap_kb by vm_name, host
-| join host [search index=vmware sourcetype="vmware:inv:hostsystem" | eval numa_nodes=numNumaNodes | table host, numa_nodes, numCpuCores]
-| join vm_name [search index=vmware sourcetype="vmware:inv:vm" | table vm_name, numCpu, memoryMB]
+| join max=1 host [search index=vmware sourcetype="vmware:inv:hostsystem" | eval numa_nodes=numNumaNodes | table host, numa_nodes, numCpuCores]
+| join max=1 vm_name [search index=vmware sourcetype="vmware:inv:vm" | table vm_name, numCpu, memoryMB]
 | eval vcpus_per_node=round(numCpuCores/numa_nodes, 0)
 | eval spans_numa=if(numCpu > vcpus_per_node, "Yes", "No")
 | where spans_numa="Yes"
@@ -1784,7 +1784,7 @@ index=vmware sourcetype="vmware:inv:vm" power_state="poweredOn"
 | append [search index=hyperv sourcetype="hyperv_vm_config" state="Running" | stats latest(vm_name) as vm_name by vm_name]
 | sort 0 vm_name, -_time
 | dedup vm_name
-| join type=left vm_name [search index=backup sourcetype="backup_jobs" status="Success" earliest=-48h | stats latest(_time) as last_backup, latest(status) as backup_status by vm_name]
+| join type=left max=1 vm_name [search index=backup sourcetype="backup_jobs" status="Success" earliest=-48h | stats latest(_time) as last_backup, latest(status) as backup_status by vm_name]
 | eval backup_age_hours=if(isnotnull(last_backup), round((now()-last_backup)/3600, 0), 999)
 | where backup_age_hours > 48 OR isnull(last_backup)
 | sort -backup_age_hours
@@ -1828,7 +1828,7 @@ index=vmware sourcetype="vmware:inv:vm" power_state="poweredOn"
 ```spl
 index=vmware sourcetype="vmware:events" event_type="VmCreatedEvent"
 | eval create_time=_time
-| join vm_name [search index=vmware sourcetype="vmware:events" event_type="VmPoweredOnEvent" | eval poweron_time=_time | table vm_name, poweron_time]
+| join max=1 vm_name [search index=vmware sourcetype="vmware:events" event_type="VmPoweredOnEvent" | eval poweron_time=_time | table vm_name, poweron_time]
 | eval provision_minutes=round((poweron_time-create_time)/60, 1)
 | where provision_minutes > 0
 | stats avg(provision_minutes) as avg_min, median(provision_minutes) as median_min, max(provision_minutes) as max_min by datacenter

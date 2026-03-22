@@ -22,7 +22,7 @@ index=web sourcetype="access_combined"
 | where error_rate > 5
 ```
 - **Implementation:** Install appropriate web server TA. Forward access logs via UF. Enable response time logging in web server config. Create tiered alerts: >5% error rate (warning), >10% (critical). Split 4xx from 5xx for different response.
-- **Visualization:** Line chart (error rate over time), Stacked bar (4xx vs 5xx), Single value (current error rate %), Table (top error URIs).
+- **Visualization:** Timechart (line) for 5xx rate % and a second series for 4xx rate % to show trends; stacked column for 4xx vs 5xx counts when triaging the class mix; single-value panel for current 5xx % (the SLA-facing metric); horizontal bar chart for top URIs by 5xx count to guide developer investigation.
 - **CIM Models:** Web
 - **CIM SPL:**
 ```spl
@@ -1853,7 +1853,7 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 ```spl
 | inputlookup monitored_linux_hosts.csv
 | fields host
-| join type=left host [search index=os sourcetype=syslog process=sshd earliest=-15m | stats count as ssh_events by host]
+| join type=left max=1 host [search index=os sourcetype=syslog process=sshd earliest=-15m | stats count as ssh_events by host]
 | where isnull(ssh_events) OR ssh_events=0
 | eval status="SSH_DOWN"
 | table host, status
@@ -1875,7 +1875,7 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 ```spl
 | inputlookup ftp_hosts.csv
 | fields host, service_name
-| join type=left host [search index=os (sourcetype=vsftpd OR sourcetype=syslog process=sftp-server) earliest=-15m | stats count as ftp_events by host]
+| join type=left max=1 host [search index=os (sourcetype=vsftpd OR sourcetype=syslog process=sftp-server) earliest=-15m | stats count as ftp_events by host]
 | where isnull(ftp_events) OR ftp_events=0
 | eval status="FTP_DOWN"
 | table host, service_name, status
