@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Advanced Filters panel** — Collapsible "Advanced Filters" below the existing filter strip with 8 new filters: ES Detection (toggle), Detection type (dropdown), Premium Apps (dropdown), CIM Data Model (dropdown), App/TA (dropdown), Industry (dropdown), MITRE ATT&CK (searchable text), Data source (searchable text). All filters show as removable chips and update sidebar counts.
 - **FILTER_FACETS in data.js** — Pre-extracted unique sorted values for each advanced filter dimension, generated at build time to avoid client-side scanning of 4,600+ use cases.
 - **Non-technical view rewrite** — All 22 categories rewritten with 120 monitoring areas and 360 representative UC references. Build-time validation via `validate_non_technical()` ensures UC IDs stay in sync.
-- **Data sources reference popup** — Footer button opens a searchable, category-grouped overview of all 2,700+ unique data sources referenced across the catalog. Click any source to filter use cases by it.
+- **Sources reference popup** — Footer button opens a catalog of all documentation, apps, frameworks, and community resources used to research and build the use cases — Splunk Lantern, ESCU, MITRE ATT&CK, vendor docs, and regulatory frameworks.
 
 ---
 
