@@ -172,10 +172,10 @@ window.NON_TECHNICAL = {
         { id: "5.4.1", why: "Know immediately when a wireless access point goes offline." },
         { id: "5.4.2", why: "Track client connection failures — frustrated users and potential issues." }
       ]},
-      { name: "SD-WAN", description: "Software-defined WAN links connecting your branch offices. We watch tunnel health and application performance.", ucs: [
+      { name: "SD-WAN", description: "Software-defined WAN links connecting your branch offices. We watch tunnel health, application performance, security at the edge, and the management platform itself.", ucs: [
         { id: "5.5.1", why: "Monitor tunnel health — loss, latency, and jitter directly affect application experience." },
-        { id: "5.5.2", why: "Know when a remote site goes offline — the edge device has stopped responding." },
-        { id: "5.5.3", why: "Detect when business-critical apps violate their performance targets over the WAN." }
+        { id: "5.5.12", why: "Track individual tunnel sessions — when they flap repeatedly, the underlying circuit is unreliable." },
+        { id: "5.5.17", why: "Catch security threats at branch offices — malware and intrusions that bypass the central firewall." }
       ]},
       { name: "DNS & DHCP", description: "How devices find each other on the network. We watch name resolution and IP address assignment.", ucs: [
         { id: "5.6.5", why: "Alert when a pool of network addresses is running out — new devices won't be able to connect." },

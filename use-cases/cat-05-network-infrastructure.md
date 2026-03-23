@@ -2058,46 +2058,256 @@ index=network sourcetype="cisco:sdwan:interface"
 
 ---
 
-### UC-5.5.11 · Wireless Client Roaming Failures
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Fault
-- **Value:** Failed roaming events between access points.
-- **App/TA:** WLC syslog, SNMP
-- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800, Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
-- **Data Sources:** WLC logs, AIRESPACE-WIRELESS-MIB
+### UC-5.5.11 · OMP Route Table Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** OMP (Overlay Management Protocol) distributes routes across the SD-WAN fabric. Route churn, missing prefixes, or unexpected withdrawals indicate overlay instability that degrades site-to-site reachability.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
+- **Data Sources:** vManage OMP route table, `sourcetype=cisco:sdwan:omp`
 - **SPL:**
 ```spl
-index=network sourcetype="cisco:wlc" OR sourcetype="meraki" ("roam" OR "roaming" OR "handoff" OR "handover") ("fail" OR "reject" OR "timeout" OR "error")
-| rex "client (?<client_mac>\S+)|from (?<from_ap>\S+) to (?<to_ap>\S+)|AP (?<ap_name>\S+)"
-| stats count by client_mac, from_ap, to_ap, ap_name
-| sort -count
+index=sdwan sourcetype="cisco:sdwan:omp"
+| stats dc(prefix) as route_count, dc(peer) as peer_count by system_ip, site_id
+| appendpipe [| stats avg(route_count) as baseline_routes]
+| where route_count < baseline_routes * 0.8
+| table system_ip site_id route_count peer_count
 ```
-- **Implementation:** Forward WLC syslog; enable roaming/handoff event logging. For Meraki, use Dashboard events or API. Parse client MAC, source/target AP. Alert on roaming failure spikes. Correlate with RF metrics (channel utilization, interference) to identify root cause.
-- **Visualization:** Table (client, APs, failures), Timeline (roaming events), Bar chart (failures by AP).
+- **Implementation:** Poll vManage OMP peers and routes API endpoints. Baseline route count per device. Alert when a site loses more than 20% of its expected routes or when OMP peer adjacencies drop. Track route churn rate over time to identify flapping prefixes.
+- **Visualization:** Line chart (route count over time per site), Table (devices below baseline), Single value (total OMP peers).
+- **CIM Models:** N/A
+- **Known false positives:** Planned network changes that withdraw routes intentionally; correlate with change management windows.
+
+---
+
+### UC-5.5.12 · BFD Session Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** BFD (Bidirectional Forwarding Detection) provides sub-second failure detection between SD-WAN endpoints. A BFD session going down means the tunnel is unusable, and traffic must reroute. Tracking BFD flaps reveals transport instability before it cascades.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
+- **Data Sources:** vManage BFD sessions, `sourcetype=cisco:sdwan:bfd`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd"
+| where state!="up"
+| stats count as flap_count, latest(_time) as last_flap, values(state) as states by local_system_ip, remote_system_ip, local_color, remote_color
+| where flap_count > 3
+| sort -flap_count
+| eval last_flap=strftime(last_flap,"%Y-%m-%d %H:%M:%S")
+```
+- **Implementation:** Collect BFD session data from vManage. Alert immediately when a BFD session transitions from up to down. Track flap frequency per tunnel; more than 3 flaps in an hour signals an unstable transport that needs carrier engagement. Cross-reference with ISP maintenance schedules.
+- **Visualization:** Status grid (BFD sessions by color/site), Timeline (session state changes), Table (flapping tunnels).
+- **CIM Models:** N/A
+- **Known false positives:** Planned ISP maintenance windows; carrier circuit cutovers.
+
+---
+
+### UC-5.5.13 · Edge Device Resource Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Capacity
+- **Value:** SD-WAN edge routers running high CPU or memory can drop packets, fail to establish tunnels, or crash. Monitoring device resources prevents silent performance degradation at remote sites where physical access is limited.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000
+- **Data Sources:** vManage device statistics, `sourcetype=cisco:sdwan:device`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:device"
+| stats latest(cpu_user) as cpu_user, latest(cpu_system) as cpu_system, latest(mem_used) as mem_used, latest(mem_total) as mem_total by hostname, system_ip, site_id
+| eval cpu_pct=cpu_user+cpu_system, mem_pct=round(mem_used/mem_total*100,1)
+| where cpu_pct > 80 OR mem_pct > 85
+| table hostname system_ip site_id cpu_pct mem_pct
+| sort -cpu_pct
+```
+- **Implementation:** Poll vManage device statistics API for CPU, memory, and disk usage. Alert when CPU exceeds 80% or memory exceeds 85% sustained over 15 minutes. Trend over time to identify sites that need hardware upgrades. Pay special attention to devices running UTD (Unified Threat Defense) or DPI, which consume significantly more resources.
+- **Visualization:** Line chart (CPU/memory trending per device), Table (devices above threshold), Gauge (fleet-wide average).
+- **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as cpu_pct
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=1h
+| where cpu_pct > 80
+```
+
+---
+
+### UC-5.5.14 · Firmware Version Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Running inconsistent or outdated software versions across the SD-WAN fabric creates security vulnerabilities and feature gaps. Compliance dashboards accelerate upgrade planning and audit readiness.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart, vBond
+- **Data Sources:** vManage device inventory, `sourcetype=cisco:sdwan:device`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:device"
+| stats latest(version) as sw_version, latest(model) as model by hostname, system_ip, site_id
+| eventstats count by sw_version
+| eval target_version="17.12.04"
+| eval compliant=if(sw_version=target_version,"yes","no")
+| stats count as total, count(eval(compliant="yes")) as compliant_count by sw_version
+| eval pct=round(compliant_count/total*100,1)
+| sort -total
+```
+- **Implementation:** Poll vManage device inventory for software versions and model types. Define a target version per device family. Report on compliance percentage. Alert when devices fall more than two minor versions behind the target. Use to prioritize upgrade batches by site criticality.
+- **Visualization:** Pie chart (version distribution), Table (non-compliant devices), Single value (compliance percentage).
 - **CIM Models:** N/A
 
 ---
 
-### UC-5.5.12 · Wireless Rogue AP Detection
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Security
-- **Value:** Unauthorized access points detected by WLC/controller.
-- **App/TA:** WLC syslog, SNMP
-- **Equipment Models:** Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco Catalyst 9100 APs, Aironet 1815, Aironet 2802, Aironet 3802, Aironet 4800, Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
-- **Data Sources:** WLC rogue AP detection logs, AIRESPACE-WIRELESS-MIB
+### UC-5.5.15 · DPI Application Visibility
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Deep Packet Inspection on SD-WAN edges classifies traffic by application. Visibility into top applications per site drives policy tuning, bandwidth planning, and identification of shadow IT or unauthorized SaaS usage.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000
+- **Data Sources:** vManage DPI statistics, `sourcetype=cisco:sdwan:dpi`
 - **SPL:**
 ```spl
-index=network sourcetype="cisco:wlc" OR sourcetype="meraki" ("rogue" OR "unauthorized") ("AP" OR "access point") ("detected" OR "alert" OR "contained" OR "threat")
-| rex "MAC (?<rogue_mac>\S+)|BSSID (?<bssid>\S+)|channel (?<channel>\d+)|SSID (?<ssid>[^\s\"]+)"
-| eval severity=case(match(_raw,"contained|threat"),"high",match(_raw,"detected|alert"),"medium",1=1,"low")
-| table _time host rogue_mac bssid channel ssid severity
-| sort -_time
+index=sdwan sourcetype="cisco:sdwan:dpi"
+| stats sum(bytes) as total_bytes, sum(packets) as total_pkts by app_name, family, site_id
+| eval GB=round(total_bytes/1073741824,2)
+| sort -total_bytes
+| head 50
+| table app_name family site_id GB total_pkts
 ```
-- **Implementation:** Enable rogue AP detection on WLC/Meraki. Forward security events via syslog. Alert immediately on rogue AP detection, especially when broadcasting corporate SSID or in contained/threat state. Integrate with NAC for automated response.
-- **Visualization:** Table (rogue MAC, BSSID, channel, SSID), Map (rogue location), Timeline, Single value (active rogues).
+- **Implementation:** Enable DPI on SD-WAN edge routers (requires UTD container or native NBAR2). Collect application statistics via vManage. Identify top bandwidth consumers per site. Compare against policy expectations — flag when non-business applications (streaming, gaming, social media) consume more than 20% of WAN bandwidth.
+- **Visualization:** Bar chart (top 20 apps by volume), Treemap (app families), Table (app, site, volume).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes) as bytes
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.app span=1d
+| sort -bytes | head 20
+```
+
+---
+
+### UC-5.5.16 · Cloud OnRamp Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cloud OnRamp probes SaaS and IaaS endpoints from each site to select the best path. Monitoring probe results reveals when cloud application performance degrades before users open tickets, and validates that SD-WAN is actually improving cloud access.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000
+- **Data Sources:** vManage Cloud OnRamp metrics, `sourcetype=cisco:sdwan:cloudx`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:cloudx"
+| stats avg(vqoe_score) as avg_score, avg(latency) as avg_latency, avg(loss) as avg_loss by app_name, site_id, exit_type
+| where avg_score < 8 OR avg_latency > 150
+| sort avg_score
+| table app_name site_id exit_type avg_score avg_latency avg_loss
+```
+- **Implementation:** Enable Cloud OnRamp for SaaS (Microsoft 365, Webex, Salesforce, etc.) and/or IaaS (AWS, Azure, GCP) in vManage. Collect vQoE scores and probe metrics. Alert when a SaaS application's quality score drops below 8 (out of 10) or latency exceeds 150ms. Compare direct internet access (DIA) vs gateway exit paths to validate routing decisions.
+- **Visualization:** Line chart (vQoE score trending per app), Table (underperforming apps), Bar chart (DIA vs gateway comparison).
 - **CIM Models:** N/A
+- **Known false positives:** SaaS provider outages will degrade scores regardless of WAN path; cross-reference with provider status pages.
+
+---
+
+### UC-5.5.17 · Security Policy Violations (UTD)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** SD-WAN edges running Unified Threat Defense (UTD) perform IPS, URL filtering, and AMP inline. Monitoring these events at the WAN edge catches threats that bypass centralized firewalls, especially for direct internet access (DIA) traffic that never traverses the data center.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN)
+- **Data Sources:** vManage UTD events, `sourcetype=cisco:sdwan:utd`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:utd"
+| stats count by event_type, signature, severity, src_ip, dst_ip, site_id
+| where severity IN ("critical","high")
+| sort -count
+| table event_type signature severity src_ip dst_ip site_id count
+```
+- **Implementation:** Enable UTD (IPS/URL filtering/AMP) on SD-WAN edges handling DIA traffic. Collect security events via vManage. Alert on critical/high severity IPS signatures and malware detections. Correlate with Umbrella/Secure Access if deployed for layered defense. Track blocked URL categories to refine acceptable-use policies.
+- **Visualization:** Table (signature, severity, source, destination), Bar chart (events by category), Timeline (event frequency).
+- **CIM Models:** Intrusion_Detection
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection
+  by IDS_Attacks.signature, IDS_Attacks.severity, IDS_Attacks.src, IDS_Attacks.dest span=1h
+| where count > 0
+| sort -count
+```
+
+---
+
+### UC-5.5.18 · vManage Cluster Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** vManage is the single management plane for the entire SD-WAN fabric. If the vManage cluster is unhealthy — high CPU, disk full, database replication lag, or services down — operators lose visibility and policy push capability across all sites.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** vManage (physical or virtual)
+- **Data Sources:** vManage cluster status API, `sourcetype=cisco:sdwan:vmanage`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:vmanage"
+| stats latest(cpu_load) as cpu, latest(mem_util) as mem_pct, latest(disk_util) as disk_pct, latest(db_status) as db_status, latest(services_running) as services by vmanage_ip
+| where cpu > 70 OR mem_pct > 80 OR disk_pct > 75 OR db_status!="healthy"
+| table vmanage_ip cpu mem_pct disk_pct db_status services
+```
+- **Implementation:** Poll vManage cluster health API. Monitor CPU, memory, disk usage, NMS database replication status, and running services. For clustered deployments, verify all nodes are in sync. Alert when any node exceeds 70% CPU, 80% memory, or 75% disk, or when database replication falls behind. Schedule regular config database backups independently.
+- **Visualization:** Single value panels (CPU, memory, disk per node), Status indicator (cluster health), Table (services status).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.5.19 · Transport Circuit SLA Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** ISPs commit to contractual SLAs for latency, jitter, loss, and uptime per circuit. SD-WAN BFD metrics provide continuous proof of whether carriers meet their commitments. SLA violation evidence supports service credits and carrier negotiations.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000
+- **Data Sources:** `sourcetype=cisco:sdwan:bfd`, `sourcetype=cisco:sdwan:interface`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd"
+| stats avg(latency) as avg_latency, perc95(latency) as p95_latency, avg(jitter) as avg_jitter, avg(loss_percentage) as avg_loss, count as samples by local_color, site_id, remote_system_ip
+| eval sla_latency=50, sla_loss=0.1
+| eval latency_breach=if(avg_latency>sla_latency,"YES","NO"), loss_breach=if(avg_loss>sla_loss,"YES","NO")
+| where latency_breach="YES" OR loss_breach="YES"
+| table site_id local_color avg_latency p95_latency avg_jitter avg_loss latency_breach loss_breach
+```
+- **Implementation:** Define contractual SLA thresholds per transport type (MPLS: latency <50ms, loss <0.1%; Internet: latency <80ms, loss <0.5%). Aggregate BFD metrics daily. Generate monthly SLA compliance reports per carrier per circuit. Include uptime percentage from interface state changes. Use as evidence for carrier escalations and service credit claims.
+- **Visualization:** Table (circuit SLA compliance), Line chart (latency trending per carrier), Single value (overall SLA compliance %).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.5.20 · Hub-and-Spoke vs Full-Mesh Topology Validation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration
+- **Value:** SD-WAN overlay topology determines traffic flow patterns. Validating that the actual tunnel mesh matches the intended design prevents asymmetric routing, hairpinning through hubs, and suboptimal site-to-site paths that add latency and waste hub bandwidth.
+- **App/TA:** `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API
+- **Equipment Models:** Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN), vEdge 100, vEdge 1000, vEdge 2000, vEdge 5000, vManage, vSmart
+- **Data Sources:** vManage BFD sessions, OMP routes, `sourcetype=cisco:sdwan:bfd`
+- **SPL:**
+```spl
+index=sdwan sourcetype="cisco:sdwan:bfd" state="up"
+| stats dc(remote_system_ip) as peer_count, values(remote_system_ip) as peers by local_system_ip, site_id
+| eventstats avg(peer_count) as avg_peers
+| eval topology=case(peer_count>avg_peers*1.5,"full-mesh candidate",peer_count<=2,"spoke",1=1,"partial-mesh")
+| table site_id local_system_ip peer_count topology
+| sort -peer_count
+```
+- **Implementation:** Map the active tunnel mesh by enumerating BFD sessions per device. Compare against the intended topology (hub-and-spoke, regional hub, full-mesh). Identify sites with fewer tunnels than expected (potential reachability gaps) or more tunnels than intended (resource waste). Review when deploying new sites or changing control policies.
+- **Visualization:** Network graph (nodes = sites, edges = tunnels), Table (site, peer count, topology type), Bar chart (topology distribution).
+- **CIM Models:** N/A
+- **Known false positives:** On-demand dynamic tunnels (TLOC extension) may create temporary additional peers that do not indicate misconfiguration.
 
 ---
 

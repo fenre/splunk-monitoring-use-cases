@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **FILTER_FACETS in data.js** — Pre-extracted unique sorted values for each advanced filter dimension, generated at build time to avoid client-side scanning of 4,600+ use cases.
 - **Non-technical view rewrite** — All 22 categories rewritten with 120 monitoring areas and 360 representative UC references. Build-time validation via `validate_non_technical()` ensures UC IDs stay in sync.
 - **Sources reference popup** — Footer button opens a catalog of all documentation, apps, frameworks, and community resources used to research and build the use cases — Splunk Lantern, ESCU, MITRE ATT&CK, vendor docs, and regulatory frameworks.
+- **SD-WAN use case expansion** — Subcategory 5.5 expanded from 10 to 20 dedicated SD-WAN use cases. New coverage includes OMP route monitoring, BFD session tracking, edge device resource utilization, firmware compliance, DPI application visibility, Cloud OnRamp performance, UTD security policy violations, vManage cluster health, transport circuit SLA tracking, and overlay topology validation. Two misplaced wireless use cases relocated to 5.4.
 
 ---
 
