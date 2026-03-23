@@ -695,6 +695,44 @@ html.light-mode .theme-switch-btn::before {
   .mitre-map-modal { padding: var(--space-3); }
 }
 
+/* Data Sources popup */
+.ds-intro {
+  font-size: var(--text-sm); color: var(--splunk-text-secondary); margin-bottom: var(--space-4); line-height: 1.5;
+}
+.ds-cat { margin-bottom: var(--space-4); }
+.ds-cat-head {
+  display: flex; align-items: center; gap: var(--space-2); cursor: pointer; padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--splunk-border-subtle); user-select: none;
+}
+.ds-cat-head:hover { color: var(--splunk-accent); }
+.ds-cat-name { font-weight: 600; font-size: var(--text-sm); flex: 1; }
+.ds-cat-count {
+  font-size: var(--text-xs); color: var(--splunk-text-tertiary);
+  background: var(--splunk-bg-surface); padding: 2px 8px; border-radius: var(--radius-full);
+}
+.ds-cat-arrow { font-size: 10px; color: var(--splunk-text-tertiary); transition: transform .2s; }
+.ds-cat.open .ds-cat-arrow { transform: rotate(90deg); }
+.ds-cat-body { display: none; padding: var(--space-2) 0 0 var(--space-2); }
+.ds-cat.open .ds-cat-body { display: block; }
+.ds-tag {
+  display: inline-block; font-size: var(--text-xs); padding: 3px 10px; margin: 3px 4px 3px 0;
+  background: var(--splunk-bg-surface); border: 1px solid var(--splunk-border-subtle);
+  border-radius: var(--radius-full); color: var(--splunk-text-secondary); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.ds-tag:hover { background: var(--splunk-accent); color: #fff; border-color: var(--splunk-accent); }
+.ds-tag .ds-tag-n { font-weight: 600; margin-left: 4px; color: var(--splunk-text-tertiary); font-size: 0.85em; }
+.ds-tag:hover .ds-tag-n { color: rgba(255,255,255,0.8); }
+.ds-search-wrap { margin-bottom: var(--space-4); }
+.ds-search {
+  width: 100%; padding: var(--space-2) var(--space-3); font-size: var(--text-sm);
+  border: 1px solid var(--splunk-border-subtle); border-radius: var(--radius-md);
+  background: var(--splunk-bg-surface); color: var(--splunk-text-primary);
+}
+.ds-summary {
+  font-size: var(--text-xs); color: var(--splunk-text-tertiary); margin-bottom: var(--space-3);
+}
+
 /* Color-blind friendly mode — palette distinguishable for protan/deutan (red–green) */
 html.colorblind-friendly {
   --splunk-critical: #9980ff;
@@ -2368,6 +2406,7 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
     </label>
     <div class="footer-meta">
       <span id="site-author" class="footer-author-text"></span>
+      <button type="button" class="footer-rn-btn" onclick="openDataSources()">Data sources</button>
       <button type="button" class="footer-rn-btn" onclick="openReleaseNotes()">Release notes</button>
       <a id="footer-feedback-link" href="#" class="footer-link" rel="noopener noreferrer">Feedback & comments</a>
     </div>
@@ -2403,6 +2442,12 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
       <h3 class="rn-section-title">Non-Technical View</h3>
       <ul class="rn-list">
         <li><strong>Full rewrite</strong> &mdash; All 22 categories rewritten with 120 monitoring areas and 360 representative use case references. Build-time validation ensures UC IDs stay in sync with technical content.</li>
+      </ul>
+    </div>
+    <div class="rn-section">
+      <h3 class="rn-section-title">Data Sources Reference</h3>
+      <ul class="rn-list">
+        <li><strong>Data sources popup</strong> &mdash; New footer button opens a searchable, category-grouped overview of all 2,700+ data sources referenced across the catalog. Click any source to instantly filter use cases by it.</li>
       </ul>
     </div>
 
@@ -2628,6 +2673,15 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
     </div>
     <div id="mitre-map-body"></div>
     <div class="mitre-map-legend">Click a tactic header to filter by tactic, or a technique to filter by technique. Counts reflect use cases in the current catalog.</div>
+  </div>
+</div>
+
+<div class="rn-overlay" id="ds-overlay" onclick="if(event.target===this)closeDataSources()">
+  <div class="rn-modal" style="max-width:900px">
+    <button class="rn-close" onclick="closeDataSources()" aria-label="Close">&times;</button>
+    <h2 class="rn-title">Data Sources</h2>
+    <p class="ds-intro">All data sources referenced across the use case catalog, grouped by category. Click any source to filter use cases by it.</p>
+    <div id="ds-body"></div>
   </div>
 </div>
 
@@ -4351,6 +4405,104 @@ function closeReleaseNotes() {
   }
 }
 
+function buildDataSourcesBody() {
+  const body = document.getElementById('ds-body');
+  if (body.children.length > 1) return;
+
+  const catMap = {};
+  let totalSources = 0;
+  let totalRefs = 0;
+  DATA.forEach(cat => {
+    const sources = {};
+    (cat.s || []).forEach(sub => {
+      (sub.u || []).forEach(uc => {
+        const d = (uc.d || '').trim();
+        if (d && d !== 'Various') {
+          sources[d] = (sources[d] || 0) + 1;
+        }
+      });
+    });
+    if (Object.keys(sources).length > 0) {
+      catMap[cat.n] = Object.entries(sources).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    }
+  });
+
+  const allUnique = new Set();
+  Object.values(catMap).forEach(arr => { arr.forEach(([s, c]) => { allUnique.add(s); totalRefs += c; }); });
+  totalSources = allUnique.size;
+
+  let html = '<div class="ds-search-wrap"><input type="text" class="ds-search" id="ds-search" placeholder="Search data sources..." oninput="filterDataSources()"></div>';
+  html += '<div class="ds-summary" id="ds-summary">' + totalSources.toLocaleString() + ' unique data sources across ' + totalRefs.toLocaleString() + ' use case references</div>';
+
+  Object.entries(catMap).forEach(([catName, sources]) => {
+    html += '<div class="ds-cat" data-cat="' + catName + '">';
+    html += '<div class="ds-cat-head" onclick="this.parentElement.classList.toggle(\'open\')">';
+    html += '<span class="ds-cat-arrow">&#9654;</span>';
+    html += '<span class="ds-cat-name">' + catName + '</span>';
+    html += '<span class="ds-cat-count">' + sources.length + ' sources</span>';
+    html += '</div>';
+    html += '<div class="ds-cat-body">';
+    sources.forEach(([src, count]) => {
+      const clean = src.replace(/`/g, '');
+      html += '<span class="ds-tag" data-ds="' + clean.replace(/"/g, '&quot;') + '" onclick="filterByDataSource(this)" title="Click to filter use cases by this data source">';
+      html += clean + '<span class="ds-tag-n">' + count + '</span></span>';
+    });
+    html += '</div></div>';
+  });
+  body.innerHTML = html;
+}
+
+function openDataSources() {
+  buildDataSourcesBody();
+  document.getElementById('ds-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeDataSources() {
+  document.getElementById('ds-overlay').classList.remove('show');
+  if (!document.getElementById('modal-overlay').classList.contains('show')) {
+    document.body.style.overflow = '';
+  }
+}
+
+function filterDataSources() {
+  const q = document.getElementById('ds-search').value.toLowerCase();
+  const cats = document.querySelectorAll('#ds-body .ds-cat');
+  let visibleSources = 0;
+  cats.forEach(cat => {
+    const tags = cat.querySelectorAll('.ds-tag');
+    let catVisible = 0;
+    tags.forEach(tag => {
+      const show = !q || tag.dataset.ds.toLowerCase().includes(q);
+      tag.style.display = show ? '' : 'none';
+      if (show) catVisible++;
+    });
+    cat.style.display = catVisible > 0 ? '' : 'none';
+    if (q && catVisible > 0) cat.classList.add('open');
+    visibleSources += catVisible;
+  });
+  const summary = document.getElementById('ds-summary');
+  if (q) {
+    summary.textContent = visibleSources + ' matching data source' + (visibleSources !== 1 ? 's' : '');
+  } else {
+    const allUnique = new Set();
+    let totalRefs = 0;
+    DATA.forEach(cat => { (cat.s || []).forEach(sub => { (sub.u || []).forEach(uc => { const d = (uc.d || '').trim(); if (d && d !== 'Various') { allUnique.add(d); totalRefs++; } }); }); });
+    summary.textContent = allUnique.size.toLocaleString() + ' unique data sources across ' + totalRefs.toLocaleString() + ' use case references';
+  }
+}
+
+function filterByDataSource(el) {
+  const ds = el.dataset.ds;
+  closeDataSources();
+  if (!advFiltersOpen) {
+    advFiltersOpen = true;
+  }
+  currentDatasourceFilter = ds;
+  reRender();
+  buildSidebar();
+  updateCountLabel();
+}
+
 function renderModal(entry) {
   const uc = entry.uc;
   const cat = entry.cat;
@@ -4668,6 +4820,10 @@ document.addEventListener('keydown', function(e) {
     return;
   }
   if (e.key === 'Escape') {
+    if (document.getElementById('ds-overlay').classList.contains('show')) {
+      closeDataSources();
+      return;
+    }
     if (document.getElementById('rn-overlay').classList.contains('show')) {
       closeReleaseNotes();
       return;
