@@ -3484,16 +3484,37 @@ var ucRenderBatch = 50;
 var ucRenderedCount = 0;
 var ucScrollObserver = null;
 var ucAllCardsHtml = [];
+var ucGridTargets = [];
 
 function renderUCBatch(container, startIdx) {
   var end = Math.min(startIdx + ucRenderBatch, ucAllCardsHtml.length);
-  var frag = document.createDocumentFragment();
-  for (var i = startIdx; i < end; i++) {
-    var div = document.createElement('div');
-    div.innerHTML = ucAllCardsHtml[i];
-    while (div.firstChild) frag.appendChild(div.firstChild);
+  if (ucGridTargets.length) {
+    var byGrid = {};
+    for (var i = startIdx; i < end; i++) {
+      var gid = ucGridTargets[i];
+      if (!byGrid[gid]) byGrid[gid] = [];
+      byGrid[gid].push(ucAllCardsHtml[i]);
+    }
+    Object.keys(byGrid).forEach(function(gid) {
+      var grid = document.getElementById(gid);
+      if (!grid) return;
+      var frag = document.createDocumentFragment();
+      byGrid[gid].forEach(function(cardHtml) {
+        var div = document.createElement('div');
+        div.innerHTML = cardHtml;
+        while (div.firstChild) frag.appendChild(div.firstChild);
+      });
+      grid.appendChild(frag);
+    });
+  } else {
+    var frag = document.createDocumentFragment();
+    for (var i = startIdx; i < end; i++) {
+      var div = document.createElement('div');
+      div.innerHTML = ucAllCardsHtml[i];
+      while (div.firstChild) frag.appendChild(div.firstChild);
+    }
+    container.appendChild(frag);
   }
-  container.appendChild(frag);
   ucRenderedCount = end;
 }
 
@@ -3948,15 +3969,22 @@ function renderOverview() {
     html += '<h3 class="ov-quickwins-title">' + escHtml(SITE.statUseCases || 'Use Cases') + ' \u2014 ' + sorted.length + ' total</h3>';
     if (sorted.length > ucRenderBatch) {
       ucAllCardsHtml = [];
+      ucGridTargets = [];
+      var vcStructure = '';
+      var vcGridIdx = 0;
       DATA.forEach(function(cat) {
         var g = byCat[cat.i];
         if (!g || g.entries.length === 0) return;
-        ucAllCardsHtml.push('<div class="ov-quickwins-section"><div class="subcat-header">' + escHtml(cat.i + '. ' + cat.n) + '<span class="subcat-count">(' + g.entries.length + ')</span></div><div class="uc-grid">');
-        g.entries.forEach(function(e) { ucAllCardsHtml.push(renderUCCard(e.uc)); });
-        ucAllCardsHtml.push('</div></div>');
+        var gid = 'uc-vgrid-' + vcGridIdx++;
+        vcStructure += '<div class="ov-quickwins-section"><div class="subcat-header">' + escHtml(cat.i + '. ' + cat.n) + '<span class="subcat-count">(' + g.entries.length + ')</span></div><div class="uc-grid" id="' + gid + '"></div></div>';
+        g.entries.forEach(function(e) {
+          ucAllCardsHtml.push(renderUCCard(e.uc));
+          ucGridTargets.push(gid);
+        });
       });
-      html += '<div id="uc-virtual-container"></div>';
+      html += '<div id="uc-virtual-container">' + vcStructure + '</div>';
     } else {
+      ucGridTargets = [];
       DATA.forEach(function(cat) {
         var g = byCat[cat.i];
         if (!g || g.entries.length === 0) return;
