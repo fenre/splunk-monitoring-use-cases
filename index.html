@@ -2836,6 +2836,7 @@ let currentCimFilter = 'all';
 let currentSappFilter = 'all';
 let currentMitreFilter = '';
 let currentMitreTacticFilter = '';
+let currentDsGroup = '';
 let currentDatasourceFilter = '';
 let currentDisplayedList = []; // list of {cat, sc, uc} currently shown (for modal prev/next)
 
@@ -2941,7 +2942,17 @@ function getFilteredUCs() {
     var ids = tacticTechs[currentMitreTacticFilter] || [];
     result = result.filter(function(e) { return Array.isArray(e.uc.mitre) && e.uc.mitre.some(function(t){ return ids.indexOf(t) !== -1; }); });
   }
-  if (currentDatasourceFilter) {
+  if (currentDsGroup && !currentDatasourceFilter) {
+    var grp = typeof FILTER_FACETS !== 'undefined' && FILTER_FACETS.datasource_groups
+      ? FILTER_FACETS.datasource_groups.find(function(g){ return g.name === currentDsGroup; }) : null;
+    if (grp) {
+      var srcNames = grp.sources.map(function(s){ return s.name.toLowerCase(); });
+      result = result.filter(function(e) {
+        var d = (e.uc.d||'').toLowerCase();
+        return srcNames.some(function(sn){ return d.indexOf(sn) !== -1; });
+      });
+    }
+  } else if (currentDatasourceFilter) {
     var dq = currentDatasourceFilter.toLowerCase();
     result = result.filter(function(e) { return (e.uc.d||'').toLowerCase().indexOf(dq) !== -1; });
   }
@@ -3030,7 +3041,7 @@ function filterStrip() {
 
   var anyAdvActive = currentEscuFilter!=='all' || currentDtypeFilter!=='all' || currentPremiumFilter!=='all'
     || currentCimFilter!=='all' || currentSappFilter!=='all' || currentIndustryFilter!=='all'
-    || currentMitreFilter || currentMitreTacticFilter || currentDatasourceFilter;
+    || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter;
   var advBtnLabel = 'Advanced Filters' + (anyAdvActive ? ' \u2022' : '');
   html += '<div class="adv-toggle-row"><button type="button" class="adv-toggle-btn' + (advFiltersOpen?' open':'') + '" onclick="toggleAdvFilters()">'
     + advBtnLabel + ' <span class="adv-arrow">' + (advFiltersOpen?'\u25B2':'\u25BC') + '</span></button></div>';
@@ -3100,17 +3111,29 @@ function advancedFilterPanel() {
 
   html += '<div class="adv-group">';
   html += '<label class="adv-label">Data source</label>';
-  var dsIsCustom = currentDatasourceFilter && typeof FILTER_FACETS !== 'undefined'
-    && !FILTER_FACETS.datasource.some(function(d) { return d.name === currentDatasourceFilter; });
-  var dsSelectVal = dsIsCustom ? '__custom__' : (currentDatasourceFilter || 'all');
-  html += '<select class="filter-select' + (currentDatasourceFilter?' has-value':'') + '" id="ds-select" onchange="handleDsSelect(this.value)">';
-  html += '<option value="all"' + (!currentDatasourceFilter?' selected':'') + '>All sources</option>';
-  if (typeof FILTER_FACETS !== 'undefined') FILTER_FACETS.datasource.forEach(function(d) {
-    html += '<option value="' + escHtml(d.name) + '"' + (currentDatasourceFilter===d.name?' selected':'') + '>' + escHtml(d.name) + ' (' + d.count + ')</option>';
-  });
-  html += '<option value="__custom__"' + (dsIsCustom?' selected':'') + '>Other\u2026</option>';
+  var dsHasVal = currentDsGroup || currentDatasourceFilter;
+  html += '<select class="filter-select' + (dsHasVal?' has-value':'') + '" id="ds-group-select" onchange="handleDsGroupSelect(this.value)">';
+  html += '<option value="all"' + (!currentDsGroup && !currentDatasourceFilter?' selected':'') + '>All sources</option>';
+  if (typeof FILTER_FACETS !== 'undefined' && FILTER_FACETS.datasource_groups) {
+    FILTER_FACETS.datasource_groups.forEach(function(g) {
+      if (g.name === 'Other') return;
+      html += '<option value="' + escHtml(g.name) + '"' + (currentDsGroup===g.name?' selected':'') + '>' + escHtml(g.name) + ' (' + g.total + ')</option>';
+    });
+  }
+  html += '<option value="__custom__"' + (!currentDsGroup && currentDatasourceFilter?' selected':'') + '>Other\u2026</option>';
   html += '</select>';
-  if (dsIsCustom) {
+  if (currentDsGroup) {
+    var grp = FILTER_FACETS.datasource_groups.find(function(g){ return g.name === currentDsGroup; });
+    if (grp && grp.sources.length > 0) {
+      html += '<select class="filter-select' + (currentDatasourceFilter?' has-value':'') + '" style="margin-top:3px" onchange="handleDsSourceSelect(this.value)">';
+      html += '<option value=""' + (!currentDatasourceFilter?' selected':'') + '>Any ' + escHtml(currentDsGroup) + '</option>';
+      grp.sources.forEach(function(s) {
+        html += '<option value="' + escHtml(s.name) + '"' + (currentDatasourceFilter===s.name?' selected':'') + '>' + escHtml(s.name) + ' (' + s.count + ')</option>';
+      });
+      html += '</select>';
+    }
+  }
+  if (!currentDsGroup && currentDatasourceFilter) {
     html += '<input type="text" class="adv-search-input" style="max-width:100%;margin-top:3px" placeholder="Type data source\u2026" value="' + escHtml(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)" autofocus>';
   }
   html += '</div>';
@@ -3312,21 +3335,24 @@ function debounceAdvSearch(key, val) {
   }, 300);
 }
 
-function handleDsSelect(val) {
+function handleDsGroupSelect(val) {
   if (val === 'all') {
+    currentDsGroup = '';
     currentDatasourceFilter = '';
   } else if (val === '__custom__') {
+    currentDsGroup = '';
     currentDatasourceFilter = '';
-    reRender();
-    buildSidebar();
-    updateCountLabel();
+    reRender(); buildSidebar(); updateCountLabel();
     return;
   } else {
-    currentDatasourceFilter = val;
+    currentDsGroup = val;
+    currentDatasourceFilter = '';
   }
-  reRender();
-  buildSidebar();
-  updateCountLabel();
+  reRender(); buildSidebar(); updateCountLabel();
+}
+function handleDsSourceSelect(val) {
+  currentDatasourceFilter = val;
+  reRender(); buildSidebar(); updateCountLabel();
 }
 
 function activeFilterTags() {
@@ -3363,7 +3389,13 @@ function activeFilterTags() {
     }
     tags.push({label: 'Tactic: ' + tacLabel, fn: "setAdvFilter('mitre_tactic','')"});
   }
-  if (currentDatasourceFilter) tags.push({label: 'Data source: ' + currentDatasourceFilter, fn: "clearAdvSearch('datasource')"});
+  if (currentDsGroup && currentDatasourceFilter) {
+    tags.push({label: currentDsGroup + ': ' + currentDatasourceFilter, fn: "clearAdvSearch('datasource')"});
+  } else if (currentDsGroup) {
+    tags.push({label: 'Data source: ' + currentDsGroup, fn: "clearAdvSearch('datasource')"});
+  } else if (currentDatasourceFilter) {
+    tags.push({label: 'Data source: ' + currentDatasourceFilter, fn: "clearAdvSearch('datasource')"});
+  }
   if (selectedEquipmentId) tags.push({label: 'Equipment: ' + selectedEquipmentId, fn: "clearEquipmentFilter()"});
   if (tags.length === 0) return '';
   var html = '<div class="active-filters">';
@@ -3696,7 +3728,7 @@ function buildSidebar() {
   const hasFilter = selectedEquipmentId || currentPillarFilter !== 'all' || currentRegulationFilter !== 'all'
     || currentFilter !== 'all' || currentDiffFilter !== 'all' || currentMtypeFilter !== 'all' || currentIndustryFilter !== 'all'
     || currentEscuFilter !== 'all' || currentDtypeFilter !== 'all' || currentPremiumFilter !== 'all'
-    || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDatasourceFilter;
+    || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter;
   let html = '<div class="cat-item' + (!currentCat ? ' active' : '') + '" onclick="selectCat(null)">';
   html += '<div class="cat-num">' + si('list') + '</div><span class="cat-name">Overview</span>';
   html += '<span class="cat-count">' + filt.length + '</span>';
@@ -3909,7 +3941,7 @@ function renderOverview() {
     });
     var hasAnyFilter = selectedEquipmentId || currentFilter !== 'all' || currentDiffFilter !== 'all' || currentPillarFilter !== 'all' || currentRegulationFilter !== 'all' || currentMtypeFilter !== 'all' || currentIndustryFilter !== 'all'
       || currentEscuFilter !== 'all' || currentDtypeFilter !== 'all' || currentPremiumFilter !== 'all'
-      || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDatasourceFilter;
+      || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter;
     var visibleSubs = hasAnyFilter ? Object.keys(filteredBySubcat).length : totalSubs;
     html += '<div class="ov-quickwins-list">';
     html += '<h3 class="ov-quickwins-title">' + escHtml(SITE.statSubcategories || 'Subcategories') + ' \u2014 ' + visibleSubs + ' total</h3>';
@@ -3958,7 +3990,7 @@ function renderOverview() {
       if (heroGroupCatIds && heroGroupCatIds.indexOf(cat.i) === -1) return;
       var count = filtered.filter(function(e) { return e.cat.i === cat.i; }).length;
       var totalCount = cat.s.reduce(function(a,s) { return a + s.u.length; }, 0);
-      var displayCount = (currentFilter !== 'all' || currentDiffFilter !== 'all' || currentPillarFilter !== 'all' || currentRegulationFilter !== 'all' || currentMtypeFilter !== 'all' || currentIndustryFilter !== 'all' || selectedEquipmentId || currentEscuFilter !== 'all' || currentDtypeFilter !== 'all' || currentPremiumFilter !== 'all' || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDatasourceFilter) ? count : totalCount;
+      var displayCount = (currentFilter !== 'all' || currentDiffFilter !== 'all' || currentPillarFilter !== 'all' || currentRegulationFilter !== 'all' || currentMtypeFilter !== 'all' || currentIndustryFilter !== 'all' || selectedEquipmentId || currentEscuFilter !== 'all' || currentDtypeFilter !== 'all' || currentPremiumFilter !== 'all' || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter) ? count : totalCount;
       if (selectedEquipmentId && count === 0) return;
       var meta = CAT_META[cat.i] || {icon:'\ud83d\udccb',desc:'',quick:''};
       var grps = [];
@@ -4847,6 +4879,7 @@ function goHome() {
   currentSappFilter = 'all';
   currentMitreFilter = '';
   currentMitreTacticFilter = '';
+  currentDsGroup = '';
   currentDatasourceFilter = '';
   ovHeroGroupFilter = null;
   ovGroupFilter = 'all';
@@ -4910,7 +4943,7 @@ function setIndustryFilter(f) {
 
 function clearAdvSearch(key) {
   if (key === 'mitre') currentMitreFilter = '';
-  else if (key === 'datasource') currentDatasourceFilter = '';
+  else if (key === 'datasource') { currentDsGroup = ''; currentDatasourceFilter = ''; }
   reRender();
   buildSidebar();
   updateCountLabel();
@@ -4930,6 +4963,7 @@ function clearAllFilters() {
   currentSappFilter = 'all';
   currentMitreFilter = '';
   currentMitreTacticFilter = '';
+  currentDsGroup = '';
   currentDatasourceFilter = '';
   ovHeroGroupFilter = null;
   ovGroupFilter = 'all';

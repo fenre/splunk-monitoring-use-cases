@@ -2199,6 +2199,139 @@ def parse_index_metadata():
 
 FILTER_DTYPE_ALLOW = {"TTP", "Anomaly", "Hunting", "Baseline", "Correlation", "Operational metrics"}
 
+# ── Hierarchical data-source grouping ────────────────────────────────
+DS_GROUPS = [
+    ("Windows Event Logs", [
+        re.compile(r"^Windows Event Log\b", re.I),
+        re.compile(r"^WinEventLog:", re.I),
+        re.compile(r"^NTLM Operational\b", re.I),
+    ]),
+    ("Sysmon", [
+        re.compile(r"^Sysmon\b", re.I),
+    ]),
+    ("PowerShell", [
+        re.compile(r"^Powershell\b", re.I),
+    ]),
+    ("Linux & Unix", [
+        re.compile(r"^Linux Audit", re.I),
+        re.compile(r"^linux_", re.I),
+        re.compile(r"^(proc|vmstat|cpu|memory|sys|dmesg|osquery|net|df)$", re.I),
+    ]),
+    ("CrowdStrike", [
+        re.compile(r"^CrowdStrike\b", re.I),
+    ]),
+    ("EDR & Endpoint", [
+        re.compile(r"^EDR$", re.I),
+        re.compile(r"^Cisco Isovalent", re.I),
+    ]),
+    ("Cisco", [
+        re.compile(r"^Cisco\b", re.I),
+        re.compile(r"^cisco:", re.I),
+        re.compile(r"^meraki:", re.I),
+        re.compile(r"^APIC\b", re.I),
+    ]),
+    ("AWS", [
+        re.compile(r"^AWS\b", re.I),
+        re.compile(r"^aws:", re.I),
+        re.compile(r"^ASL AWS\b", re.I),
+    ]),
+    ("Azure & Entra ID", [
+        re.compile(r"^Azure\b", re.I),
+        re.compile(r"^azure:", re.I),
+    ]),
+    ("Microsoft 365", [
+        re.compile(r"^Office 365\b", re.I),
+        re.compile(r"^O365\b", re.I),
+        re.compile(r"^M365\b", re.I),
+    ]),
+    ("Google Workspace", [
+        re.compile(r"^Google\b", re.I),
+        re.compile(r"^G Suite\b", re.I),
+    ]),
+    ("VMware", [
+        re.compile(r"^VMware\b", re.I),
+        re.compile(r"^VMWare\b", re.I),
+        re.compile(r"^vmware:", re.I),
+        re.compile(r"^ESXi\b", re.I),
+    ]),
+    ("Kubernetes", [
+        re.compile(r"^Kubernetes\b", re.I),
+        re.compile(r"^kube:", re.I),
+        re.compile(r"^argocd:", re.I),
+    ]),
+    ("Palo Alto", [
+        re.compile(r"^Palo Alto\b", re.I),
+        re.compile(r"^pan:", re.I),
+    ]),
+    ("Network & Syslog", [
+        re.compile(r"^syslog$", re.I),
+        re.compile(r"^netflow$", re.I),
+        re.compile(r"^firewall$", re.I),
+        re.compile(r"^Suricata$", re.I),
+        re.compile(r"^(IDS|IPS|VPN)$", re.I),
+        re.compile(r"^SNMP", re.I),
+        re.compile(r"^snmp:", re.I),
+        re.compile(r"^stream:", re.I),
+        re.compile(r"^infoblox:", re.I),
+        re.compile(r"^DNS\b", re.I),
+        re.compile(r"^Firewall traffic", re.I),
+    ]),
+    ("ThousandEyes", [
+        re.compile(r"^ThousandEyes\b", re.I),
+        re.compile(r"^index=thousandeyes", re.I),
+    ]),
+    ("Okta & Duo", [
+        re.compile(r"^Okta", re.I),
+        re.compile(r"^Cisco Duo\b", re.I),
+        re.compile(r"^PingID$", re.I),
+    ]),
+    ("GitHub", [
+        re.compile(r"^GitHub\b", re.I),
+    ]),
+    ("ServiceNow", [
+        re.compile(r"^snow:", re.I),
+        re.compile(r"^CMDB$", re.I),
+    ]),
+    ("Edge Hub & OT", [
+        re.compile(r"^edge_hub", re.I),
+        re.compile(r"^index=edge-hub", re.I),
+    ]),
+    ("Splunk Platform", [
+        re.compile(r"^license:", re.I),
+        re.compile(r"^itsi_", re.I),
+        re.compile(r"^index=_internal", re.I),
+    ]),
+    ("Web & Proxy", [
+        re.compile(r"^WAF$", re.I),
+        re.compile(r"^proxy$", re.I),
+        re.compile(r"^Nginx\b", re.I),
+        re.compile(r"^IIS$", re.I),
+        re.compile(r"^Splunk Stream HTTP", re.I),
+        re.compile(r"^DLP$", re.I),
+    ]),
+    ("AI & LLM", [
+        re.compile(r"^Ollama\b", re.I),
+        re.compile(r"^openai:", re.I),
+        re.compile(r"^MCP\b", re.I),
+    ]),
+]
+
+_DS_GARBAGE = re.compile(
+    r"^(var|log|status|action|user|src|node|top|state|owner|severity|urgency|"
+    r"end|Sub|closed_at|opened_at|services|Operational|Various|"
+    r"duration|latency_ms|temp_c|site_id|stats|api|dest|asset inventory|"
+    r"\d{3,}|.*[)(]$|.*\|.*|destination_h|source_h|_time)$",
+    re.I,
+)
+
+
+def _classify_datasource(name):
+    """Return the group name for a data source, or None if unclassified."""
+    for group_name, patterns in DS_GROUPS:
+        if any(p.search(name) for p in patterns):
+            return group_name
+    return None
+
 
 def extract_filter_facets(data):
     """Pre-extract unique sorted values for advanced filter dropdowns."""
@@ -2208,7 +2341,11 @@ def extract_filter_facets(data):
     sapp_map = {}
     industries = set()
     mitres = set()
-    datasources = {}  # normalized name → count
+    datasources = {}   # name → count
+    ds_uc_groups = {}   # group_name → set of UC IDs (for deduped count)
+
+    for group_name, _ in DS_GROUPS:
+        ds_uc_groups[group_name] = set()
 
     for cat in data:
         for sub in cat.get("s", []):
@@ -2231,20 +2368,47 @@ def extract_filter_facets(data):
                     for t in uc["mitre"]:
                         mitres.add(t)
                 if uc.get("d"):
+                    uc_id = uc.get("i", "")
                     for tok in re.split(r"[,;/]+", uc["d"]):
                         tok = tok.strip().strip("`")
                         if not tok or len(tok) < 3:
                             continue
-                        # Remove sourcetype= prefix for cleaner labels
-                        clean = re.sub(r"^sourcetype\s*=\s*", "", tok, flags=re.IGNORECASE).strip('"').strip("'")
-                        if clean:
-                            datasources[clean] = datasources.get(clean, 0) + 1
+                        clean = re.sub(
+                            r"^sourcetype\s*=\s*", "", tok, flags=re.IGNORECASE
+                        ).strip('"').strip("'")
+                        if not clean or _DS_GARBAGE.match(clean):
+                            continue
+                        datasources[clean] = datasources.get(clean, 0) + 1
+                        grp = _classify_datasource(clean)
+                        if grp:
+                            ds_uc_groups[grp].add(uc_id)
 
-    # Keep data sources that appear in at least 2 UCs, sorted by frequency
-    ds_filtered = sorted(
-        [(k, v) for k, v in datasources.items() if v >= 2],
-        key=lambda x: (-x[1], x[0])
-    )
+    # Build hierarchical groups (only sources with count >= 2)
+    grouped = {}
+    for name, cnt in datasources.items():
+        if cnt < 2:
+            continue
+        grp = _classify_datasource(name) or "__other__"
+        grouped.setdefault(grp, []).append({"name": name, "count": cnt})
+
+    # Sort sources within each group by frequency
+    for g in grouped:
+        grouped[g].sort(key=lambda x: (-x["count"], x["name"]))
+
+    ds_groups_out = []
+    for group_name, _ in DS_GROUPS:
+        if group_name in grouped:
+            ds_groups_out.append({
+                "name": group_name,
+                "total": len(ds_uc_groups.get(group_name, set())),
+                "sources": grouped[group_name],
+            })
+    if "__other__" in grouped:
+        ds_groups_out.append({
+            "name": "Other",
+            "total": len(grouped["__other__"]),
+            "sources": grouped["__other__"],
+        })
 
     return {
         "dtype": sorted(dtypes),
@@ -2253,7 +2417,7 @@ def extract_filter_facets(data):
         "sapp": [{"id": k, "name": v} for k, v in sorted(sapp_map.items(), key=lambda x: x[1])],
         "industry": sorted(industries),
         "mitre": _mitre_by_tactic(sorted(mitres)),
-        "datasource": [{"name": k, "count": v} for k, v in ds_filtered],
+        "datasource_groups": ds_groups_out,
     }
 
 
