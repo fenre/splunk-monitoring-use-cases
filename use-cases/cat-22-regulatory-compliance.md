@@ -320,6 +320,7 @@ index=windows sourcetype="WinEventLog:Security" EventCode IN (4624, 4625, 4672) 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Risk, Compliance
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
 - **Value:** Produces an auditable, continuously refreshed view of residual ICT risk by business entity using the ES risk scoring pipeline, so risk owners can evidence identification, assessment, and monitoring of ICT risk without manual spreadsheet rollups.
@@ -346,6 +347,7 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
 - **Value:** Maps ES notable urgency/severity to DORA major vs significant classification and computes filing deadline clocks (4h for major, 72h for others) for operational resilience incident workflows.
@@ -374,6 +376,7 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Compliance
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
 - **Value:** Tracks scheduled resilience test outcomes via ITSI KPI breaches and highlights testing gaps (missing runs, failed thresholds) for Board/ICT oversight reporting on digital resilience.
@@ -400,6 +403,7 @@ index=itsi_summary earliest=-90d is_service_in_maintenance=0
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Risk, Compliance
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
 - **Value:** Quantifies operational dependency on specific cloud providers by measuring API activity concentration across accounts, regions, and services, supporting third-party risk assessments and exit planning.
@@ -428,6 +432,7 @@ index=itsi_summary earliest=-90d is_service_in_maintenance=0
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Compliance
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
 - **Value:** Demonstrates ongoing cross-region replication and DR operations evidence from cloud provider audit trails combined with ITSI service health across regions.
@@ -548,6 +553,7 @@ index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Performance
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** MiFID II
 - **Value:** Detects reporting gaps (missing submissions vs expected trading-day volume) and ARM/APA rejection spikes to support completeness and accuracy controls for transaction reporting oversight.
@@ -576,6 +582,7 @@ index=trading sourcetype="_json" source="http:trx_reporting" earliest=-30d@d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Audit
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** MiFID II
 - **Value:** Correlates collaboration recording signals (Webex) with telephony metadata (CUCM CDR) to evidence recording coverage and catch missing/failed capture patterns across communication channels.
@@ -604,6 +611,7 @@ index=voip sourcetype="cisco:ucm:cdr" earliest=-30d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Performance
+- **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** MiFID II
 - **Value:** Compares execution quality and routing latency across venues (price improvement, fees, speed) using structured order/execution JSON from OMS/EMS to support best execution oversight.

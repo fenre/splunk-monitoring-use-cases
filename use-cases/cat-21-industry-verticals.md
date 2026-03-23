@@ -12,6 +12,7 @@
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Availability
+- **Industry:** Energy and Utilities
 - **Value:** Alarm storms mask genuine faults and exhaust operator attention; detecting flood rates and shelved alarm backlog prevents missed trips and unsafe operating conditions during grid events.
 - **App/TA:** Splunk OT Intelligence, OT Security Add-on
 - **Data Sources:** `index=scada` `sourcetype="scada:alarm"` (alarm_id, priority, shelved flag, substation_id)
@@ -35,6 +36,7 @@ index=scada sourcetype="scada:alarm"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Fault
+- **Industry:** Energy and Utilities
 - **Value:** Silent RTU loss leaves operators blind to field conditions; rapid detection of polling gaps avoids delayed switching decisions and compliance exposure for unmetered assets.
 - **App/TA:** Splunk Edge Hub, Splunk OT Intelligence
 - **Data Sources:** `index=scada` `sourcetype="scada:rtu"` (rtu_id, poll_status, response_ms, substation_id)
@@ -56,6 +58,7 @@ index=scada sourcetype="scada:rtu"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Capacity
+- **Industry:** Energy and Utilities
 - **Value:** Missing AMI intervals skew billing determinants and load research; finding meters with systematic gaps protects revenue and supports voltage conservation programs.
 - **App/TA:** Custom HEC (MDMS/AMI head-end export)
 - **Data Sources:** `index=ami` `sourcetype="ami:meter"` (meter_id, read_timestamp, interval_end, kwh)
@@ -82,6 +85,7 @@ index=ami sourcetype="ami:meter"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Fault
+- **Industry:** Energy and Utilities
 - **Value:** Voltage sags, swells, and harmonic distortion drive equipment trips and customer complaints; correlating PQ monitors with SCADA helps prioritize capacitor banks and feeder upgrades.
 - **App/TA:** Splunk OT Intelligence, custom HEC (PQ analyzer)
 - **Data Sources:** `index=power` `sourcetype="power:quality"` (site_id, event_type, duration_ms, v_rms, thd_pct)
@@ -105,6 +109,7 @@ index=power sourcetype="power:quality"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Energy and Utilities
 - **Value:** Forecast error increases imbalance costs and reserve deployment; tracking solar and wind deltas supports trading desks and dispatch in markets with renewable penetration.
 - **App/TA:** Splunk OT Intelligence, PI historian HEC
 - **Data Sources:** `index=generation` `sourcetype="pi:historian"` (asset_id, mw_actual, mw_forecast, fuel_type)
@@ -128,6 +133,7 @@ index=generation sourcetype="pi:historian" fuel_type IN ("solar","wind")
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fault
+- **Industry:** Energy and Utilities
 - **Value:** Phase imbalance causes neutral current, transformer heating, and voltage quality issues; early detection guides switching operations and load redistribution on rural feeders.
 - **App/TA:** Splunk Edge Hub, PI historian HEC
 - **Data Sources:** `index=scada` `sourcetype="pi:historian"` (feeder_id, ia_amps, ib_amps, ic_amps)
@@ -152,6 +158,7 @@ index=scada sourcetype="pi:historian"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault, Compliance
+- **Industry:** Energy and Utilities
 - **Value:** Rising H₂, CH₄, and C₂H₂ indicate insulation breakdown; trending DGA against IEEE/IEC limits prioritizes transformer replacement and avoids in-service failures.
 - **App/TA:** Custom HEC (lab LIMS / asset management)
 - **Data Sources:** `index=assets` `sourcetype="pi:historian"` (transformer_id, h2_ppm, ch4_ppm, c2h2_ppm, sample_date)
@@ -177,6 +184,7 @@ index=assets sourcetype="pi:historian"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Fault, Availability
+- **Industry:** Energy and Utilities
 - **Value:** Linking generator trips to relay targets and SCADA analogs shortens root-cause analysis and supports NERC event reporting with defensible timelines.
 - **App/TA:** Splunk OT Intelligence, OT Security Add-on
 - **Data Sources:** `index=scada` `sourcetype="scada:alarm"` OR `sourcetype="scada:rtu"` (unit_id, trip, relay_element, mw, hz)
@@ -203,6 +211,7 @@ index=scada sourcetype="scada:alarm" (match(_raw,"(?i)trip|generator"))
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Change
+- **Industry:** Energy and Utilities
 - **Value:** Position mismatches against ISO settlement expose mark-to-market errors and credit risk; automated reconciliation catches booking and tag errors before invoice disputes.
 - **App/TA:** Custom HEC (ETRM / settlement system)
 - **Data Sources:** `index=trading` `sourcetype="energy:trade"` (trade_id, product, mw, side, position_internal, position_settlement, trade_date)
@@ -225,6 +234,7 @@ index=trading sourcetype="energy:trade"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Performance
+- **Industry:** Energy and Utilities
 - **Value:** Mesh degradation increases latency and packet loss for critical reads and firmware campaigns; proactive node health reduces truck rolls and extends network life.
 - **App/TA:** Custom HEC (RF mesh head-end)
 - **Data Sources:** `index=ami` `sourcetype="ami:mesh"` (node_id, parent_id, rssi_dbm, hop_count, latency_ms, online)
@@ -247,6 +257,7 @@ index=ami sourcetype="ami:mesh"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Performance
+- **Industry:** Energy and Utilities
 - **Value:** Program penalties apply when committed load reductions are not achieved; verifying kW response against baselines protects program revenue and customer satisfaction.
 - **App/TA:** Custom HEC (DRMS / DERMS)
 - **Data Sources:** `index=dr` `sourcetype="dr:event"` (program_id, site_id, event_start, event_end, baseline_kw, actual_kw)
@@ -269,6 +280,7 @@ index=dr sourcetype="dr:event"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Fault, Change
+- **Industry:** Energy and Utilities
 - **Value:** Disconnected OMS tickets and energized SCADA devices delay restoration and confuse customers; alignment checks improve switching safety and SAIDI/SAIFI reporting quality.
 - **App/TA:** Splunk OT Intelligence, custom HEC (OMS)
 - **Data Sources:** `index=oms` `sourcetype="oms:outage"` (device_id, status), `index=scada` `sourcetype="scada:alarm"` or `sourcetype="scada:rtu"` (device_id, breaker_state)
@@ -294,6 +306,7 @@ index=oms sourcetype="oms:outage" status="open"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Fault
+- **Industry:** Energy and Utilities
 - **Value:** Unexecuted clearance work correlates with repeat outages; tying work orders to feeder outage history prioritizes trims and documents regulatory readiness.
 - **App/TA:** Custom HEC (GIS / work management)
 - **Data Sources:** `index=oms` `sourcetype="oms:outage"` (feeder_id, outage_cause, work_order_id, work_type, completed_date)
@@ -317,6 +330,7 @@ index=oms sourcetype="oms:outage"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Availability
+- **Industry:** Energy and Utilities
 - **Value:** During storms, knowing crew proximity to open tickets reduces travel time and improves ETR accuracy for public communications and mutual aid billing.
 - **App/TA:** Custom HEC (AVL / dispatch)
 - **Data Sources:** `index=fleet` `sourcetype="fleet:gps"` (vehicle_id, crew_id, lat, lon, speed_mph, ticket_id)
@@ -341,6 +355,7 @@ index=fleet sourcetype="fleet:gps"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Fault
+- **Industry:** Energy and Utilities
 - **Value:** Estimated reads and bill spikes drive complaints and regulatory inquiries; catching exceptions before invoice release protects customer trust and reduces rework.
 - **App/TA:** Custom HEC (CIS/billing)
 - **Data Sources:** `index=billing` `sourcetype="billing:exception"` (account_id, bill_cycle, read_type, variance_pct, amount_due, flag_estimated)
@@ -371,6 +386,7 @@ index=billing sourcetype="billing:exception"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Manufacturing
 - **Value:** OEE exposes hidden capacity losses across availability, speed, and quality; plant leadership uses it to prioritize capital and lean projects on the constraint line.
 - **App/TA:** Splunk OT Intelligence, Splunk Edge Hub
 - **Data Sources:** `index=mfg` `sourcetype="mes:production"` (line_id, planned_time_min, run_time_min, ideal_cycle_sec, units_good, units_total)
@@ -396,6 +412,7 @@ index=mfg sourcetype="mes:production"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Fault, Availability
+- **Industry:** Manufacturing
 - **Value:** Shortening mean time to repair for unplanned stops protects customer OTIF; correlating alarms, work orders, and environmental data speeds RCA across shifts.
 - **App/TA:** Splunk OT Intelligence, CMMS integration
 - **Data Sources:** `index=mfg` `sourcetype="mes:production"` (line_id, state), `index=mfg` `sourcetype="cmms:workorder"` (asset_id, wo_id, priority), `index=ot` `sourcetype="opc:tag"` (asset_id, alarm_text)
@@ -419,6 +436,7 @@ index=mfg sourcetype="mes:production"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Compliance
+- **Industry:** Manufacturing
 - **Value:** Batch yield ties material usage to quality outcomes; sustained loss trends trigger recipe or supplier investigations before customer rejects accumulate.
 - **App/TA:** Custom HEC (MES)
 - **Data Sources:** `index=mfg` `sourcetype="mes:production"` (batch_id, sku, input_kg, good_kg, scrap_kg)
@@ -442,6 +460,7 @@ index=mfg sourcetype="mes:production"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Performance
+- **Industry:** Manufacturing
 - **Value:** Western Electric rules catch process shifts before out-of-spec product is made, supporting ISO 9001 and automotive PPAP evidence.
 - **App/TA:** Custom HEC (QMS/LIMS)
 - **Data Sources:** `index=quality` `sourcetype="qms:inspection"` (part_id, characteristic, measured_value, lsl, usl)
@@ -465,6 +484,7 @@ index=quality sourcetype="qms:inspection"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault, Performance
+- **Industry:** Manufacturing
 - **Value:** Rising RMS velocity or envelope demodulation on rotating assets precedes bearing failure; early warning avoids unplanned line stops and secondary damage.
 - **App/TA:** Splunk Edge Hub, Splunk OT Intelligence
 - **Data Sources:** `index=ot` `sourcetype="opc:tag"` (asset_id, vibration_rms, temperature_c)
@@ -489,6 +509,7 @@ index=ot sourcetype="opc:tag"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Manufacturing
 - **Value:** Specific energy consumption (kWh per unit) links sustainability KPIs to operations; spikes reveal compressed air leaks, idle equipment, or recipe drift.
 - **App/TA:** Splunk Edge Hub (energy meters), MES HEC
 - **Data Sources:** `index=mfg` `sourcetype="energy:meter"` (line_id, kwh), `sourcetype="mes:production"` (line_id, units_good)
@@ -518,6 +539,7 @@ index=mfg (sourcetype="energy:meter" OR sourcetype="mes:production")
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Performance
+- **Industry:** Manufacturing
 - **Value:** Stalled manufacturing orders threaten delivery dates and WIP cash; milestone visibility enables planner intervention before the constraint is starved.
 - **App/TA:** Custom HEC (MES)
 - **Data Sources:** `index=mfg` `sourcetype="mes:production"` (order_id, sku, milestone, status, due_date)
@@ -541,6 +563,7 @@ index=mfg sourcetype="mes:production"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Availability
+- **Industry:** Manufacturing
 - **Value:** AS2/EDI failures delay ASNs and invoices, disrupting JIT lines and payment cycles; monitoring failure rates protects supplier scorecards and customer OTIF.
 - **App/TA:** Custom HEC (B2B gateway)
 - **Data Sources:** `index=edi` `sourcetype="edi:message"` (partner_id, direction, status, message_type, mdn_status)
@@ -564,6 +587,7 @@ index=edi sourcetype="edi:message"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Change
+- **Industry:** Manufacturing
 - **Value:** Wrong component consumption breaks costing and traceability; catching BOM mismatches early avoids recalls and ERP reconciliation fire drills.
 - **App/TA:** ERP HEC, MES integration
 - **Data Sources:** `index=erp` `sourcetype="erp:event"` (order_id, material_id, qty_planned), `index=mfg` `sourcetype="mes:production"` (order_id, material_id, qty_consumed)
@@ -590,6 +614,7 @@ index=erp sourcetype="erp:event" event_type="bom"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Compliance
+- **Industry:** Manufacturing
 - **Value:** Long cycle times miss carrier cutoffs and inflate labor cost; SLA dashboards drive slotting and staffing decisions in peak seasons.
 - **App/TA:** Custom HEC (WMS)
 - **Data Sources:** `index=wms` `sourcetype="wms:order"` (order_id, pick_start, pack_end, ship_confirm, sla_minutes)
@@ -613,6 +638,7 @@ index=wms sourcetype="wms:order"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fault
+- **Industry:** Manufacturing
 - **Value:** Drift from takt-time signals tooling wear or program changes; catching deviation early avoids quality escapes and unplanned maintenance.
 - **App/TA:** Splunk OT Intelligence, robot controller HEC
 - **Data Sources:** `index=mfg` `sourcetype="robot:cycle"` (cell_id, program_id, cycle_sec, target_sec)
@@ -636,6 +662,7 @@ index=mfg sourcetype="robot:cycle"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Availability
+- **Industry:** Manufacturing
 - **Value:** Belt slowdowns and jams starve downstream stations and can damage product; fast detection limits cascade stops across the line.
 - **App/TA:** Splunk Edge Hub
 - **Data Sources:** `index=ot` `sourcetype="conveyor:sensor"` (line_id, belt_id, speed_fpm, motor_amps, jam_sensor)
@@ -658,6 +685,7 @@ index=ot sourcetype="conveyor:sensor"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Manufacturing
 - **Value:** Air leaks are a top energy waste in plants; abnormal specific power (kW per 100 cfm) during non-production indicates leakage or control issues.
 - **App/TA:** Splunk Edge Hub, energy analytics
 - **Data Sources:** `index=mfg` `sourcetype="air:compressor"` (plant_id, kw, cfm, run_state), `sourcetype="mes:production"` (plant_id, line_state)
@@ -687,6 +715,7 @@ index=mfg sourcetype="air:compressor"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Fault
+- **Industry:** Manufacturing
 - **Value:** Incomplete CIP risks product contamination and regulatory findings; verifying flow, temperature, and chemical concentration against the recipe protects brand and batch release.
 - **App/TA:** Splunk OT Intelligence, Splunk Edge Hub
 - **Data Sources:** `index=mfg` `sourcetype="cip:cycle"` (skid_id, step, flow_lpm, temp_c, conductivity_ms, duration_sec, recipe_id)
@@ -709,6 +738,7 @@ index=mfg sourcetype="cip:cycle"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Change
+- **Industry:** Manufacturing
 - **Value:** Consistent shift reports reduce tacit knowledge loss and accelerate startup; KPI rollups improve accountability across crews on 24/7 lines.
 - **App/TA:** Splunk OT Intelligence, MES HEC
 - **Data Sources:** `index=mfg` `sourcetype="mes:production"` (line_id, units_good, downtime_min, scrap_units, shift_id)
@@ -740,6 +770,7 @@ index=mfg sourcetype="mes:production"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Healthcare
 - **Value:** Slow EHR response times directly impact clinical workflow and patient safety. Monitoring response latency enables proactive intervention before clinicians experience degradation.
 - **App/TA:** Epic Hyperspace / Cerner application performance logs via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="ehr:audit"` fields `response_time_ms`, `transaction_type`, `server_node`
@@ -761,6 +792,7 @@ index=healthcare sourcetype="ehr:audit"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **Industry:** Healthcare
 - **Value:** Clinical applications require 99.9%+ uptime for patient care continuity. Tracking SLA compliance ensures service-level commitments are met and documented.
 - **App/TA:** Synthetic monitoring, application health checks via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="app:health"` fields `app_name`, `status`, `response_code`
@@ -784,6 +816,7 @@ index=healthcare sourcetype="app:health"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **Industry:** Healthcare
 - **Value:** Nurse call response time is a key patient satisfaction and safety metric. Monitoring enables staffing optimization and regulatory compliance.
 - **App/TA:** Nurse call system integration via syslog or HEC
 - **Data Sources:** `index=healthcare` `sourcetype="nursecall:event"` fields `call_id`, `call_time`, `response_time`, `unit`
@@ -806,6 +839,7 @@ index=healthcare sourcetype="nursecall:event"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **Industry:** Healthcare
 - **Value:** Blood products must be stored at 1-6°C per AABB standards. Temperature excursions require immediate action and documentation to prevent product waste and patient harm.
 - **App/TA:** Environmental sensors via MQTT/Edge Hub
 - **Data Sources:** `index=healthcare` `sourcetype="bloodbank:temp"` fields `unit_id`, `temp_c`, `alarm_status`
@@ -827,6 +861,7 @@ index=healthcare sourcetype="bloodbank:temp"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **Industry:** Healthcare
 - **Value:** Many pharmaceuticals (vaccines, biologics) require strict temperature control. Excursions can render medications ineffective, creating patient safety and financial risk.
 - **App/TA:** Cold chain monitoring sensors via MQTT/Edge Hub
 - **Data Sources:** `index=healthcare` `sourcetype="coldchain:sensor"` fields `location`, `temp_c`, `setpoint_c`, `tolerance_c`
@@ -850,6 +885,7 @@ index=healthcare sourcetype="coldchain:sensor"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Healthcare
 - **Value:** Lab TAT directly impacts clinical decision-making and patient throughput. Tracking TAT by test type identifies bottlenecks in specimen processing and analysis.
 - **App/TA:** LIS integration via HL7 or HEC
 - **Data Sources:** `index=healthcare` `sourcetype="lis:result"` fields `order_id`, `test_type`, `collected_time`, `resulted_time`
@@ -872,6 +908,7 @@ index=healthcare sourcetype="lis:result"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance
+- **Industry:** Healthcare
 - **Value:** FDA regulations require audit trails for electronic records and signatures in pharmaceutical manufacturing and clinical systems. Monitoring ensures continuous compliance.
 - **App/TA:** GxP system audit trail exports via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="esig:audit"` fields `system`, `user`, `action`, `record_id`, `signature_valid`
@@ -894,6 +931,7 @@ index=healthcare sourcetype="esig:audit"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Change, Compliance
+- **Industry:** Healthcare
 - **Value:** Validated system changes must follow documented change control processes. Monitoring detects unauthorized changes and verifies proper approval workflows.
 - **App/TA:** GxP system change logs via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="gxp:change"` fields `system`, `change_type`, `approved`, `approver`, `change_id`
@@ -915,6 +953,7 @@ index=healthcare sourcetype="gxp:change"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance
+- **Industry:** Healthcare
 - **Value:** Clinical trial data requires ALCOA+ principles (Attributable, Legible, Contemporaneous, Original, Accurate). Monitoring audit trails ensures data integrity for regulatory submissions.
 - **App/TA:** CTMS/EDC system audit exports via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="ctms:audit"` fields `study_id`, `site_id`, `user`, `action`, `field_changed`, `old_value`, `new_value`
@@ -937,6 +976,7 @@ index=healthcare sourcetype="ctms:audit"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Healthcare
 - **Value:** Radiology report TAT affects clinical decisions and patient discharge timing. Tracking by modality and priority ensures SLA compliance and identifies workflow bottlenecks.
 - **App/TA:** RIS/PACS integration via HL7 or HEC
 - **Data Sources:** `index=healthcare` `sourcetype="ris:report"` fields `accession`, `modality`, `priority`, `exam_complete_time`, `report_finalized_time`
@@ -959,6 +999,7 @@ index=healthcare sourcetype="ris:report"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
+- **Industry:** Healthcare
 - **Value:** Real-time bed occupancy and patient flow data supports throughput optimization, reduces boarding, and improves patient placement decisions.
 - **App/TA:** ADT feed via HL7 or HEC
 - **Data Sources:** `index=healthcare` `sourcetype="adtflow:event"` fields `unit`, `event_type`, `bed_id`, `patient_class`
@@ -981,6 +1022,7 @@ index=healthcare sourcetype="adtflow:event"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Healthcare
 - **Value:** ED wait times impact patient outcomes and satisfaction scores. Real-time tracking enables dynamic resource allocation and identifies systemic throughput issues.
 - **App/TA:** EDIS integration via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="edis:event"` fields `visit_id`, `triage_time`, `provider_time`, `disposition_time`
@@ -1004,6 +1046,7 @@ index=healthcare sourcetype="edis:event"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Healthcare
 - **Value:** OR utilization and turnover time directly impact surgical throughput and revenue. Monitoring enables scheduling optimization and identifies delays.
 - **App/TA:** OR scheduling system via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="or:schedule"` fields `or_room`, `case_start`, `case_end`, `turnover_start`, `turnover_end`
@@ -1026,6 +1069,7 @@ index=healthcare sourcetype="or:schedule"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **Industry:** Healthcare
 - **Value:** Joint Commission requires documented PM programs for medical equipment. Tracking compliance prevents accreditation findings and ensures equipment reliability.
 - **App/TA:** CMMS biomedical module via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="cmms:biomed"` fields `asset_id`, `pm_due_date`, `pm_completed_date`, `risk_level`
@@ -1048,6 +1092,7 @@ index=healthcare sourcetype="cmms:biomed"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance
+- **Industry:** Healthcare
 - **Value:** Discrepancies between medication orders and administration records indicate potential medication errors, a leading cause of adverse events. Reconciliation supports patient safety.
 - **App/TA:** EHR MAR/pharmacy integration via HL7 or HEC
 - **Data Sources:** `index=healthcare` `sourcetype="mar:record"` fields `order_id`, `med_name`, `scheduled_time`, `admin_time`, `admin_status`
@@ -1076,6 +1121,7 @@ index=healthcare sourcetype="mar:record"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Healthcare
 - **Value:** Poor telehealth video/audio quality degrades clinical assessment and patient experience. Monitoring enables proactive intervention and platform optimization.
 - **App/TA:** Telehealth platform API/logs via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="telehealth:session"` fields `session_id`, `provider_id`, `video_quality_score`, `audio_quality_score`, `disconnect_count`
@@ -1097,6 +1143,7 @@ index=healthcare sourcetype="telehealth:session"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Healthcare
 - **Value:** CDS alerts must fire in real-time during clinical workflows. Excessive latency causes clinicians to bypass alerts, reducing patient safety benefit.
 - **App/TA:** CDS engine logs via HEC
 - **Data Sources:** `index=healthcare` `sourcetype="cds:query"` fields `rule_id`, `query_time_ms`, `result`, `triggered_alert`
@@ -1126,6 +1173,7 @@ index=healthcare sourcetype="cds:query"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Performance
+- **Industry:** Transportation and Logistics
 - **Value:** Real-time vehicle tracking and geofence alerts enable theft prevention, route compliance, and efficient dispatch during emergency response.
 - **App/TA:** GPS telematics platform via HEC
 - **Data Sources:** `index=logistics` `sourcetype="gps:telematics"` fields `vehicle_id`, `lat`, `lon`, `speed_kmh`, `geofence_id`
@@ -1147,6 +1195,7 @@ index=logistics sourcetype="gps:telematics"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Compliance
+- **Industry:** Transportation and Logistics
 - **Value:** Analyzing harsh braking, speeding, and excessive idling improves fleet safety, reduces fuel costs, and supports insurance and regulatory compliance.
 - **App/TA:** Telematics platform via HEC
 - **Data Sources:** `index=logistics` `sourcetype="gps:telematics"` fields `driver_id`, `harsh_brake`, `speed_kmh`, `speed_limit_kmh`, `idle_min`
@@ -1171,6 +1220,7 @@ index=logistics sourcetype="gps:telematics"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Transportation and Logistics
 - **Value:** Unusual fuel consumption patterns indicate theft, mechanical issues (injectors, tires), or inefficient routing. Early detection reduces operating costs.
 - **App/TA:** Fuel management system / telematics via HEC
 - **Data Sources:** `index=logistics` `sourcetype="fuel:consumption"` fields `vehicle_id`, `fuel_liters`, `distance_km`
@@ -1193,6 +1243,7 @@ index=logistics sourcetype="fuel:consumption"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
+- **Industry:** Transportation and Logistics
 - **Value:** OBD-II diagnostic trouble codes provide early warning of mechanical and emissions issues. Monitoring enables proactive maintenance and prevents roadside failures.
 - **App/TA:** OBD-II / telematics via HEC
 - **Data Sources:** `index=logistics` `sourcetype="obd2:dtc"` fields `vehicle_id`, `dtc_code`, `dtc_description`, `severity`
@@ -1214,6 +1265,7 @@ index=logistics sourcetype="obd2:dtc"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Transportation and Logistics
 - **Value:** Crane cycle time is a key productivity metric for port operations. Tracking enables operator performance comparison and equipment optimization.
 - **App/TA:** Terminal operating system / crane PLC via HEC
 - **Data Sources:** `index=logistics` `sourcetype="crane:cycle"` fields `crane_id`, `cycle_time_sec`, `move_type`, `operator_id`
@@ -1235,6 +1287,7 @@ index=logistics sourcetype="crane:cycle"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **Industry:** Transportation and Logistics
 - **Value:** Rail signaling failures cause service disruptions and safety incidents. Monitoring signal system health enables proactive maintenance and reduces delay minutes.
 - **App/TA:** Signaling system logs via syslog/HEC
 - **Data Sources:** `index=logistics` `sourcetype="rail:signal"` fields `signal_id`, `status`, `fault_code`, `location`
@@ -1256,6 +1309,7 @@ index=logistics sourcetype="rail:signal"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Transportation and Logistics
 - **Value:** Baggage system throughput impacts flight departure times and passenger satisfaction. Monitoring identifies jams, diversions, and screening bottlenecks.
 - **App/TA:** BHS SCADA / sortation system via HEC
 - **Data Sources:** `index=logistics` `sourcetype="bhs:throughput"` fields `lane_id`, `bags_per_hour`, `jam_count`, `divert_count`
@@ -1277,6 +1331,7 @@ index=logistics sourcetype="bhs:throughput"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **Industry:** Transportation and Logistics
 - **Value:** Pick accuracy directly impacts customer satisfaction, returns, and operational costs. Tracking accuracy by zone and picker enables targeted training.
 - **App/TA:** WMS application logs via HEC
 - **Data Sources:** `index=logistics` `sourcetype="wms:order"` fields `order_id`, `pick_correct`, `zone`, `picker_id`
@@ -1300,6 +1355,7 @@ index=logistics sourcetype="wms:order"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Compliance
+- **Industry:** Transportation and Logistics
 - **Value:** Last-mile delivery performance drives customer experience and contract compliance. Tracking on-time rates enables route optimization and exception management.
 - **App/TA:** Delivery management platform via HEC
 - **Data Sources:** `index=logistics` `sourcetype="delivery:event"` fields `delivery_id`, `promised_time`, `actual_time`, `status`
@@ -1323,6 +1379,7 @@ index=logistics sourcetype="delivery:event" status="delivered"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **Industry:** Transportation and Logistics
 - **Value:** Temperature excursions during transport of perishable goods cause spoilage, regulatory violations, and customer claims. Real-time monitoring enables immediate corrective action.
 - **App/TA:** Cold chain sensors via MQTT/HEC
 - **Data Sources:** `index=logistics` `sourcetype="coldchain:transit"` fields `shipment_id`, `temp_c`, `setpoint_c`, `tolerance_c`
@@ -1346,6 +1403,7 @@ index=logistics sourcetype="coldchain:transit"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
+- **Industry:** Transportation and Logistics
 - **Value:** Excessive container dwell time at terminals increases demurrage costs and reduces asset turns. Tracking dwell enables process improvements and better planning.
 - **App/TA:** Terminal operating system via HEC
 - **Data Sources:** `index=logistics` `sourcetype="container:dwell"` fields `container_id`, `dwell_hours`, `facility`
@@ -1367,6 +1425,7 @@ index=logistics sourcetype="container:dwell"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **Industry:** Transportation and Logistics
 - **Value:** Roadside sensor availability impacts traffic management system accuracy. Monitoring sensor uptime enables proactive maintenance and reliable traffic data.
 - **App/TA:** ATMS field device gateway via HEC
 - **Data Sources:** `index=logistics` `sourcetype="tms:sensor"` fields `sensor_id`, `last_reading_epoch`, `status`
@@ -1398,6 +1457,7 @@ index=logistics sourcetype="tms:sensor"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Unusual pressure or flow patterns may indicate leaks, blockages, or instrument drift. Early detection prevents environmental incidents and costly shutdowns.
 - **App/TA:** Splunk OT Intelligence, historian via HEC
 - **Data Sources:** `index=ot` `sourcetype="pipeline:pressure"` fields `segment_id`, `pressure_psi`, `flow_bbl_h`
@@ -1419,6 +1479,7 @@ index=ot sourcetype="pipeline:pressure"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Missing wellhead measurements indicate communication failures. Quick detection ensures SCADA and field teams can restore data continuity.
 - **App/TA:** Edge Hub / RTU feeds via HEC
 - **Data Sources:** `index=ot` `sourcetype="wellhead:telemetry"` fields `well_id`, `expected_interval_sec`
@@ -1442,6 +1503,7 @@ index=ot sourcetype="wellhead:telemetry"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Vibration trending catches mechanical issues during planned outages rather than as unplanned failures, improving equipment reliability and reducing costs.
 - **App/TA:** Vibration monitoring system / historian via HEC
 - **Data Sources:** `index=ot` `sourcetype="compressor:vibration"` fields `asset_id`, `vibration_mm_s`, `bearing_location`
@@ -1460,6 +1522,7 @@ index=ot sourcetype="compressor:vibration"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Flare duration and intensity tracking supports environmental reporting and identifies operational events causing excessive flaring.
 - **App/TA:** Flare meter / CEMS via HEC
 - **Data Sources:** `index=ot` `sourcetype="flare:event"` fields `flare_id`, `duration_min`, `rate_mmscfd`, `site_id`
@@ -1482,6 +1545,7 @@ index=ot sourcetype="flare:event"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Tracking tons per hour against targets balances feed rate with crusher and mill constraints, improving yield and reducing energy waste.
 - **App/TA:** DCS/historian via HEC
 - **Data Sources:** `index=ot` `sourcetype="process:throughput"` fields `line_id`, `tph`, `target_tph`
@@ -1501,6 +1565,7 @@ index=ot sourcetype="process:throughput"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Measuring truck active hours and payload improves fleet sizing, load-pass matching, and reduces per-ton haulage costs.
 - **App/TA:** Fleet management / onboard weighing via HEC
 - **Data Sources:** `index=ot` `sourcetype="haultruck:telematics"` fields `truck_id`, `payload_ton`, `engine_hours`, `loaded`
@@ -1523,6 +1588,7 @@ index=ot sourcetype="haultruck:telematics"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Drill instrumentation must stay online for safe and efficient drilling. Monitoring channel health catches failures before they impact operations.
 - **App/TA:** Rig data logger via HEC
 - **Data Sources:** `index=ot` `sourcetype="drillrig:sensor"` fields `rig_id`, `channel`, `status`, `value_age_sec`
@@ -1545,6 +1611,7 @@ index=ot sourcetype="drillrig:sensor"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault
+- **Industry:** Oil, Gas, and Mining
 - **Value:** SIS trip analysis distinguishes nuisance trips from genuine demand, supporting PHA/MOC review and improving safety system reliability metrics.
 - **App/TA:** SIS / ESD logs via HEC
 - **Data Sources:** `index=ot` `sourcetype="sis:trip"` fields `loop_id`, `trip_cause`, `demand_type`
@@ -1565,6 +1632,7 @@ index=ot sourcetype="sis:trip"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Tracking effluent parameters against permit limits enables timely corrective action and audit-ready documentation for environmental regulations.
 - **App/TA:** LIMS / online analyzer via HEC
 - **Data Sources:** `index=ot` `sourcetype="effluent:monitor"` fields `outfall_id`, `parameter`, `value_mg_l`, `limit_mg_l`
@@ -1586,6 +1654,7 @@ index=ot sourcetype="effluent:monitor"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Tank overfills cause environmental incidents and safety hazards. Monitoring levels and fill rates enables proactive response and inventory reconciliation.
 - **App/TA:** Tank gauging / DCS via HEC
 - **Data Sources:** `index=ot` `sourcetype="tankfarm:level"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`
@@ -1608,6 +1677,7 @@ index=ot sourcetype="tankfarm:level"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Pipe-to-soil potentials and rectifier state indicate whether corrosion protection is effective along pipelines, supporting regulatory compliance and asset integrity.
 - **App/TA:** CP remote monitoring via HEC
 - **Data Sources:** `index=ot` `sourcetype="cp:reading"` fields `test_point_id`, `potential_v`, `min_protect_v`, `rectifier_on`
@@ -1631,6 +1701,7 @@ index=ot sourcetype="cp:reading"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability
+- **Industry:** Oil, Gas, and Mining
 - **Value:** Verifying seismic trace completeness and signal-to-noise ratio ensures monitoring programs meet technical specifications for reliable subsurface analysis.
 - **App/TA:** Seismic acquisition system via HEC
 - **Data Sources:** `index=ot` `sourcetype="seismic:data"` fields `station_id`, `samples_expected`, `samples_received`, `snr_db`
@@ -1662,6 +1733,7 @@ index=ot sourcetype="seismic:data"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Availability
+- **Industry:** Retail and E-Commerce
 - **Value:** Slow POS responses frustrate customers and extend queue times; tracking latency by terminal and store helps isolate network, host, or payment-processor issues before they impact peak-hour throughput.
 - **App/TA:** Custom HEC (POS gateway / payment middleware)
 - **Data Sources:** `index=retail` `sourcetype="pos:transaction"` (store_id, terminal_id, response_ms, txn_status)
@@ -1684,6 +1756,7 @@ index=retail sourcetype="pos:transaction"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Fault
+- **Industry:** Retail and E-Commerce
 - **Value:** High self-checkout error rates drive attendant interventions and shrink throughput; correlating lane state with error codes prioritizes hardware refresh and software fixes.
 - **App/TA:** Custom HEC (SCO application / kiosk telemetry)
 - **Data Sources:** `index=retail` `sourcetype="selfcheckout:event"` (store_id, lane_id, event_type, error_code)
@@ -1706,6 +1779,7 @@ index=retail sourcetype="selfcheckout:event"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability, Performance
+- **Industry:** Retail and E-Commerce
 - **Value:** mPOS, guest Wi-Fi, and IoT rely on store LAN/WLAN; tracking AP association failures and controller health prevents silent outages during promotions.
 - **App/TA:** Wi-Fi controller syslog / SNMP trap HEC
 - **Data Sources:** `index=retail` `sourcetype="wifi:controller"` (store_id, ap_name, client_count, assoc_failures, cpu_pct)
@@ -1728,6 +1802,7 @@ index=retail sourcetype="wifi:controller"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Retail and E-Commerce
 - **Value:** People-counting trends validate staffing and layout changes; anomaly detection on ingress rates highlights sensor drift or blocked entrances.
 - **App/TA:** Retail IoT / people-counting platform via HEC
 - **Data Sources:** `index=retail` `sourcetype="foottraffic:sensor"` (store_id, zone_id, inbound_count, outbound_count)
@@ -1753,6 +1828,7 @@ index=retail sourcetype="foottraffic:sensor"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Retail and E-Commerce
 - **Value:** BOPIS promises a pickup window; measuring pick-to-ready time exposes backlog in back-of-house systems and reduces customer wait complaints.
 - **App/TA:** OMS / store fulfillment app via HEC
 - **Data Sources:** `index=retail` `sourcetype="bopis:order"` (order_id, store_id, placed_epoch, ready_epoch, status)
@@ -1778,6 +1854,7 @@ index=retail sourcetype="bopis:order" status="fulfilled"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
+- **Industry:** Retail and E-Commerce
 - **Value:** Checkout step latency directly impacts cart abandonment; segmenting by step isolates payment gateway, tax service, or session store delays.
 - **App/TA:** E-commerce APM / web tier logs via HEC
 - **Data Sources:** `index=retail` `sourcetype="ecom:checkout"` (session_id, step_name, latency_ms, http_status)
@@ -1801,6 +1878,7 @@ index=retail sourcetype="ecom:checkout"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Retail and E-Commerce
 - **Value:** Reorder points that fire too late cause stockouts; false triggers inflate carrying costs. Comparing suggested orders to actual on-hand movement validates replenishment rules.
 - **App/TA:** IMS / replenishment engine via HEC
 - **Data Sources:** `index=retail` `sourcetype="inventory:reorder"` (sku_id, store_id, on_hand_qty, reorder_point, suggested_qty, trigger_time)
@@ -1824,6 +1902,7 @@ index=retail sourcetype="inventory:reorder"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Retail and E-Commerce
 - **Value:** HVAC anomalies increase energy spend and affect cold-chain adjacent zones; trending kWh against occupancy and outdoor air temperature supports sustainability KPIs.
 - **App/TA:** BMS / smart meter HEC
 - **Data Sources:** `index=retail` `sourcetype="store:energy"` (store_id, kwh, zone_temp_f, hvac_mode, oa_temp_f)
@@ -1848,6 +1927,7 @@ index=retail sourcetype="store:energy"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **Industry:** Retail and E-Commerce
 - **Value:** Failed content pulls leave blank or stale screens during campaigns; monitoring download success and player heartbeat protects brand and promotional compliance.
 - **App/TA:** Digital signage CMS / player agent via HEC
 - **Data Sources:** `index=retail` `sourcetype="signage:health"` (store_id, player_id, content_id, download_status, last_sync_epoch)
@@ -1871,6 +1951,7 @@ index=retail sourcetype="signage:health"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **Industry:** Retail and E-Commerce
 - **Value:** mPOS devices that drop offline or run low on battery interrupt line-busting during peaks; proactive swaps reduce abandoned transactions.
 - **App/TA:** MDM / mPOS telemetry via HEC
 - **Data Sources:** `index=retail` `sourcetype="mpos:device"` (device_id, store_id, battery_pct, rssi_dbm, last_seen_epoch)
@@ -1894,6 +1975,7 @@ index=retail sourcetype="mpos:device"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **Industry:** Retail and E-Commerce
 - **Value:** Operational visibility into VMS/NVR stream health supports store safety and incident review workflows without duplicating fraud analytics covered elsewhere.
 - **App/TA:** VMS health feed via HEC
 - **Data Sources:** `index=retail` `sourcetype="camera:status"` (store_id, camera_id, stream_state, bitrate_kbps, last_frame_epoch)
@@ -1917,6 +1999,7 @@ index=retail sourcetype="camera:status"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Retail and E-Commerce
 - **Value:** Benchmarking composite health scores across stores highlights underperforming sites for capital planning and regional support prioritization.
 - **App/TA:** Aggregated retail operations index
 - **Data Sources:** `index=retail` `sourcetype="store:infra"` (store_id, health_score, pos_latency_ms, wifi_issue_count, energy_kwh_day)
@@ -1949,6 +2032,7 @@ index=retail sourcetype="store:infra"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Fault
+- **Industry:** Aviation
 - **Value:** Low BHS throughput and rising misroutes delay connections and drive mishandled-bag metrics; correlating belt rates with sort errors focuses maintenance on diverters and scanners.
 - **App/TA:** Airport Ground Operations App, BHS message feed via HEC
 - **Data Sources:** `index=airport` `sourcetype="airport:baggage"` (flight_id, bag_tag, sort_destination, actual_destination, belt_id, scan_time)
@@ -1972,6 +2056,7 @@ index=airport sourcetype="airport:baggage"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Aviation
 - **Value:** Passenger screening wait times drive missed flights and terminal congestion; monitoring queue depth and lane throughput supports dynamic staffing.
 - **App/TA:** Queue analytics / security lane sensors via HEC
 - **Data Sources:** `index=airport` `sourcetype="airport:security"` (terminal_id, lane_id, queue_depth, wait_time_sec, throughput_pph)
@@ -1994,6 +2079,7 @@ index=airport sourcetype="airport:security"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
+- **Industry:** Aviation
 - **Value:** A-CDM milestones expose ground-handling delays that compress departure slots; tracking block-on to off-block variance improves OTP and stand utilization.
 - **App/TA:** A-CDM feed via HEC, Airport CIM for Splunk
 - **Data Sources:** `index=airport` `sourcetype="acdm:turnaround"` (flight_id, stand_id, block_on, target_off, actual_off, milestone_name, milestone_time)
@@ -2019,6 +2105,7 @@ index=airport sourcetype="acdm:turnaround" milestone_name="ACTUAL_OFF_BLOCK"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Fault
+- **Industry:** Aviation
 - **Value:** Vehicles breaching movement area boundaries create runway incursion risk; monitoring GPS tracks against geofences supports safety management and audit evidence.
 - **App/TA:** Airfield vehicle telematics via HEC
 - **Data Sources:** `index=airport` `sourcetype="airfield:vehicle"` (vehicle_id, lat, lon, speed_kph, geofence_id, breach_flag)
@@ -2041,6 +2128,7 @@ index=airport sourcetype="airfield:vehicle"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **Industry:** Aviation
 - **Value:** Blank or stale FIDS erode passenger trust and increase gate crowding; heartbeat and content sync monitoring ensures displays match the operational data feed.
 - **App/TA:** FIDS CMS / player health via HEC
 - **Data Sources:** `index=airport` `sourcetype="fids:status"` (display_id, terminal_id, sync_lag_sec, content_version, online_flag)
@@ -2063,6 +2151,7 @@ index=airport sourcetype="fids:status"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Aviation
 - **Value:** Passenger Wi-Fi saturation during banks degrades airline apps and airport services; tracking airtime utilization and retries guides AP density and backhaul upgrades.
 - **App/TA:** WLAN controller syslog via HEC
 - **Data Sources:** `index=airport` `sourcetype="airport:wifi"` (ap_name, terminal_id, channel_util_pct, client_count, retry_rate_pct)
@@ -2084,6 +2173,7 @@ index=airport sourcetype="airport:wifi"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Fault
+- **Industry:** Aviation
 - **Value:** Lighting circuit faults affect night and low-visibility operations; consolidating SCADA alarms with last-known good states speeds electrical maintenance dispatch.
 - **App/TA:** Airfield lighting SCADA via HEC
 - **Data Sources:** `index=airport` `sourcetype="airfield:lighting"` (circuit_id, runway_id, intensity_pct, comm_ok, alarm_state)
@@ -2106,6 +2196,7 @@ index=airport sourcetype="airfield:lighting"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Aviation
 - **Value:** Gate churn and long towing distances waste ground time; analyzing assigned vs actual gate usage supports stand planning and reduces conflicts.
 - **App/TA:** AODB / gate management via HEC
 - **Data Sources:** `index=airport` `sourcetype="gate:allocation"` (flight_id, gate_id, planned_gate, actual_gate, change_count, tow_required_flag)
@@ -2129,6 +2220,7 @@ index=airport sourcetype="gate:allocation"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
+- **Industry:** Aviation
 - **Value:** Understanding dwell and flow between checkpoints and gates helps prevent overcrowding and supports staffing during irregular operations.
 - **App/TA:** Wi-Fi probe / Bluetooth / lidar analytics via HEC
 - **Data Sources:** `index=airport` `sourcetype="terminal:flow"` (terminal_id, zone_id, occupancy_est, flow_rate_ppm)
@@ -2153,6 +2245,7 @@ index=airport sourcetype="terminal:flow"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Availability
+- **Industry:** Aviation
 - **Value:** Airports rely on SCADA for jet bridges, baggage power, and utilities; alarm floods and unacked critical points risk missed responses during IROPS.
 - **App/TA:** Airport SCADA historian / alarm export via HEC
 - **Data Sources:** `index=airport` `sourcetype="airport:scada"` (subsystem, alarm_id, priority, ack_state, description)
@@ -2182,6 +2275,7 @@ index=airport sourcetype="airport:scada"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Fault
+- **Industry:** Telecommunications
 - **Value:** Cell site outages directly impact subscriber coverage and handover success; tracking up/down transitions and sustained downtime focuses radio access field teams before KPIs degrade across the footprint.
 - **App/TA:** Custom HEC (RAN EMS / element manager export)
 - **Data Sources:** `index=telecom` `sourcetype="ran:cellsite"` (site_id, cell_id, operational_state, last_transition_epoch)
@@ -2205,6 +2299,7 @@ index=telecom sourcetype="ran:cellsite"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Performance
+- **Industry:** Telecommunications
 - **Value:** Core packet gateways and mobility management anchor subscriber sessions; correlating CPU, session load, and alarm states helps capacity and incident teams isolate a degrading blade before mass detach.
 - **App/TA:** Custom HEC (EPC/5GC performance counters)
 - **Data Sources:** `index=telecom` `sourcetype="core:element"` (element_id, element_type, cpu_pct, active_sessions, alarm_severity)
@@ -2227,6 +2322,7 @@ index=telecom sourcetype="core:element"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fault
+- **Industry:** Telecommunications
 - **Value:** Failed SIM activation or profile pushes strand subscribers on support calls; measuring end-to-end workflow success by step exposes orchestration, HLR/HSS, and BSS handoffs without CDR-volume analytics.
 - **App/TA:** OSS provisioning orchestrator via HEC
 - **Data Sources:** `index=telecom` `sourcetype="provisioning:workflow"` (workflow_id, msisdn, step_name, status, duration_ms)
@@ -2250,6 +2346,7 @@ index=telecom sourcetype="provisioning:workflow"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Telecommunications
 - **Value:** Rising PRB or downlink utilization trends drive sector splits and carrier adds; long-window trending supports RF engineering without duplicating CDR-based traffic analytics (Cat 5.12).
 - **App/TA:** RAN performance management feed via HEC
 - **Data Sources:** `index=telecom` `sourcetype="spectrum:utilization"` (site_id, cell_id, dl_prb_util_pct, ul_prb_util_pct, sample_period_sec)
@@ -2274,6 +2371,7 @@ index=telecom sourcetype="spectrum:utilization"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Telecommunications
 - **Value:** Mediation pipelines must deliver rated records to billing within windows; end-to-end latency and backlog depth prevent revenue leakage and rating disputes distinct from raw CDR analytics use cases.
 - **App/TA:** Mediation platform logs via HEC
 - **Data Sources:** `index=telecom` `sourcetype="mediation:event"` (batch_id, records_in, records_out, latency_ms, queue_depth)
@@ -2296,6 +2394,7 @@ index=telecom sourcetype="mediation:event"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Fault
+- **Industry:** Telecommunications
 - **Value:** API and message bus integrations between CRM, inventory, and activation systems fail silently under load; HTTP error rates and timeout counts isolate brittle adapters before orders stall.
 - **App/TA:** API gateway / ESB logs via HEC
 - **Data Sources:** `index=telecom` `sourcetype="ossbss:integration"` (interface_id, http_status, latency_ms, error_code)
@@ -2319,6 +2418,7 @@ index=telecom sourcetype="ossbss:integration"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Telecommunications
 - **Value:** MTTR for access and core tickets reflects operational maturity; trending resolution intervals by category and region highlights training gaps and vendor SLA performance.
 - **App/TA:** ITSM / trouble ticket export via HEC
 - **Data Sources:** `index=telecom` `sourcetype="troubleticket:event"` (ticket_id, category, region, created_epoch, resolved_epoch, status)
@@ -2343,6 +2443,7 @@ index=telecom sourcetype="troubleticket:event" lower(status)="resolved"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Fault
+- **Industry:** Telecommunications
 - **Value:** gNodeB throughput, latency, and drop metrics expose RF and transport issues before subscriber experience scores fall; focuses on RAN KPIs rather than core signaling traces (Cat 5.11).
 - **App/TA:** 5G DU/CU performance export via HEC
 - **Data Sources:** `index=telecom` `sourcetype="gnodeb:metrics"` (gnb_id, cell_id, dl_throughput_mbps, ul_throughput_mbps, rlc_drop_pct, latency_ms)
@@ -2366,6 +2467,7 @@ index=telecom sourcetype="gnodeb:metrics"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Telecommunications
 - **Value:** Slices carry differentiated QoS commitments; monitoring allocated vs used bandwidth and session counts per slice supports enterprise SLAs and slice redesign.
 - **App/TA:** 5GC NSSF/NSMF metrics via HEC
 - **Data Sources:** `index=telecom` `sourcetype="slice:utilization"` (slice_id, dnn, committed_mbps, used_mbps, active_sessions)
@@ -2388,6 +2490,7 @@ index=telecom sourcetype="slice:utilization"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Telecommunications
 - **Value:** Low cache hit ratios increase origin load and subscriber latency; trending hit ratio by POP and content type guides cache sizing and TTL policy without analyzing subscriber CDRs.
 - **App/TA:** CDN raw logs / analytics API via HEC
 - **Data Sources:** `index=telecom` `sourcetype="cdn:performance"` (pop_id, cache_status, bytes_served, request_count)
@@ -2419,6 +2522,7 @@ index=telecom sourcetype="cdn:performance"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Fault
+- **Industry:** Water and Wastewater
 - **Value:** pH, turbidity, and chlorine residual excursions threaten regulatory permits and public health; continuous trending flags filter or chemical feed issues before grab samples fail.
 - **App/TA:** Splunk Edge Hub, SCADA HEC
 - **Data Sources:** `index=water` `sourcetype="treatment:process"` (plant_id, basin_id, ph, turbidity_ntu, chlorine_mg_l, ph_min, ph_max, turbidity_max, chlorine_min)
@@ -2442,6 +2546,7 @@ index=water sourcetype="treatment:process"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Water and Wastewater
 - **Value:** Excessive run hours or kWh per volume pumped signals impeller wear, valve issues, or wet-well setpoint drift; trending supports maintenance scheduling and energy cost control.
 - **App/TA:** Pump station PLC via Edge Hub
 - **Data Sources:** `index=water` `sourcetype="pump:station"` (station_id, pump_id, run_state, flow_m3h, power_kw, runtime_hr_day)
@@ -2466,6 +2571,7 @@ index=water sourcetype="pump:station" run_state=1
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Performance
+- **Industry:** Water and Wastewater
 - **Value:** Low pressure risks contamination and service complaints; high pressure stresses mains. Zone-level analytics isolate PRV faults and demand spikes faster than single-point alarms.
 - **App/TA:** SCADA pressure telemetry via HEC
 - **Data Sources:** `index=water` `sourcetype="pressure:zone"` (zone_id, pressure_psi, min_target_psi, max_target_psi, sensor_id)
@@ -2488,6 +2594,7 @@ index=water sourcetype="pressure:zone"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault, Compliance
+- **Industry:** Water and Wastewater
 - **Value:** Rising wet-well levels during rainfall indicate capacity or blockage risk before SSO events; correlating level rise rate with rain intensity prioritizes inspections.
 - **App/TA:** Sewer SCADA + weather feed via HEC
 - **Data Sources:** `index=water` `sourcetype="sewer:level"` (structure_id, level_ft, high_alarm_ft, rainfall_in_hr)
@@ -2512,6 +2619,7 @@ index=water sourcetype="sewer:level"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **Industry:** Water and Wastewater
 - **Value:** Tracking scheduled vs completed samples and lab receipt timestamps ensures permit coverage and reduces missed-route findings during audits.
 - **App/TA:** LIMS / field sampling app via HEC
 - **Data Sources:** `index=water` `sourcetype="water:compliance"` (sample_id, site_id, scheduled_epoch, collected_epoch, lab_received_epoch, parameter_set)
@@ -2534,6 +2642,7 @@ index=water sourcetype="water:compliance"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **Industry:** Water and Wastewater
 - **Value:** Silent RTU loss leaves operators blind at lift stations and remote wells; age since last good poll drives prioritized truck rolls before overflows.
 - **App/TA:** Splunk Edge Hub, SCADA front-end logs
 - **Data Sources:** `index=water` `sourcetype="scada:rtu"` (rtu_id, site_id, poll_ok, response_ms)
@@ -2555,6 +2664,7 @@ index=water sourcetype="scada:rtu"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Fault
+- **Industry:** Water and Wastewater
 - **Value:** Comparing master meter inflows to zone consumption and night minimum flows highlights leaks, unauthorized use, and meter drift—supporting NRW reduction programs.
 - **App/TA:** AMI + district meter HEC
 - **Data Sources:** `index=water` `sourcetype="water:flow"` (zone_id, supply_m3_day, billed_m3_day, min_night_flow_m3h)
@@ -2578,6 +2688,7 @@ index=water sourcetype="water:flow"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault, Performance
+- **Industry:** Water and Wastewater
 - **Value:** Rising vibration with stable level, or current draw creep before thermal trip, predicts pump bearing wear and wet-well pump failures—reducing emergency callouts.
 - **App/TA:** Vibration and motor VFD telemetry via Edge Hub
 - **Data Sources:** `index=water` `sourcetype="liftstation:sensor"` (station_id, pump_id, vibration_mm_s, motor_amps, wet_well_level_ft, running_flag)
@@ -2609,6 +2720,7 @@ index=water sourcetype="liftstation:sensor" running_flag=1
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Insurance and Financial Services
 - **Value:** End-to-end cycle time from FNOL to settlement drives customer satisfaction and loss adjustment expense; segmenting by line of business exposes bottlenecks in adjuster queues and vendor turnaround.
 - **App/TA:** Claims management system via HEC
 - **Data Sources:** `index=insurance` `sourcetype="claims:lifecycle"` (claim_id, lob, opened_epoch, settled_epoch, status)
@@ -2633,6 +2745,7 @@ index=insurance sourcetype="claims:lifecycle" lower(status)="settled"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Insurance and Financial Services
 - **Value:** Shifts in FNOL volume by web, mobile, IVR, or agent channel indicate digital adoption issues or contact center strain after catastrophe or product changes.
 - **App/TA:** FNOL ingestion service via HEC
 - **Data Sources:** `index=insurance` `sourcetype="fnol:event"` (fnol_id, channel, region, ingest_latency_ms, success_flag)
@@ -2656,6 +2769,7 @@ index=insurance sourcetype="fnol:event"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Insurance and Financial Services
 - **Value:** Uneven open-claim counts per adjuster drive delays and quality variance; workload panels support fair distribution and surge staffing during CAT events.
 - **App/TA:** Claims assignment system via HEC
 - **Data Sources:** `index=insurance` `sourcetype="adjuster:workload"` (adjuster_id, team, open_claims, new_assignments_day, capacity_target)
@@ -2678,6 +2792,7 @@ index=insurance sourcetype="adjuster:workload"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Insurance and Financial Services
 - **Value:** Subrogation dollars recovered reduce net loss ratio; tracking recovery rate and aging by claim type validates vendor performance and statute-of-limitations risk.
 - **App/TA:** Subrogation module via HEC
 - **Data Sources:** `index=insurance` `sourcetype="subrogation:recovery"` (claim_id, demand_amt, recovered_amt, opened_epoch, closed_epoch, outcome)
@@ -2699,6 +2814,7 @@ index=insurance sourcetype="subrogation:recovery"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **Industry:** Insurance and Financial Services
 - **Value:** Immutable-style audit of quote, risk tier, and bind decisions supports regulatory exams and disputes; Splunk supplements the system of record for search and dashboards.
 - **App/TA:** Policy administration / underwriting engine via HEC
 - **Data Sources:** `index=insurance` `sourcetype="underwriting:audit"` (policy_id, decision_id, user_id, decision, risk_score, rule_id, epoch)
@@ -2722,6 +2838,7 @@ index=insurance sourcetype="underwriting:audit"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Fault
+- **Industry:** Insurance and Financial Services
 - **Value:** Graph-style links among claimants, body shops, and payees reveal staged-loss rings distinct from generic payment fraud in banking; supports SIU prioritization when combined with Fraud Analytics scores.
 - **App/TA:** Splunk App for Fraud Analytics, graph enrichment via HEC
 - **Data Sources:** `index=insurance` `sourcetype="fraud:network"` (claim_id, entity_id, entity_type, edge_type, related_claim_id)
@@ -2744,6 +2861,7 @@ index=insurance sourcetype="fraud:network"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Compliance
+- **Industry:** Insurance and Financial Services
 - **Value:** RTW milestones reduce indemnity spend and improve outcomes; monitoring days lost and RTW status by employer class highlights case management gaps.
 - **App/TA:** Workers comp claims system via HEC
 - **Data Sources:** `index=insurance` `sourcetype="workcomp:rtw"` (claim_id, employer_class, injury_date_epoch, rtw_date_epoch, lost_time_flag)
@@ -2767,6 +2885,7 @@ index=insurance sourcetype="workcomp:rtw" lost_time_flag=1
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Capacity, Performance
+- **Industry:** Insurance and Financial Services
 - **Value:** During hurricanes or wildfires, FNOL and assignment rates can overwhelm contact centers and field adjusters; real-time intake vs staffed capacity guides IVR messaging and temporary adjuster pools.
 - **App/TA:** Claims platform + workforce management via HEC
 - **Data Sources:** `index=insurance` `sourcetype="cat:surge"` (cat_event_id, fnol_per_hr, active_adjusters, queue_depth, p95_handle_sec)

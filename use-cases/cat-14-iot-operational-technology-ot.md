@@ -502,6 +502,7 @@ index=ot sourcetype="ics:protocol"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Compliance
+- **Industry:** Energy and Utilities
 - **Value:** Evidence of electronic access controls, logging, and change management for bulk electric systems.
 - **App/TA:** Custom (CIP evidence packs), Splunk Enterprise Security
 - **Data Sources:** Firewall, VPN, AD, asset logs tagged `nerc_cip`
@@ -771,6 +772,7 @@ index=ot sourcetype="plc:download"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **Industry:** Manufacturing
 - **Value:** Correlates controller faults, jam sensors, and Andon events for OEE and root-cause — feeds continuous improvement.
 - **App/TA:** MES, PLC fault bits, SCADA alarms
 - **Data Sources:** `sourcetype="mes:line_status"`, `sourcetype="opcua:alarm"`
@@ -793,6 +795,7 @@ index=ot sourcetype="mes:line_status"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Manufacturing
 - **Value:** Availability × Performance × Quality from SCADA/MES tags — executive and plant KPIs.
 - **App/TA:** Historian, OPC-UA, MES
 - **Data Sources:** `sourcetype="opcua:tag"`, `sourcetype="historian:sample"`
@@ -815,6 +818,7 @@ index=ot sourcetype="opcua:tag" tag=oee
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Quality, Safety
+- **Industry:** Manufacturing
 - **Value:** Recipe phase duration, temperature, or agitator speed outside limits risks scrap or unsafe reactions.
 - **App/TA:** Batch executive (S88), historian
 - **Data Sources:** `sourcetype="batch:phase"`, `sourcetype="historian:sample"`
@@ -836,6 +840,7 @@ index=ot sourcetype="batch:phase" batch_id=*
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Operations
+- **Industry:** Manufacturing
 - **Value:** Missing 997/999/CONTRL acks for ASNs or orders disrupt supply-chain and inventory — common in automotive / discrete manufacturing.
 - **App/TA:** B2B gateway (IBM/Seeburger), VAN logs
 - **Data Sources:** `sourcetype="edi:control"`, `sourcetype="as2:mdn"`
@@ -1970,6 +1975,7 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log people_count_event
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
+- **Industry:** Manufacturing
 - **Value:** Automates defect detection on assembly lines by running visual inspection models on captured images without human intervention.
 - **App/TA:** Splunk Edge Hub (USB camera + NPU container), v2.1+, OT Intelligence
 - **Data Sources:** `index=edge-hub-logs` sourcetype=splunk_edge_hub_log visual_inspection_event, `index=edge-hub-data` inspection_metadata
@@ -3166,6 +3172,7 @@ index=ot sourcetype="hivemq:metrics"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Performance, Change
+- **Industry:** Manufacturing
 - **Value:** Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`)
@@ -3188,6 +3195,7 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Change, Compliance
+- **Industry:** Manufacturing
 - **Value:** PLC program upload/download changes process logic and safety envelopes; correlating these events with change tickets prevents unauthorized logic swaps that could disrupt operations or bypass interlocks.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (ICSNPP `s7comm_upload_download.log`: `function_code`, `filename`, `block_type`, `block_number`, `source_h`, `destination_h`)
@@ -3210,6 +3218,7 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault, Security, Availability
+- **Industry:** Manufacturing
 - **Value:** CPU stop/start or mode transitions can halt a line or leave a PLC in an unsafe state; detecting them from the wire supports both troubleshooting and detection of malicious or accidental operational disruption.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (`rosctr_name`, `subfunction_name`, `function_name`, `error_class`)
@@ -3231,6 +3240,7 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **Industry:** Manufacturing
 - **Value:** Access attempts to protected OB/FB/FC blocks may indicate credential abuse or ladder tampering; monitoring errors and targeted function names supports defense-in-depth around safety-related code.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:s7comm:json"` (`function_name`, `subfunction_name`, `error_class`, `error_code`)
@@ -3253,6 +3263,7 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **Industry:** Manufacturing
 - **Value:** Diagnostics and coil forcing are high-impact Modbus operations; a sudden shift in function-code mix can signal scanning, misuse, or a compromised HMI.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:modbus_detailed:json"` (`func`, `unit`, `source_h`, `destination_h`)
@@ -3275,6 +3286,7 @@ index=ot sourcetype="zeek:modbus_detailed:json"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Change, Fault
+- **Industry:** Manufacturing
 - **Value:** Covert changes to holding registers can alter setpoints or interlocks; comparing matched request/response values highlights tampering distinct from normal operator writes.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:modbus_detailed:json"` (`func`, `address`, `unit`, `request_values`, `response_values`, `matched`, `network_direction`)
@@ -3298,6 +3310,7 @@ index=ot sourcetype="zeek:modbus_detailed:json" matched=true
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Fault
+- **Industry:** Manufacturing
 - **Value:** Read Device Identification (FC 0x2B) is a common reconnaissance step; bursts from non-inventory hosts often precede targeted attacks or rogue integration attempts.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:modbus_detailed:json"` or `sourcetype="zeek:modbus_read_device_identification:json"` (`func`, `mei_type`, `object_id`, `source_h`, `destination_h`)
@@ -3319,6 +3332,7 @@ index=ot (sourcetype="zeek:modbus_detailed:json" OR sourcetype="zeek:modbus_read
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Fault, Security
+- **Industry:** Energy and Utilities
 - **Value:** Unsolicited responses carry event-driven telemetry; abnormal volume or timing can indicate flooding, misconfiguration, or spoofed outstations affecting SCADA visibility.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:dnp3:json"` (Zeek `dnp3.log` / application function text, `source_h`, `destination_h`)
@@ -3342,6 +3356,7 @@ index=ot sourcetype="zeek:dnp3:json"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance, Change
+- **Industry:** Energy and Utilities
 - **Value:** CROB select/operate sequences directly actuate breakers and outputs; a full audit trail is required for NERC CIP-style reviews and post-incident forensics.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:dnp3:json"` (ICSNPP `dnp3_control.log`: `block_type`, `function_code`, `operation_type`, `index_number`, `trip_control_code`, `status_code`)
@@ -3361,6 +3376,7 @@ index=ot sourcetype="zeek:dnp3:json" block_type="Control_Relay_Output_Block"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault, Security, Availability
+- **Industry:** Energy and Utilities
 - **Value:** Restart commands to outstations reset application context and can interrupt protection; unexpected restarts may follow malware or operator error.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:dnp3:json"` (`function`, `object_type`, `source_h`, `destination_h`)
@@ -3381,6 +3397,7 @@ index=ot sourcetype="zeek:dnp3:json"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **Industry:** Manufacturing
 - **Value:** Unusual CIP services (e.g., configuration writes) against controllers can precede firmware or logic manipulation; service baselines highlight drift from normal automation behavior.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:enip:json"` (`cip_service`, `cip_service_code`, `class_name`, `direction`, `source_h`, `destination_h`)
@@ -3404,6 +3421,7 @@ index=ot sourcetype="zeek:enip:json" direction="Request"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Fault
+- **Industry:** Manufacturing
 - **Value:** EtherNet/IP sessions are normally established with explicit registration; traffic that skips expected session setup may indicate tooling errors, bypass attempts, or non-compliant devices on the plant floor.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:enip:json"` (`enip_command`, `session_handle`, `uid`, `source_h`, `destination_h`)
@@ -3424,6 +3442,7 @@ index=ot sourcetype="zeek:enip:json"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Fault, Security
+- **Industry:** Manufacturing
 - **Value:** Implicit I/O carries real-time control data; sudden changes in payload size or timing can signal cable issues, configuration drift, or injection attempts affecting deterministic control.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:enip:json"` (ICSNPP `cip_io.log` merged or `sourcetype="zeek:cip_io:json"`: `connection_id`, `data_length`, `sequence_number`, `io_data`)
@@ -3446,6 +3465,7 @@ index=ot (sourcetype="zeek:cip_io:json" OR (sourcetype="zeek:enip:json" isnotnul
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Performance, Compliance
+- **Industry:** Energy and Utilities
 - **Value:** General interrogation and clock synchronization (types 100 and 103) can be abused for reconnaissance or time skew; auditing masters against expected scan behavior supports grid and plant operational integrity.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:iec104:json"` (`asdu_type`, `cot`, `stationinterrogation`, `cp56_*` clock fields, `source_h`, `destination_h`)
@@ -3466,6 +3486,7 @@ index=ot sourcetype="zeek:iec104:json"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Fault, Security
+- **Industry:** Energy and Utilities
 - **Value:** Monitoring spontaneous updates helps distinguish normal process swings from stale data or spoofed telemetry that could mask a physical fault.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:iec104:json"` (`cot`, `asdu_type`, `ioa`, `shortfloat`, `nva`, `sva`, `source_h`, `destination_h`)
@@ -3490,6 +3511,7 @@ index=ot sourcetype="zeek:iec104:json" cot=3
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance, Fault, Security
+- **Industry:** Energy and Utilities
 - **Value:** Time drift between master and outstation complicates event ordering and SOE correlation; detecting skew supports NERC-style evidence of synchronized operations.
 - **App/TA:** TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)
 - **Data Sources:** `index=ot` `sourcetype="zeek:iec104:json"` (`asdu_type`, `cp56_minutes`, `cp56_hours`, `cp56_day`, `cp56_month`, `cp56_year`, `source_h`, `destination_h`)
@@ -3634,6 +3656,7 @@ index=ot sourcetype="litmus:health"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
+- **Industry:** Manufacturing
 - **Value:** Missing or silent tag streams break dashboards, historians, and ML models; validating expected tags catches connector or network regressions before production impact.
 - **App/TA:** Litmus Edge (Splunk HEC connector)
 - **Data Sources:** `index=ot` `sourcetype="litmus:tag"` fields `gateway_id`, `tag_name`, `source_device`
@@ -3678,6 +3701,7 @@ index=ot sourcetype="litmus:tag"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **Industry:** Manufacturing
 - **Value:** Stale or missing sensor readings invalidate safety and quality analytics; completeness audits align telemetry coverage with regulatory expectations for critical measurements.
 - **App/TA:** Litmus Edge (Splunk HEC connector)
 - **Data Sources:** `index=ot` `sourcetype="litmus:tag"` fields `gateway_id`, `tag_name`, optional `quality`

@@ -1314,6 +1314,7 @@ index=jira sourcetype="jira:jmx"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Telecommunications
 - **Value:** Captures Mean Opinion Score (MOS) and R-Factor directly from RTP packets on the wire, providing platform-independent voice quality measurement. Unlike UC-11.3.1 which uses Cisco CUCM CMR data (application-level), this use case captures quality at the network level regardless of the call platform — covering third-party PBX, SIP trunking providers, and carrier interconnects.
 - **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -1336,6 +1337,7 @@ sourcetype="stream:rtp"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Security
+- **Industry:** Telecommunications
 - **Value:** Tracks all emergency calls (911, 933 test, 112) through the telephony system to ensure regulatory compliance and rapid response. Monitors call completion rate, answer time, and any failed emergency calls — a regulatory requirement in many jurisdictions.
 - **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), or `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -1361,6 +1363,7 @@ sourcetype="cisco:ucm:cdr"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Availability
+- **Industry:** Telecommunications
 - **Value:** Calculates Answer Seizure Ratio — the percentage of call attempts that are successfully answered — by route group or trunk. ASR is the primary KPI for voice service quality in carrier networks. Low ASR indicates trunk failures, destination unreachable, or capacity exhaustion.
 - **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), or `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications

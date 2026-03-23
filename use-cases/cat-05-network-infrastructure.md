@@ -5727,6 +5727,7 @@ index=network sourcetype=snmptrap
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Performance
+- **Industry:** Telecommunications
 - **Value:** Tracks the success and failure rates of Diameter signaling messages (authentication, authorization, accounting) in the mobile core, essential for maintaining service availability and subscriber experience.
 - **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -5751,6 +5752,7 @@ sourcetype="stream:diameter"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
+- **Industry:** Telecommunications
 - **Value:** Aggregates Diameter accounting records to track data usage per subscriber and session, enabling detection of high-usage anomalies, billing reconciliation, and capacity planning.
 - **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -5775,6 +5777,7 @@ sourcetype="stream:diameter" command_code=271
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Availability
+- **Industry:** Telecommunications
 - **Value:** Tracks active mobile subscriber sessions via RADIUS accounting, providing visibility into session duration, data volume, and SGSN/MCC-MNC distribution — critical for mobile core capacity planning and roaming analytics.
 - **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -5798,6 +5801,7 @@ sourcetype="stream:radius" code="Accounting-Request"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Performance
+- **Industry:** Telecommunications
 - **Value:** Monitors SIP response codes on carrier trunks to detect call routing failures, trunk congestion, and destination unreachable conditions — directly impacting voice service availability and revenue.
 - **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -5821,6 +5825,7 @@ sourcetype="stream:sip" method="INVITE"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Security
+- **Industry:** Telecommunications
 - **Value:** Detects sudden spikes in SIP REGISTER messages that can overwhelm IMS/SBC infrastructure — caused by mass device reboots, network flaps, or DDoS attacks. Early detection prevents cascading core failures.
 - **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -5846,6 +5851,7 @@ sourcetype="stream:sip" method="REGISTER"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Telecommunications
 - **Value:** Measures the time between a SIP INVITE and the first ringing or answer response, directly reflecting the user experience of waiting after dialing. High post-dial delay indicates trunk congestion, routing loops, or downstream SBC issues.
 - **App/TA:** `Splunk App for Stream` (Splunkbase #1809)
 - **Industry:** Telecommunications
@@ -5876,6 +5882,7 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **Industry:** Telecommunications
 - **Value:** Aggregates release causes, SIP response codes, and ISUP cause values from CDRs to spot trunk, routing, or peer outages early.
 - **App/TA:** SBC CDR CSV/JSON ingestion, custom props
 - **Data Sources:** `sourcetype="cdr:voip"`, `sourcetype="broadworks:cdr"`
@@ -5896,6 +5903,7 @@ index=voip sourcetype="cdr:voip"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
+- **Industry:** Telecommunications
 - **Value:** Traffic engineering for trunk groups and geographic hot spots — detects flash crowds or fraud-driven spikes to premium destinations.
 - **App/TA:** CDR aggregation
 - **Data Sources:** `sourcetype="cdr:voip"` with `called_number`, `route_label`
@@ -5916,6 +5924,7 @@ index=voip sourcetype="cdr:voip"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fraud
+- **Industry:** Telecommunications
 - **Value:** Shifts toward very short or very long holds may indicate robocall, modem, or toll fraud vs. normal conversational distribution.
 - **App/TA:** CDR
 - **Data Sources:** `sourcetype="cdr:voip"` `duration_sec`
@@ -5938,6 +5947,7 @@ index=voip sourcetype="cdr:voip" call_status="answered"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
+- **Industry:** Telecommunications
 - **Value:** Concurrent session counts or peg counts vs. licensed trunk capacity — prevents preemptive blocking at peak.
 - **App/TA:** SBC SNMP, CDR-derived concurrency, Stream SIP
 - **Data Sources:** `sourcetype="snmp:sbc"`, `sourcetype="stream:sip"`
@@ -5960,6 +5970,7 @@ index=voip sourcetype="stream:sip" OR sourcetype="snmp:sbc"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **Industry:** Telecommunications
 - **Value:** Mean Opinion Score (or derived R-factor) from RTCP XR or vendor QoE reports — user-perceived VoLTE/VoIP quality.
 - **App/TA:** SBC QoE records, Poly/Vendor QoS feeds
 - **Data Sources:** `sourcetype="qos:rtcp"`, `sourcetype="cdr:voip"` with `mos` field
@@ -5980,6 +5991,7 @@ index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip")
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Security
+- **Industry:** Telecommunications
 - **Value:** Bursts of SIP OPTIONS, REGISTER, or diameter requests can indicate reflection DDoS or misconfigured endpoints — complements UC-5.11.5 with cross-layer view.
 - **App/TA:** Splunk App for Stream, STP/Diameter capture
 - **Data Sources:** `sourcetype="stream:sip"`, `sourcetype="diameter:cap"`
@@ -6002,6 +6014,7 @@ index=signaling (sourcetype="stream:sip" OR sourcetype="diameter:cap")
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **Industry:** Telecommunications
 - **Value:** HSS/UDM or P-CSCF failures show up as elevated 401/403/timeout on REGISTER — impacts VoLTE attach and VoWiFi.
 - **App/TA:** P-CSCF logs, IMS CDR
 - **Data Sources:** `sourcetype="ims:sip"` `method=REGISTER`, `sourcetype="stream:sip"`
@@ -6023,6 +6036,7 @@ index=ims sourcetype="ims:sip" method="REGISTER"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Operations
+- **Industry:** Telecommunications
 - **Value:** LNP order status, NPAC responses, and port-out churn — operations and regulatory reporting for porting SLAs.
 - **App/TA:** NP/BSS extracts, SOA APIs
 - **Data Sources:** `sourcetype="lnp:order"`, `sourcetype="npac:soa"`
@@ -6043,6 +6057,7 @@ index=telco sourcetype="lnp:order"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fraud, Revenue Assurance
+- **Industry:** Telecommunications
 - **Value:** Sudden data/voice roaming volume from HLR/VLR or TAP records may indicate SIM box, cloned IMSI, or billing leakage.
 - **App/TA:** TAP files (TD.35), roaming analytics
 - **Data Sources:** `sourcetype="tap:cdr"`, `sourcetype="roaming:usage"`
@@ -6065,6 +6080,7 @@ index=telco sourcetype="roaming:usage"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fraud, Security
+- **Industry:** Telecommunications
 - **Value:** Premium-rate, international, or short-duration high-cost patterns from compromised PBX or SIP credentials — classic CDR analytics use case.
 - **App/TA:** SBC CDR, fraud scoring apps
 - **Data Sources:** `sourcetype="cdr:voip"` with `rate_class`, `destination`
