@@ -6,31 +6,31 @@ window.NON_TECHNICAL = {
   "1": {
     outcomes: [
       "See when computers or servers are overloaded, running out of space, or acting strangely.",
-      "Get early warning before something breaks so you can fix it.",
-      "Know when someone changes important system settings or files."
+      "Get early warning before something breaks so you can fix it before users notice.",
+      "Know when someone changes important system settings or files — intentionally or not."
     ],
     areas: [
-      { name: "Hardware & health", description: "Is the machine running properly? We watch things like temperature, disk space, and whether the computer is struggling.", ucs: [
+      { name: "Performance & capacity", description: "Are your servers keeping up? We watch processor load, memory, and disk space so you know before things get slow or full.", ucs: [
         { id: "1.1.1", why: "Spot when a server's processor is maxing out before users notice slowdowns." },
         { id: "1.1.3", why: "See when a disk is filling up so you can add space before it runs out." },
-        { id: "1.4.2", why: "Get an alert when a disk array loses a drive, so you can replace it in time." }
+        { id: "1.2.2", why: "Watch memory usage on Windows servers — when it runs low, applications crash." }
       ]},
-      { name: "When things go wrong", description: "Crashes, errors, and failures. We spot them so your team can fix problems quickly.", ucs: [
-        { id: "1.1.6", why: "Know immediately when an important program crashes on a server." },
-        { id: "1.1.11", why: "Detect when a Linux server has a critical kernel panic (the equivalent of a blue screen)." },
-        { id: "1.2.11", why: "Catch Windows Blue Screen of Death events across your fleet." }
+      { name: "Crashes & outages", description: "Crashes, blue screens, and services that stop working. We catch them so your team can respond quickly.", ucs: [
+        { id: "1.1.11", why: "Detect when a Linux server has a critical kernel panic — the equivalent of a blue screen." },
+        { id: "1.2.11", why: "Catch Windows Blue Screen of Death events across your fleet." },
+        { id: "1.2.4", why: "Know immediately when an important Windows service stops running." }
       ]},
-      { name: "Who did what", description: "Changes to important files or settings. We keep an eye so nothing is tampered with without you knowing.", ucs: [
-        { id: "1.1.18", why: "Track when user accounts are created, changed, or deleted on servers." },
-        { id: "1.1.70", why: "Alert when someone modifies the system's user database — a key security signal." },
-        { id: "1.2.8", why: "See when someone is added to a powerful admin group on Windows." }
+      { name: "Security & access", description: "Who logged in, what did they change, and should they have been allowed? We track it all.", ucs: [
+        { id: "1.1.8", why: "Detect when someone is trying many passwords to break into a server (brute-force attack)." },
+        { id: "1.2.8", why: "Alert when someone is added to a powerful admin group on Windows." },
+        { id: "1.1.9", why: "Catch unauthorized use of administrator commands on Linux." }
       ]},
-      { name: "Network on the server", description: "How the server talks to the rest of the network. We notice when connections fail or behave oddly.", ucs: [
-        { id: "1.1.15", why: "Spot network card errors that can cause slow or dropped connections." },
-        { id: "1.1.55", why: "Detect when servers can't look up website or service addresses (DNS failures)." },
-        { id: "1.1.58", why: "Know when a redundant network link fails over, which could signal a problem." }
+      { name: "Hardware health", description: "Physical problems like failing disks, overheating, or broken power supplies. We alert you before they cause outages.", ucs: [
+        { id: "1.4.2", why: "Get an alert when a disk array loses a drive, so you can replace it in time." },
+        { id: "1.4.4", why: "Predict disk failures before they happen using built-in health sensors." },
+        { id: "1.4.3", why: "Know immediately when a power supply fails so you can replace it." }
       ]},
-      { name: "Mac endpoints", description: "macOS laptops and desktops — encryption status, security settings, and resource usage.", ucs: [
+      { name: "Mac laptops & desktops", description: "macOS endpoints — encryption status, security settings, and resource usage.", ucs: [
         { id: "1.3.2", why: "Check that disk encryption (FileVault) is turned on — unencrypted laptops are a data breach risk." },
         { id: "1.3.1", why: "Watch CPU, memory, and disk on Mac endpoints to help IT triage user complaints." },
         { id: "1.3.3", why: "Make sure Gatekeeper and System Integrity Protection haven't been disabled." }
@@ -44,69 +44,69 @@ window.NON_TECHNICAL = {
       "Plan ahead so you don't run out of capacity."
     ],
     areas: [
-      { name: "Capacity & space", description: "Do your virtual machines have enough storage and resources? We track usage and trends.", ucs: [
-        { id: "2.1.3", why: "Track storage usage trends so you can add space before VMs run out." },
+      { name: "Performance & resources", description: "Are virtual machines getting the processor and memory they need? We help you see when they're being squeezed.", ucs: [
+        { id: "2.1.1", why: "See when a physical host is running out of processing power for its virtual machines." },
+        { id: "2.1.2", why: "Detect when memory pressure forces the host to reclaim memory from virtual machines." },
+        { id: "2.1.42", why: "Track how long virtual machines wait for processor time — high wait times mean slow applications." }
+      ]},
+      { name: "Storage & snapshots", description: "Do your virtual machines have enough storage? We track usage and catch forgotten snapshots eating up space.", ucs: [
+        { id: "2.1.3", why: "Track storage usage trends so you can add space before virtual machines run out." },
         { id: "2.1.5", why: "Find forgotten snapshots that quietly eat up storage space." },
-        { id: "2.1.9", why: "Spot when too many VMs are created and resources start to spread thin." }
+        { id: "2.1.4", why: "Detect storage slowdowns that make applications feel sluggish." }
       ]},
-      { name: "Health & failures", description: "When something goes wrong in the virtual world — failovers, hardware alerts, cluster issues — we surface it.", ucs: [
-        { id: "2.1.7", why: "Know when a host fails and VMs automatically move to another — a sign something broke." },
-        { id: "2.1.11", why: "Get hardware alerts from the physical servers running your VMs." },
-        { id: "2.2.3", why: "Monitor the shared storage that Hyper-V clusters depend on." }
+      { name: "Health & failures", description: "Failovers, hardware alerts, and cluster issues. We surface them so your team can investigate.", ucs: [
+        { id: "2.1.7", why: "Know when a host fails and virtual machines automatically move to another — a sign something broke." },
+        { id: "2.1.11", why: "Get hardware alerts from the physical servers running your virtual machines." },
+        { id: "2.1.22", why: "Monitor the vCenter management platform — if it goes down, you lose visibility into everything." }
       ]},
-      { name: "Performance", description: "Are VMs getting the CPU and memory they need? We help you see when they're being squeezed.", ucs: [
-        { id: "2.1.1", why: "See when a physical host is running out of processing power for its VMs." },
-        { id: "2.1.2", why: "Detect when memory pressure forces the host to reclaim memory from VMs." },
-        { id: "2.1.12", why: "Find VMs that have been given more resources than the host can actually deliver." }
+      { name: "Hyper-V", description: "Microsoft Hyper-V virtual machines — replication, cluster storage, and live migrations.", ucs: [
+        { id: "2.2.2", why: "Watch replication health — if it falls behind, disaster recovery is at risk." },
+        { id: "2.2.3", why: "Monitor the shared storage that Hyper-V clusters depend on." },
+        { id: "2.2.10", why: "Track cluster node health and quorum — losing quorum means the whole cluster stops." }
       ]},
       { name: "KVM, Proxmox & oVirt", description: "Open-source virtualisation — Proxmox clusters, ZFS storage, backups, and KVM daemon health.", ucs: [
         { id: "2.3.11", why: "Check whether Proxmox backup jobs succeeded — failed backups mean no recovery point." },
         { id: "2.3.14", why: "Watch ZFS pool health — a degraded pool means a disk failed and data is at risk." },
-        { id: "2.3.16", why: "Monitor the libvirt daemon that manages all KVM VMs — if it hangs, VMs become unmanageable." }
+        { id: "2.3.16", why: "Monitor the service that manages all KVM virtual machines — if it hangs, VMs become unmanageable." }
       ]},
-      { name: "Across all platforms", description: "Cross-platform checks — VM density, backup coverage, and end-of-life operating systems.", ucs: [
-        { id: "2.4.3", why: "Track how many VMs run on each host — too many means you're at risk if a host fails." },
-        { id: "2.4.2", why: "Find VMs with no recent backup — a single failure could mean permanent data loss." },
-        { id: "2.4.1", why: "Spot VMs running end-of-life operating systems that no longer get security patches." }
+      { name: "Across all platforms", description: "Cross-platform checks — virtual machine density, backup coverage, and end-of-life operating systems.", ucs: [
+        { id: "2.4.3", why: "Track how many virtual machines run on each host — too many means you're at risk if a host fails." },
+        { id: "2.4.2", why: "Find virtual machines with no recent backup — a single failure could mean permanent data loss." },
+        { id: "2.4.1", why: "Spot virtual machines running old operating systems that no longer get security patches." }
       ]}
     ]
   },
   "3": {
     outcomes: [
-      "See when containers or pods keep crashing or restarting.",
-      "Know if your clusters are healthy and who's in charge.",
-      "Spot when things run out of memory or hit limits."
+      "See when containers or application pods keep crashing or restarting.",
+      "Know if your clusters are healthy and have enough resources.",
+      "Spot security issues like containers running with too many permissions."
     ],
     areas: [
-      { name: "Crashes & restarts", description: "Containers or pods that keep failing or restarting. We help you find and fix them.", ucs: [
+      { name: "Docker containers", description: "Containers that crash, run out of memory, or use too many resources. We help you find and fix them.", ucs: [
         { id: "3.1.1", why: "Find containers that keep crashing and restarting in a loop." },
-        { id: "3.2.1", why: "Track how often pods restart — a key sign of application trouble." },
-        { id: "3.2.10", why: "Spot the classic CrashLoopBackOff state where a pod can't start successfully." }
-      ]},
-      { name: "Cluster health", description: "Is the control plane and orchestration layer working? We monitor the brain of your container system.", ucs: [
-        { id: "3.2.7", why: "Watch the Kubernetes control plane — if this goes down, nothing gets scheduled." },
-        { id: "3.2.8", why: "Monitor the etcd database that stores all cluster state and configuration." },
-        { id: "3.2.3", why: "Know when a worker node becomes unavailable and can no longer run workloads." }
-      ]},
-      { name: "Resources & limits", description: "When containers run out of memory or hit their limits. We show you where the pinch is.", ucs: [
         { id: "3.1.2", why: "Catch when containers are killed because they ran out of memory." },
-        { id: "3.2.4", why: "See when a team has used up their allocated share of cluster resources." },
-        { id: "3.1.3", why: "Detect when containers are being throttled because they hit CPU limits." }
+        { id: "3.1.6", why: "Detect containers running with full system privileges — a serious security risk." }
       ]},
-      { name: "OpenShift", description: "Red Hat OpenShift-specific monitoring — security constraints, builds, and cluster upgrades.", ucs: [
+      { name: "Kubernetes clusters", description: "The system that runs your containers at scale. We watch the cluster brain, worker nodes, and storage.", ucs: [
+        { id: "3.2.10", why: "Spot pods stuck in CrashLoopBackOff — they keep trying to start and failing." },
+        { id: "3.2.3", why: "Know when a worker node becomes unavailable and can no longer run workloads." },
+        { id: "3.2.7", why: "Watch the control plane — if it goes down, nothing gets scheduled." }
+      ]},
+      { name: "OpenShift", description: "Red Hat OpenShift — security policies, builds, and cluster upgrades.", ucs: [
         { id: "3.3.4", why: "Catch pods that try to run with more permissions than allowed — could be an attack." },
         { id: "3.3.3", why: "Track build failures that block application deployments." },
         { id: "3.3.1", why: "Make sure OpenShift cluster upgrades don't stall mid-way." }
       ]},
-      { name: "Container registries", description: "Where container images are stored. We monitor pushes, pulls, and security.", ucs: [
-        { id: "3.4.8", why: "Warn before a registry certificate expires — expired certs stop all image pulls." },
-        { id: "3.4.5", why: "Spot failed logins and denied pulls that may indicate credential misuse." },
-        { id: "3.4.1", why: "Audit who pushed or pulled what images — supply chain visibility." }
+      { name: "Container registries", description: "Where container images are stored. We watch for security issues and access problems.", ucs: [
+        { id: "3.4.2", why: "Get vulnerability scan results for your container images before they run in production." },
+        { id: "3.4.5", why: "Spot failed logins and denied access that may indicate credential misuse." },
+        { id: "3.4.8", why: "Warn before a registry certificate expires — expired certificates stop all image downloads." }
       ]},
-      { name: "Service mesh & serverless", description: "Istio, sidecar proxies, and serverless containers. We watch the networking layer between your services.", ucs: [
-        { id: "3.5.1", why: "Monitor Istio mesh traffic to see how your microservices are talking to each other." },
+      { name: "Service mesh & serverless", description: "The networking layer between your services and serverless containers. We watch traffic flow and security.", ucs: [
+        { id: "3.5.1", why: "Monitor traffic between microservices to see how they talk to each other." },
         { id: "3.5.2", why: "Check sidecar proxy health — when proxies fail, services can't communicate." },
-        { id: "3.5.3", why: "Get warned before mTLS certificates expire — expired certs break service-to-service encryption." }
+        { id: "3.5.3", why: "Get warned before encryption certificates expire — expired certificates break service-to-service security." }
       ]}
     ]
   },
@@ -114,228 +114,216 @@ window.NON_TECHNICAL = {
     outcomes: [
       "See how your cloud is being used and who did what.",
       "Catch risky or unusual activity in your cloud accounts.",
-      "Keep an eye on cost and changes to important settings."
+      "Keep an eye on spending and changes to important security settings."
     ],
     areas: [
-      { name: "Who did what in the cloud", description: "Logins, API calls, and changes in AWS, Azure, or Google Cloud. We give you a clear picture.", ucs: [
-        { id: "4.1.1", why: "Spot API calls that were denied — often the first sign of misconfiguration or misuse." },
-        { id: "4.1.2", why: "Alert whenever the all-powerful root account is used — this should be rare." },
-        { id: "4.2.1", why: "Track every change and action in your Azure environment through activity logs." }
-      ]},
-      { name: "Security & threats", description: "Suspicious activity, open buckets, or security findings. We help you stay safe.", ucs: [
+      { name: "Amazon Web Services (AWS)", description: "Your AWS cloud — logins, security alerts, and changes to critical settings like who can access what.", ucs: [
+        { id: "4.1.2", why: "Alert whenever the all-powerful root account is used — this should be extremely rare." },
         { id: "4.1.8", why: "Get threat alerts from AWS GuardDuty — it watches for malicious activity in your account." },
-        { id: "4.2.9", why: "Surface security alerts from Microsoft Defender for Cloud across your Azure resources." },
-        { id: "4.3.5", why: "Pull in security findings from Google Cloud's Security Command Center." }
+        { id: "4.1.14", why: "Detect unexpected spikes in cloud spending before the bill arrives." }
       ]},
-      { name: "Cost & changes", description: "Spend trends and important configuration changes so you stay in control.", ucs: [
-        { id: "4.1.14", why: "Detect unexpected spikes in cloud spending before the bill arrives." },
-        { id: "4.1.7", why: "Know when someone changes who can access your cloud storage buckets." },
+      { name: "Microsoft Azure", description: "Your Azure cloud — activity logs, identity security, and resource health.", ucs: [
+        { id: "4.2.2", why: "Spot suspicious sign-in patterns in your Azure identity system (Entra ID)." },
+        { id: "4.2.9", why: "Surface security alerts from Microsoft Defender across your Azure resources." },
         { id: "4.2.12", why: "Get alerts when Azure spending approaches or exceeds your budget." }
       ]},
-      { name: "Multi-cloud overview", description: "When you use more than one cloud provider. We bring everything together in one view.", ucs: [
-        { id: "4.4.3", why: "See spending across AWS, Azure, and GCP in a single cost dashboard." },
-        { id: "4.4.14", why: "Detect when audit logging is disabled in any cloud — that's a dangerous blind spot." },
-        { id: "4.4.6", why: "Pull security findings from all clouds into one place for unified prioritization." }
+      { name: "Google Cloud (GCP)", description: "Your Google Cloud — audit logs, security findings, and cluster health.", ucs: [
+        { id: "4.3.1", why: "Track every action and change in your Google Cloud environment through audit logs." },
+        { id: "4.3.5", why: "Pull in security findings from Google Cloud's Security Command Center." },
+        { id: "4.3.7", why: "Monitor BigQuery usage and cost — runaway queries can burn through your budget." }
       ]},
-      { name: "Serverless & functions", description: "AWS Lambda, Azure Functions, and similar. We watch for errors, cold starts, and throttling.", ucs: [
-        { id: "4.5.1", why: "Track Lambda invocation errors — failed functions mean broken workflows." },
-        { id: "4.5.2", why: "Monitor cold start latency — slow starts hurt user experience for first requests." },
-        { id: "4.5.3", why: "Alert when concurrent execution limits are hit — functions start getting throttled." }
+      { name: "Multi-cloud overview", description: "When you use more than one cloud provider. We bring everything together in one view.", ucs: [
+        { id: "4.4.3", why: "See spending across AWS, Azure, and Google Cloud in a single cost dashboard." },
+        { id: "4.4.14", why: "Detect when audit logging is disabled in any cloud — that's a dangerous blind spot." },
+        { id: "4.4.6", why: "Pull security findings from all clouds into one place for unified prioritisation." }
+      ]},
+      { name: "Serverless & functions", description: "AWS Lambda, Azure Functions, and similar. Short-lived code that runs on demand — we watch for errors and limits.", ucs: [
+        { id: "4.5.1", why: "Track function errors — failed functions mean broken workflows." },
+        { id: "4.5.2", why: "Monitor cold start delays — slow starts hurt user experience for the first request." },
+        { id: "4.5.3", why: "Alert when concurrency limits are hit — functions start getting rejected." }
       ]}
     ]
   },
   "5": {
     outcomes: [
       "Know when routers, switches, firewalls, or wireless access points have problems.",
-      "See when links go down, SD-WAN tunnels degrade, or routing gets confused.",
-      "Spot hardware issues like bad power supplies or fans.",
-      "Track who's using bandwidth and detect suspicious traffic patterns.",
-      "Monitor Meraki cloud-managed networks from a single pane of glass.",
-      "Measure how your network performs from your users' perspective — across the internet, cloud, and SD-WAN.",
-      "Monitor carrier signaling protocols (SIP, Diameter, RADIUS) that underpin voice and mobile services."
+      "See when links go down, tunnels degrade, or routing gets confused.",
+      "Track who's using bandwidth and spot suspicious traffic patterns.",
+      "Monitor cloud-managed networks and measure how users experience the network."
     ],
     areas: [
-      { name: "Hardware status", description: "Are your routers, switches, and firewalls healthy? We watch for failures and warnings.", ucs: [
-        { id: "5.1.11", why: "Get an alert when a power supply or cooling fan fails in a network device." },
-        { id: "5.1.8", why: "Watch CPU and memory on network devices — overloaded devices drop traffic." },
-        { id: "5.1.9", why: "Know when a device reboots or reloads unexpectedly." }
-      ]},
-      { name: "Connections & routing", description: "When links go up or down, or when routing protocols like BGP or OSPF have issues. We keep you informed.", ucs: [
+      { name: "Routers & switches", description: "Are your network devices healthy? We watch for link failures, routing problems, and hardware issues.", ucs: [
         { id: "5.1.1", why: "See when network links go up or down — the most fundamental network alert." },
         { id: "5.1.4", why: "Track BGP peer state changes — this affects how traffic reaches the internet." },
-        { id: "5.1.5", why: "Monitor OSPF neighbor relationships — internal routing breaks when these drop." }
+        { id: "5.1.11", why: "Get an alert when a power supply or cooling fan fails in a network device." }
       ]},
-      { name: "Who gets in", description: "Authentication and access to network devices. We track logins and policy changes.", ucs: [
+      { name: "Firewalls", description: "Your security perimeter. We track blocked traffic, policy changes, and threat events.", ucs: [
         { id: "5.2.2", why: "Audit every firewall policy change so you know what was modified and by whom." },
-        { id: "5.2.10", why: "Track admin logins to firewalls — who logged in, from where, and when." },
-        { id: "5.1.14", why: "Catch failed SNMP authentication — could mean someone is probing your network." }
+        { id: "5.2.3", why: "Surface threat detection events — the firewall caught something suspicious." },
+        { id: "5.2.10", why: "Track admin logins to firewalls — who logged in, from where, and when." }
       ]},
-      { name: "Addresses & names", description: "DHCP and DNS: who got which IP, and whether name resolution is working. We monitor both.", ucs: [
-        { id: "5.6.5", why: "Alert when a DHCP pool is running out of IP addresses to hand out." },
-        { id: "5.6.1", why: "Track DNS query volume — sudden changes can indicate problems or attacks." },
-        { id: "5.6.2", why: "Spot spikes in 'name not found' DNS errors that could mean a misconfiguration." }
-      ]},
-      { name: "Load balancers", description: "The devices that spread traffic across your servers. We watch pool health and virtual server availability.", ucs: [
+      { name: "Load balancers", description: "The devices that spread traffic across your servers. We watch pool health and availability.", ucs: [
         { id: "5.3.1", why: "Alert when a server drops out of the load balancer pool — less capacity for users." },
-        { id: "5.3.2", why: "Know when a virtual IP goes down — the application is completely unreachable." },
-        { id: "5.3.11", why: "See when rate limiting kicks in — reveals ongoing attacks or traffic spikes." }
+        { id: "5.3.2", why: "Know when a virtual server address goes down — the application is completely unreachable." },
+        { id: "5.3.6", why: "Detect when response times increase — users are waiting longer than they should." }
       ]},
-      { name: "Wireless", description: "WiFi access points, rogue AP detection, and RF quality. We help you keep wireless reliable and secure.", ucs: [
-        { id: "5.4.4", why: "Detect unauthorised rogue access points that could be used for eavesdropping." },
-        { id: "5.4.2", why: "Track client connection failures — frustrated users and potential auth or RF issues." },
-        { id: "5.4.6", why: "Spot radio interference events that degrade WiFi quality." }
+      { name: "WiFi & wireless", description: "WiFi access points, rogue devices, and signal quality. We help you keep wireless reliable and secure.", ucs: [
+        { id: "5.4.4", why: "Detect unauthorised access points that could be used for eavesdropping." },
+        { id: "5.4.1", why: "Know immediately when a wireless access point goes offline." },
+        { id: "5.4.2", why: "Track client connection failures — frustrated users and potential issues." }
       ]},
-      { name: "SD-WAN", description: "Software-defined WAN links connecting your sites. We watch tunnel health and application performance.", ucs: [
+      { name: "SD-WAN", description: "Software-defined WAN links connecting your branch offices. We watch tunnel health and application performance.", ucs: [
         { id: "5.5.1", why: "Monitor tunnel health — loss, latency, and jitter directly affect application experience." },
         { id: "5.5.2", why: "Know when a remote site goes offline — the edge device has stopped responding." },
-        { id: "5.5.3", why: "Detect when business-critical apps violate their SLA over the WAN." }
+        { id: "5.5.3", why: "Detect when business-critical apps violate their performance targets over the WAN." }
       ]},
-      { name: "Network flow & traffic", description: "NetFlow, sFlow, and IPFIX data showing who is talking to whom and how much bandwidth is used.", ucs: [
+      { name: "DNS & DHCP", description: "How devices find each other on the network. We watch name resolution and IP address assignment.", ucs: [
+        { id: "5.6.5", why: "Alert when a pool of network addresses is running out — new devices won't be able to connect." },
+        { id: "5.6.1", why: "Track name lookup volume — sudden changes can indicate problems or attacks." },
+        { id: "5.6.4", why: "Detect DNS tunneling — attackers hiding data inside normal name lookups." }
+      ]},
+      { name: "Network traffic analysis", description: "NetFlow and similar data showing who is talking to whom and how much bandwidth is used.", ucs: [
         { id: "5.7.1", why: "Find the top bandwidth consumers on your network — essential for congestion troubleshooting." },
-        { id: "5.7.3", why: "Break down bandwidth by application so you can prioritise with QoS." },
-        { id: "5.7.5", why: "Detect unusually large outbound transfers — possible data exfiltration." }
+        { id: "5.7.5", why: "Detect unusually large outbound transfers — possible data theft." },
+        { id: "5.7.3", why: "Break down bandwidth by application so you can prioritise the most important traffic." }
       ]},
-      { name: "Network management platforms", description: "DNA Center, SNMP traps, and device backups. We centralize alerts from your management tools.", ucs: [
-        { id: "5.8.1", why: "Get AI/ML-driven network alerts from DNA Center alongside everything else in Splunk." },
-        { id: "5.8.3", why: "Consolidate SNMP traps from all devices to reduce tool sprawl." },
-        { id: "5.8.5", why: "Track whether network device configs are being backed up — missing backups mean manual rebuilds." }
+      { name: "Network management", description: "Centralised management tools, SNMP traps, and device backups. We consolidate alerts from your management platforms.", ucs: [
+        { id: "5.8.1", why: "Get AI-driven network alerts from Cisco DNA Center alongside everything else." },
+        { id: "5.8.5", why: "Track whether network device configs are being backed up — missing backups mean manual rebuilds." },
+        { id: "5.8.3", why: "Consolidate alerts from all devices into one place to reduce tool sprawl." }
       ]},
-      { name: "Cisco Meraki", description: "Cloud-managed networking — APs, switches, security appliances, and cameras. We monitor the full Meraki stack.", ucs: [
-        { id: "5.9.19", why: "Make sure all Meraki access points are online and catch unexpected outages." },
-        { id: "5.9.38", why: "Watch uplink health and failover events on your Meraki appliances." },
-        { id: "5.9.55", why: "Track internet failover events and how long it takes to recover." }
+      { name: "Cisco Meraki", description: "Cloud-managed networking — access points, switches, security appliances, cameras, and sensors. All in one view.", ucs: [
+        { id: "5.9.19", why: "Make sure all access points are online and catch unexpected outages." },
+        { id: "5.9.43", why: "See which firewall rules are being hit and what traffic is being denied." },
+        { id: "5.9.85", why: "Get alerts when environmental sensors detect temperatures outside safe ranges." }
       ]},
-      { name: "Internet & digital experience", description: "How does the network look from outside your walls? ThousandEyes tests the path from users to apps — across ISPs, cloud providers, and SD-WAN.", ucs: [
-        { id: "5.10.1", why: "Track network latency from agents to servers — slow paths mean slow apps." },
-        { id: "5.10.18", why: "Get alerted when ThousandEyes detects an internet outage affecting your services." },
-        { id: "5.10.8", why: "See BGP reachability on a map — know if your routes are being seen by the world." }
+      { name: "Internet & digital experience", description: "How does the network look from your users' perspective? ThousandEyes tests the path from users to apps — across the internet, cloud, and SD-WAN.", ucs: [
+        { id: "5.10.1", why: "Track network delay from agents to servers — slow paths mean slow apps." },
+        { id: "5.10.18", why: "Get alerted when an internet outage is detected that affects your services." },
+        { id: "5.10.25", why: "Monitor remote worker connectivity health — is the network causing their issues?" }
       ]},
-      { name: "Carrier signaling (Telco)", description: "SIP, Diameter, and RADIUS signaling that powers voice calls and mobile data sessions. We watch the protocols that carriers depend on.", ucs: [
-        { id: "5.11.1", why: "Track Diameter signaling health — failures here mean subscribers can't authenticate or use data." },
-        { id: "5.11.4", why: "Monitor SIP trunk success rates — failed calls mean lost revenue and unhappy customers." },
+      { name: "Carrier signaling", description: "The protocols that power mobile networks and voice calls. We watch for failures that affect subscribers.", ucs: [
+        { id: "5.11.1", why: "Track signaling health — failures here mean subscribers can't authenticate or use data." },
+        { id: "5.11.4", why: "Monitor voice trunk success rates — failed calls mean lost revenue and unhappy customers." },
         { id: "5.11.5", why: "Detect registration storms that can overwhelm voice infrastructure within minutes." }
       ]},
-      { name: "Call detail records (CDR)", description: "Call records from voice platforms. We analyze call patterns, failures, and trends.", ucs: [
+      { name: "Call records & voice analytics", description: "Call records from voice platforms. We analyse call patterns, failures, and trends.", ucs: [
         { id: "5.12.1", why: "Track call failure statistics — rising failure rates mean network or routing problems." },
-        { id: "5.12.2", why: "See call volume trends by destination to spot unusual patterns or fraud." },
-        { id: "5.12.3", why: "Analyze call duration distributions to detect anomalies like stuck or ghost calls." }
+        { id: "5.12.5", why: "Monitor voice quality scores — low scores mean poor call quality for users." },
+        { id: "5.12.10", why: "Detect toll fraud — unauthorised calls running up huge charges." }
       ]}
     ]
   },
   "6": {
     outcomes: [
       "See when storage is filling up or getting slow.",
-      "Know when disks or controllers fail.",
-      "Make sure backups actually ran and succeeded."
+      "Know when disks or controllers fail so you can act before data is lost.",
+      "Make sure backups actually ran and succeeded — before you need them."
     ],
     areas: [
-      { name: "Capacity & speed", description: "How full are your volumes, and how fast is data moving? We track both.", ucs: [
+      { name: "Storage health & capacity", description: "How full are your storage systems, and how fast is data moving? We track capacity, speed, and failures.", ucs: [
         { id: "6.1.1", why: "Watch storage volumes filling up so you can act before they're full." },
         { id: "6.1.2", why: "Detect when storage is getting slow — this directly affects application performance." },
-        { id: "6.1.3", why: "Track read/write operations to spot when storage is being pushed too hard." }
+        { id: "6.1.4", why: "Get an immediate alert when a disk fails so it can be replaced." }
       ]},
-      { name: "Hardware failures", description: "Disk failures, controller problems, and failovers. We alert you so you can act.", ucs: [
-        { id: "6.1.4", why: "Get an immediate alert when a disk fails so it can be replaced." },
-        { id: "6.1.6", why: "Know when a storage controller fails over — the backup kicked in, but something broke." },
-        { id: "6.1.9", why: "Catch connection errors between servers and storage that can cause data issues." }
+      { name: "Cloud & object storage", description: "Cloud buckets and object storage — including when something is accidentally left open to the world.", ucs: [
+        { id: "6.2.3", why: "Alert when a cloud storage bucket is publicly accessible — a common data leak risk." },
+        { id: "6.2.1", why: "Track how much data is stored in cloud buckets and how fast it's growing." },
+        { id: "6.2.2", why: "Spot unusual access patterns that could indicate unauthorised use." }
       ]},
-      { name: "Backups", description: "Did the backup run? Did it succeed? We help you avoid nasty surprises.", ucs: [
+      { name: "Backups", description: "Did the backup run? Did it succeed? We help you avoid nasty surprises when you need to recover.", ucs: [
         { id: "6.3.1", why: "See at a glance what percentage of backup jobs succeeded." },
         { id: "6.3.3", why: "Catch when a scheduled backup didn't run at all — before you need it." },
         { id: "6.3.6", why: "Track whether backups meet your agreed recovery time targets." }
       ]},
-      { name: "Object storage", description: "Cloud buckets and object storage — including when something is accidentally left open to the world.", ucs: [
-        { id: "6.2.3", why: "Alert when a cloud storage bucket is publicly accessible — a common data leak risk." },
-        { id: "6.2.1", why: "Track how much data is stored in cloud buckets and how fast it's growing." },
-        { id: "6.2.2", why: "Spot unusual access patterns that could indicate unauthorized use." }
-      ]},
-      { name: "File shares & services", description: "File access auditing, permission changes, and backup target capacity. We help you protect shared data.", ucs: [
-        { id: "6.4.1", why: "Full audit trail of who accessed which files — required for SOX, HIPAA, and PCI." },
-        { id: "6.4.4", why: "Detect when share permissions are changed — accidental changes can expose sensitive data." },
-        { id: "6.4.7", why: "Watch backup storage filling up — full targets mean failed backups." }
+      { name: "File shares & access", description: "Who accessed which files, and were permissions changed? We help you protect shared data and detect threats.", ucs: [
+        { id: "6.4.1", why: "Full audit trail of who accessed which files — often required for compliance." },
+        { id: "6.4.2", why: "Detect patterns that look like ransomware — mass file encryption in progress." },
+        { id: "6.4.4", why: "Alert when file share permissions are changed — accidental changes can expose sensitive data." }
       ]}
     ]
   },
   "7": {
     outcomes: [
       "See when databases are slow, stuck, or unavailable.",
-      "Know when too many connections are used or something is deadlocked.",
+      "Know when too many connections are used or queries are blocking each other.",
       "Track who changed what in your data systems."
     ],
     areas: [
-      { name: "Availability & performance", description: "Is the database up and responding? Are queries slow or timing out? We monitor both.", ucs: [
+      { name: "Database performance", description: "Is the database up and responding? Are queries slow? We monitor availability and speed.", ucs: [
         { id: "7.1.1", why: "Find slow-running queries that are making your applications feel sluggish." },
-        { id: "7.1.12", why: "Monitor database availability groups — if these break, the database goes down." },
-        { id: "7.1.11", why: "Track how well the database uses its memory cache — low hit ratios mean slow queries." }
-      ]},
-      { name: "Locks & connections", description: "Deadlocks, connection pool exhaustion, and replication issues. We help you avoid outages.", ucs: [
         { id: "7.1.2", why: "Detect deadlocks where two queries block each other and nothing moves." },
-        { id: "7.1.3", why: "Alert when all database connections are used up — new requests will fail." },
-        { id: "7.1.4", why: "Watch replication lag — if the backup database falls behind, disaster recovery is at risk." }
+        { id: "7.1.3", why: "Alert when all database connections are used up — new requests will fail." }
       ]},
-      { name: "Who changed what", description: "Privilege changes and important schema or data changes. We keep an audit trail.", ucs: [
+      { name: "Database security & changes", description: "Privilege changes, failed logins, and important structure changes. We keep an audit trail.", ucs: [
         { id: "7.1.15", why: "Catch when someone gains elevated privileges in the database." },
-        { id: "7.1.13", why: "Track changes to database structure — tables, columns, and indexes." },
-        { id: "7.1.7", why: "Monitor failed login attempts to databases — potential breach attempts." }
+        { id: "7.1.7", why: "Monitor failed login attempts to databases — potential breach attempts." },
+        { id: "7.1.13", why: "Track changes to database structure — tables, columns, and indexes." }
       ]},
       { name: "NoSQL databases", description: "MongoDB, Elasticsearch, Cassandra, and similar. We watch cluster health, connections, and memory.", ucs: [
-        { id: "7.2.1", why: "Know when a node joins or leaves the cluster — unexpected changes may mean a failure." },
+        { id: "7.2.1", why: "Know when a database node joins or leaves the cluster — unexpected changes may mean a failure." },
         { id: "7.2.7", why: "Watch connection counts — approaching limits means new requests will be rejected." },
-        { id: "7.2.9", why: "Track memory usage — high evictions mean the cache is too small and queries slow down." }
+        { id: "7.2.10", why: "Monitor Elasticsearch cluster health — a red status means searches may fail." }
       ]},
-      { name: "Cloud-managed databases", description: "RDS, Aurora, Cloud SQL — managed databases where the cloud provider handles infrastructure but you still need visibility.", ucs: [
+      { name: "Cloud-managed databases", description: "Managed databases where the cloud provider handles infrastructure but you still need visibility into performance.", ucs: [
         { id: "7.3.2", why: "Know when a managed database fails over — brief outage, but you need to check the impact." },
-        { id: "7.3.1", why: "Use cloud-native Performance Insights to find the slowest queries without installing agents." },
+        { id: "7.3.1", why: "Use cloud-native performance insights to find the slowest queries without installing agents." },
         { id: "7.3.3", why: "Watch read replica lag — stale replicas mean apps could serve outdated data." }
       ]},
-      { name: "Data warehouses", description: "Snowflake, Redshift, BigQuery, and similar analytics platforms. We track cost, performance, and scaling.", ucs: [
+      { name: "Data warehouses & analytics", description: "Snowflake, Redshift, BigQuery, and similar analytics platforms. We track cost, performance, and scaling.", ucs: [
         { id: "7.4.4", why: "See how much each query costs — find runaway queries burning through credits." },
-        { id: "7.4.2", why: "Track auto-scaling events to check whether scaling policies match real workload." }
+        { id: "7.4.2", why: "Track auto-scaling events to check whether scaling policies match real workload." },
+        { id: "7.4.3", why: "Monitor data pipeline health — broken pipelines mean stale reports." }
       ]},
-      { name: "Search platforms", description: "Elasticsearch, OpenSearch, and Solr. We monitor cluster health, shards, and indexing performance.", ucs: [
-        { id: "7.5.1", why: "Know when your Elasticsearch cluster goes red or yellow — searches may fail or return incomplete results." },
-        { id: "7.5.2", why: "Detect shard allocation failures that can cause data loss or slow queries." },
-        { id: "7.5.3", why: "Track OpenSearch index performance to catch slowdowns before users notice." }
+      { name: "Search platforms", description: "Elasticsearch, OpenSearch, and Solr. We monitor cluster health, disk limits, and indexing performance.", ucs: [
+        { id: "7.5.1", why: "Know when your search cluster goes red or yellow — searches may fail or return incomplete results." },
+        { id: "7.5.2", why: "Detect when data chunks can't be distributed properly — can cause data loss or slow queries." },
+        { id: "7.5.8", why: "Alert before disk fills up and the search engine locks itself to protect data." }
       ]}
     ]
   },
   "8": {
     outcomes: [
       "Know when your websites or apps are slow or throwing errors.",
-      "See when certificates are about to expire.",
+      "See when certificates are about to expire before they break things.",
       "Spot when message queues or app servers are backing up.",
-      "Test your web apps and APIs from outside to see what users really experience."
+      "Test your web apps from outside to see what real users experience."
     ],
     areas: [
-      { name: "Web & errors", description: "HTTP errors, response times, and uptime. We help you keep sites and APIs healthy.", ucs: [
+      { name: "Websites & web servers", description: "Error rates, response times, and uptime. We help you keep sites and APIs healthy.", ucs: [
         { id: "8.1.1", why: "Track error rates on your web servers — rising errors mean users are having trouble." },
         { id: "8.1.2", why: "Monitor response times so you know when your site is getting slow." },
-        { id: "8.1.4", why: "Find the specific pages or endpoints that are causing the most errors." }
+        { id: "8.1.5", why: "Get advance warning before an SSL certificate expires and your site shows security errors." }
       ]},
-      { name: "Certificates", description: "SSL/TLS certificates expiring or misconfigured. We remind you before they break.", ucs: [
-        { id: "8.1.5", why: "Get advance warning before an SSL certificate expires and your site shows security errors." },
-        { id: "8.4.8", why: "Track service-to-service certificates that protect internal communication." },
-        { id: "8.6.9", why: "Monitor mail server certificates so email delivery doesn't break." }
-      ]},
-      { name: "Queues & backlogs", description: "Message queues and event streams. We show when things are piling up or falling behind.", ucs: [
-        { id: "8.3.1", why: "See when message consumers fall behind — data is piling up waiting to be processed." },
-        { id: "8.3.2", why: "Track queue depth to know when messages are building up faster than they're handled." },
-        { id: "8.3.5", why: "Monitor dead letter queues — messages that failed to process and need attention." }
-      ]},
-      { name: "App server health", description: "Java, runtimes, and application servers. We watch memory and responsiveness.", ucs: [
+      { name: "Application servers", description: "Java, .NET, Node.js, and other runtimes. We watch memory, threads, and responsiveness.", ucs: [
         { id: "8.2.1", why: "Watch Java memory usage — when it fills up, the application slows or crashes." },
         { id: "8.2.3", why: "Detect when all worker threads are busy — new requests will be queued or dropped." },
         { id: "8.2.4", why: "Track application error rates to spot problems before they escalate." }
       ]},
-      { name: "Caching layers", description: "Redis, Memcached, and other caches that speed up your applications. We watch memory, evictions, and replication.", ucs: [
+      { name: "Message queues & streaming", description: "Systems that pass messages between applications. We show when things are piling up or falling behind.", ucs: [
+        { id: "8.3.1", why: "See when message consumers fall behind — data is piling up waiting to be processed." },
+        { id: "8.3.2", why: "Track queue depth to know when messages are building up faster than they're handled." },
+        { id: "8.3.5", why: "Monitor dead letter queues — messages that failed to process and need attention." }
+      ]},
+      { name: "APIs & service mesh", description: "The connections between your applications. We watch error rates, speed, and security certificates.", ucs: [
+        { id: "8.4.1", why: "Track API error rates by endpoint — find which connections are failing." },
+        { id: "8.4.2", why: "Monitor API response times — slow APIs cascade into slow applications." },
+        { id: "8.4.8", why: "Get warned before service-to-service security certificates expire." }
+      ]},
+      { name: "Caching layers", description: "Redis, Memcached, and other caches that speed up your applications. We watch memory, evictions, and health.", ucs: [
         { id: "8.5.2", why: "Track cache memory usage — when it runs out, data gets evicted and apps slow down." },
         { id: "8.5.3", why: "Watch eviction rates — high evictions mean the cache is too small for your workload." },
-        { id: "8.5.5", why: "Monitor Redis replication lag — stale replicas can serve outdated data." }
+        { id: "8.5.5", why: "Monitor cache replication lag — stale replicas can serve outdated data." }
+      ]},
+      { name: "Network services", description: "Essential network services like email delivery, file transfer, and infrastructure tools. We check they're running.", ucs: [
+        { id: "8.6.3", why: "Monitor email delivery service availability — if it goes down, no emails get sent." },
+        { id: "8.6.5", why: "Watch email queue depth — backed-up queues mean delayed messages." },
+        { id: "8.6.9", why: "Track mail server certificates so email delivery doesn't break." }
       ]},
       { name: "Synthetic testing", description: "ThousandEyes probes your websites and APIs from around the world. We show when things slow down or break.", ucs: [
-        { id: "8.7.1", why: "Track HTTP server availability and response time from multiple global vantage points." },
+        { id: "8.7.1", why: "Track website availability and response time from multiple global locations." },
         { id: "8.7.4", why: "Monitor page load completion — know when users can't fully load your site." },
-        { id: "8.7.8", why: "Run scripted transaction tests that simulate real user workflows end-to-end." }
+        { id: "8.7.8", why: "Run scripted tests that simulate real user workflows end to end." }
       ]}
     ]
   },
@@ -346,516 +334,473 @@ window.NON_TECHNICAL = {
       "Keep an eye on single sign-on and identity providers."
     ],
     areas: [
-      { name: "Logins & authentication", description: "Failed logins, lockouts, and suspicious sign-in patterns. We help you spot trouble.", ucs: [
+      { name: "Logins & Active Directory", description: "Failed logins, lockouts, and suspicious sign-in patterns. We help you spot trouble in your directory.", ucs: [
         { id: "9.1.1", why: "Detect brute-force login attempts — someone is trying many passwords." },
         { id: "9.1.2", why: "Track account lockouts to find users under attack or with expired passwords." },
-        { id: "9.3.1", why: "See when multi-factor authentication challenges fail — could be a stolen password." }
+        { id: "9.1.3", why: "Alert when someone is added to a privileged group like Domain Admins." }
       ]},
-      { name: "Who has power", description: "Changes to admin groups, privileged access, and permissions. We track them so you stay in control.", ucs: [
-        { id: "9.1.3", why: "Alert when someone is added to a privileged group like Domain Admins." },
-        { id: "9.4.1", why: "Audit what privileged users do during their elevated sessions." },
-        { id: "9.4.3", why: "Track when emergency break-glass accounts are used — this should be very rare." }
-      ]},
-      { name: "Directories & policies", description: "Active Directory, LDAP, and group policies. We monitor changes and availability.", ucs: [
-        { id: "9.1.7", why: "Know when Group Policy Objects are modified — they control security settings everywhere." },
+      { name: "Directories & infrastructure", description: "LDAP directories, Active Directory replication, and group policies. We monitor changes and availability.", ucs: [
         { id: "9.1.8", why: "Monitor Active Directory replication — when it breaks, logins can fail." },
-        { id: "9.2.3", why: "Detect changes to the LDAP schema — rare and potentially dangerous modifications." }
+        { id: "9.1.7", why: "Know when Group Policy Objects are modified — they control security settings everywhere." },
+        { id: "9.2.3", why: "Detect changes to the directory schema — rare and potentially dangerous modifications." }
       ]},
-      { name: "Single sign-on", description: "Identity providers and SSO. We make sure your login system is up and behaving.", ucs: [
+      { name: "Single sign-on & identity", description: "Identity providers and SSO. We make sure your login system is up and behaving.", ucs: [
         { id: "9.3.5", why: "Monitor whether your login system (identity provider) is up and responding." },
         { id: "9.3.2", why: "Spot impossible travel — someone logs in from two far-apart locations too quickly." },
-        { id: "9.3.3", why: "Detect suspicious authentication tokens that may indicate a compromised session." }
+        { id: "9.3.1", why: "Track multi-factor authentication failures — could indicate stolen passwords." }
+      ]},
+      { name: "Privileged access", description: "What do admins do with their elevated access? We audit sessions, break-glass use, and credential rotation.", ucs: [
+        { id: "9.4.1", why: "Audit what privileged users do during their elevated sessions." },
+        { id: "9.4.3", why: "Track when emergency break-glass accounts are used — this should be very rare." },
+        { id: "9.4.4", why: "Make sure privileged passwords are rotated on schedule — stale passwords are a risk." }
       ]},
       { name: "Okta & Duo", description: "Cloud identity providers. We track authentication failures, MFA bypass attempts, and suspicious activity.", ucs: [
         { id: "9.5.1", why: "Track Okta authentication failures — rising rates may indicate a credential attack." },
         { id: "9.5.2", why: "Detect MFA bypass attempts — attackers try to work around your second factor." },
-        { id: "9.5.3", why: "Catch suspicious sign-in activity in Okta such as unusual locations or devices." }
+        { id: "9.5.14", why: "Catch Duo push fraud — attackers bombard users with MFA prompts hoping they accept." }
       ]}
     ]
   },
   "10": {
     outcomes: [
-      "See when the firewall or security tools find something bad.",
-      "Know when endpoints are isolated or threats are detected.",
+      "See when security tools find something bad — blocked threats, malware, and suspicious activity.",
+      "Over 2,000 pre-built detection rules are ready to deploy from Splunk Enterprise Security.",
       "Track email, web, and intrusion detection events in one place.",
-      "Manage certificates and catch weak cryptography before it becomes a problem.",
-      "Detect AI/LLM abuse, financial fraud, and OT security threats.",
       "Check that your detection rules are actually working and not going stale."
     ],
     areas: [
-      { name: "Firewall & threats", description: "Blocked traffic, malware verdicts, and security alerts from your firewall. We surface what matters.", ucs: [
+      { name: "Firewall & threat prevention", description: "Blocked traffic, malware verdicts, and security alerts from your firewall. We surface what matters.", ucs: [
         { id: "10.1.1", why: "Track the trend of threats your firewall is catching — are attacks increasing?" },
         { id: "10.1.2", why: "See what the sandbox thinks about suspicious files — malware or clean?" },
-        { id: "10.1.4", why: "Catch when devices try to contact known malicious domains (DNS sinkhole)." }
+        { id: "10.1.4", why: "Catch when devices try to contact known malicious domains." }
       ]},
-      { name: "Endpoints", description: "When a laptop or server is isolated or when EDR finds something. We keep you in the loop.", ucs: [
+      { name: "Intrusion detection", description: "IDS/IPS alerts that detect attack patterns, scanning, and lateral movement inside your network.", ucs: [
+        { id: "10.2.1", why: "Trend intrusion alerts over time to reveal attack campaigns and tuning opportunities." },
+        { id: "10.2.2", why: "Find which internal hosts are attacked the most — prioritise remediation there." },
+        { id: "10.2.5", why: "Detect lateral movement — an attacker is already inside and moving between systems." }
+      ]},
+      { name: "Endpoint protection", description: "When a laptop or server is isolated or when your endpoint security finds something. We keep you in the loop.", ucs: [
         { id: "10.3.5", why: "Know when a computer is isolated from the network because a threat was found." },
         { id: "10.3.1", why: "Track malware detection trends across all your computers and servers." },
         { id: "10.3.3", why: "Make sure your security agents are healthy and running on all endpoints." }
       ]},
-      { name: "Email security", description: "Malicious attachments, phishing clicks, and mail flow issues. We help you respond quickly.", ucs: [
+      { name: "Email security", description: "Phishing, malicious attachments, and suspicious links. We help you respond quickly.", ucs: [
         { id: "10.4.1", why: "See how many phishing emails are being caught by your email security." },
         { id: "10.4.2", why: "Track malicious attachments that were blocked before reaching inboxes." },
         { id: "10.4.3", why: "Know when users click on suspicious links in emails so you can respond." }
       ]},
-      { name: "Intrusion detection", description: "IDS/IPS alerts from Snort, Suricata, Firepower, and similar. We surface attack patterns and lateral movement.", ucs: [
-        { id: "10.2.1", why: "Trend IDS alerts over time to reveal attack campaigns and tuning opportunities." },
-        { id: "10.2.2", why: "Find which internal hosts are attacked the most — prioritise remediation there." },
-        { id: "10.2.5", why: "Detect lateral movement — an attacker is already inside and moving between systems." }
-      ]},
       { name: "Web security", description: "Secure web gateways and proxies. We show blocked categories, malware downloads, and data leakage.", ucs: [
         { id: "10.5.3", why: "Every blocked malware download is a prevented infection — see the trend." },
-        { id: "10.5.4", why: "Catch sensitive data being uploaded to unauthorized cloud services." },
-        { id: "10.5.1", why: "Track blocked web categories — spikes may indicate an infection or policy abuse." }
+        { id: "10.5.4", why: "Catch sensitive data being uploaded to unauthorised cloud services." },
+        { id: "10.5.2", why: "Detect shadow IT — employees using unapproved cloud services." }
       ]},
-      { name: "Certificates & PKI", description: "Internal certificate authorities, weak ciphers, and certificate lifecycle. We help you avoid outages and attacks.", ucs: [
-        { id: "10.8.2", why: "Audit who issued which certificates — rogue issuance enables man-in-the-middle attacks." },
-        { id: "10.8.3", why: "Find certificates using weak algorithms that are vulnerable to attack." },
-        { id: "10.8.39", why: "Make sure your security tools are still reporting — silence could mean tampering." }
-      ]},
-      { name: "Vulnerabilities & alerts", description: "Vulnerability scans and overall alert volume. We help you prioritize and tune.", ucs: [
+      { name: "Vulnerability management", description: "Vulnerability scans and patching progress. We help you know what needs fixing first.", ucs: [
         { id: "10.6.1", why: "Track critical vulnerabilities across your systems — what needs patching first?" },
-        { id: "10.7.1", why: "Monitor overall security alert volume — spot trends and avoid alert fatigue." },
-        { id: "10.6.2", why: "Measure how quickly vulnerabilities get fixed once they're found." }
+        { id: "10.6.2", why: "Measure how quickly vulnerabilities get fixed once they're found." },
+        { id: "10.6.3", why: "Check how many of your systems are actually being scanned for vulnerabilities." }
       ]},
-      { name: "AI & LLM threats", description: "Detections for AI abuse, prompt injection, and unauthorized model usage. We watch for new-generation threats.", ucs: [
-        { id: "10.9.1", why: "Detect suspicious Ollama or LLM process execution on systems where it shouldn't run." },
-        { id: "10.9.4", why: "Catch prompt injection attempts being sent to your AI APIs." },
-        { id: "10.9.3", why: "Alert when someone downloads unauthorized AI models to your infrastructure." }
+      { name: "Security operations (SIEM & SOAR)", description: "Your security operations center — alert volume, analyst workload, and automated response. Over 2,000 pre-built detections included.", ucs: [
+        { id: "10.7.1", why: "Monitor overall security alert volume — spot trends and avoid alert fatigue." },
+        { id: "10.7.3", why: "Track how long it takes to detect and respond to threats — your key security metrics." },
+        { id: "10.7.6", why: "Measure false positive rates so your analysts aren't drowning in noise." }
+      ]},
+      { name: "Certificates & encryption", description: "Certificate lifecycle, weak ciphers, and certificate authority health. We help you avoid outages and attacks.", ucs: [
+        { id: "10.8.1", why: "Get warned before certificates expire — expired certificates break websites and services." },
+        { id: "10.8.2", why: "Audit who issued which certificates — rogue issuance enables man-in-the-middle attacks." },
+        { id: "10.8.3", why: "Find certificates using weak algorithms that are vulnerable to attack." }
+      ]},
+      { name: "AI & emerging threats", description: "Detections for AI abuse, prompt injection, and unauthorised model usage. We watch for next-generation threats.", ucs: [
+        { id: "10.9.1", why: "Detect suspicious AI process execution on systems where it shouldn't be running." },
+        { id: "10.9.4", why: "Catch prompt injection attempts being sent to your AI services." },
+        { id: "10.9.3", why: "Alert when someone downloads unauthorised AI models to your infrastructure." }
       ]},
       { name: "Detection health", description: "Are your security rules actually working? We track false positives, stale rules, and coverage gaps.", ucs: [
-        { id: "10.10.1", why: "Measure false positive rates so your analysts aren't drowning in noise." },
+        { id: "10.10.1", why: "Measure false positive rates so your analysts focus on real threats." },
         { id: "10.10.3", why: "Find detection rules that haven't fired in 90+ days — they might be broken or irrelevant." },
-        { id: "10.10.5", why: "Map your detections to MITRE ATT&CK and find the gaps in your coverage." }
+        { id: "10.10.5", why: "Map your detections to the MITRE ATT&CK framework and find the gaps in your coverage." }
       ]},
-      { name: "Vendor-specific security", description: "FortiGate, Palo Alto, CrowdStrike, Zscaler, and more. Deep monitoring for specific security products.", ucs: [
-        { id: "10.11.1", why: "Track FortiGate firewall policy violations — which rules are being hit and why." },
-        { id: "10.11.2", why: "Trend IPS events from FortiGate to spot attack patterns against your network." },
-        { id: "10.11.4", why: "See which web categories FortiGate is blocking — unusual spikes may signal compromise." }
+      { name: "Vendor-specific security", description: "Deep monitoring for specific security products — FortiGate, Palo Alto, CrowdStrike, Zscaler, and more.", ucs: [
+        { id: "10.11.1", why: "Track firewall policy violations — which rules are being hit and why." },
+        { id: "10.11.2", why: "Trend intrusion prevention events to spot attack patterns against your network." },
+        { id: "10.11.4", why: "See which web categories are being blocked — unusual spikes may signal compromise." }
       ]},
-      { name: "Financial fraud", description: "ATM fraud, wire transfer anomalies, and card velocity checks. We help financial institutions catch suspicious transactions.", ucs: [
+      { name: "Financial fraud detection", description: "ATM fraud, wire transfer anomalies, and card velocity checks. We help financial institutions catch suspicious transactions.", ucs: [
         { id: "10.12.1", why: "Detect patterns of ATM fraud — unusual withdrawal sequences across locations." },
         { id: "10.12.2", why: "Spot anomalous wire transfers that deviate from normal business patterns." },
         { id: "10.12.3", why: "Catch rapid-fire card transactions that indicate stolen credentials." }
       ]},
-      { name: "Cross-vendor analytics (CIM)", description: "Vendor-agnostic security analytics using normalized data. Works across any product that maps to Splunk's Common Information Model.", ucs: [
-        { id: "10.13.1", why: "Track failed authentication ratios across all systems — rising rates mean trouble." },
+      { name: "Cross-vendor security analytics", description: "Vendor-agnostic security analytics that work across any product using normalised data models.", ucs: [
+        { id: "10.13.1", why: "Track failed login ratios across all systems — rising rates mean trouble." },
         { id: "10.13.3", why: "Detect impossible travel — someone logging in from two distant locations too quickly." },
         { id: "10.13.4", why: "Catch service accounts being used interactively — they should only be used by machines." }
       ]},
-      { name: "OT & industrial security", description: "Protecting SCADA, PLCs, and industrial control systems. We watch for unauthorized changes and protocol violations.", ucs: [
-        { id: "10.14.2", why: "Detect when unauthorized industrial protocols appear on your OT network." },
-        { id: "10.14.4", why: "Alert when PLC programs are changed outside of approved maintenance windows." },
+      { name: "Industrial & OT security", description: "Protecting SCADA, PLCs, and industrial control systems. We watch for unauthorised changes and protocol violations.", ucs: [
+        { id: "10.14.2", why: "Detect when unauthorised industrial protocols appear on your OT network." },
+        { id: "10.14.4", why: "Alert when controller programs are changed outside of approved maintenance windows." },
         { id: "10.14.1", why: "Make sure the OT security monitoring tools themselves are healthy and configured." }
       ]}
     ]
   },
   "11": {
     outcomes: [
-      "Know when email isn't flowing or mailboxes have issues.",
-      "See suspicious logins or rule changes in email and collaboration.",
-      "Track Teams, meetings, and collaboration health.",
-      "Know when meeting quality drops because of the network — before users complain.",
-      "Monitor voice quality and call routing at the network level — independent of any PBX platform.",
-      "Track building occupancy, environmental conditions, and asset locations."
+      "Know when email, Teams, or Webex have problems.",
+      "See when files are shared outside the organisation or data protection rules are broken.",
+      "Track call quality and meeting reliability."
     ],
     areas: [
-      { name: "Mail flow & health", description: "Is email being delivered? Are mailboxes and Exchange healthy? We monitor both.", ucs: [
-        { id: "11.1.1", why: "Track whether emails are flowing normally — delays affect everyone." },
-        { id: "11.1.9", why: "Monitor the overall health of your Microsoft 365 services." },
-        { id: "11.3.9", why: "Watch mailbox sizes and quotas — full mailboxes bounce incoming mail." }
+      { name: "Microsoft 365", description: "Email flow, Teams, SharePoint, and OneDrive. We watch for outages, suspicious sharing, and admin changes.", ucs: [
+        { id: "11.1.1", why: "Know when email delivery slows down or stops — your most critical communication channel." },
+        { id: "11.1.5", why: "See when files are shared with people outside your organisation in SharePoint or OneDrive." },
+        { id: "11.1.6", why: "Track data loss prevention violations — sensitive data going where it shouldn't." }
       ]},
-      { name: "Who did what", description: "Logins, rule changes, and audit events in Microsoft 365, Google Workspace, and similar. We give you visibility.", ucs: [
-        { id: "11.1.2", why: "Audit who accessed which mailboxes and what they did." },
-        { id: "11.1.8", why: "Catch suspicious inbox rules — attackers use these to hide forwarded emails." },
-        { id: "11.2.4", why: "Detect unusual login patterns in Google Workspace accounts." }
+      { name: "Google Workspace", description: "Gmail, Drive, Meet, and admin console. We track security settings, sharing, and suspicious logins.", ucs: [
+        { id: "11.2.3", why: "Detect when files in Google Drive are shared in unusual ways — possible data leak." },
+        { id: "11.2.4", why: "Spot suspicious login patterns to your Google Workspace accounts." },
+        { id: "11.2.6", why: "See which third-party apps have access to your company's Google data." }
       ]},
-      { name: "Collaboration & meetings", description: "Teams, Webex, and other collaboration tools. We watch for outages and odd behavior.", ucs: [
-        { id: "11.1.4", why: "Track how Teams is being used — adoption, activity, and any issues." },
-        { id: "11.3.8", why: "Monitor Webex meeting quality and participation trends." },
-        { id: "11.3.1", why: "Watch call quality scores — bad audio quality means poor meetings." }
+      { name: "Voice & meetings", description: "Call quality, video meetings, and voice trunks. We help you identify poor audio, dropped calls, and capacity issues.", ucs: [
+        { id: "11.3.1", why: "Monitor call quality scores — low scores mean choppy audio and frustrated users." },
+        { id: "11.3.3", why: "Track jitter, latency, and packet loss on voice calls — the main causes of bad call quality." },
+        { id: "11.3.6", why: "Detect toll fraud — unauthorised calls running up your phone bill." }
       ]},
-      { name: "Meeting & call quality (ThousandEyes)", description: "ThousandEyes monitors the network path to Webex, Teams, and Zoom. We show when the network is hurting meeting quality.", ucs: [
-        { id: "11.3.27", why: "Monitor voice quality (MOS scores) on RTP streams — scores below 3.5 mean poor calls." },
-        { id: "11.3.28", why: "See the network path to Webex data centers and pinpoint where latency or loss happens." },
-        { id: "11.3.29", why: "Check if your network is ready for Microsoft Teams — from every office location." }
+      { name: "Location & spaces", description: "Cisco Spaces — building occupancy, workspace usage, and environmental monitoring.", ucs: [
+        { id: "11.4.1", why: "Track building occupancy over time to plan space and manage capacity." },
+        { id: "11.4.3", why: "Monitor temperature, humidity, and air quality in your spaces." },
+        { id: "11.4.6", why: "Detect ghost bookings — rooms reserved but never used." }
       ]},
-      { name: "Wire-level voice & carrier routing (Telco)", description: "Voice quality measured directly from network packets, emergency call tracking, and call routing KPIs — for carriers and enterprises alike.", ucs: [
-        { id: "11.3.32", why: "Measure voice quality (MOS) directly from RTP packets — works with any phone system, not just Cisco." },
-        { id: "11.3.33", why: "Track every emergency call (911/112) to make sure they all get through — a regulatory must-have." },
-        { id: "11.3.34", why: "Calculate answer seizure ratio per trunk — the number-one KPI for voice service quality." }
-      ]},
-      { name: "Location & environment (Cisco Spaces)", description: "Building occupancy, environmental sensors, and asset tracking using Meraki and Cisco Spaces.", ucs: [
-        { id: "11.4.1", why: "See real-time and historical occupancy per building and floor — supports space planning." },
-        { id: "11.4.3", why: "Monitor temperature, humidity, and air quality using Meraki MT sensors." },
-        { id: "11.4.4", why: "Track high-value assets in real time and get alerts when they leave a geofenced area." }
-      ]},
-      { name: "Video conferencing (Zoom)", description: "Meeting quality, call drops, and participant issues. We help you keep video meetings reliable.", ucs: [
-        { id: "11.5.1", why: "Track Zoom meeting quality metrics — jitter, packet loss, and latency affect everyone." },
-        { id: "11.5.2", why: "Monitor call drop rates so you know how often meetings are interrupted." },
-        { id: "11.5.3", why: "Detect participant join failures — people can't get into meetings when they need to." }
+      { name: "Video conferencing", description: "Zoom, Webex, and Teams meeting quality. We help you identify connection problems and poor video quality.", ucs: [
+        { id: "11.5.1", why: "Track Zoom meeting quality metrics — jitter and packet loss mean poor video and audio." },
+        { id: "11.5.4", why: "Monitor the health of Webex room devices so meetings start on time." },
+        { id: "11.5.8", why: "Analyse Teams meeting quality across your organisation." }
       ]}
     ]
   },
   "12": {
     outcomes: [
-      "See when builds or deployments fail.",
-      "Know when secrets or credentials leak into code.",
-      "Track pipeline health and security scan results.",
-      "Audit every infrastructure-as-code change and catch policy violations."
+      "See when builds fail or deployments break.",
+      "Measure how fast your team delivers software (DORA metrics).",
+      "Catch security issues in the code pipeline before they reach production."
     ],
     areas: [
-      { name: "Builds & deployments", description: "Failed builds, failed deployments, and pipeline status. We help you fix things fast.", ucs: [
-        { id: "12.2.1", why: "Track build success rates — dropping rates mean something is wrong in the code." },
-        { id: "12.2.5", why: "Know immediately when a deployment to production fails." },
-        { id: "12.2.3", why: "Measure how frequently you deploy — a key indicator of development velocity." }
+      { name: "Source control", description: "Git repositories, branch protections, and code reviews. We catch risky changes and exposed secrets.", ucs: [
+        { id: "12.1.4", why: "Detect when secrets (passwords, API keys) are accidentally committed to source code." },
+        { id: "12.1.2", why: "Alert when branch protection rules are bypassed — code could reach production unchecked." },
+        { id: "12.1.3", why: "Track pull request review times — slow reviews slow down the whole team." }
       ]},
-      { name: "Secrets & code", description: "Passwords or keys accidentally committed, or branch protection bypassed. We help you catch it.", ucs: [
-        { id: "12.1.4", why: "Alert when passwords or API keys are accidentally committed to code." },
-        { id: "12.1.2", why: "Know when branch protection rules are bypassed — a security risk." },
-        { id: "12.1.6", why: "Detect force pushes that can overwrite code history — intentional or accidental." }
+      { name: "Build & deploy pipelines", description: "CI/CD success rates, build times, and deployment frequency. We help you ship reliably.", ucs: [
+        { id: "12.2.1", why: "Track build success rates — falling rates mean the code or environment has problems." },
+        { id: "12.2.3", why: "Measure deployment frequency (a DORA metric) — how often you ship to production." },
+        { id: "12.2.4", why: "Track lead time for changes (a DORA metric) — from commit to production." }
       ]},
-      { name: "Dependencies & packages", description: "Vulnerable dependencies and package issues. We keep your supply chain in view.", ucs: [
-        { id: "12.3.2", why: "Get alerts when a library your code depends on has a known vulnerability." },
-        { id: "12.3.1", why: "Monitor the health of your artifact repository where packages are stored." },
-        { id: "12.3.4", why: "Track software license compliance so you avoid legal surprises." }
+      { name: "Artifacts & packages", description: "Package repositories, dependency security, and license compliance.", ucs: [
+        { id: "12.3.2", why: "Get alerts when your code depends on a package with known vulnerabilities." },
+        { id: "12.3.4", why: "Track software license compliance — prevent legal issues from open-source usage." },
+        { id: "12.3.9", why: "Check that software bills of materials (SBOMs) are being generated for your builds." }
       ]},
-      { name: "Infrastructure as Code", description: "Terraform, Ansible, and policy-as-code. We audit every infrastructure change.", ucs: [
-        { id: "12.4.1", why: "Track every Terraform apply — know exactly what changed in your infrastructure and when." },
-        { id: "12.4.5", why: "Catch policy violations that prevent non-compliant infrastructure from being deployed." },
-        { id: "12.4.7", why: "Audit container image builds and pushes to protect the software supply chain." }
+      { name: "Infrastructure as code", description: "Terraform, Ansible, Puppet, and CloudFormation. We track drift, failures, and policy violations.", ucs: [
+        { id: "12.4.2", why: "Detect when your actual infrastructure has drifted from what's defined in code." },
+        { id: "12.4.5", why: "Catch infrastructure-as-code policy violations before they're deployed." },
+        { id: "12.4.3", why: "Track Ansible playbook outcomes — know which automation tasks succeeded or failed." }
       ]},
-      { name: "GitOps & automation", description: "ArgoCD, Flux, and deployment automation. We watch for sync failures and configuration drift.", ucs: [
-        { id: "12.5.1", why: "Know when ArgoCD sync fails — your desired state and actual state have diverged." },
-        { id: "12.5.2", why: "Detect drift between what's in Git and what's actually running in your cluster." },
-        { id: "12.5.3", why: "Monitor Flux reconciliation health — broken reconciliation means broken deployments." }
+      { name: "GitOps & deployment", description: "ArgoCD, Flux, and automated deployment tools. We track sync failures, rollbacks, and drift.", ucs: [
+        { id: "12.5.1", why: "Detect when ArgoCD can't sync your desired state — deployments are blocked." },
+        { id: "12.5.7", why: "Track rollback frequency — frequent rollbacks signal quality problems." },
+        { id: "12.5.10", why: "Measure deployment lead time from Git commit to running in production." }
       ]}
     ]
   },
   "13": {
     outcomes: [
-      "Know when the monitoring system itself is overloaded or slow.",
-      "See when search heads or indexers have problems.",
-      "Track forwarders and data flow so nothing is missed.",
-      "See ThousandEyes test health alongside your Splunk monitoring in one place."
+      "Make sure your monitoring tools are working properly — if they break, you're blind.",
+      "Know when Splunk indexers, forwarders, or searches have problems.",
+      "Track AI and LLM usage, cost, and security."
     ],
     areas: [
-      { name: "Platform health", description: "Indexer queues, search performance, and cluster status. We watch the monitoring system itself.", ucs: [
-        { id: "13.1.1", why: "Watch indexer queue fill — when queues back up, data can be delayed or lost." },
-        { id: "13.1.10", why: "Monitor the search head cluster — if it's unhealthy, nobody can search." },
-        { id: "13.1.2", why: "Track how many searches run at once — too many and everything slows down." }
+      { name: "Splunk platform health", description: "Are your Splunk indexers, forwarders, and search heads healthy? We watch the tool that watches everything else.", ucs: [
+        { id: "13.1.1", why: "Detect when indexer queues are filling up — data ingestion is falling behind." },
+        { id: "13.1.3", why: "Know when forwarders lose connection — you stop getting data from those sources." },
+        { id: "13.1.4", why: "Track daily license usage so you don't hit your limit unexpectedly." }
       ]},
-      { name: "Data flow", description: "Are forwarders connected? Is data landing as expected? We help you avoid blind spots.", ucs: [
-        { id: "13.1.3", why: "Know when a forwarder stops sending data — you might be missing events." },
-        { id: "13.1.9", why: "Track how long it takes data to go from source to searchable — delays matter." },
-        { id: "13.1.12", why: "Monitor the HTTP Event Collector — the main way cloud and apps send data in." }
+      { name: "Splunk ITSI (premium)", description: "IT Service Intelligence — service health scores, KPIs, and intelligent alerting.", ucs: [
+        { id: "13.2.1", why: "Watch service health scores across your IT estate — the big-picture view." },
+        { id: "13.2.2", why: "Get alerted when a key performance indicator starts degrading before it breaches." },
+        { id: "13.2.3", why: "Track incident episodes and mean time to resolve across your services." }
       ]},
-      { name: "Services & rules", description: "ITSI, service health, and rules engines. We keep an eye on the extra layers you rely on.", ucs: [
-        { id: "13.2.1", why: "Track the health scores of your business services — are they degrading?" },
-        { id: "13.2.6", why: "Make sure the rules engine that triggers alerts and actions is working." },
-        { id: "13.2.2", why: "Get notified when key performance indicators start dropping." }
+      { name: "Third-party monitoring", description: "Prometheus, Nagios, Grafana, PagerDuty, and ThousandEyes. We bring external monitoring data into one place.", ucs: [
+        { id: "13.3.1", why: "Pull alerts from Nagios or Zabbix into Splunk alongside everything else." },
+        { id: "13.3.2", why: "Ingest Prometheus metrics so you can correlate them with logs and events." },
+        { id: "13.3.5", why: "Detect alert storms — too many alerts firing at once, often from a single root cause." }
       ]},
-      { name: "ThousandEyes integration", description: "ThousandEyes data flowing into Splunk — alerts, events, and service health. We show if the integration is healthy.", ucs: [
-        { id: "13.3.15", why: "View ThousandEyes alerts by severity in Splunk — see what's critical at a glance." },
-        { id: "13.3.19", why: "Track ThousandEyes service health through ITSI — KPIs and service scores in one view." },
-        { id: "13.3.22", why: "Correlate ThousandEyes network data with Splunk APM — is it the network or the app?" }
-      ]},
-      { name: "AI & LLM observability", description: "Monitoring AI APIs, token usage, and GPU resources. We help you track the cost and health of AI workloads.", ucs: [
-        { id: "13.4.1", why: "Track LLM API latency and error rates — slow or failing AI calls break your applications." },
-        { id: "13.4.2", why: "Monitor token usage and cost per model — AI spend can grow quickly without visibility." },
-        { id: "13.4.3", why: "Watch GPU and TPU utilization for inference workloads — underused GPUs waste money." }
+      { name: "AI & LLM observability", description: "Large language model usage, cost, GPU utilisation, and security. We help you run AI responsibly.", ucs: [
+        { id: "13.4.1", why: "Track LLM API speed and errors — slow or failing AI calls break user-facing features." },
+        { id: "13.4.2", why: "See how many tokens each application uses and what it costs — AI spending can spike fast." },
+        { id: "13.4.9", why: "Detect prompt injection attempts — attackers try to trick AI into doing harmful things." }
       ]}
     ]
   },
   "14": {
     outcomes: [
-      "See when building systems or industrial equipment misbehaves.",
-      "Know when sensors or controllers report problems.",
-      "Spot environmental or safety-related events.",
-      "Monitor MQTT and OPC-UA data pipelines from edge to cloud."
+      "See when sensors, controllers, or building systems have problems.",
+      "Get alerted when temperatures, vibrations, or pressures are outside safe ranges.",
+      "Track industrial protocol health and detect suspicious activity in your OT network."
     ],
     areas: [
-      { name: "Buildings & environment", description: "HVAC, UPS, and building systems. We monitor so you know when something's wrong.", ucs: [
-        { id: "14.1.1", why: "Watch heating and cooling systems so building comfort stays on track." },
-        { id: "14.1.2", why: "Monitor UPS batteries — if they fail, equipment loses power during an outage." },
-        { id: "14.1.6", why: "Track environmental compliance to avoid regulatory issues." }
+      { name: "Building management", description: "HVAC, UPS, power consumption, and access control. We help you keep buildings comfortable, secure, and running.", ucs: [
+        { id: "14.1.1", why: "Monitor heating and cooling performance — system failures mean uncomfortable or unsafe conditions." },
+        { id: "14.1.2", why: "Track UPS battery health — when power fails, this is your last line of defence." },
+        { id: "14.1.4", why: "Audit who entered which doors and when — for safety and compliance." }
       ]},
-      { name: "Industrial & control systems", description: "PLCs, sensors, and OT equipment. We watch health and safety-related events.", ucs: [
-        { id: "14.2.1", why: "Monitor the health of PLCs and RTUs that control industrial processes." },
-        { id: "14.2.3", why: "Know immediately when a safety system activates — something may be dangerous." },
-        { id: "14.2.2", why: "Detect when process variables drift outside normal ranges." }
+      { name: "Industrial control systems", description: "SCADA, PLCs, and safety systems. We watch for anomalies, unauthorised access, and protocol violations.", ucs: [
+        { id: "14.2.1", why: "Monitor PLC and RTU health — these controllers run your physical processes." },
+        { id: "14.2.3", why: "Track safety system activations — every activation is a potential incident." },
+        { id: "14.2.6", why: "Detect unauthorised access to industrial control systems — a serious safety and security risk." }
       ]},
-      { name: "Anomalies & trends", description: "When readings or processes go out of normal range. We help you catch drift early.", ucs: [
-        { id: "14.3.1", why: "Catch temperature anomalies before they become equipment-damaging problems." },
-        { id: "14.3.2", why: "Detect unusual vibration that could signal a failing motor or bearing." },
-        { id: "14.4.8", why: "Spot when sensors drift out of calibration and start giving bad readings." }
+      { name: "Splunk Edge Hub", description: "Edge sensors for temperature, vibration, air quality, and sound. We collect and analyse data right at the source.", ucs: [
+        { id: "14.3.1", why: "Detect temperature anomalies from edge sensors — early warning for equipment or environment problems." },
+        { id: "14.3.2", why: "Monitor vibration on machinery — changes in vibration patterns predict mechanical failures." },
+        { id: "14.3.7", why: "Watch the data pipeline from edge to cloud — if it breaks, you lose visibility." }
       ]},
-      { name: "MQTT & OPC-UA (Edge Hub)", description: "Industrial messaging protocols connecting sensors and PLCs to Splunk via Edge Hub and gateways.", ucs: [
-        { id: "14.5.11", why: "Catch failed MQTT logins and access denials — may indicate credential abuse or attack." },
-        { id: "14.5.5", why: "Track data backlog when Edge Hub loses cloud connectivity — 3 million points can pile up." },
-        { id: "14.5.9", why: "Warn before OPC-UA certificates expire — expired certs break secure data collection." }
+      { name: "IoT sensors & platforms", description: "Smart sensors, asset trackers, and IoT fleet health. We make sure your devices are connected and reporting.", ucs: [
+        { id: "14.4.1", why: "Check the health of your sensor fleet — are all devices connected and reporting?" },
+        { id: "14.4.6", why: "Spot devices that haven't reported in — they might be offline or malfunctioning." },
+        { id: "14.4.5", why: "Track firmware versions across your IoT fleet — outdated firmware is a security risk." }
       ]},
-      { name: "Deep OT protocols (Zeek ICS)", description: "S7comm, Modbus, DNP3, and other industrial protocols inspected by Zeek. We detect unauthorized PLC operations.", ucs: [
-        { id: "14.6.1", why: "Monitor S7comm read/write operations to Siemens PLCs — unauthorized writes could be sabotage." },
-        { id: "14.6.2", why: "Detect PLC program uploads and downloads that happen outside of change windows." },
-        { id: "14.6.3", why: "Alert when a PLC CPU state changes unexpectedly — someone may have stopped a controller." }
+      { name: "Industrial protocols", description: "MQTT, OPC-UA, Modbus, and other industrial protocols. We watch message flow, connections, and security.", ucs: [
+        { id: "14.5.1", why: "Track MQTT message rates and subscriptions — drops mean sensors aren't reporting." },
+        { id: "14.5.2", why: "Monitor OPC-UA server connections — when they fail, data from industrial equipment stops flowing." },
+        { id: "14.5.11", why: "Catch MQTT authentication failures — someone or something is trying to connect without permission." }
       ]},
-      { name: "Litmus Edge gateway", description: "Industrial IoT gateways that connect factory-floor data to Splunk. We monitor the data pipeline itself.", ucs: [
-        { id: "14.7.1", why: "Know when a Litmus Edge gateway loses connectivity — factory data stops flowing." },
-        { id: "14.7.2", why: "Validate that PLC tag data is actually arriving in Splunk as expected." },
-        { id: "14.7.3", why: "Track the latency from edge to cloud — delays can mean stale operational data." }
+      { name: "Deep protocol inspection", description: "Zeek-based deep inspection of ICS protocols — S7comm, Modbus, DNP3, BACnet, and more.", ucs: [
+        { id: "14.6.1", why: "Track PLC read and write operations — unusual patterns could indicate tampering." },
+        { id: "14.6.5", why: "Audit Modbus function codes — some codes should rarely appear in normal operations." },
+        { id: "14.6.20", why: "Detect unknown protocols on your OT network — they should not be there." }
       ]}
     ]
   },
   "15": {
     outcomes: [
-      "Know when power or cooling has issues in the data center.",
-      "See when batteries or cooling units need attention.",
-      "Track temperature and physical environment."
+      "Know when power, cooling, or physical security in your data center has problems.",
+      "Get early warning for temperature spikes, battery failures, and water leaks.",
+      "Track who enters your data center and when."
     ],
     areas: [
-      { name: "Power & batteries", description: "UPS health, battery status, and power redundancy. We help you avoid outages.", ucs: [
-        { id: "15.1.1", why: "Monitor UPS battery health so you know power backup is ready when needed." },
-        { id: "15.1.3", why: "Check that redundant power feeds are both active — losing one is risky." },
-        { id: "15.1.6", why: "Alert when a circuit breaker trips — something drew too much power." }
+      { name: "Power & UPS", description: "Uninterruptible power supplies, generators, and power distribution. We make sure your data center stays powered.", ucs: [
+        { id: "15.1.1", why: "Monitor UPS battery health — when power fails, batteries keep everything running until generators start." },
+        { id: "15.1.3", why: "Check that power redundancy is in place — losing a feed shouldn't cause an outage." },
+        { id: "15.1.5", why: "Track Power Usage Effectiveness (PUE) — how efficiently your data center uses energy." }
       ]},
-      { name: "Cooling", description: "Temperature, CRAC units, and cooling failures. We keep an eye on the environment.", ucs: [
-        { id: "15.2.1", why: "Track temperatures in each zone of the data center so hot spots are caught early." },
-        { id: "15.2.3", why: "Monitor cooling unit health — if CRAC/CRAH units fail, temperatures rise fast." },
-        { id: "15.2.5", why: "Detect water leaks before they cause equipment damage." }
+      { name: "Cooling & environment", description: "Temperature, humidity, and cooling systems. We help you prevent overheating and environmental damage.", ucs: [
+        { id: "15.2.1", why: "Monitor temperatures zone by zone — catch hot spots before equipment overheats." },
+        { id: "15.2.5", why: "Detect water leaks immediately — water near electrical equipment is an emergency." },
+        { id: "15.2.3", why: "Track cooling unit health — if a CRAC unit fails, temperatures will rise fast." }
       ]},
-      { name: "Physical security", description: "Access and environmental alarms. We surface events that matter.", ucs: [
-        { id: "15.3.1", why: "Audit who entered the data center and when — badge access logs." },
-        { id: "15.3.2", why: "Alert when someone accesses the facility outside normal business hours." },
-        { id: "15.3.5", why: "Know when server cabinet doors are opened — physical access to hardware." }
+      { name: "Physical security", description: "Badge access, cameras, and cabinet intrusions. We audit who enters and flag anything unusual.", ucs: [
+        { id: "15.3.1", why: "Full audit of badge swipes — who entered which room and when." },
+        { id: "15.3.2", why: "Alert when someone accesses the data center outside of business hours." },
+        { id: "15.3.4", why: "Monitor camera system health — if cameras go offline, you lose visibility." }
       ]}
     ]
   },
   "16": {
     outcomes: [
-      "See how many tickets you have and whether you're meeting SLAs.",
-      "Know when changes and incidents are linked.",
-      "Track how long it takes to fix things and how often changes succeed."
+      "Know if incidents are being resolved within agreed timeframes.",
+      "See when changes cause problems and catch unapproved changes.",
+      "Keep your asset database accurate and up to date."
     ],
     areas: [
-      { name: "Tickets & SLAs", description: "Incident volume, SLA compliance, and ticket trends. We give you a clear picture.", ucs: [
-        { id: "16.1.1", why: "Track incident ticket volume and trends — is the number going up or down?" },
-        { id: "16.1.2", why: "Monitor whether your team is meeting SLA response and resolution targets." },
-        { id: "16.1.8", why: "Find tickets that have been sitting too long without resolution." }
+      { name: "Incidents & tickets", description: "Service desk metrics — ticket volumes, SLA compliance, and resolution times.", ucs: [
+        { id: "16.1.1", why: "Track incident volume trends — spot spikes early and allocate resources." },
+        { id: "16.1.2", why: "Monitor SLA compliance — are tickets being resolved within agreed timeframes?" },
+        { id: "16.1.3", why: "Measure mean time to resolve by category — find which areas take longest to fix." }
       ]},
-      { name: "Changes", description: "Change success rate and links between changes and incidents. We help you learn from failures.", ucs: [
-        { id: "16.1.4", why: "Track what percentage of changes go smoothly versus causing problems." },
-        { id: "16.1.9", why: "Link incidents to recent changes — 'did a change cause this outage?'" },
-        { id: "16.1.5", why: "Detect when multiple changes are scheduled at the same time — risky overlap." }
+      { name: "Configuration & assets", description: "Your CMDB — asset inventory, data quality, and relationship integrity.", ucs: [
+        { id: "16.2.1", why: "Score CMDB data quality — inaccurate asset records lead to wrong decisions." },
+        { id: "16.2.3", why: "Find orphaned assets in your CMDB that no longer match real infrastructure." },
+        { id: "16.2.11", why: "Discover shadow IT — systems running that aren't in your official inventory." }
       ]},
-      { name: "Configuration data", description: "CMDB quality and consistency. We help you trust your asset data.", ucs: [
-        { id: "16.2.1", why: "Score how accurate and complete your asset database is." },
-        { id: "16.2.2", why: "Check that discovered assets match what's recorded in the CMDB." },
-        { id: "16.2.3", why: "Find orphaned records — assets in the database that no longer exist." }
+      { name: "Business services", description: "End-to-end service availability, first-contact resolution, and major incident tracking.", ucs: [
+        { id: "16.3.1", why: "Calculate business process health by combining health data from multiple services." },
+        { id: "16.3.10", why: "Track business service availability across all supporting components." },
+        { id: "16.3.6", why: "Make sure post-mortem reviews happen after major incidents — learn from every failure." }
       ]},
-      { name: "Business availability", description: "Service availability, escalation speed, and major incident tracking. We give you the big picture.", ucs: [
-        { id: "16.3.2", why: "See at a glance which hosts and services have been up or down — a Nagios-style heatmap." },
-        { id: "16.3.4", why: "Track how long it takes to escalate or hand off tickets — delays hurt resolution." },
-        { id: "16.3.6", why: "Make sure every major incident has a post-mortem — learning and accountability." }
-      ]},
-      { name: "Change management", description: "Authorized vs unauthorized changes and their impact on incidents. We help you connect the dots.", ucs: [
-        { id: "16.4.1", why: "Detect unauthorized changes — modifications made outside of approved change windows." },
-        { id: "16.4.2", why: "Track whether changes happen inside approved maintenance windows as planned." },
-        { id: "16.4.3", why: "Correlate failed changes with incident spikes — did a change cause this outage?" }
+      { name: "Change & release", description: "Change management — approvals, success rates, and the link between changes and incidents.", ucs: [
+        { id: "16.4.1", why: "Detect unauthorised changes — changes made without approval are a top cause of outages." },
+        { id: "16.4.3", why: "Correlate failed changes with incident spikes — did a change cause the outage?" },
+        { id: "16.4.4", why: "Track release deployment success rates — failed releases mean delayed features and more risk." }
       ]}
     ]
   },
   "17": {
     outcomes: [
-      "Know who's allowed on the network and who was blocked.",
-      "See when devices fail posture checks or policies change.",
-      "Track VPN and remote access for odd or risky behavior."
+      "See who connects to your network and whether their device is compliant.",
+      "Know when VPN tunnels have problems or someone logs in from an unusual location.",
+      "Track your progress toward Zero Trust — device trust, micro-segmentation, and conditional access."
     ],
     areas: [
-      { name: "Network access", description: "Who got on the network, who was blocked, and why. We keep you in the loop.", ucs: [
-        { id: "17.1.1", why: "Track network access authentication trends — successful and denied." },
-        { id: "17.1.2", why: "See when devices are denied network access because they fail security checks." },
-        { id: "17.1.6", why: "Monitor devices that get on the network via MAC bypass instead of full authentication." }
+      { name: "Network access control", description: "Who and what is allowed on your network. We track authentication, compliance posture, and rogue devices.", ucs: [
+        { id: "17.1.2", why: "See which devices fail endpoint compliance checks — they might be vulnerable or unmanaged." },
+        { id: "17.1.12", why: "Detect rogue devices connecting to your network — unknown devices are a risk." },
+        { id: "17.1.4", why: "Track guest network usage — is the guest network being abused?" }
       ]},
-      { name: "Device posture", description: "When a device fails security checks or doesn't meet policy. We help you enforce standards.", ucs: [
-        { id: "17.3.2", why: "See how devices score on trust — are they up-to-date and secure?" },
-        { id: "17.3.5", why: "Track posture assessment results over time — are more devices compliant?" },
-        { id: "17.1.8", why: "Know when NAC policies change — did someone relax the rules?" }
+      { name: "VPN & remote access", description: "VPN tunnels, remote sessions, and geographical anomalies. We help you secure remote work.", ucs: [
+        { id: "17.2.2", why: "Track VPN authentication failures — rising rates could mean a credential attack." },
+        { id: "17.2.3", why: "Spot VPN logins from unusual countries or regions." },
+        { id: "17.2.5", why: "Monitor VPN tunnel stability — frequent drops degrade the remote work experience." }
       ]},
-      { name: "VPN & remote access", description: "Sessions, locations, and suspicious remote access. We help you spot abuse.", ucs: [
-        { id: "17.2.1", why: "Track how many people are connected via VPN at any given time." },
-        { id: "17.2.3", why: "Spot when someone connects from an unusual or suspicious location." },
-        { id: "17.2.8", why: "Detect when the same account is connected from multiple locations simultaneously." }
+      { name: "Zero Trust & SASE", description: "Conditional access, device trust, and micro-segmentation. We help you verify every connection.", ucs: [
+        { id: "17.3.1", why: "Track conditional access enforcement — are the right policies being applied?" },
+        { id: "17.3.2", why: "Monitor device trust scores — low scores mean devices aren't meeting security requirements." },
+        { id: "17.3.3", why: "Audit micro-segmentation — is traffic properly restricted between network zones?" }
       ]}
     ]
   },
   "18": {
     outcomes: [
-      "See when the network fabric or software-defined network has faults.",
-      "Know when policies or firewall rules in the fabric change.",
-      "Track how endpoints move and connect."
+      "See the health of your data center network fabric — ACI, NSX, or SDN.",
+      "Know when network policies aren't being enforced or segments aren't properly isolated.",
+      "Track fabric faults and controller health."
     ],
     areas: [
-      { name: "Fabric health", description: "Faults, connectivity, and overall health of ACI, NSX, or similar. We surface issues.", ucs: [
-        { id: "18.1.1", why: "Monitor the overall health score of your network fabric." },
-        { id: "18.1.7", why: "Watch the APIC controllers that manage the fabric — if they're unhealthy, so is the network." },
-        { id: "18.2.5", why: "Track transport node connectivity — the foundation of your virtual network." }
+      { name: "Cisco ACI", description: "Application Centric Infrastructure — fabric health, policy enforcement, and controller (APIC) status.", ucs: [
+        { id: "18.1.1", why: "Track the overall fabric health score — a single number that shows if the network is healthy." },
+        { id: "18.1.4", why: "See which security policies are being hit or missed — are your rules working?" },
+        { id: "18.1.7", why: "Monitor the APIC controllers — if they go down, you can't manage the fabric." }
       ]},
-      { name: "Policies & rules", description: "Policy and firewall rule changes in the fabric. We help you stay in control.", ucs: [
-        { id: "18.1.5", why: "Audit changes to tenant configurations — who changed what and when." },
-        { id: "18.2.1", why: "See which distributed firewall rules are being hit — are they working as intended?" },
-        { id: "18.3.8", why: "Track every configuration change in your SDN with rollback awareness." }
+      { name: "VMware NSX", description: "NSX distributed firewall, micro-segmentation, and overlay network health.", ucs: [
+        { id: "18.2.1", why: "Track distributed firewall rule hits — see how traffic is being filtered between VMs." },
+        { id: "18.2.2", why: "Audit micro-segmentation enforcement — is isolation working as intended?" },
+        { id: "18.2.5", why: "Monitor transport node connectivity — when it breaks, virtual network communication fails." }
       ]},
-      { name: "Endpoints", description: "Where endpoints are and how they move. We give you visibility into the virtual network.", ucs: [
-        { id: "18.1.3", why: "Track endpoints as they move between leaf switches in the fabric." },
-        { id: "18.1.4", why: "Analyze which security contracts and filters are being used or ignored." },
-        { id: "18.2.2", why: "Verify that micro-segmentation policies are actually being enforced." }
+      { name: "SDN & overlay networks", description: "VXLAN tunnels, EVPN routing, and SDN controllers. We watch the virtual plumbing of your network.", ucs: [
+        { id: "18.3.4", why: "Monitor VXLAN tunnel health — broken tunnels mean VMs can't communicate across hosts." },
+        { id: "18.3.3", why: "Track SDN controller health — it's the brain of your software-defined network." },
+        { id: "18.3.5", why: "Watch EVPN routing events — MAC mobility and route changes can indicate problems." }
       ]}
     ]
   },
   "19": {
     outcomes: [
-      "Know when blades, servers, or HCI nodes have hardware problems.",
-      "See when storage or disk issues appear in converged systems.",
-      "Track cluster and node health in one place."
+      "See the health of your physical compute hardware and hyper-converged clusters.",
+      "Know when disks fail, nodes are unbalanced, or firmware falls out of compliance.",
+      "Track storage and compute capacity across your HCI environment."
     ],
     areas: [
-      { name: "Hardware health", description: "Blades, servers, and hardware faults. We watch so you can replace before failure.", ucs: [
-        { id: "19.1.1", why: "Monitor the health of blade and rack servers — catch problems before they cause outages." },
-        { id: "19.1.4", why: "Track hardware fault trends — are faults increasing in a particular chassis?" },
-        { id: "19.1.6", why: "Watch power consumption and temperatures on compute hardware." }
+      { name: "Cisco UCS", description: "Blade servers, service profiles, and fabric interconnects. We watch hardware health and compliance.", ucs: [
+        { id: "19.1.1", why: "Monitor blade and rack server health — catch hardware faults early." },
+        { id: "19.1.2", why: "Track service profile compliance — misconfigured profiles can cause unexpected behaviour." },
+        { id: "19.1.3", why: "Check firmware compliance across your UCS fleet — mixed versions cause interop issues." }
       ]},
-      { name: "Cluster & nodes", description: "HCI cluster health, node status, and connectivity. We keep you informed.", ucs: [
-        { id: "19.2.1", why: "Monitor overall cluster health — the single most important HCI indicator." },
-        { id: "19.2.4", why: "Check that workload is balanced across nodes — imbalance causes performance issues." },
-        { id: "19.2.7", why: "Watch the controller VMs that manage storage — if they're unhealthy, data is at risk." }
-      ]},
-      { name: "Storage in the box", description: "Disk failures, latency, and I/O in converged systems. We help you avoid surprises.", ucs: [
-        { id: "19.2.3", why: "Track storage latency — slow storage means slow everything." },
-        { id: "19.2.5", why: "Get alerts when disks fail so replacements can be ordered immediately." },
-        { id: "19.2.2", why: "Monitor storage pool capacity to plan for growth." }
+      { name: "Hyper-converged infrastructure", description: "Nutanix, vSAN, VxRail, and similar. We track cluster health, storage capacity, and node balance.", ucs: [
+        { id: "19.2.1", why: "Watch overall cluster health — a degraded cluster puts workloads at risk." },
+        { id: "19.2.5", why: "Get alerted when a disk fails so it can be replaced before data is lost." },
+        { id: "19.2.2", why: "Track storage pool capacity — running out of storage stops everything." }
       ]}
     ]
   },
   "20": {
     outcomes: [
-      "See how much you're spending in the cloud and where.",
-      "Know when resources are idle or over-provisioned.",
-      "Plan capacity and budget with trends and alerts."
+      "See how much you're spending on cloud and where the money goes.",
+      "Know when you're about to run out of capacity — servers, storage, or network.",
+      "Track software license usage so you don't overpay or fall out of compliance."
     ],
     areas: [
-      { name: "Spend & budget", description: "Daily spend, trends, and budget alerts. We help you stay on track.", ucs: [
-        { id: "20.1.1", why: "See daily cloud spending so you can spot trends and surprises early." },
-        { id: "20.1.5", why: "Get an alert when spending approaches your budget limit." },
-        { id: "20.1.2", why: "Detect unusual spikes in cloud cost — something may have been misconfigured." }
+      { name: "Cloud spending", description: "Daily cloud costs, budget alerts, and waste identification across AWS, Azure, and Google Cloud.", ucs: [
+        { id: "20.1.2", why: "Detect unusual spikes in cloud spending before the bill arrives." },
+        { id: "20.1.4", why: "Find idle cloud resources you're paying for but not using." },
+        { id: "20.1.6", why: "See how costs break down by team — hold the right people accountable." }
       ]},
-      { name: "Waste & efficiency", description: "Idle resources and rightsizing. We help you save money.", ucs: [
-        { id: "20.1.4", why: "Find cloud resources that are running but not doing anything — wasting money." },
-        { id: "20.2.5", why: "Get recommendations for right-sizing — often you're paying for more than you need." },
-        { id: "20.2.11", why: "Find orphaned resources like unattached disks and unused IPs still being charged." }
+      { name: "Capacity planning", description: "Forecasting when you'll need more compute, storage, or bandwidth.", ucs: [
+        { id: "20.2.1", why: "Predict when you'll run out of compute capacity so you can plan ahead." },
+        { id: "20.2.2", why: "Forecast storage growth — will you have enough space in 30, 60, or 90 days?" },
+        { id: "20.2.5", why: "Get right-sizing recommendations — find over-provisioned resources wasting money." }
       ]},
-      { name: "Capacity planning", description: "Growth trends for compute and storage. We help you plan ahead.", ucs: [
-        { id: "20.2.1", why: "Forecast when you'll need more computing power based on growth trends." },
-        { id: "20.2.2", why: "Predict when storage will fill up so you can plan purchases." },
-        { id: "20.2.7", why: "Model seasonal patterns — some workloads spike at predictable times." }
-      ]},
-      { name: "Licenses & subscriptions", description: "SaaS license usage, renewal forecasting, and audit readiness. We help you avoid over-spending and surprises.", ucs: [
+      { name: "Licenses & subscriptions", description: "Software license usage, renewal tracking, and compliance reporting.", ucs: [
         { id: "20.3.1", why: "Compare assigned vs active SaaS licenses — you may be paying for seats nobody uses." },
-        { id: "20.3.2", why: "Stay audit-ready with reports on software license usage and compliance." },
-        { id: "20.3.3", why: "Forecast subscription renewals so budget planning isn't a last-minute scramble." }
+        { id: "20.3.4", why: "Catch license compliance gaps before a software audit finds them." },
+        { id: "20.3.3", why: "Track subscription renewals so nothing lapses unexpectedly." }
       ]}
     ]
   },
   "21": {
     outcomes: [
-      "Monitor industry-specific systems like SCADA, manufacturing lines, medical devices, and trading platforms.",
-      "Detect operational anomalies unique to your industry — alarm flooding, production yield drops, patient flow issues, and more.",
-      "Track fleet logistics, retail point-of-sale, aviation, and insurance claims with purpose-built monitoring."
+      "Get monitoring tailored to your specific industry — energy, healthcare, manufacturing, transport, and more.",
+      "See operational metrics that matter to your business, not just generic IT numbers.",
+      "Track compliance with industry-specific regulations."
     ],
     areas: [
-      { name: "Energy & utilities", description: "Power grids, smart meters, and SCADA systems. We watch for alarm flooding, outages, and grid anomalies.", ucs: [
-        { id: "21.1.1", why: "Detect when alarm rates spike abnormally — a sign of serious operational issues." },
-        { id: "21.1.2", why: "Know immediately when a remote substation loses communication." },
-        { id: "21.1.3", why: "Spot gaps in smart meter data that could mean billing errors or tampering." }
+      { name: "Energy & utilities", description: "Power grids, substations, smart meters, and renewable energy. We help utilities keep the lights on.", ucs: [
+        { id: "21.1.1", why: "Monitor SCADA alarm rates — alarm flooding makes it hard for operators to spot real problems." },
+        { id: "21.1.2", why: "Detect when remote terminal units in substations stop communicating." },
+        { id: "21.1.5", why: "Compare actual renewable energy output to forecast — gaps affect grid stability and revenue." }
       ]},
-      { name: "Manufacturing", description: "Production lines, quality control, and equipment health. We track efficiency and catch defects early.", ucs: [
-        { id: "21.2.1", why: "Calculate Overall Equipment Effectiveness so you know how well your lines are running." },
-        { id: "21.2.4", why: "Catch quality issues early with statistical process control charts." },
-        { id: "21.2.5", why: "Detect equipment vibration changes before they become breakdowns." }
+      { name: "Manufacturing", description: "OEE, production yields, predictive maintenance, and supply chain. We help keep the factory floor running.", ucs: [
+        { id: "21.2.1", why: "Calculate Overall Equipment Effectiveness — the gold standard for production efficiency." },
+        { id: "21.2.2", why: "Correlate unplanned downtime with root causes so you can prevent recurrence." },
+        { id: "21.2.5", why: "Detect vibration changes in machinery before they lead to breakdowns." }
       ]},
-      { name: "Healthcare", description: "Patient flow, medical device connectivity, and clinical system integration. We help you keep care systems running.", ucs: [
-        { id: "21.3.1", why: "Monitor HL7 message processing latency — delays can affect patient care decisions." },
-        { id: "21.3.4", why: "Track medical device connectivity — disconnected devices mean missing vital signs." },
-        { id: "21.3.2", why: "Know when clinical interfaces fail to deliver results to the right systems." }
+      { name: "Healthcare", description: "Clinical systems, cold chain compliance, and patient flow. We help healthcare organisations deliver care reliably.", ucs: [
+        { id: "21.3.1", why: "Monitor EHR response times — slow clinical systems waste clinician time and delay care." },
+        { id: "21.3.5", why: "Alert when pharmaceutical cold chain temperatures drift — protecting vaccine and medication integrity." },
+        { id: "21.3.7", why: "Track electronic signature audit trails for FDA 21 CFR Part 11 compliance." }
       ]},
-      { name: "Transportation & logistics", description: "Fleet tracking, fuel monitoring, and supply chain operations. We help you keep goods and vehicles moving.", ucs: [
-        { id: "21.4.1", why: "Track fleet vehicles in real time and get alerts when they leave approved zones." },
-        { id: "21.4.3", why: "Spot fuel consumption anomalies that could indicate theft or mechanical problems." },
-        { id: "21.4.4", why: "Monitor vehicle diagnostic trouble codes so maintenance happens before breakdowns." }
+      { name: "Transport & logistics", description: "Fleet tracking, delivery SLAs, and cargo monitoring. We help logistics operations run on time.", ucs: [
+        { id: "21.4.1", why: "Track fleet vehicle locations and trigger alerts when they leave permitted zones." },
+        { id: "21.4.9", why: "Monitor last-mile delivery SLA compliance — are deliveries arriving on time?" },
+        { id: "21.4.10", why: "Detect temperature excursions for perishable goods during transport." }
       ]},
-      { name: "Oil, gas & mining", description: "Pipelines, wellheads, and heavy equipment. We watch for pressure anomalies, emissions, and equipment drift.", ucs: [
-        { id: "21.5.1", why: "Detect pipeline pressure and flow anomalies before they become safety incidents." },
-        { id: "21.5.2", why: "Spot gaps in wellhead telemetry data that could mask developing problems." },
-        { id: "21.5.3", why: "Track gas compressor vibration trends to catch mechanical wear early." }
+      { name: "Oil, gas & mining", description: "Pipeline monitoring, wellhead telemetry, and emissions tracking. Safety-critical operations.", ucs: [
+        { id: "21.5.1", why: "Detect pipeline pressure and flow anomalies — early warning for leaks or blockages." },
+        { id: "21.5.4", why: "Correlate flare stack events with emissions data — regulatory and environmental reporting." },
+        { id: "21.5.8", why: "Analyse safety system trips to find recurring causes and improve safety." }
       ]},
-      { name: "Retail & e-commerce", description: "Point-of-sale, self-checkout, and online shopping. We monitor the systems that keep stores and websites running.", ucs: [
-        { id: "21.6.1", why: "Watch POS terminal response times — slow checkouts frustrate customers and lose sales." },
-        { id: "21.6.2", why: "Track self-checkout lane availability and error rates across your stores." },
-        { id: "21.6.5", why: "Monitor click-and-collect order fulfillment so customers aren't kept waiting." }
+      { name: "Retail & e-commerce", description: "POS terminals, e-commerce performance, and in-store systems. We help retail keep selling.", ucs: [
+        { id: "21.6.1", why: "Monitor POS terminal response times — slow checkouts frustrate customers." },
+        { id: "21.6.6", why: "Track e-commerce checkout funnel performance — delays here lose sales." },
+        { id: "21.6.3", why: "Monitor in-store network health — if WiFi goes down, many retail systems break." }
       ]},
-      { name: "Aviation & airports", description: "Baggage handling, security lanes, and aircraft turnaround. We help airports run on time.", ucs: [
-        { id: "21.7.1", why: "Detect baggage misroutes and throughput drops in the handling system." },
-        { id: "21.7.2", why: "Monitor security lane processing times and queue lengths for staffing decisions." },
-        { id: "21.7.3", why: "Track aircraft turnaround time to reduce delays and improve gate utilization." }
+      { name: "Aviation & airports", description: "Baggage systems, gate allocation, and passenger flow. We help airports run smoothly.", ucs: [
+        { id: "21.7.1", why: "Track baggage handling throughput and catch misroutes — lost bags cost money and trust." },
+        { id: "21.7.3", why: "Monitor aircraft turnaround times — delays cascade through the entire schedule." },
+        { id: "21.7.9", why: "Track passenger flow and terminal capacity to reduce congestion." }
       ]},
-      { name: "Telecom operations", description: "Cell sites, core network, and subscriber systems. We monitor the infrastructure that keeps people connected.", ucs: [
-        { id: "21.8.1", why: "Know when a cell site goes down — it directly affects subscribers in that area." },
-        { id: "21.8.2", why: "Monitor core network elements (MME, SGW, PGW) that handle millions of sessions." },
-        { id: "21.8.5", why: "Detect billing mediation delays before they affect revenue recognition." }
+      { name: "Telecom operations", description: "Cell sites, core network elements, and subscriber provisioning. We help telcos keep networks running.", ucs: [
+        { id: "21.8.1", why: "Monitor RAN cell site availability — outages directly affect subscribers." },
+        { id: "21.8.3", why: "Track subscriber provisioning completion rates — failures mean customers can't use their service." },
+        { id: "21.8.8", why: "Watch 5G gNodeB performance — the foundation of next-generation mobile services." }
       ]},
-      { name: "Water & wastewater", description: "Treatment plants, pump stations, and distribution networks. We help utilities deliver safe water reliably.", ucs: [
-        { id: "21.9.1", why: "Track treatment plant parameters like chlorine, pH, and turbidity in real time." },
-        { id: "21.9.2", why: "Monitor pump station efficiency to catch mechanical degradation early." },
-        { id: "21.9.4", why: "Get early warning of sewer overflow conditions before they become environmental incidents." }
+      { name: "Water & wastewater", description: "Treatment plants, pump stations, and water quality. Safety-critical utility monitoring.", ucs: [
+        { id: "21.9.1", why: "Monitor treatment process parameters — deviations can affect water safety." },
+        { id: "21.9.4", why: "Detect early warning signs of sewer overflows — a public health and environmental risk." },
+        { id: "21.9.7", why: "Track water loss and non-revenue water — leaks cost money and waste resources." }
       ]},
-      { name: "Insurance & claims", description: "Claims processing, fraud detection, and underwriting. We help insurers handle claims faster and spot fraud.", ucs: [
-        { id: "21.10.1", why: "Track claims processing cycle times end-to-end to meet service targets." },
-        { id: "21.10.2", why: "Analyze which channels (phone, web, app) customers use to report claims." },
-        { id: "21.10.4", why: "Monitor subrogation recovery rates to maximize money recouped from third parties." }
+      { name: "Insurance & claims", description: "Claims processing, fraud detection, and workload management.", ucs: [
+        { id: "21.10.1", why: "Track claims processing cycle times — slow processing frustrates policyholders." },
+        { id: "21.10.6", why: "Detect fraud rings — patterns of coordinated fraudulent claims." },
+        { id: "21.10.3", why: "Balance adjuster workloads so no one is overwhelmed and claims are handled fairly." }
       ]}
     ]
   },
   "22": {
     outcomes: [
-      "Prove compliance with GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, and SOC 2 using automated evidence collection.",
-      "Track breach notification timelines, data subject access requests, and audit trails with deployable SPL.",
-      "Map security controls to regulatory articles and measure control effectiveness continuously."
+      "See how well you meet the requirements of regulations like GDPR, NIS2, DORA, and more.",
+      "Get evidence for auditors and compliance reviews automatically.",
+      "Spot compliance gaps before regulators or auditors find them."
     ],
     areas: [
-      { name: "GDPR", description: "EU General Data Protection Regulation — PII detection, data subject access requests, breach notification timelines, and consent audit trails.", ucs: [
-        { id: "22.1.1", why: "Detect personal data (emails, SSNs) in application logs so you can prove data minimisation." },
-        { id: "22.1.2", why: "Track DSAR tickets end-to-end against the 30-day response deadline." },
-        { id: "22.1.3", why: "Monitor the 72-hour breach notification clock on open security incidents." }
+      { name: "Privacy regulations", description: "GDPR and CCPA — tracking personal data, handling data requests, and monitoring for breaches.", ucs: [
+        { id: "22.1.1", why: "Detect personal data appearing in application logs where it shouldn't be — a GDPR risk." },
+        { id: "22.1.3", why: "Monitor breach notification timelines — GDPR requires notification within 72 hours." },
+        { id: "22.4.1", why: "Track CCPA consumer data requests — access and deletion requests must be handled on time." }
       ]},
-      { name: "NIS2", description: "EU Network and Information Security Directive — incident reporting, supply chain security, and access control auditing for essential services.", ucs: [
-        { id: "22.2.1", why: "Catch high-urgency incidents approaching the 24-hour early warning deadline." },
-        { id: "22.2.2", why: "Correlate vendor sessions with threat intelligence to surface supply chain risk." },
-        { id: "22.2.3", why: "Track CVE remediation against patch SLAs to demonstrate vulnerability handling." }
+      { name: "Cybersecurity frameworks", description: "NIS2, ISO 27001, and NIST CSF — measuring your security posture against recognised standards.", ucs: [
+        { id: "22.2.1", why: "Track NIS2 incident detection and 24-hour early warning reporting obligations." },
+        { id: "22.6.1", why: "Monitor how well your ISO 27001 security controls are working across the board." },
+        { id: "22.7.1", why: "Dashboard your NIST CSF maturity across all five functions — Identify, Protect, Detect, Respond, Recover." }
       ]},
-      { name: "DORA", description: "Digital Operational Resilience Act — ICT risk dashboards, incident classification, resilience testing, and third-party concentration risk for financial entities.", ucs: [
-        { id: "22.3.1", why: "Build a continuously refreshed ICT risk dashboard using ES risk scoring." },
-        { id: "22.3.2", why: "Classify incidents as major or significant and compute filing deadline clocks." },
-        { id: "22.3.4", why: "Measure cloud provider concentration risk across accounts and regions." }
-      ]},
-      { name: "CCPA & MiFID II", description: "California Consumer Privacy Act and EU Markets in Financial Instruments Directive — privacy requests, opt-out enforcement, trade reporting, and best execution.", ucs: [
-        { id: "22.4.1", why: "Track consumer data access and deletion requests against the 45-day CCPA window." },
-        { id: "22.5.1", why: "Detect transaction reporting gaps and ARM/APA rejections for MiFID II compliance." },
-        { id: "22.5.2", why: "Audit communications recording coverage for MiFID II Art. 16(7) retention obligations." }
-      ]},
-      { name: "ISO 27001, NIST & SOC 2", description: "Standards-based compliance — Annex A control effectiveness, NIST CSF maturity posture, MITRE ATT&CK coverage gaps, and SOC 2 trust services criteria.", ucs: [
-        { id: "22.6.1", why: "Prove that your ES correlation searches actually run and produce signals — control effectiveness evidence." },
-        { id: "22.7.1", why: "Map enabled detections to NIST CSF functions for a data-driven maturity snapshot." },
-        { id: "22.8.1", why: "Continuous evidence for logical access (CC6), security monitoring (CC7), and change management (CC8)." }
+      { name: "Financial regulation", description: "DORA, MiFID II, and SOC 2 — resilience testing, transaction reporting, and trust service compliance.", ucs: [
+        { id: "22.3.1", why: "DORA ICT risk management dashboard — track digital resilience for financial services." },
+        { id: "22.5.1", why: "Monitor MiFID II trade reporting completeness — missing reports mean regulatory fines." },
+        { id: "22.8.1", why: "Continuous monitoring of SOC 2 trust service criteria — evidence collection for auditors." }
       ]}
     ]
   }

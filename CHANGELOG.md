@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.1] - 2026-03-23
+
+### Added
+
+- **Archived Splunkbase app visibility** — Use cases referencing archived apps now display an amber "Archived App" badge on cards and a warning box in the modal with successor app recommendation. Palo Alto Networks App (491) newly flagged as archived with successor Splunk App for Palo Alto Networks (7505). Unix and Windows app entries now include successor links to IT Essentials Work (5403).
+- **Advanced Filters panel** — Collapsible "Advanced Filters" below the existing filter strip with 8 new filters: ES Detection (toggle), Detection type (dropdown), Premium Apps (dropdown), CIM Data Model (dropdown), App/TA (dropdown), Industry (dropdown), MITRE ATT&CK (searchable text), Data source (searchable text). All filters show as removable chips and update sidebar counts.
+- **FILTER_FACETS in data.js** — Pre-extracted unique sorted values for each advanced filter dimension, generated at build time to avoid client-side scanning of 4,600+ use cases.
+- **Non-technical view rewrite** — All 22 categories rewritten with 120 monitoring areas and 360 representative UC references. Build-time validation via `validate_non_technical()` ensures UC IDs stay in sync.
+
+---
+
 ## [3.0] - 2026-03-22
 
 ### Added
@@ -15,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Catalog Dashboard Studio (`catalog-quick-start-top2.json`)** — **44** separate chart objects only (one `splunk.*` visualization per use case). Each panel uses Dashboard Studio **title** and **description** for UC id + name + category — no stacked markdown “label rows” or category bands that read like a table. **3** page markdown blocks (title/subtitle/DEMO) + time picker. Regenerate with **`scripts/generate_catalog_dashboard.py`**.
 - **SPL quality: join max=1** — Added explicit max=1 to 88 join statements across all category files to prevent silent data truncation.
 - **Text quality improvements** — Revised Value, Implementation, and Visualization fields for 30 use cases across 17 category files, replacing generic descriptions with specific, actionable guidance tailored to each use case context.
 - **Markdown fixes** — Corrected duplicate sourcetypes and broken backticks in cat-05-network-infrastructure.md.

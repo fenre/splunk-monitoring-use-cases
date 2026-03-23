@@ -5,7 +5,10 @@ JSON definitions for **Splunk Dashboard Studio** (Enterprise / Cloud). Data is g
 ## Catalog Quick-Start Portfolio (`catalog-quick-start-top2.json`)
 
 - **Scope:** The **first two** use cases listed under **Quick Start** in `use-cases/INDEX.md` for each of the **22** categories → **44** use cases.
-- **Panels:** KPI single values (totals, average health, watch/critical count, monitored UCs), column chart of synthetic event load by category code, 24h area trend, and a full-width table with UC id, titles, health, coverage, status, and trend.
+- **Layout:** **44 separate chart objects** — exactly **one** Dashboard Studio visualization per use case (not a table, not one chart containing all series). Each panel’s **title** is `UC-… — use case name` and **description** is the category line; there are **no** per–use-case markdown blocks stacked above charts.
+- **Page chrome only:** three small markdown blocks (dashboard title, subtitle, DEMO) plus the time-range input — everything else is a `splunk.*` chart.
+- **Chart mix (rotates by panel):** `splunk.singlevalue` (with **sparkline** trend), `splunk.line`, `splunk.area`, `splunk.column` — all fed by **`makeresults`** / `eval` demo SPL tailored to the chart type.
+- **Regenerate:** `python3 scripts/generate_catalog_dashboard.py` (edits UC lists in that script when INDEX Quick Start changes).
 
 ### Import into Splunk
 
@@ -32,8 +35,10 @@ Splunk stores Dashboard Studio definitions through the **`data/ui/views`** endpo
 
 | Method | Environment variables |
 |--------|-------------------------|
-| **Bearer token** (recommended) | `SPLUNK_TOKEN` |
+| **Bearer token** (recommended) | `SPLUNK_TOKEN` or `SPLUNK_REST_TOKEN` (e.g. from `secrets.env` after `set -a && . ./secrets.env`) |
 | **Basic** | `SPLUNK_USER` and `SPLUNK_PASSWORD` (if only password is set, user defaults to `admin`) |
+
+**Owner namespace:** `SPLUNK_OWNER` must match the Splunk user the token was issued for (REST path `servicesNS/<owner>/<app>/…`). If you use a personal token from **Settings → Tokens**, set `SPLUNK_OWNER` to that username (not necessarily `admin`).
 
 **Common options**
 

@@ -50,7 +50,7 @@ Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over
 
 ### Splunk Dashboard Studio (optional)
 
-The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which visualizes the **top two Quick-Start use cases per category** (44 UCs) from `use-cases/INDEX.md`. See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`).
+The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which has **one labeled chart per** Quick-Start use case (**44** panels = top 2 × 22 categories from `use-cases/INDEX.md`). See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`). Regenerate the JSON with **`scripts/generate_catalog_dashboard.py`** after changing Quick Start lists.
 
 ---
 

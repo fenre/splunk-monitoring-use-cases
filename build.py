@@ -422,11 +422,13 @@ SPLUNK_APPS = [
      "url": "https://splunkbase.splunk.com/app/273",
      "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/64464cc4-75ba-11ea-9476-06676674ba60.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/7d145c32-75ba-11ea-b2cd-06676674ba60.png"],
      "tas": ["Splunk_TA_nix"], "archived": True,
+     "successor": {"name": "IT Essentials Work", "id": 5403, "url": "https://splunkbase.splunk.com/app/5403"},
      "desc": "Pre-built dashboards for Unix/Linux performance, capacity and alerting"},
     {"name": "Splunk App for Windows Infrastructure", "id": 1680,
      "url": "https://splunkbase.splunk.com/app/1680",
      "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/9d9652a4-7499-11e3-b0c8-005056ad5c72.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/b9eee34e-c197-11e3-85b1-06550dde6d3e.png"],
      "tas": ["Splunk_TA_windows"], "archived": True,
+     "successor": {"name": "IT Essentials Work", "id": 5403, "url": "https://splunkbase.splunk.com/app/5403"},
      "desc": "Pre-built dashboards for Windows server and desktop management, Active Directory"},
     {"name": "Microsoft Azure App for Splunk", "id": 4882,
      "url": "https://splunkbase.splunk.com/app/4882",
@@ -461,7 +463,8 @@ SPLUNK_APPS = [
     {"name": "Palo Alto Networks App for Splunk", "id": 491,
      "url": "https://splunkbase.splunk.com/app/491",
      "screenshots": [],
-     "tas": ["Splunk_TA_paloalto", "Palo Alto"],
+     "tas": ["Splunk_TA_paloalto", "Palo Alto"], "archived": True,
+     "successor": {"name": "Splunk App for Palo Alto Networks", "id": 7505, "url": "https://splunkbase.splunk.com/app/7505"},
      "desc": "Dashboards for Palo Alto firewall traffic, threat, and GlobalProtect data"},
     {"name": "Veeam App for Splunk", "id": 7312,
      "url": "https://splunkbase.splunk.com/app/7312",
@@ -1224,14 +1227,17 @@ def apps_for_ta_string(ta_str):
         for pattern in app["tas"]:
             if pattern.lower() in raw and app["id"] not in seen_ids:
                 seen_ids.add(app["id"])
-                matched.append({
+                entry = {
                     "name": app["name"],
                     "id": app["id"],
                     "url": app["url"],
                     "desc": app.get("desc", ""),
                     "screenshots": app.get("screenshots", []),
                     "archived": app.get("archived", False),
-                })
+                }
+                if app.get("successor"):
+                    entry["successor"] = app["successor"]
+                matched.append(entry)
                 break
     return matched
 
@@ -2117,12 +2123,57 @@ def parse_index_metadata():
     return cat_meta, cat_starters
 
 
+FILTER_DTYPE_ALLOW = {"TTP", "Anomaly", "Hunting", "Baseline", "Correlation", "Operational metrics"}
+
+
+def extract_filter_facets(data):
+    """Pre-extract unique sorted values for advanced filter dropdowns."""
+    dtypes = set()
+    premiums = set()
+    cim_models = set()
+    sapp_map = {}
+    industries = set()
+    mitres = set()
+
+    for cat in data:
+        for sub in cat.get("s", []):
+            for uc in sub.get("u", []):
+                if uc.get("dtype") and uc["dtype"] in FILTER_DTYPE_ALLOW:
+                    dtypes.add(uc["dtype"])
+                if uc.get("premium"):
+                    premiums.add(uc["premium"])
+                if isinstance(uc.get("a"), list):
+                    for m in uc["a"]:
+                        if m and m != "N/A":
+                            base = m.split("(")[0].strip()
+                            cim_models.add(base)
+                if isinstance(uc.get("sapp"), list):
+                    for app in uc["sapp"]:
+                        sapp_map[app["id"]] = app["name"]
+                if uc.get("ind"):
+                    industries.add(uc["ind"])
+                if isinstance(uc.get("mitre"), list):
+                    for t in uc["mitre"]:
+                        mitres.add(t)
+
+    return {
+        "dtype": sorted(dtypes),
+        "premium": sorted(premiums),
+        "cim": sorted(cim_models),
+        "sapp": [{"id": k, "name": v} for k, v in sorted(sapp_map.items(), key=lambda x: x[1])],
+        "industry": sorted(industries),
+        "mitre": sorted(mitres),
+    }
+
+
 def write_data_js(data, cat_meta, output_path):
-    """Write data.js with DATA, CAT_META, CAT_GROUPS, and EQUIPMENT."""
+    """Write data.js with DATA, CAT_META, CAT_GROUPS, EQUIPMENT, and FILTER_FACETS."""
     data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     meta_json = json.dumps(cat_meta, ensure_ascii=False, separators=(",", ":"))
     groups_json = json.dumps(CAT_GROUPS, separators=(",", ":"))
     equipment_json = json.dumps(EQUIPMENT, ensure_ascii=False, separators=(",", ":"))
+    facets = extract_filter_facets(data)
+    facets_json = json.dumps(facets, ensure_ascii=False, separators=(",", ":"))
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("// Auto-generated by build.py — do not edit manually\n")
@@ -2130,6 +2181,7 @@ def write_data_js(data, cat_meta, output_path):
         f.write(f"const CAT_META = {meta_json};\n")
         f.write(f"const CAT_GROUPS = {groups_json};\n")
         f.write(f"const EQUIPMENT = {equipment_json};\n")
+        f.write(f"const FILTER_FACETS = {facets_json};\n")
 
     size_kb = os.path.getsize(output_path) / 1024
     return size_kb
@@ -2328,6 +2380,62 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
     return size_kb
 
 
+def validate_non_technical(data):
+    """Cross-check non-technical-view.js UC IDs against parsed use cases."""
+    nt_path = os.path.join(SCRIPT_DIR, "non-technical-view.js")
+    if not os.path.isfile(nt_path):
+        print("  SKIP non-technical-view.js not found")
+        return
+
+    content = open(nt_path, encoding="utf-8").read()
+
+    valid_ids = set()
+    cat_ids = set()
+    sub_ids = set()
+    for cat in data:
+        cat_ids.add(str(cat["i"]))
+        for sub in cat.get("s", []):
+            sub_ids.add(sub["i"])
+            for uc in sub.get("u", []):
+                valid_ids.add(uc["i"])
+
+    import re
+    ref_pattern = re.compile(r'id:\s*"(\d+\.\d+\.\d+)"')
+    cat_key_pattern = re.compile(r'"(\d+)":\s*\{')
+
+    nt_cat_keys = set(cat_key_pattern.findall(content))
+    nt_uc_refs = ref_pattern.findall(content)
+
+    errors = 0
+    warnings = 0
+
+    missing_cats = cat_ids - nt_cat_keys
+    if missing_cats:
+        for mc in sorted(missing_cats, key=lambda x: int(x)):
+            print(f"  WARN  non-technical-view.js missing category {mc}")
+            warnings += 1
+
+    extra_cats = nt_cat_keys - cat_ids
+    if extra_cats:
+        for ec in sorted(extra_cats, key=lambda x: int(x)):
+            print(f"  ERROR non-technical-view.js references unknown category {ec}")
+            errors += 1
+
+    bad_refs = []
+    for ref in nt_uc_refs:
+        if ref not in valid_ids:
+            bad_refs.append(ref)
+            errors += 1
+    if bad_refs:
+        for br in sorted(bad_refs):
+            print(f"  ERROR non-technical-view.js references unknown UC {br}")
+
+    print(f"  Non-technical view: {len(nt_cat_keys)} categories, "
+          f"{len(nt_uc_refs)} UC refs, {errors} errors, {warnings} warnings")
+
+    return errors
+
+
 def main():
     # Find and sort category files
     pattern = os.path.join(UC_DIR, "cat-[0-9]*.md")
@@ -2361,6 +2469,12 @@ def main():
     data.sort(key=lambda c: c["i"])
 
     print(f"\nTotal: {len(data)} categories, {total_uc} use cases, {total_cim} with CIM data")
+
+    # Validate non-technical-view.js cross-references
+    print("\nValidating non-technical-view.js...")
+    nt_errors = validate_non_technical(data)
+    if nt_errors:
+        print(f"  WARNING: {nt_errors} error(s) in non-technical-view.js — fix before release")
 
     # Parse INDEX.md for metadata
     cat_meta, cat_starters = parse_index_metadata()

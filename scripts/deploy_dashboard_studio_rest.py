@@ -6,7 +6,7 @@ Splunk expects the Studio definition wrapped in XML — see:
 https://docs.splunk.com/Documentation/Splunk/latest/DashStudio/RESTusage
 
 Authentication (pick one):
-  - SPLUNK_TOKEN  — Splunk authentication token (recommended; Authorization: Bearer)
+  - SPLUNK_TOKEN or SPLUNK_REST_TOKEN — Splunk REST/auth token (Bearer; same value as Settings → Tokens)
   - SPLUNK_USER + SPLUNK_PASSWORD — basic auth
 
 Environment:
@@ -108,7 +108,7 @@ def post_eai_data(
         b = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode("ascii")
         req.add_header("Authorization", f"Basic {b}")
     else:
-        raise SystemExit("Set SPLUNK_TOKEN or both SPLUNK_USER and SPLUNK_PASSWORD")
+        raise SystemExit("Set SPLUNK_TOKEN / SPLUNK_REST_TOKEN or both SPLUNK_USER and SPLUNK_PASSWORD")
 
     ctx = None if verify_ssl else ssl._create_unverified_context()
     try:
@@ -172,14 +172,18 @@ def main() -> None:
     dashboard = json.loads(path.read_text(encoding="utf-8"))
     xml_payload = build_studio_xml(dashboard, theme=args.theme)
 
-    token = (args.token_cli or os.environ.get("SPLUNK_TOKEN", "")).strip() or None
+    token = (
+        (args.token_cli or os.environ.get("SPLUNK_TOKEN", "") or os.environ.get("SPLUNK_REST_TOKEN", ""))
+        .strip()
+        or None
+    )
     user = (args.user_cli or os.environ.get("SPLUNK_USER", "")).strip() or None
     password = (args.password_cli or os.environ.get("SPLUNK_PASSWORD", "")).strip() or None
     if password and not user:
         user = "admin"
     if not token and not (user and password):
         print(
-            "Error: set SPLUNK_TOKEN, or both SPLUNK_USER and SPLUNK_PASSWORD "
+            "Error: set SPLUNK_TOKEN or SPLUNK_REST_TOKEN, or both SPLUNK_USER and SPLUNK_PASSWORD "
             "(password-only defaults SPLUNK_USER to admin).",
             file=sys.stderr,
         )
