@@ -1181,6 +1181,10 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
   border-top: 1px solid var(--splunk-border-subtle); position: sticky; top: 37px; z-index: 1;
 }
 .adv-mitre-tactic:first-of-type { border-top: none; }
+.adv-mitre-tactic.clickable { cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+.adv-mitre-tactic.clickable:hover { background: rgba(var(--splunk-green-rgb), 0.10); color: var(--splunk-green); }
+.adv-mitre-tactic.clickable.selected { background: rgba(var(--splunk-green-rgb), 0.18); color: var(--splunk-green); }
+.adv-mitre-tactic-hint { font-weight: 400; font-size: 10px; opacity: 0.7; letter-spacing: normal; text-transform: none; }
 .adv-mitre-opt {
   padding: 6px 12px 6px 20px; font-size: var(--text-sm); cursor: pointer;
   color: var(--splunk-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -3094,16 +3098,22 @@ function advancedFilterPanel() {
   html += '</div><div class="adv-row">';
 
   html += '<label class="adv-label">MITRE ATT&amp;CK</label>';
-  var mitreLabel = currentMitreFilter ? currentMitreFilter : 'All techniques';
+  var mitreLabel = 'All tactics & techniques';
+  var mitreHasValue = false;
   if (currentMitreFilter && typeof FILTER_FACETS !== 'undefined') {
+    mitreHasValue = true;
     FILTER_FACETS.mitre.some(function(g) {
       var found = g.techniques.find(function(t) { return t.id === currentMitreFilter; });
       if (found) { mitreLabel = found.id + ' \u2014 ' + found.name; return true; }
     });
+  } else if (currentMitreTacticFilter && typeof FILTER_FACETS !== 'undefined') {
+    mitreHasValue = true;
+    var tg = FILTER_FACETS.mitre.find(function(g) { return g.tactic === currentMitreTacticFilter; });
+    mitreLabel = tg ? 'Tactic: ' + tg.label : currentMitreTacticFilter;
   }
   html += '<div style="display:flex;gap:8px;align-items:flex-start;flex:2;min-width:240px;max-width:480px">';
   html += '<div class="adv-mitre-wrap" id="mitre-dd-wrap" style="flex:1">';
-  html += '<button type="button" class="adv-mitre-btn' + (currentMitreFilter ? ' has-value' : '') + '" onclick="toggleMitreDd()">' + escHtml(mitreLabel) + '</button>';
+  html += '<button type="button" class="adv-mitre-btn' + (mitreHasValue ? ' has-value' : '') + '" onclick="toggleMitreDd()">' + escHtml(mitreLabel) + '</button>';
   html += '<div class="adv-mitre-dd" id="mitre-dd">';
   html += '<input type="text" class="adv-mitre-search" placeholder="Search techniques\u2026" oninput="filterMitreDd(this.value)">';
   html += '<div id="mitre-dd-list">';
@@ -3125,16 +3135,18 @@ function buildMitreDdList(query) {
   if (typeof FILTER_FACETS === 'undefined') return '';
   var q = query.toLowerCase().trim();
   var html = '';
-  html += '<div class="adv-mitre-clear" onclick="selectMitreTech(\'\')">\u2190 All techniques</div>';
+  html += '<div class="adv-mitre-clear" onclick="selectMitreTech(\'\')">\u2190 All tactics &amp; techniques</div>';
   var anyVisible = false;
   FILTER_FACETS.mitre.forEach(function(group) {
+    var tacticMatch = !q || group.label.toLowerCase().indexOf(q) !== -1 || (group.tactic && group.tactic.toLowerCase().indexOf(q) !== -1);
     var matched = group.techniques.filter(function(t) {
-      if (!q) return true;
+      if (!q || tacticMatch) return true;
       return t.id.toLowerCase().indexOf(q) !== -1 || (t.name && t.name.toLowerCase().indexOf(q) !== -1);
     });
-    if (matched.length === 0) return;
+    if (matched.length === 0 && !tacticMatch) return;
     anyVisible = true;
-    html += '<div class="adv-mitre-tactic">' + escHtml(group.label) + '</div>';
+    var tacSel = currentMitreTacticFilter === group.tactic ? ' selected' : '';
+    html += '<div class="adv-mitre-tactic clickable' + tacSel + '" onclick="selectMitreDdTactic(\'' + escHtml(group.tactic || '') + '\')" title="Filter by this tactic">' + escHtml(group.label) + '<span class="adv-mitre-tactic-hint">' + matched.length + ' techniques</span></div>';
     matched.forEach(function(t) {
       var sel = currentMitreFilter === t.id ? ' selected' : '';
       html += '<div class="adv-mitre-opt' + sel + '" onclick="selectMitreTech(\'' + escHtml(t.id) + '\')">';
@@ -3142,7 +3154,7 @@ function buildMitreDdList(query) {
       html += '</div>';
     });
   });
-  if (!anyVisible) html += '<div class="adv-mitre-none">No techniques match your search</div>';
+  if (!anyVisible) html += '<div class="adv-mitre-none">No matches found</div>';
   return html;
 }
 
@@ -3168,6 +3180,16 @@ function filterMitreDd(val) {
 function selectMitreTech(id) {
   currentMitreFilter = id;
   currentMitreTacticFilter = '';
+  var dd = document.getElementById('mitre-dd');
+  if (dd) { dd.classList.remove('show'); var btn = dd.previousElementSibling; if (btn) btn.classList.remove('open'); }
+  reRender();
+  buildSidebar();
+  updateCountLabel();
+}
+
+function selectMitreDdTactic(tactic) {
+  currentMitreTacticFilter = tactic;
+  currentMitreFilter = '';
   var dd = document.getElementById('mitre-dd');
   if (dd) { dd.classList.remove('show'); var btn = dd.previousElementSibling; if (btn) btn.classList.remove('open'); }
   reRender();
