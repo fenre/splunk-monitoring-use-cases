@@ -1153,6 +1153,133 @@ index=backup sourcetype="veeam:job" status="Success"
 
 ---
 
+
+### UC-6.3.19 · Windows Backup Job Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Windows Server Backup failures mean the server has no recovery point. Silent failures create a false sense of protection.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Backup` (EventCode 4, 5, 8, 9, 14, 17, 22)
+- **SPL:**
+```spl
+index=wineventlog source="WinEventLog:Microsoft-Windows-Backup"
+  EventCode IN (4, 5, 8, 9, 14)
+| eval status=case(EventCode=4,"Backup completed",EventCode=5,"Backup failed",EventCode=8,"Backup failed (VSS)",EventCode=9,"Warning",EventCode=14,"Backup completed with warnings")
+| table _time, host, status, EventCode, BackupTarget
+| sort -_time
+```
+- **Implementation:** Forward Windows Backup event logs. EventCode 4=success, 5=failure, 8=VSS failure. Alert on any backup failure (EventCode 5, 8). Also monitor for missing backups — if a server stops reporting EventCode 4, the backup job may have been disabled or deleted. Compare actual backup frequency against RTO/RPO requirements. Escalate servers with no successful backup in 48+ hours.
+- **Visualization:** Status grid (host × backup status), Table (failures), Line chart (backup success rate over time), Single value (hours since last backup).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.20 · Backup Target Capacity and Growth Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Backup destination (disk, dedup appliance, object storage) that fills up causes backup failures and retention gaps. Tracking growth and remaining capacity prevents surprise outages.
+- **App/TA:** Backup vendor API, storage array metrics, S3/CloudWatch
+- **Data Sources:** Backup catalog size, target filesystem capacity, object storage metrics
+- **SPL:**
+```spl
+index=backup sourcetype=backup_capacity
+| eval used_pct=round(used_bytes/capacity_bytes*100, 1)
+| stats latest(used_pct) as pct, latest(used_bytes) as used by target_name
+| where pct > 85
+| table target_name pct used capacity_bytes
+```
+- **Implementation:** Poll backup target capacity (vendor API or filesystem/object metrics). Ingest used and total. Alert at 85% (warning) and 95% (critical). Compute week-over-week growth rate for capacity planning.
+- **Visualization:** Gauge per target, Line chart (usage % over time), Table (target, %, growth rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.21 · Restore Job Success and Duration Trending
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Restore failures or abnormally long restores indicate corrupt backups, network issues, or misconfiguration. Tracking ensures recovery procedures are validated and RTO is achievable.
+- **App/TA:** Backup vendor logs, job status API
+- **Data Sources:** Restore job status, duration, bytes restored
+- **SPL:**
+```spl
+index=backup sourcetype=backup_restore job_type=restore
+| bin _time span=1d
+| stats count(eval(status="failed")) as failures, count(eval(status="success")) as success, avg(duration_sec) as avg_duration by job_name, _time
+| eval fail_rate=round(failures/(failures+success)*100, 1)
+| where failures > 0 OR avg_duration > 3600
+```
+- **Implementation:** Ingest restore job completion events. Track success/failure and duration. Alert on any restore failure. Baseline restore duration by job type; alert when duration exceeds 2x baseline. Run periodic test restores and log results.
+- **Visualization:** Table (job, success, failures, avg duration), Line chart (restore duration trend), Single value (last 7d fail rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.22 · Backup Job Overlap and Schedule Conflict Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Overlapping full backups or too many concurrent jobs overload the backup infrastructure and extend backup windows. Detecting overlap supports schedule tuning and resource sizing.
+- **App/TA:** Backup vendor logs or API
+- **Data Sources:** Backup job start/end timestamps, job type (full/incremental)
+- **SPL:**
+```spl
+index=backup sourcetype=backup_job
+| eval start_epoch=_time end_epoch=_time+duration_sec
+| stats values(job_name) as jobs by host, _time
+| where mvcount(jobs) > 3
+| table _time host jobs
+```
+- **Implementation:** Ingest job start and duration. For each time window, count concurrent jobs per host or media server. Alert when more than N full backups run concurrently or when backup window is exceeded.
+- **Visualization:** Timeline (jobs by start/end), Table (overlapping jobs), Single value (max concurrent).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.23 · Immutable Backup and Ransomware Recovery Readiness
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Availability
+- **Value:** Immutable or air-gapped copies are the last line of defense against ransomware. Verifying immutability and recovery procedure readiness ensures backups cannot be deleted or encrypted by an attacker.
+- **App/TA:** Backup vendor API, object lock compliance check
+- **Data Sources:** Backup copy retention lock status, object lock (S3), backup integrity checksum
+- **SPL:**
+```spl
+index=backup sourcetype=backup_immutable
+| stats latest(immutable_ok) as ok, latest(last_checksum_verify) as last_verify by copy_name
+| where ok != 1 OR (now()-last_verify) > 604800
+| table copy_name ok last_verify
+```
+- **Implementation:** Poll backup copy configuration for retention lock or immutable flag. Optionally run periodic checksum or catalog validation. Alert when any critical copy is not immutable or when last verification is older than 7 days. Document and test recovery runbook.
+- **Visualization:** Status grid (copy, immutable, last verify), Table (non-compliant copies), Single value (ready for recovery %).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.3.24 · Tape Library Slot Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Tape library capacity and media expiration tracking prevent backup failures when slots are exhausted or tapes expire. Supports capacity planning and media lifecycle management.
+- **App/TA:** Custom scripted input (tape library SNMP, vendor API)
+- **Data Sources:** Tape library management interface (SNMP/API)
+- **SPL:**
+```spl
+index=backup sourcetype="tape_library:capacity"
+| eval slot_util_pct=round(slots_used/total_slots*100, 1)
+| eval media_expiring_30d=if(media_expiration_days<=30, 1, 0)
+| stats latest(slot_util_pct) as pct_used, latest(slots_used) as used, latest(total_slots) as total, sum(media_expiring_30d) as expiring_soon by library_name
+| where pct_used > 85 OR expiring_soon > 0
+| table library_name, used, total, pct_used, expiring_soon
+```
+- **Implementation:** Poll tape library via SNMP (MIB-II, vendor-specific MIBs for slot counts) or vendor REST/CLI API. Collect total_slots, slots_used, and optionally media expiration dates. Run scripted input every 1–4 hours. Index to Splunk. Alert when slot utilization exceeds 85% or when media expiring within 30 days is detected. Maintain lookup of media barcodes and expiration for lifecycle tracking.
+- **Visualization:** Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
+- **CIM Models:** N/A
+
+---
+
 ### 6.4 File Services
 
 **Primary App/TA:** Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`) for file audit events; NFS syslog; Varonis TA for advanced file analytics.
@@ -1276,111 +1403,6 @@ index=backup sourcetype=backup_audit (event="key_access" OR event="decrypt")
 ```
 - **Implementation:** Forward backup software audit logs and cloud KMS/key vault audit logs. Extract key ID, user, and action. Alert on high volume of decrypt or key access from unexpected principal or outside backup window.
 - **Visualization:** Table (user, key, count), Timeline of key access, Bar chart by principal.
-- **CIM Models:** N/A
-
----
-
-### UC-6.4.7 · Backup Target Capacity and Growth Rate
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Capacity
-- **Value:** Backup destination (disk, dedup appliance, object storage) that fills up causes backup failures and retention gaps. Tracking growth and remaining capacity prevents surprise outages.
-- **App/TA:** Backup vendor API, storage array metrics, S3/CloudWatch
-- **Data Sources:** Backup catalog size, target filesystem capacity, object storage metrics
-- **SPL:**
-```spl
-index=backup sourcetype=backup_capacity
-| eval used_pct=round(used_bytes/capacity_bytes*100, 1)
-| stats latest(used_pct) as pct, latest(used_bytes) as used by target_name
-| where pct > 85
-| table target_name pct used capacity_bytes
-```
-- **Implementation:** Poll backup target capacity (vendor API or filesystem/object metrics). Ingest used and total. Alert at 85% (warning) and 95% (critical). Compute week-over-week growth rate for capacity planning.
-- **Visualization:** Gauge per target, Line chart (usage % over time), Table (target, %, growth rate).
-- **CIM Models:** N/A
-
----
-
-### UC-6.4.8 · Restore Job Success and Duration Trending
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Restore failures or abnormally long restores indicate corrupt backups, network issues, or misconfiguration. Tracking ensures recovery procedures are validated and RTO is achievable.
-- **App/TA:** Backup vendor logs, job status API
-- **Data Sources:** Restore job status, duration, bytes restored
-- **SPL:**
-```spl
-index=backup sourcetype=backup_restore job_type=restore
-| bin _time span=1d
-| stats count(eval(status="failed")) as failures, count(eval(status="success")) as success, avg(duration_sec) as avg_duration by job_name, _time
-| eval fail_rate=round(failures/(failures+success)*100, 1)
-| where failures > 0 OR avg_duration > 3600
-```
-- **Implementation:** Ingest restore job completion events. Track success/failure and duration. Alert on any restore failure. Baseline restore duration by job type; alert when duration exceeds 2x baseline. Run periodic test restores and log results.
-- **Visualization:** Table (job, success, failures, avg duration), Line chart (restore duration trend), Single value (last 7d fail rate).
-- **CIM Models:** N/A
-
----
-
-### UC-6.4.9 · Backup Job Overlap and Schedule Conflict Detection
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
-- **Value:** Overlapping full backups or too many concurrent jobs overload the backup infrastructure and extend backup windows. Detecting overlap supports schedule tuning and resource sizing.
-- **App/TA:** Backup vendor logs or API
-- **Data Sources:** Backup job start/end timestamps, job type (full/incremental)
-- **SPL:**
-```spl
-index=backup sourcetype=backup_job
-| eval start_epoch=_time end_epoch=_time+duration_sec
-| stats values(job_name) as jobs by host, _time
-| where mvcount(jobs) > 3
-| table _time host jobs
-```
-- **Implementation:** Ingest job start and duration. For each time window, count concurrent jobs per host or media server. Alert when more than N full backups run concurrently or when backup window is exceeded.
-- **Visualization:** Timeline (jobs by start/end), Table (overlapping jobs), Single value (max concurrent).
-- **CIM Models:** N/A
-
----
-
-### UC-6.4.10 · Immutable Backup and Ransomware Recovery Readiness
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Security, Availability
-- **Value:** Immutable or air-gapped copies are the last line of defense against ransomware. Verifying immutability and recovery procedure readiness ensures backups cannot be deleted or encrypted by an attacker.
-- **App/TA:** Backup vendor API, object lock compliance check
-- **Data Sources:** Backup copy retention lock status, object lock (S3), backup integrity checksum
-- **SPL:**
-```spl
-index=backup sourcetype=backup_immutable
-| stats latest(immutable_ok) as ok, latest(last_checksum_verify) as last_verify by copy_name
-| where ok != 1 OR (now()-last_verify) > 604800
-| table copy_name ok last_verify
-```
-- **Implementation:** Poll backup copy configuration for retention lock or immutable flag. Optionally run periodic checksum or catalog validation. Alert when any critical copy is not immutable or when last verification is older than 7 days. Document and test recovery runbook.
-- **Visualization:** Status grid (copy, immutable, last verify), Table (non-compliant copies), Single value (ready for recovery %).
-- **CIM Models:** N/A
-
----
-
-### UC-6.4.11 · Tape Library Slot Utilization
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Capacity
-- **Value:** Tape library capacity and media expiration tracking prevent backup failures when slots are exhausted or tapes expire. Supports capacity planning and media lifecycle management.
-- **App/TA:** Custom scripted input (tape library SNMP, vendor API)
-- **Data Sources:** Tape library management interface (SNMP/API)
-- **SPL:**
-```spl
-index=backup sourcetype="tape_library:capacity"
-| eval slot_util_pct=round(slots_used/total_slots*100, 1)
-| eval media_expiring_30d=if(media_expiration_days<=30, 1, 0)
-| stats latest(slot_util_pct) as pct_used, latest(slots_used) as used, latest(total_slots) as total, sum(media_expiring_30d) as expiring_soon by library_name
-| where pct_used > 85 OR expiring_soon > 0
-| table library_name, used, total, pct_used, expiring_soon
-```
-- **Implementation:** Poll tape library via SNMP (MIB-II, vendor-specific MIBs for slot counts) or vendor REST/CLI API. Collect total_slots, slots_used, and optionally media expiration dates. Run scripted input every 1–4 hours. Index to Splunk. Alert when slot utilization exceeds 85% or when media expiring within 30 days is detected. Maintain lookup of media barcodes and expiration for lifecycle tracking.
-- **Visualization:** Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
 - **CIM Models:** N/A
 
 ---

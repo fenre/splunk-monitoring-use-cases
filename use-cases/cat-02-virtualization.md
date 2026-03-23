@@ -1380,6 +1380,35 @@ index=hyperv sourcetype="hyperv_metering"
 
 ---
 
+
+### UC-2.2.15 · Hyper-V VM State Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unexpected VM power state changes (shutdowns, paused, critical saves) indicate host issues, resource contention, or unauthorized administrative actions.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` (EventCode 12320, 12322, 12324, 18304)
+- **SPL:**
+```spl
+index=wineventlog source="WinEventLog:Microsoft-Windows-Hyper-V-VMMS*"
+  EventCode IN (12320, 12322, 12324, 18304, 18310, 18312)
+| eval action=case(EventCode=12320,"VM started",EventCode=12322,"VM stopped",EventCode=12324,"VM saved",EventCode=18304,"VM critical",EventCode=18310,"VM paused",EventCode=18312,"VM resumed")
+| table _time, host, action, VmName, VmId
+| sort -_time
+```
+- **Implementation:** Forward Hyper-V VMMS Admin logs from all Hyper-V hosts. EventCode 18304=VM entered critical state (memory pressure, lost storage), 18310=VM paused (out of disk, integration services failure). Alert on any critical state transitions. Track unexpected shutdowns (12322 without preceding 12320 by admin). Correlate with host-level resource monitoring to identify the root cause.
+- **Visualization:** Timeline (VM state changes), Status grid (VM × state), Table (critical events), Single value (VMs in critical state).
+- **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+| sort -count
+```
+
+---
+
 ## 2.3 KVM / Proxmox / oVirt
 
 **Primary App/TA:** Custom inputs via libvirt API, syslog

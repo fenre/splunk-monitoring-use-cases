@@ -584,6 +584,50 @@ index=nac (sourcetype="nac:quarantine" OR sourcetype="cisco:ise:admin")
 
 ---
 
+
+### UC-17.1.21 · ISE Endpoint Posture Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Non-compliant endpoints (missing patches, disabled AV) on the network increase attack surface. ISE posture data enables enforcement visibility.
+- **App/TA:** `Splunk_TA_cisco-ise`
+- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Data Sources:** `sourcetype=cisco:ise:syslog`
+- **SPL:**
+```spl
+index=network sourcetype="cisco:ise:syslog" "Posture"
+| rex "PostureStatus=(?<posture_status>\w+).*?EndpointMacAddress=(?<mac>\S+)"
+| stats count by posture_status, mac
+| where posture_status="NonCompliant"
+| sort -count
+```
+- **Implementation:** Forward ISE posture assessment logs to Splunk. Track compliant vs. non-compliant endpoints. Alert when non-compliance rate exceeds 10%. Drill down by failure reason.
+- **Visualization:** Pie chart (compliant vs non-compliant), Table (non-compliant endpoints), Timechart (compliance trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.1.22 · NAC Quarantine and Remediation Duration
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Long quarantine or remediation times affect user productivity. Monitoring duration supports process improvement and exception handling.
+- **App/TA:** NAC platform logs
+- **Data Sources:** Quarantine start/end, remediation outcome
+- **SPL:**
+```spl
+index=nac sourcetype="nac:quarantine"
+| eval duration_min=(released_time - quarantine_time)/60
+| stats avg(duration_min) as avg_mins, count by posture_violation, remediation_result
+| where avg_mins > 60
+| table posture_violation, remediation_result, count, avg_mins
+```
+- **Implementation:** Ingest NAC quarantine and release events. Compute time in quarantine and remediation success. Alert when average duration exceeds threshold. Report on violation types and remediation rate.
+- **Visualization:** Table (quarantine duration by violation), Bar chart (avg duration), Pie chart (remediation outcome).
+- **CIM Models:** N/A
+
+---
+
 ### 17.2 VPN & Remote Access
 
 **Primary App/TA:** Cisco ASA/AnyConnect TA, Palo Alto GlobalProtect TA, vendor syslog.
@@ -1195,6 +1239,28 @@ index=vpn sourcetype="vpn:session" earliest=-7d
 
 ---
 
+
+### UC-17.2.23 · VPN Session Duration and Idle Timeout
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Anomalously long or short VPN sessions may indicate abuse or connectivity issues. Monitoring supports policy tuning and security review.
+- **App/TA:** VPN gateway logs, RADIUS accounting
+- **Data Sources:** Session start/end, duration, idle time
+- **SPL:**
+```spl
+index=vpn sourcetype="vpn:session"
+| eval duration_hrs=(end_time - start_time)/3600
+| stats avg(duration_hrs) as avg_hrs, max(duration_hrs) as max_hrs, count by user
+| where max_hrs > 24 OR avg_hrs > 12
+| table user, count, avg_hrs, max_hrs
+```
+- **Implementation:** Ingest VPN session and accounting data. Compute session duration and idle time. Alert on sessions exceeding policy (e.g., >24h) or user with unusually long average. Report on session distribution.
+- **Visualization:** Table (long sessions), Bar chart (avg duration by user), Line chart (session count trend).
+- **CIM Models:** N/A
+
+---
+
 ### 17.3 Zero Trust / SASE
 
 **Primary App/TA:** Zscaler TA, Netskope TA, Palo Alto Prisma Access TA.
@@ -1402,48 +1468,6 @@ index=zt sourcetype="zt:access"
 ```
 - **Implementation:** Ingest access decision logs. Baseline denial rate by user and app. Alert on spike in denials or new deny reason. Report on top denied users and apps for policy review.
 - **Visualization:** Line chart (denials over time), Table (denials by user/app), Bar chart (deny reasons).
-- **CIM Models:** N/A
-
----
-
-### UC-17.3.9 · NAC Quarantine and Remediation Duration
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Long quarantine or remediation times affect user productivity. Monitoring duration supports process improvement and exception handling.
-- **App/TA:** NAC platform logs
-- **Data Sources:** Quarantine start/end, remediation outcome
-- **SPL:**
-```spl
-index=nac sourcetype="nac:quarantine"
-| eval duration_min=(released_time - quarantine_time)/60
-| stats avg(duration_min) as avg_mins, count by posture_violation, remediation_result
-| where avg_mins > 60
-| table posture_violation, remediation_result, count, avg_mins
-```
-- **Implementation:** Ingest NAC quarantine and release events. Compute time in quarantine and remediation success. Alert when average duration exceeds threshold. Report on violation types and remediation rate.
-- **Visualization:** Table (quarantine duration by violation), Bar chart (avg duration), Pie chart (remediation outcome).
-- **CIM Models:** N/A
-
----
-
-### UC-17.3.10 · VPN Session Duration and Idle Timeout
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Anomalously long or short VPN sessions may indicate abuse or connectivity issues. Monitoring supports policy tuning and security review.
-- **App/TA:** VPN gateway logs, RADIUS accounting
-- **Data Sources:** Session start/end, duration, idle time
-- **SPL:**
-```spl
-index=vpn sourcetype="vpn:session"
-| eval duration_hrs=(end_time - start_time)/3600
-| stats avg(duration_hrs) as avg_hrs, max(duration_hrs) as max_hrs, count by user
-| where max_hrs > 24 OR avg_hrs > 12
-| table user, count, avg_hrs, max_hrs
-```
-- **Implementation:** Ingest VPN session and accounting data. Compute session duration and idle time. Alert on sessions exceeding policy (e.g., >24h) or user with unusually long average. Report on session distribution.
-- **Visualization:** Table (long sessions), Bar chart (avg duration by user), Line chart (session count trend).
 - **CIM Models:** N/A
 
 ---

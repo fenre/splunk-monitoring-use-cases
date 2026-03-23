@@ -403,6 +403,54 @@ index=web (sourcetype="nginx:stub_status" OR sourcetype="apache:server_status" O
 
 ---
 
+
+### UC-8.1.17 · IIS Web Server Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** IIS access logs provide visibility into web application health — error rates, response times, and request volumes. Critical for web-facing services.
+- **App/TA:** `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS
+- **Data Sources:** `sourcetype=ms:iis:auto` or `sourcetype=iis`
+- **SPL:**
+```spl
+index=web sourcetype="ms:iis:auto"
+| timechart span=5m count by sc_status
+| eval error_rate = round((sc_status_500 + sc_status_502 + sc_status_503) / (sc_status_200 + sc_status_500 + sc_status_502 + sc_status_503) * 100, 2)
+```
+- **Implementation:** Configure IIS to use W3C Extended Log Format with time-taken field. Forward IIS logs from `%SystemDrive%\inetpub\logs\LogFiles`. Use the Microsoft IIS TA for field extraction. Create alerts on 5xx error rate >5%.
+- **Visualization:** Line chart (requests by status code), Single value (error rate %), Table of top error URIs.
+- **CIM Models:** N/A
+
+---
+
+### UC-8.1.18 · IIS Application Pool Crashes & Recycling
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Application pool crashes cause HTTP 503 errors and service outages. Frequent recycling indicates memory leaks or configuration issues in web applications.
+- **App/TA:** `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS
+- **Data Sources:** `sourcetype=WinEventLog:System` (Source=WAS, EventCode 5002, 5010, 5011, 5012, 5013)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:System" Source="WAS"
+  EventCode IN (5002, 5010, 5011, 5012, 5013)
+| eval event=case(EventCode=5002,"AppPool crashed",EventCode=5010,"Process termination timeout",EventCode=5011,"AppPool auto-disabled",EventCode=5012,"AppPool rapid failures",EventCode=5013,"AppPool timeout")
+| table _time, host, event, AppPoolName
+| sort -_time
+```
+- **Implementation:** WAS (Windows Activation Service) events log automatically on IIS servers. EventCode 5002=worker process crashed, 5011=pool auto-disabled due to rapid failures (5 in 5 minutes default), 5012=rapid failure protection triggered. Alert on any 5011 event (pool disabled = site down). Track recycling frequency per pool. Correlate with WER EventCode 1000 for crash details including the faulting module.
+- **Visualization:** Table (app pool events), Timechart (recycling frequency), Status grid (pool × health), Single value (disabled pools — target: 0).
+- **CIM Models:** Endpoint
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Endpoint.Services
+  by Services.dest Services.name Services.status span=5m
+| search Services.status!="running"
+```
+
+---
+
 ### 8.2 Application Servers & Runtimes
 
 **Primary App/TA:** Splunk Add-on for JMX (`TA-jmx`), OpenTelemetry Collector (`Splunk_TA_otel`), custom log inputs for application frameworks.
@@ -843,6 +891,30 @@ index=perfmon sourcetype="Perfmon:CLR_Exceptions"
 
 ---
 
+
+### UC-8.2.23 · Jira Data Center Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** JMX metrics, request duration, and attachment storage indicate Jira health. Slow requests frustrate users; disk usage growth risks outages. Enables capacity planning and performance tuning.
+- **App/TA:** Custom JMX input (Jolokia), Jira REST API
+- **Data Sources:** Jira JMX MBeans (heap, threads, request duration), /rest/api/2/serverInfo, Jira access logs
+- **SPL:**
+```spl
+index=jira sourcetype="jira:jmx"
+| eval heap_used_pct=if(HeapMemoryMax>0, round(HeapMemoryUsed/HeapMemoryMax*100, 1), null())
+| where heap_used_pct > 85 OR ThreadCount > 500 OR RequestDurationP95 > 3000
+| bin _time span=5m
+| stats latest(HeapMemoryUsed) as heap_used, latest(HeapMemoryMax) as heap_max, latest(heap_used_pct) as heap_pct, latest(ThreadCount) as threads, latest(RequestDurationP95) as p95_ms by _time, host
+| where heap_pct > 85 OR threads > 500 OR p95_ms > 3000
+| table _time, host, heap_used, heap_max, heap_pct, threads, p95_ms
+```
+- **Implementation:** Deploy Jolokia agent on Jira application nodes and configure Splunk to poll JMX MBeans (java.lang:type=Memory, java.lang:type=Threading, com.atlassian.jira:type=RequestMetrics). Poll every 60 seconds. Ingest Jira access logs for request duration percentiles. Optionally poll /rest/api/2/serverInfo for version and build. Alert on heap >85%, thread count >500, or P95 request duration >3 seconds. Track attachment storage via JMX or filesystem metrics. Correlate with database and disk I/O.
+- **Visualization:** Line chart (heap usage, thread count, P95 latency), Gauge (heap %), Table (performance metrics by node), Bar chart (request duration by endpoint).
+- **CIM Models:** N/A
+
+---
+
 ### 8.3 Message Queues & Event Streaming
 
 **Primary App/TA:** Splunk Connect for Kafka (Splunkbase 3862), JMX, RabbitMQ management API (scripted input), custom REST inputs.
@@ -1241,6 +1313,33 @@ index=messaging sourcetype="nats:jetstream"
 - **Implementation:** Scrape `/jsz` or Prometheus metrics. Alert on rising ack_pending. Correlate with consumer pod restarts.
 - **Visualization:** Line chart (ack pending), Table (stream, consumer, lag), Single value (max redelivered).
 - **CIM Models:** N/A
+
+---
+
+
+### UC-8.3.21 · MSMQ Queue Depth Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Message queue buildup indicates application processing failures. Monitoring queue depth prevents message loss and detects downstream system outages.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** `sourcetype=Perfmon:MSMQ`
+- **SPL:**
+```spl
+index=perfmon source="Perfmon:MSMQ Service" counter="Total Messages in all Queues"
+| timechart span=5m avg(Value) as AvgQueueDepth by host
+| foreach * [eval <<FIELD>>=round('<<FIELD>>', 0)]
+```
+- **Implementation:** Configure Perfmon input for MSMQ Service counters: Total Messages in all Queues, Total Bytes in all Queues, Sessions. Also monitor individual queue counters via `MSMQ Queue` object. Alert when queue depth exceeds baseline (messages accumulating). Monitor journal queue size for message delivery confirmations. Track dead-letter queue growth for undeliverable messages.
+- **Visualization:** Timechart (queue depth trend), Single value (current depth), Alert on queue growth exceeding threshold.
+- **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=1h
+| where avg_cpu > 90
+```
 
 ---
 
@@ -1886,156 +1985,6 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 
 ---
 
-### UC-8.6.3 · SMTP Service Availability
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Distinct from mail queue depth monitoring — this checks whether the SMTP daemon is accepting TCP connections and responding to EHLO. A crashed postfix or sendmail process stops inbound/outbound mail entirely without generating queue entries. Nagios `check_smtp` verifies this at the connection layer; Splunk replicates it via daemon-level log monitoring.
-- **App/TA:** `Splunk_TA_syslog`, `Splunk_TA_postfix` (community)
-- **Data Sources:** `sourcetype=syslog` (postfix, sendmail, exim logs), `sourcetype=postfix:syslog`
-- **SPL:**
-```spl
-index=mail (sourcetype=syslog process=postfix* OR sourcetype="postfix:syslog")
-| bucket _time span=5m
-| stats count as smtp_events by host, _time
-| streamstats window=3 min(smtp_events) as min_events by host
-| where min_events=0
-| eval status="SMTP_DOWN"
-| table _time, host, status
-```
-- **Implementation:** Ingest Postfix/Sendmail syslog output via Universal Forwarder. Under normal operation, an active MTA generates constant log activity (queue manager, cleanup, smtp/smtpd). Absence of events for 5–10 minutes on an expected mail host indicates SMTP process death or service failure. Alert after 2 consecutive empty windows. Complement with a scripted input: `echo QUIT | nc -w5 host 25` — log exit code as synthetic probe result. Monitor separately for TLS handshake failures (port 587/465) as distinct service checks.
-- **Visualization:** Single value (SMTP hosts down), Timeline (downtime events), Line chart (event rate per mail host), Table (host, MTA type, last event timestamp).
-- **CIM Models:** N/A
-
----
-
-### UC-8.6.4 · POP3 / IMAP Mail Retrieval Service Availability
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** POP3 and IMAP services allow mail clients to retrieve messages. Even when delivery works correctly, a crashed Dovecot or Cyrus daemon prevents users from reading email, appearing as a total mail outage. Nagios `check_pop` and `check_imap` monitor these ports directly; Splunk replicates availability detection through daemon log analysis.
-- **App/TA:** `Splunk_TA_syslog`
-- **Data Sources:** `sourcetype=syslog` (dovecot, cyrus-imapd logs), Dovecot authentication log
-- **SPL:**
-```spl
-index=mail sourcetype=syslog (process=dovecot OR process=imap OR process=pop3)
-| bucket _time span=5m
-| stats count as imap_events by host, _time
-| where isnull(imap_events) OR imap_events=0
-| eval status="IMAP_POP3_DOWN"
-| table _time, host, status
-```
-- **Implementation:** Forward Dovecot or Cyrus IMAP logs via Universal Forwarder. Dovecot logs login events, failed auth, and daemon lifecycle events continuously during normal operation. Zero events for >10 minutes on a mail host indicates a process crash or service failure. Alert after 2 consecutive empty windows. Cross-correlate with auth failures (could indicate process restart loops). For comprehensive coverage, deploy a scripted TCP probe on ports 143 (IMAP), 993 (IMAPS), 110 (POP3), 995 (POP3S).
-- **Visualization:** Table (host, protocol, port, status), Timeline (downtime events), Single value (services down count), Line chart (login event rate as proxy for service health).
-- **CIM Models:** N/A
-
----
-
-### UC-8.6.5 · Mail Queue Depth and Deferred Message Backlog
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Growing mail queue (deferred, hold) indicates delivery failures, recipient issues, or abuse. Detecting backlog early prevents bounce storms and blacklisting.
-- **App/TA:** `Splunk_TA_syslog`, custom scripted input (mailq, postqueue)
-- **Data Sources:** Postfix `mailq`, Sendmail queue, Exchange queue length
-- **SPL:**
-```spl
-index=mail sourcetype=mail_queue host=*
-| stats latest(queue_depth) as depth, latest(deferred_count) as deferred, latest(_time) as last_seen by host
-| where depth > 100 OR deferred > 50
-| table host depth deferred last_seen
-```
-- **Implementation:** Run `mailq` or equivalent every 5 minutes. Parse queue depth and deferred count. Alert when queue exceeds 100 or deferred exceeds 50. Correlate with rejection logs and recipient domains.
-- **Visualization:** Line chart (queue depth over time), Table (host, queue, deferred), Single value (max queue).
-- **CIM Models:** N/A
-
----
-
-### UC-8.6.6 · SMTP Authentication and Relay Policy Violations
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Security
-- **Value:** Failed SMTP auth or unauthorized relay attempts may indicate credential stuffing or abuse. Monitoring supports security and ensures relay policy is enforced.
-- **App/TA:** `Splunk_TA_syslog`, mail server logs
-- **Data Sources:** Postfix maillog, Sendmail logs, Exchange SMTP receive connector logs
-- **SPL:**
-```spl
-index=mail sourcetype=syslog (process=postfix OR process=sendmail) ("authentication failed" OR "relay denied" OR "reject")
-| rex "user=(?<sasl_user>\S+)"
-| stats count by src, sasl_user, action
-| where count > 10
-| sort -count
-```
-- **Implementation:** Forward mail server logs. Extract auth and relay outcomes. Alert on high volume of auth failures from single IP or relay denied for internal IPs (possible misconfiguration).
-- **Visualization:** Table (IP, user, action, count), Timechart of failures, Map (GeoIP).
-- **CIM Models:** Authentication
-
----
-
-### UC-8.6.7 · Mail Delivery Rate and Bounce Rate by Domain
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Sudden drop in delivery rate or spike in bounces for a domain indicates reputation or configuration issues. Trending supports deliverability and capacity planning.
-- **App/TA:** Mail server logs, bounce logs
-- **Data Sources:** Postfix/Sendmail delivery status, bounce messages, Exchange tracking logs
-- **SPL:**
-```spl
-index=mail sourcetype=mail_delivery
-| stats count(eval(status="delivered")) as delivered, count(eval(status="bounce")) as bounces by domain, _time span=1h
-| eval bounce_rate=round(bounces/(delivered+bounces)*100, 2)
-| where bounce_rate > 5 OR delivered < 10
-| table domain delivered bounces bounce_rate
-```
-- **Implementation:** Parse delivery and bounce events by recipient domain. Compute hourly delivery and bounce rate. Alert when bounce rate exceeds 5% or delivery volume drops significantly for critical domains.
-- **Visualization:** Line chart (delivery and bounce rate by domain), Table (domain, delivered, bounces, %), Bar chart (bounce rate by domain).
-- **CIM Models:** N/A
-
----
-
-### UC-8.6.8 · Outbound Mail Volume and Recipient Anomaly
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Unusual outbound volume or new bulk recipients may indicate compromised account or phishing campaign. Baseline and anomaly detection support incident response.
-- **App/TA:** Mail server logs
-- **Data Sources:** Postfix/Sendmail/Exchange outbound logs
-- **SPL:**
-```spl
-index=mail sourcetype=mail_send
-| stats dc(recipient) as recipients, count as msg_count by sender, _time span=1h
-| eventstats avg(msg_count) as avg_count, stdev(msg_count) as std_count by sender
-| eval z_score=if(std_count>0, (msg_count-avg_count)/std_count, 0)
-| where z_score > 3 OR recipients > 100
-| table _time sender msg_count recipients z_score
-```
-- **Implementation:** Ingest outbound send events. Baseline message count and unique recipients per sender (hourly). Alert when volume or recipient count exceeds 3 standard deviations or recipient count >100 in one hour.
-- **Visualization:** Table (sender, count, recipients, z-score), Line chart (volume by sender), Bar chart (top senders).
-- **CIM Models:** N/A
-
----
-
-### UC-8.6.9 · Mail Server TLS and Certificate Expiration
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability, Security
-- **Value:** Expired or expiring TLS certificates on SMTP/IMAP/POP break encryption and can cause delivery failures. Proactive monitoring prevents outages.
-- **App/TA:** Custom scripted input (openssl s_client)
-- **Data Sources:** TLS handshake to mail server ports (25, 465, 587, 993, 995)
-- **SPL:**
-```spl
-index=mail sourcetype=mail_tls host=*
-| eval days_left=round((expiry_epoch-now())/86400, 0)
-| where days_left < 30
-| table host port days_left subject
-| sort days_left
-```
-- **Implementation:** Script that connects to mail server ports and extracts certificate expiry (e.g. `openssl s_client -connect host:25 -starttls smtp`). Ingest daily. Alert when expiry is within 30 days.
-- **Visualization:** Table (host, port, days left), Single value (soonest expiry), Gauge (days remaining).
-- **CIM Models:** N/A
-
----
-
 ### UC-8.6.10 · Envoy Proxy Upstream Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -2137,26 +2086,6 @@ index=asterisk sourcetype="asterisk:cdr"
 
 ---
 
-### UC-8.6.15 · SMTP Relay Monitoring
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Security, Availability
-- **Value:** Tracks messages relayed through internal SMTP gateways vs policy — unexpected relay volume or open relay abuse paths.
-- **App/TA:** `Splunk_TA_syslog`, Postfix/Exchange logs
-- **Data Sources:** `postfix:syslog` `relay=`, `status=sent`, `reject` relay attempts
-- **SPL:**
-```spl
-index=mail sourcetype="postfix:syslog" OR sourcetype=syslog process=postfix
-| search relay=* OR "relay access denied"
-| stats count by relay_domain, action, src
-| where count > 500
-```
-- **Implementation:** Parse relay lines for authorized vs denied. Alert on high relay denied from single IP (scanning) or high accepted relay to external domains (misconfiguration).
-- **Visualization:** Table (relay domain, count), Line chart (relay attempts), Single value (relay denied rate).
-- **CIM Models:** N/A
-
----
-
 ### UC-8.6.16 · NTP Stratum Drift
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -2239,242 +2168,3 @@ index=network sourcetype="snmp:audit" OR (sourcetype=syslog process=snmpd)
 
 ---
 
-### 8.7 Cisco ThousandEyes — Synthetic Web & Application Testing
-
-**Primary App/TA:** Cisco ThousandEyes App for Splunk (Splunkbase 7719) — Cisco Supported
-
----
-
-### UC-8.7.1 · HTTP Server Availability Monitoring (ThousandEyes)
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Monitors web server availability from multiple global vantage points using ThousandEyes Cloud and Enterprise Agents. Detects regional outages that internal monitoring misses because the problem is between the user and the server.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="http-server"
-| stats avg(http.server.request.availability) as avg_availability by thousandeyes.test.name, server.address, thousandeyes.source.agent.name
-| where avg_availability < 100
-| sort avg_availability
-```
-- **Implementation:** Create HTTP Server tests in ThousandEyes targeting critical web applications and stream metrics to Splunk via the Tests Stream input. The OTel metric `http.server.request.availability` reports 100% when the HTTP request succeeds and 0% when any error occurs. The Splunk App Application dashboard includes an "HTTP Server Availability (%)" panel with permalink drilldown.
-- **Visualization:** Line chart (availability % over time), Single value (current availability), Table (test, server, agent, availability).
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.2 · HTTP Server Response Time Tracking (ThousandEyes)
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Tracks Time to First Byte (TTFB) from ThousandEyes agents to web servers. Rising response times indicate backend degradation, infrastructure bottlenecks, or increased load — often visible from external vantage points before internal monitoring catches it.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="http-server"
-| timechart span=5m avg(http.client.request.duration) as avg_ttfb_s by thousandeyes.test.name
-| eval avg_ttfb_ms=round(avg_ttfb_s*1000,1)
-```
-- **Implementation:** The OTel metric `http.client.request.duration` reports TTFB in seconds. The Splunk App Application dashboard includes an "HTTP Server Request Duration (s)" line chart. Alert when TTFB exceeds your SLA threshold (e.g., 2 seconds). Correlate with `http.response.status_code` to distinguish slow responses from errors.
-- **Visualization:** Line chart (TTFB over time by test), Single value (avg TTFB), Table with drilldown to ThousandEyes.
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.3 · HTTP Server Throughput Analysis (ThousandEyes)
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Measures download throughput from ThousandEyes agents to web servers, revealing bandwidth constraints or content delivery issues from the user perspective.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="http-server"
-| stats avg(http.server.throughput) as avg_throughput by thousandeyes.test.name, thousandeyes.source.agent.name
-| eval throughput_mbps=round(avg_throughput/1048576,2)
-| sort -throughput_mbps
-```
-- **Implementation:** The OTel metric `http.server.throughput` reports bytes per second. The Splunk App Application dashboard includes an "HTTP Server Throughput (MB/s)" line chart. Low throughput combined with high latency typically indicates a network bottleneck; low throughput with low latency suggests a server-side rate limit.
-- **Visualization:** Line chart (throughput MB/s over time), Table (test, agent, throughput), Column chart by agent.
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.4 · Page Load Completion Rate (ThousandEyes)
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Measures whether web pages fully load from the user's perspective. Incomplete page loads indicate broken resources, blocked CDN content, or JavaScript errors that prevent users from completing tasks.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Page Load tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="page-load"
-| stats avg(web.page_load.completion) as avg_completion by thousandeyes.test.name, server.address
-| where avg_completion < 100
-| sort avg_completion
-```
-- **Implementation:** Create Page Load tests in ThousandEyes targeting critical web applications. The OTel metric `web.page_load.completion` reports 100% when the page loads successfully and 0% on error. Page Load tests automatically include underlying Agent-to-Server network tests, providing correlated network and application data.
-- **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, server, completion).
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.5 · Page Load Duration Trending (ThousandEyes)
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Tracks total page load time including all resources (HTML, CSS, JS, images). Trending reveals gradual degradation from growing page weight, slow third-party resources, or backend issues.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Page Load tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="page-load"
-| timechart span=5m avg(web.page_load.duration) as avg_load_s by thousandeyes.test.name
-```
-- **Implementation:** The OTel metric `web.page_load.duration` reports total page load time in seconds. The Splunk App Application dashboard includes a "Page Load Duration (s)" line chart with permalink drilldown to ThousandEyes waterfall views. Alert when load duration exceeds your performance budget.
-- **Visualization:** Line chart (load time over time), Single value (avg load time), Table with permalink drilldown.
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.6 · API Endpoint Completion Rate (ThousandEyes)
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Monitors multi-step API test completion, ensuring that entire API workflows (authentication, data retrieval, processing) succeed end-to-end from external vantage points.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (API tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="api"
-| stats avg(api.completion) as avg_completion by thousandeyes.test.name
-| where avg_completion < 100
-| sort avg_completion
-```
-- **Implementation:** Create API tests in ThousandEyes with multi-step sequences testing your critical API workflows. The OTel metric `api.completion` reports overall completion percentage. Per-step metrics (`api.step.completion`, `api.step.duration`) are also available with the `thousandeyes.test.step` attribute. The Splunk App Application dashboard includes an "API Completion (%)" panel.
-- **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, completion).
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.7 · API Response Time Monitoring (ThousandEyes)
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Tracks total API test execution duration including all steps, revealing when API performance degrades from the consumer's perspective.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (API tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="api"
-| timechart span=5m avg(api.duration) as avg_api_duration_s by thousandeyes.test.name
-```
-- **Implementation:** The OTel metric `api.duration` reports total API test execution time in seconds. For per-step analysis, use `api.step.duration` filtered by `thousandeyes.test.step`. The Splunk App Application dashboard includes an "API Request Duration (s)" line chart with permalink drilldown.
-- **Visualization:** Line chart (API duration over time), Table (test, duration), Column chart (duration by step).
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.8 · Transaction Test Completion Rate (ThousandEyes)
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Transaction tests execute scripted multi-step user workflows (login, navigate, submit form, verify result). Completion rate below 100% means users cannot complete critical business processes.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Transaction tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="web-transactions"
-| stats avg(web.transaction.completion) as avg_completion sum(web.transaction.errors.count) as total_errors by thousandeyes.test.name
-| where avg_completion < 100 OR total_errors > 0
-| sort avg_completion
-```
-- **Implementation:** Create Transaction tests in ThousandEyes using Selenium-based scripted workflows that simulate real user journeys. The OTel metric `web.transaction.completion` reports 100% on success and 0% on error. `web.transaction.errors.count` returns 1 when an error occurs and 0 otherwise. The Splunk App Application dashboard includes a "Transaction Completion (%)" panel.
-- **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, completion, errors).
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.9 · Transaction Duration Analysis (ThousandEyes)
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Measures end-to-end time for complex user workflows. Slow transactions directly impact user productivity and satisfaction. Trending reveals gradual degradation across the multi-step flow.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (Transaction tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="web-transactions"
-| timechart span=5m avg(web.transaction.duration) as avg_transaction_s by thousandeyes.test.name
-```
-- **Implementation:** The OTel metric `web.transaction.duration` reports total transaction execution time in seconds (only reported when the transaction completes without errors). The Splunk App Application dashboard includes a "Transaction Duration (s)" line chart with permalink drilldown to ThousandEyes. ThousandEyes also supports OpenTelemetry traces for transaction tests, providing detailed span-level timing.
-- **Visualization:** Line chart (transaction duration over time), Table (test, agent, duration), Drilldown to ThousandEyes trace view.
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.10 · SaaS Application Response Time Comparison (ThousandEyes)
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Compares availability and response time across business-critical SaaS applications (Microsoft 365, Salesforce, ServiceNow, etc.) from multiple office locations, enabling data-driven SaaS vendor performance management.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server / Page Load tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="http-server" OR thousandeyes.test.type="page-load"
-| search thousandeyes.test.name="*M365*" OR thousandeyes.test.name="*Salesforce*" OR thousandeyes.test.name="*ServiceNow*"
-| stats avg(http.server.request.availability) as avg_avail avg(http.client.request.duration) as avg_ttfb_s by thousandeyes.test.name, thousandeyes.source.agent.location
-| eval avg_ttfb_ms=round(avg_ttfb_s*1000,1)
-| sort thousandeyes.test.name, avg_ttfb_ms
-```
-- **Implementation:** Create HTTP Server or Page Load tests in ThousandEyes for each SaaS application, running from Enterprise Agents at each office and Cloud Agents in relevant regions. Name tests consistently (e.g., "M365 - Exchange Online", "Salesforce - Login Page"). ThousandEyes provides best-practice monitoring guides for Microsoft 365, Salesforce, and other major SaaS platforms.
-- **Visualization:** Column chart (TTFB by SaaS app per location), Table (app, location, availability, TTFB), Comparison dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.11 · Multi-Region SaaS Availability (ThousandEyes)
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Monitors SaaS application reachability from multiple geographic regions using ThousandEyes Cloud Agents, identifying regional availability issues that affect specific user populations.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (HTTP Server tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="http-server"
-| stats avg(http.server.request.availability) as avg_availability by thousandeyes.test.name, thousandeyes.source.agent.geo.country.iso_code, thousandeyes.source.agent.location
-| where avg_availability < 100
-| sort avg_availability
-```
-- **Implementation:** Deploy the same HTTP Server tests across ThousandEyes Cloud Agents in Americas, EMEA, and APAC regions. Use `thousandeyes.source.agent.geo.country.iso_code` and `thousandeyes.source.agent.location` attributes to group results by region. A service that is available from US agents but not from EU agents indicates a regional issue.
-- **Visualization:** Map (availability by agent location), Table (region, app, availability), Column chart (availability by region).
-- **CIM Models:** N/A
-
----
-
-### UC-8.7.12 · FTP Server Availability and Throughput (ThousandEyes)
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability, Performance
-- **Value:** Monitors FTP/SFTP server availability and file transfer throughput from ThousandEyes agents, ensuring file transfer services are accessible and performing adequately for automated data exchange workflows.
-- **App/TA:** `Cisco ThousandEyes App for Splunk` (Splunkbase 7719)
-- **Data Sources:** `index=thousandeyes`, ThousandEyes OTel Tests Stream — Metrics (FTP Server tests)
-- **SPL:**
-```spl
-`stream_index` thousandeyes.test.type="ftp-server"
-| stats avg(ftp.server.request.availability) as avg_availability avg(ftp.client.request.duration) as avg_response_s avg(ftp.server.throughput) as avg_throughput by thousandeyes.test.name, server.address
-| eval avg_response_ms=round(avg_response_s*1000,1), throughput_mbps=round(avg_throughput/1048576,2)
-| sort avg_availability, -throughput_mbps
-```
-- **Implementation:** Create FTP Server tests in ThousandEyes for critical file transfer endpoints. The OTel metric `ftp.server.request.availability` reports availability, `ftp.client.request.duration` reports TTFB, and `ftp.server.throughput` reports bytes per second. The `ftp.request.command` attribute indicates the FTP command tested (GET, PUT, LS). The Splunk App Voice dashboard includes FTP panels.
-- **Visualization:** Line chart (availability and throughput over time), Table (server, availability, throughput, response time), Single value.
-- **CIM Models:** N/A
-
----

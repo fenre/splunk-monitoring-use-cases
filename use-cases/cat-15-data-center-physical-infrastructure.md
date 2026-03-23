@@ -424,6 +424,87 @@ index=power sourcetype="panel:phase" panel_type="main"
 
 ---
 
+
+### UC-15.1.22 · UPS Battery Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** UPS battery failure during power loss causes complete outage. Proactive monitoring prevents unprotected power events.
+- **App/TA:** SNMP TA (UPS-MIB)
+- **Data Sources:** SNMP UPS-MIB (upsEstimatedMinutesRemaining, upsBatteryStatus, upsBatteryTemperature)
+- **SPL:**
+```spl
+index=power sourcetype="snmp:ups"
+| where battery_status!="normal" OR runtime_remaining_min < 30 OR battery_temp_c > 35
+| table _time, ups_name, battery_status, charge_pct, runtime_remaining_min, battery_temp_c
+```
+- **Implementation:** Poll UPS via SNMP every 5 minutes. Alert on low charge (<80%), low runtime (<30 min), high temperature (>35°C), or abnormal status. Track battery health trend to predict replacement needs.
+- **Visualization:** Gauge (charge %), Line chart (runtime trend), Table (UPS status), Single value (runtime remaining).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.1.23 · Power Consumption Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Power consumption trending supports capacity planning, cost management, and sustainability reporting. Anomalies indicate equipment issues.
+- **App/TA:** SNMP TA, smart PDU API
+- **Data Sources:** Smart PDU metrics (per-outlet, per-circuit power)
+- **SPL:**
+```spl
+index=power sourcetype="snmp:pdu"
+| timechart span=1h avg(power_watts) as avg_power by rack_id
+| predict avg_power as predicted future_timespan=30
+```
+- **Implementation:** Poll PDU power metrics via SNMP. Track per-rack and per-circuit consumption. Baseline normal patterns. Alert on unusual spikes (potential hardware issue) or drops (server failure). Use for PUE calculation.
+- **Visualization:** Line chart (power per rack), Heatmap (rack × time power usage), Bar chart (top consumers), Stacked area (floor/room power).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.1.24 · Rack PDU Load and Phase Balance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** PDU overload or phase imbalance risks circuit trips and equipment failure. Monitoring supports capacity planning and safe load distribution.
+- **App/TA:** PDU SNMP or API, DCIM
+- **Data Sources:** PDU current/load per phase, per outlet
+- **SPL:**
+```spl
+index=physical sourcetype="pdu:metrics"
+| stats latest(current_a) as current, latest(kw) as load by pdu_id, phase
+| eval imbalance=abs(current - avg(current) over (partition by pdu_id))
+| where load > 80 OR imbalance > 10
+| table pdu_id, phase, current, load, imbalance
+```
+- **Implementation:** Poll PDU metrics via SNMP or API. Alert when load exceeds 80% or phase imbalance exceeds threshold. Report on load trend and top-loaded PDUs. Balance loads across phases as needed.
+- **Visualization:** Table (PDU load by phase), Bar chart (phase balance), Line chart (load trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.1.25 · Generator Run Hours and Maintenance Due
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Generator maintenance based on run hours ensures reliability during outages. Tracking run hours and maintenance due dates avoids missed service.
+- **App/TA:** Generator controller, BMS
+- **Data Sources:** Run hours, last maintenance date, next due
+- **SPL:**
+```spl
+index=physical sourcetype="generator:status"
+| stats latest(run_hours) as run_hrs, latest(maintenance_due_hrs) as due_hrs by generator_id
+| eval remaining_hrs=due_hrs-run_hrs
+| where remaining_hrs < 100
+| table generator_id, run_hrs, due_hrs, remaining_hrs
+```
+- **Implementation:** Ingest generator run hours and maintenance schedule. Alert when remaining hours until next service is below threshold. Report on run hour trend and overdue maintenance.
+- **Visualization:** Table (generators due for service), Gauge (remaining hours), Bar chart (run hours by unit).
+- **CIM Models:** N/A
+
+---
+
 ### 15.2 Cooling & Environmental
 
 **Primary App/TA:** SNMP, BMS integration, environmental sensor inputs.
@@ -765,6 +846,49 @@ index=cooling sourcetype="bms:cooling_redundancy"
 
 ---
 
+
+### UC-15.2.18 · Data Center Humidity & Condensation Risk
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Prevents equipment failure by detecting dew point conditions before condensation forms on servers and network infrastructure.
+- **App/TA:** Splunk Edge Hub (humidity + temperature sensors), Splunk OT Intelligence
+- **Data Sources:** `index=edge-hub-data` tag=humidity tag=temperature, `sourcetype=edge_hub`
+- **SPL:**
+```spl
+| mstats avg(Humidity), avg(Temperature) as temp by host
+| eval dew_point=(243.04*(ln(Humidity/100)+((17.625*temp)/(243.04+temp))))/(17.625-ln(Humidity/100)-((17.625*temp)/(243.04+temp)))
+| eval condensation_risk=case(temp<=dew_point, "CRITICAL", temp-dew_point<2, "HIGH", 1=1, "NORMAL")
+| where condensation_risk!="NORMAL"
+```
+- **Implementation:** Deploy Edge Hub in raised floor or ceiling-mounted configuration with humidity sensor exposed to air circulation. Configure Advanced Settings → Sensor Polling interval to 30 seconds for real-time dew point calculation. Use local SQLite backlog to ensure no readings are lost during Splunk connectivity outages.
+- **Visualization:** Gauge (dew point vs actual temp), time-series overlay, condensation risk heatmap.
+- **CIM Models:** N/A
+
+---
+
+---
+
+### UC-15.2.19 · Water Leak Sensor Zone Correlation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Correlates multiple rope sensors to localize leak source and trigger EPO workflows under raised floor.
+- **App/TA:** Leak detection panel → Splunk
+- **Data Sources:** `sourcetype="leak_detection"` (zone, sensor_id, conductivity)
+- **SPL:**
+```spl
+index=environment sourcetype="leak_detection"
+| where leak_detected=1
+| stats count by zone, crac_id
+| sort -count
+```
+- **Implementation:** On any leak, show adjacent zones and nearest CRAC/isolation valve. Integrate with facilities runbook.
+- **Visualization:** Floor plan (zones), Table (active leaks), Single value (leak count).
+- **CIM Models:** N/A
+
+---
+
 ### 15.3 Physical Security
 
 **Primary App/TA:** Access control system integration, camera system syslog/API.
@@ -880,27 +1004,6 @@ No CIM model available for physical access control data.
 
 ---
 
-### UC-15.3.6 · Rack PDU Load and Phase Balance
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** PDU overload or phase imbalance risks circuit trips and equipment failure. Monitoring supports capacity planning and safe load distribution.
-- **App/TA:** PDU SNMP or API, DCIM
-- **Data Sources:** PDU current/load per phase, per outlet
-- **SPL:**
-```spl
-index=physical sourcetype="pdu:metrics"
-| stats latest(current_a) as current, latest(kw) as load by pdu_id, phase
-| eval imbalance=abs(current - avg(current) over (partition by pdu_id))
-| where load > 80 OR imbalance > 10
-| table pdu_id, phase, current, load, imbalance
-```
-- **Implementation:** Poll PDU metrics via SNMP or API. Alert when load exceeds 80% or phase imbalance exceeds threshold. Report on load trend and top-loaded PDUs. Balance loads across phases as needed.
-- **Visualization:** Table (PDU load by phase), Bar chart (phase balance), Line chart (load trend).
-- **CIM Models:** N/A
-
----
-
 ### UC-15.3.7 · Fire Suppression and Detection System Alarms
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
@@ -937,27 +1040,6 @@ index=physical sourcetype="floor:sensor"
 ```
 - **Implementation:** Deploy sensors for critical floor tiles and cable runs. Forward events to Splunk. Alert on tile removal or strain above threshold. Correlate with change tickets. Report on access and strain history.
 - **Visualization:** Table (events), Timeline (tile/cable events), Floor plan (locations).
-- **CIM Models:** N/A
-
----
-
-### UC-15.3.9 · Generator Run Hours and Maintenance Due
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Generator maintenance based on run hours ensures reliability during outages. Tracking run hours and maintenance due dates avoids missed service.
-- **App/TA:** Generator controller, BMS
-- **Data Sources:** Run hours, last maintenance date, next due
-- **SPL:**
-```spl
-index=physical sourcetype="generator:status"
-| stats latest(run_hours) as run_hrs, latest(maintenance_due_hrs) as due_hrs by generator_id
-| eval remaining_hrs=due_hrs-run_hrs
-| where remaining_hrs < 100
-| table generator_id, run_hrs, due_hrs, remaining_hrs
-```
-- **Implementation:** Ingest generator run hours and maintenance schedule. Alert when remaining hours until next service is below threshold. Report on run hour trend and overdue maintenance.
-- **Visualization:** Table (generators due for service), Gauge (remaining hours), Bar chart (run hours by unit).
 - **CIM Models:** N/A
 
 ---
@@ -1147,26 +1229,6 @@ index=physical sourcetype="cabinet:intrusion"
 ```
 - **Implementation:** Require ticket_id or approved user for opens in secure suites. Page on forced events immediately.
 - **Visualization:** Timeline (intrusion events), Table (racks), Map of data hall.
-- **CIM Models:** N/A
-
----
-
-### UC-15.3.19 · Water Leak Sensor Zone Correlation
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
-- **Value:** Correlates multiple rope sensors to localize leak source and trigger EPO workflows under raised floor.
-- **App/TA:** Leak detection panel → Splunk
-- **Data Sources:** `sourcetype="leak_detection"` (zone, sensor_id, conductivity)
-- **SPL:**
-```spl
-index=environment sourcetype="leak_detection"
-| where leak_detected=1
-| stats count by zone, crac_id
-| sort -count
-```
-- **Implementation:** On any leak, show adjacent zones and nearest CRAC/isolation valve. Integrate with facilities runbook.
-- **Visualization:** Floor plan (zones), Table (active leaks), Single value (leak count).
 - **CIM Models:** N/A
 
 ---
@@ -1379,6 +1441,176 @@ index=cisco_network sourcetype="meraki:api" people_count=*
 ```
 - **Implementation:** Extract people_count metrics from camera API. Aggregate by location and time.
 - **Visualization:** Occupancy heat map by time of day; location comparison bar chart; trend sparkline.
+- **CIM Models:** N/A
+
+---
+
+
+### UC-15.3.31 · Building Occupancy Trending and Capacity Planning
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Provides real-time and historical people counts per building, floor, and zone using data from Meraki APs and cameras. Supports compliance with fire safety capacity limits, energy management optimization (HVAC scheduling based on actual occupancy), and real estate planning. Trending data reveals patterns — which floors are overcrowded on Tuesdays, which buildings are underused on Fridays — enabling data-driven workplace strategy decisions.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Firehose API
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Meraki MV Smart Cameras
+- **Data Sources:** Cisco Spaces Firehose API (COUNT events — device counts, camera people counts)
+- **SPL:**
+```spl
+index=cisco_spaces sourcetype="cisco:spaces:occupancy"
+| bin _time span=15m
+| stats max(deviceCount) as occupancy by _time, building, floor
+| eventstats avg(occupancy) as avg_occupancy, max(occupancy) as peak_occupancy by building, floor
+| eval capacity_pct=round(occupancy/max_capacity*100, 1)
+| where capacity_pct > 80
+| table _time, building, floor, occupancy, avg_occupancy, peak_occupancy, capacity_pct
+```
+- **Implementation:** Deploy the Spaces Add-On for Splunk (Splunkbase app 8485) and configure it with your Cisco Spaces API credentials. Enable the Firehose API with COUNT event types in Cisco Spaces dashboard. Floor capacity limits should be maintained in a lookup table (`building_capacity.csv`) with building, floor, and max_capacity columns. Set alerts at 80% capacity for warning and 95% for critical. Schedule daily and weekly reports for facilities management.
+- **Visualization:** Floor plan heat maps (occupancy by zone), Line chart (occupancy trend by floor), Column chart (peak occupancy by day of week), Single value panels (current building occupancy, % of capacity).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.32 · Visitor Dwell Time and Movement Flow Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Measures how long visitors and employees spend in specific zones and tracks movement patterns between areas. For corporate campuses, this optimizes cafeteria layouts, identifies bottleneck corridors, and improves wayfinding. For retail environments, it measures engagement with displays and optimizes store layouts. For healthcare, it tracks patient flow through departments to reduce wait times. Dwell time analysis reveals which spaces create value and which are passed through without engagement.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Location Analytics
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
+- **Data Sources:** Cisco Spaces Firehose API (DEVICE_LOCATION_UPDATE, DEVICE_PRESENCE events — entry, exit, dwell)
+- **SPL:**
+```spl
+index=cisco_spaces sourcetype="cisco:spaces:location"
+| search eventType="DEVICE_PRESENCE"
+| eval dwell_min=round((exitTime-entryTime)/60, 1)
+| where isnotnull(dwell_min) AND dwell_min > 0
+| stats avg(dwell_min) as avg_dwell, median(dwell_min) as median_dwell, max(dwell_min) as max_dwell, count as visits by zoneName, building, floor
+| eval engagement=case(avg_dwell>30, "High", avg_dwell>10, "Medium", avg_dwell>2, "Low", 1==1, "Pass-through")
+| sort -visits
+| table zoneName, building, floor, visits, avg_dwell, median_dwell, max_dwell, engagement
+```
+- **Implementation:** Enable location analytics in Cisco Spaces with zone definitions mapped to your floor plans. Configure the Firehose API to stream DEVICE_PRESENCE and DEVICE_LOCATION_UPDATE events. Define meaningful zones in Cisco Spaces (lobbies, meeting areas, cafeterias, collaboration spaces). Device presence events fire at entry, after 10 minutes of inactivity, and at exit. Filter out devices with dwell times under 2 minutes to exclude pass-throughs. Build movement flow analysis by sequencing location updates per device MAC.
+- **Visualization:** Sankey diagram (movement flows between zones), Heat map (dwell time by zone and time of day), Bar chart (visits and avg dwell by zone), Table (zone engagement ranking).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.33 · Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Performance
+- **Value:** Monitors environmental conditions using Meraki MT sensors — temperature, humidity, air quality (PM2.5, TVOC, CO2), and water leaks. Protects server rooms and network closets from overheating, monitors warehouse cold-chain compliance, detects water leaks before they cause damage, and ensures office air quality meets health standards. Sensor data with five days of onboard storage survives network outages. Threshold-based alerting enables immediate response to environmental hazards.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces IoT Explorer, Meraki Dashboard API
+- **Equipment Models:** Cisco Meraki MT10 (temperature/humidity), MT11 (temperature probe), MT12 (water leak), MT14 (air quality — PM2.5, TVOC, noise, temp, humidity), MT15 (CO2, PM2.5, TVOC, noise, temp, humidity), MT20 (open/close door sensor), MT30 (smart automation button)
+- **Data Sources:** Cisco Spaces Firehose API (IOT_TELEMETRY events), Meraki sensor API
+- **SPL:**
+```spl
+index=cisco_spaces sourcetype="cisco:spaces:sensors"
+| eval alert=case(temperature>28, "High Temperature", temperature<16, "Low Temperature", humidity>70, "High Humidity", humidity<20, "Low Humidity", pm25>35, "Poor Air Quality (PM2.5)", co2>1000, "High CO2", tvoc>500, "High TVOC", waterDetected="true", "Water Leak Detected", 1==1, null())
+| where isnotnull(alert)
+| stats latest(temperature) as temp, latest(humidity) as humidity, latest(pm25) as pm25, latest(co2) as co2, values(alert) as alerts by sensorName, sensorModel, location, building
+| sort -temp
+| table sensorName, sensorModel, location, building, temp, humidity, pm25, co2, alerts
+```
+- **Implementation:** Deploy Meraki MT sensors and associate them with Meraki MR access points as BLE gateways. Configure sensor thresholds in Meraki Dashboard for local alerting. Stream telemetry to Splunk via the Spaces Add-On or direct Meraki webhook integration to HEC. Define location-specific thresholds (server rooms: 18-27°C; offices: 20-24°C; cold storage: 2-8°C). Create severity tiers: warning (approaching threshold), critical (exceeding threshold), emergency (water leak, extreme temperature). MT sensors have five-year battery life and five days of onboard data storage.
+- **Visualization:** Gauge panels (current temp/humidity per zone), Line chart (environmental trends over 7 days), Map (sensor locations with color-coded status), Alert table (active environmental alerts).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.34 · Asset Tracking and Geofencing Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** Tracks the real-time location of high-value assets (medical equipment, network gear, tools, laptops, carts) using BLE tags and Cisco Spaces IoT Explorer. Geofencing alerts notify when assets leave designated zones — preventing theft, loss, and misplacement. In healthcare, this tracks infusion pumps and wheelchairs across departments. In manufacturing, it ensures tools return to storage after shifts. Historical location data supports asset utilization analysis and procurement decisions.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces IoT Explorer
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86 (as BLE gateways), BLE asset tags (various vendors)
+- **Data Sources:** Cisco Spaces Firehose API (IOT_TELEMETRY, DEVICE_LOCATION_UPDATE events for BLE tags)
+- **SPL:**
+```spl
+index=cisco_spaces sourcetype="cisco:spaces:assets"
+| eval zone_violation=if(currentZone!=assignedZone AND isnotnull(assignedZone), "Out of Zone", null())
+| eval missing=if(_time-lastSeenTime>3600, "Not Seen >1hr", null())
+| where isnotnull(zone_violation) OR isnotnull(missing)
+| stats latest(currentZone) as current_zone, latest(assignedZone) as assigned_zone, latest(building) as building, latest(floor) as floor, latest(lastSeenTime) as last_seen by assetName, assetTag, assetCategory
+| eval status=case(isnotnull(zone_violation), "GEOFENCE ALERT", isnotnull(missing), "MISSING", 1==1, "Unknown")
+| table assetName, assetTag, assetCategory, status, current_zone, assigned_zone, building, floor, last_seen
+```
+- **Implementation:** Register assets in Cisco Spaces IoT Explorer with BLE tags. Define geofence zones matching building floor plans. Configure the Firehose API to stream asset location updates. Maintain a lookup table of asset assignments (asset_tag, assigned_zone, asset_category, asset_value). Alert immediately on high-value assets leaving their zone. For lower-value assets, alert after 30 minutes outside zone. Track "last seen" timestamps and flag assets not seen for >1 hour during business hours. Generate weekly utilization reports (time in zone vs. time out of zone) to optimize asset distribution.
+- **Visualization:** Floor plan map (asset locations with icons), Table (geofence violations and missing assets), Bar chart (assets by zone), Timeline (asset movement history).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.35 · After-Hours Wireless Presence Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Detects Wi-Fi-connected devices present in buildings or restricted zones outside of business hours. Correlates with badge access data and employee schedules to identify unauthorized presence — potential tailgating, after-hours theft, or social engineering. Unlike badge-only systems which only detect entry, wireless presence confirms ongoing physical presence. Supports investigations by providing device MAC, location, and duration of after-hours presence. Particularly valuable for facilities with sensitive areas (data centers, labs, executive floors).
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Firehose API
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
+- **Data Sources:** Cisco Spaces Firehose API (DEVICE_PRESENCE events — entry/exit with timestamps)
+- **SPL:**
+```spl
+index=cisco_spaces sourcetype="cisco:spaces:presence" eventType="DEVICE_ENTRY"
+| eval hour=strftime(_time, "%H")
+| eval day=strftime(_time, "%u")
+| where (hour<6 OR hour>20) OR day>5
+| lookup known_devices.csv macAddress OUTPUT owner, department, authorized_afterhours
+| where authorized_afterhours!="yes" OR isnull(authorized_afterhours)
+| stats count as entries, earliest(_time) as first_seen, latest(_time) as last_seen by macAddress, owner, department, building, floor, zoneName
+| sort -count
+| table macAddress, owner, department, building, floor, zoneName, first_seen, last_seen, entries
+```
+- **Implementation:** Configure Cisco Spaces Firehose API to stream DEVICE_PRESENCE events with entry/exit notifications. Build a known devices lookup by correlating MAC addresses with user identities from ISE or Active Directory (via 802.1X authentication records). Define business hours per building/zone (some facilities operate 24/7). Maintain an authorized_afterhours list for security, janitorial, and operations staff. Alert on unknown devices or unauthorized users detected after hours in sensitive zones. Integrate with badge access logs for cross-validation.
+- **Visualization:** Floor plan map (after-hours device locations), Timeline (presence events outside business hours), Table (unauthorized after-hours presence), Bar chart (after-hours detections by zone).
+- **CIM Models:** Authentication
+
+---
+
+### UC-15.3.36 · Workspace Utilization and Ghost Booking Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Combines room booking data with actual physical occupancy from Cisco Spaces and Webex device sensors to calculate true workspace utilization. Identifies "ghost bookings" — rooms reserved but never occupied — which waste available space and frustrate employees searching for rooms. Reveals which rooms are most/least popular, optimal room sizes for actual group sizes, and peak usage patterns. Directly supports real estate cost reduction by providing evidence-based recommendations for space consolidation, redesign, or expansion.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), `ta_cisco_webex_add_on_for_splunk` (GitHub), calendar integration
+- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Webex Room Kit, Room Bar, Room Navigator, Webex Board
+- **Data Sources:** Cisco Spaces occupancy data, Webex device people count (RoomAnalytics), calendar/booking system data
+- **SPL:**
+```spl
+index=cisco_spaces sourcetype="cisco:spaces:workspace"
+| join type=left max=0 workspaceId [search index=webex sourcetype="webex:workspace_bookings" | fields workspaceId, bookingStart, bookingEnd, organizer]
+| eval booked=if(isnotnull(bookingStart), 1, 0)
+| eval occupied=if(peopleCount>0, 1, 0)
+| eval ghost_booking=if(booked=1 AND occupied=0, 1, 0)
+| eval unbooked_usage=if(booked=0 AND occupied=1, 1, 0)
+| stats sum(booked) as total_bookings, sum(ghost_booking) as ghost_bookings, sum(unbooked_usage) as walk_ins, avg(peopleCount) as avg_occupants, max(roomCapacity) as capacity by workspaceName, building, floor
+| eval ghost_rate=if(total_bookings>0, round(ghost_bookings/total_bookings*100, 1), 0)
+| eval avg_fill=if(capacity>0, round(avg_occupants/capacity*100, 1), 0)
+| sort -ghost_rate
+| table workspaceName, building, floor, capacity, total_bookings, ghost_bookings, ghost_rate, walk_ins, avg_occupants, avg_fill
+```
+- **Implementation:** Enable Webex RoomAnalytics people counting on all room devices (`xConfiguration RoomAnalytics PeopleCountOutOfCall: On`). Ingest room booking data from your calendar system (Google Calendar, Microsoft 365, or Webex Workspaces API). Stream occupancy data from Cisco Spaces. Correlate bookings with actual occupancy using workspace IDs and time windows. Define ghost booking as: room booked but no occupancy detected within 10 minutes of booking start. Generate weekly facility reports showing: ghost booking rate per floor/building, rooms with avg occupancy below 25% of capacity, and peak vs. off-peak usage patterns.
+- **Visualization:** Heat map (utilization by room and time slot), Bar chart (ghost booking rate by floor), Table (workspace utilization summary), Scatter plot (room capacity vs. actual avg occupants).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.37 · Access Control Event Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Physical access logs correlate with logical access events for security investigation. Audit trail required for compliance.
+- **App/TA:** Access control syslog, API input
+- **Data Sources:** Access control system logs (badge events, door status)
+- **SPL:**
+```spl
+index=physical sourcetype="access_control"
+| stats count by badge_holder, door, action
+| sort -count
+```
+- **Implementation:** Forward access control events via syslog or API. Parse badge holder, door, time, and action (granted, denied). Alert on after-hours access to sensitive areas. Correlate physical access with logical authentication events.
+- **Visualization:** Table (access events), Bar chart (access by door), Timeline (access events for specific person), Geo/floor plan.
 - **CIM Models:** N/A
 
 ---

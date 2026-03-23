@@ -634,26 +634,6 @@ index=cicd sourcetype="gitlab:pipeline"
 
 ---
 
-### UC-12.2.13 · Control-M Job Monitoring
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability, Fault
-- **Value:** Batch job success/failure and SLA compliance are critical for data pipelines and scheduled workloads. Failed or late jobs can cascade to downstream systems and reporting.
-- **App/TA:** Custom (Control-M Automation API)
-- **Data Sources:** Control-M /run/jobs/status, job history
-- **SPL:**
-```spl
-index=cicd sourcetype="controlm:job"
-| where status="Failed" OR status="Ended Not OK" OR (sla_met="false" AND status="Ended OK")
-| table _time, job_id, job_name, folder, status, order_date, run_as, end_time, sla_met
-| sort -_time
-```
-- **Implementation:** Poll Control-M Automation API for job status and history. Ingest job_id, job_name, status, order_date, end_time, sla_met. Alert on Failed or Ended Not OK. Alert on SLA violations. Track success rate by folder and job. Report on batch job health and SLA compliance percentage.
-- **Visualization:** Table (failed/late jobs), Single value (success rate %), Timeline (job outcomes), Bar chart (failures by folder).
-- **CIM Models:** N/A
-
----
-
 ### UC-12.2.14 · Jenkins Agent Offline Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner

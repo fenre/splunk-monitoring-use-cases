@@ -499,6 +499,28 @@ index=itsm sourcetype="snow:sc_request" earliest=-30d
 
 ---
 
+
+### UC-16.1.24 · ServiceNow Bidirectional Incident Sync
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Bidirectional sync between ITSI episodes and ServiceNow incidents eliminates manual ticket creation and ensures incident status is consistent across platforms.
+- **App/TA:** Splunk ITSI, Splunk Add-on for ServiceNow
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_grouped_alerts`, ServiceNow incident table
+- **SPL:**
+```spl
+index=itsi_grouped_alerts status!=5
+| eval has_snow_ticket=if(isnotnull(snow_incident_number), "synced", "unsynced")
+| stats count by has_snow_ticket severity
+| sort severity
+```
+- **Implementation:** Configure ServiceNow integration in ITSI: map episode severity to ServiceNow priority, define assignment groups, and enable bidirectional status updates. Episodes auto-create incidents; ServiceNow resolution closes episodes. Monitor sync latency and failure rate. Requires Splunk Add-on for ServiceNow 5.5+.
+- **Visualization:** Table (sync status by severity), Single value (unsynced episode count), Time chart (sync latency).
+- **CIM Models:** Change
+
+---
+
 ### 16.2 Configuration Management (CMDB)
 
 **Primary App/TA:** ServiceNow CMDB integration, custom API inputs.
@@ -709,28 +731,6 @@ index=inventory sourcetype="vmware:inv:vm" earliest=-4h
 ```
 - **Implementation:** Compare monitored/VM inventory hostnames (lowercased, short name) to CMDB server CIs. Tune for naming conventions (strip domain). Feed gaps to CMDB onboarding queue.
 - **Visualization:** Table (undocumented hosts), Single value (gap count), Line chart (gap trend).
-- **CIM Models:** N/A
-
----
-
-### UC-16.2.11 · Shadow IT Discovery
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.
-- **App/TA:** Zscaler, Umbrella, firewall logs
-- **Data Sources:** `sourcetype=zscaler:web`, `sourcetype=pan:traffic`
-- **SPL:**
-```spl
-index=proxy sourcetype="zscaler:web" earliest=-24h
-| stats sum(bytes_in) as bytes by app_name, user
-| lookup approved_saas_apps.csv app_name OUTPUT approved
-| where isnull(approved)
-| sort -bytes
-| head 50
-```
-- **Implementation:** Maintain `approved_saas_apps.csv` from architecture/ITAM. Top unapproved apps by volume; correlate with CMDB business service owner for intake.
-- **Visualization:** Table (shadow apps), Bar chart (bytes by app), Pie chart (approved vs unknown).
 - **CIM Models:** N/A
 
 ---
@@ -1098,6 +1098,27 @@ index=batch sourcetype="controlm:job" earliest=-7d@d
 ```
 - **Implementation:** Map vendor fields: `scheduled_time`, end status, job name. For cron, ingest start/stop lines and compare to `batch_schedule.csv` lookup (job, expected cron, max duration). Alert when `ran_ok=0` for a calendar day. Tune time zones.
 - **Visualization:** Table (missed jobs), Calendar (job success by day), Line chart (miss rate trend).
+- **CIM Models:** N/A
+
+---
+
+
+### UC-16.3.12 · Control-M Job Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Batch job success/failure and SLA compliance are critical for data pipelines and scheduled workloads. Failed or late jobs can cascade to downstream systems and reporting.
+- **App/TA:** Custom (Control-M Automation API)
+- **Data Sources:** Control-M /run/jobs/status, job history
+- **SPL:**
+```spl
+index=cicd sourcetype="controlm:job"
+| where status="Failed" OR status="Ended Not OK" OR (sla_met="false" AND status="Ended OK")
+| table _time, job_id, job_name, folder, status, order_date, run_as, end_time, sla_met
+| sort -_time
+```
+- **Implementation:** Poll Control-M Automation API for job status and history. Ingest job_id, job_name, status, order_date, end_time, sla_met. Alert on Failed or Ended Not OK. Alert on SLA violations. Track success rate by folder and job. Report on batch job health and SLA compliance percentage.
+- **Visualization:** Table (failed/late jobs), Single value (success rate %), Timeline (job outcomes), Bar chart (failures by folder).
 - **CIM Models:** N/A
 
 ---

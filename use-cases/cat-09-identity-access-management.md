@@ -628,6 +628,52 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4886
 
 ---
 
+
+### UC-9.1.27 · Active Directory Replication
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** AD replication failures cause authentication inconsistencies — users locked out in one site but not another, stale GPOs, and split-brain scenarios.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** `sourcetype=WinEventLog:Directory Service`, custom scripted input (`repadmin /replsummary`)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Directory Service" (EventCode=1864 OR EventCode=1865 OR EventCode=2042 OR EventCode=1388 OR EventCode=1988)
+| table _time host EventCode Message
+| sort -_time
+
+| comment "Replication health from scripted input"
+index=ad sourcetype=repadmin_replsummary
+| where failures > 0
+| table source_dc dest_dc failures last_failure last_success
+```
+- **Implementation:** Collect Directory Service event log from all DCs. Create scripted input running `repadmin /replsummary /csv` daily. Alert on any replication failure events. Critical alert on EventCode 2042 (tombstone lifetime exceeded).
+- **Visualization:** Table of replication partners with status, Events timeline, Network diagram of DC replication.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.1.28 · AD Certificate Services (ADCS) Anomalies
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** ADCS misconfigurations enable privilege escalation (ESC1-ESC8 attacks). Monitoring certificate requests catches unauthorized certificate enrollment for domain admin impersonation.
+- **App/TA:** `Splunk_TA_windows`
+- **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888)
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4886, 4887, 4888)
+| eval action=case(EventCode=4886,"Request received",EventCode=4887,"Certificate issued",EventCode=4888,"Certificate denied")
+| stats count by Requester, CertificateTemplate, SubjectName, action
+| where CertificateTemplate IN ("User","SmartcardLogon","Machine") AND NOT match(Requester, "(?i)(SYSTEM|machine\\$)")
+| sort -count
+```
+- **Implementation:** Enable Certificate Services auditing on CA servers. EventCode 4887=certificate issued — track who requested which template. Alert on certificates with Subject Alternative Names (SANs) containing admin usernames (ESC1 attack). Monitor for certificate requests from non-standard templates. Track enrollment agent certificates (ESC3). Audit CA configuration for overly permissive templates with `certutil -v -template`.
+- **Visualization:** Table (certificate issuances), Bar chart (requests by template), Timeline, Alert on SAN mismatches.
+- **CIM Models:** N/A
+
+---
+
 ### 9.2 LDAP Directories
 
 **Primary App/TA:** Syslog inputs, custom scripted inputs for LDAP server stats.

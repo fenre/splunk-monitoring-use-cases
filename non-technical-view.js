@@ -310,15 +310,10 @@ window.NON_TECHNICAL = {
         { id: "8.5.3", why: "Watch eviction rates — high evictions mean the cache is too small for your workload." },
         { id: "8.5.5", why: "Monitor cache replication lag — stale replicas can serve outdated data." }
       ]},
-      { name: "Network services", description: "Essential network services like email delivery, file transfer, and infrastructure tools. We check they're running.", ucs: [
-        { id: "8.6.3", why: "Monitor email delivery service availability — if it goes down, no emails get sent." },
-        { id: "8.6.5", why: "Watch email queue depth — backed-up queues mean delayed messages." },
-        { id: "8.6.9", why: "Track mail server certificates so email delivery doesn't break." }
-      ]},
-      { name: "Synthetic testing", description: "ThousandEyes probes your websites and APIs from around the world. We show when things slow down or break.", ucs: [
-        { id: "8.7.1", why: "Track website availability and response time from multiple global locations." },
-        { id: "8.7.4", why: "Monitor page load completion — know when users can't fully load your site." },
-        { id: "8.7.8", why: "Run scripted tests that simulate real user workflows end to end." }
+      { name: "Network services & infrastructure tools", description: "Essential network services like SSH, NTP, DNS, and tools like Vault and Consul. We check they're running.", ucs: [
+        { id: "8.6.1", why: "Monitor SSH service availability — if it goes down, teams can't reach servers remotely." },
+        { id: "8.6.11", why: "Track HashiCorp Vault seal status — a sealed vault blocks all secret access." },
+        { id: "8.6.16", why: "Watch NTP clock drift — out-of-sync clocks break authentication and logging." }
       ]}
     ]
   },
@@ -463,10 +458,10 @@ window.NON_TECHNICAL = {
         { id: "11.3.3", why: "Track jitter, latency, and packet loss on voice calls — the main causes of bad call quality." },
         { id: "11.3.6", why: "Detect toll fraud — unauthorised calls running up your phone bill." }
       ]},
-      { name: "Location & spaces", description: "Cisco Spaces — building occupancy, workspace usage, and environmental monitoring.", ucs: [
-        { id: "11.4.1", why: "Track building occupancy over time to plan space and manage capacity." },
-        { id: "11.4.3", why: "Monitor temperature, humidity, and air quality in your spaces." },
-        { id: "11.4.6", why: "Detect ghost bookings — rooms reserved but never used." }
+      { name: "Mail transport & relay", description: "On-premises mail servers, SMTP relays, and mail queue health. We help you keep email flowing.", ucs: [
+        { id: "11.4.1", why: "Monitor SMTP service availability — if it goes down, no emails get sent." },
+        { id: "11.4.3", why: "Watch email queue depth — backed-up queues mean delayed messages." },
+        { id: "11.4.7", why: "Track mail server TLS certificates so email delivery doesn't break." }
       ]},
       { name: "Video conferencing", description: "Zoom, Webex, and Teams meeting quality. We help you identify connection problems and poor video quality.", ucs: [
         { id: "11.5.1", why: "Track Zoom meeting quality metrics — jitter and packet loss mean poor video and audio." },
@@ -545,10 +540,10 @@ window.NON_TECHNICAL = {
       "Track industrial protocol health and detect suspicious activity in your OT network."
     ],
     areas: [
-      { name: "Building management", description: "HVAC, UPS, power consumption, and access control. We help you keep buildings comfortable, secure, and running.", ucs: [
+      { name: "Building management", description: "HVAC, elevators, environmental compliance, and IoT gateway health. We help you keep buildings comfortable and running.", ucs: [
         { id: "14.1.1", why: "Monitor heating and cooling performance — system failures mean uncomfortable or unsafe conditions." },
-        { id: "14.1.2", why: "Track UPS battery health — when power fails, this is your last line of defence." },
-        { id: "14.1.4", why: "Audit who entered which doors and when — for safety and compliance." }
+        { id: "14.1.5", why: "Track elevator and equipment health — breakdowns disrupt building operations." },
+        { id: "14.1.6", why: "Check environmental compliance against regulations — temperature, humidity, and air quality." }
       ]},
       { name: "Industrial control systems", description: "SCADA, PLCs, and safety systems. We watch for anomalies, unauthorised access, and protocol violations.", ucs: [
         { id: "14.2.1", why: "Monitor PLC and RTU health — these controllers run your physical processes." },
@@ -616,7 +611,7 @@ window.NON_TECHNICAL = {
       { name: "Configuration & assets", description: "Your CMDB — asset inventory, data quality, and relationship integrity.", ucs: [
         { id: "16.2.1", why: "Score CMDB data quality — inaccurate asset records lead to wrong decisions." },
         { id: "16.2.3", why: "Find orphaned assets in your CMDB that no longer match real infrastructure." },
-        { id: "16.2.11", why: "Discover shadow IT — systems running that aren't in your official inventory." }
+        { id: "16.2.5", why: "Discover shadow IT — systems running that aren't in your official inventory." }
       ]},
       { name: "Business services", description: "End-to-end service availability, first-contact resolution, and major incident tracking.", ucs: [
         { id: "16.3.1", why: "Calculate business process health by combining health data from multiple services." },

@@ -1135,29 +1135,6 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 
 ---
 
-### UC-11.3.24 · Jira Data Center Performance
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Performance
-- **Value:** JMX metrics, request duration, and attachment storage indicate Jira health. Slow requests frustrate users; disk usage growth risks outages. Enables capacity planning and performance tuning.
-- **App/TA:** Custom JMX input (Jolokia), Jira REST API
-- **Data Sources:** Jira JMX MBeans (heap, threads, request duration), /rest/api/2/serverInfo, Jira access logs
-- **SPL:**
-```spl
-index=jira sourcetype="jira:jmx"
-| eval heap_used_pct=if(HeapMemoryMax>0, round(HeapMemoryUsed/HeapMemoryMax*100, 1), null())
-| where heap_used_pct > 85 OR ThreadCount > 500 OR RequestDurationP95 > 3000
-| bin _time span=5m
-| stats latest(HeapMemoryUsed) as heap_used, latest(HeapMemoryMax) as heap_max, latest(heap_used_pct) as heap_pct, latest(ThreadCount) as threads, latest(RequestDurationP95) as p95_ms by _time, host
-| where heap_pct > 85 OR threads > 500 OR p95_ms > 3000
-| table _time, host, heap_used, heap_max, heap_pct, threads, p95_ms
-```
-- **Implementation:** Deploy Jolokia agent on Jira application nodes and configure Splunk to poll JMX MBeans (java.lang:type=Memory, java.lang:type=Threading, com.atlassian.jira:type=RequestMetrics). Poll every 60 seconds. Ingest Jira access logs for request duration percentiles. Optionally poll /rest/api/2/serverInfo for version and build. Alert on heap >85%, thread count >500, or P95 request duration >3 seconds. Track attachment storage via JMX or filesystem metrics. Correlate with database and disk I/O.
-- **Visualization:** Line chart (heap usage, thread count, P95 latency), Gauge (heap %), Table (performance metrics by node), Bar chart (request duration by endpoint).
-- **CIM Models:** N/A
-
----
-
 ### 11.3.TE Cisco ThousandEyes — Voice & Collaboration Monitoring
 
 ---
@@ -1384,154 +1361,179 @@ sourcetype="cisco:ucm:cdr"
 
 ---
 
-### 11.4 Cisco Spaces & Location Intelligence
+### 11.4 Mail Transport & Relay Infrastructure
 
-### UC-11.4.1 · Building Occupancy Trending and Capacity Planning
+**Primary App/TA:** Postfix, Sendmail, Microsoft Exchange, Cisco Email Security Appliance (ESA), generic SMTP/MTA logs
+
+---
+
+
+### UC-11.4.1 · SMTP Service Availability
 - **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Provides real-time and historical people counts per building, floor, and zone using data from Meraki APs and cameras. Supports compliance with fire safety capacity limits, energy management optimization (HVAC scheduling based on actual occupancy), and real estate planning. Trending data reveals patterns — which floors are overcrowded on Tuesdays, which buildings are underused on Fridays — enabling data-driven workplace strategy decisions.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Firehose API
-- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Meraki MV Smart Cameras
-- **Data Sources:** Cisco Spaces Firehose API (COUNT events — device counts, camera people counts)
-- **SPL:**
-```spl
-index=cisco_spaces sourcetype="cisco:spaces:occupancy"
-| bin _time span=15m
-| stats max(deviceCount) as occupancy by _time, building, floor
-| eventstats avg(occupancy) as avg_occupancy, max(occupancy) as peak_occupancy by building, floor
-| eval capacity_pct=round(occupancy/max_capacity*100, 1)
-| where capacity_pct > 80
-| table _time, building, floor, occupancy, avg_occupancy, peak_occupancy, capacity_pct
-```
-- **Implementation:** Deploy the Spaces Add-On for Splunk (Splunkbase app 8485) and configure it with your Cisco Spaces API credentials. Enable the Firehose API with COUNT event types in Cisco Spaces dashboard. Floor capacity limits should be maintained in a lookup table (`building_capacity.csv`) with building, floor, and max_capacity columns. Set alerts at 80% capacity for warning and 95% for critical. Schedule daily and weekly reports for facilities management.
-- **Visualization:** Floor plan heat maps (occupancy by zone), Line chart (occupancy trend by floor), Column chart (peak occupancy by day of week), Single value panels (current building occupancy, % of capacity).
-- **CIM Models:** N/A
-
----
-
-### UC-11.4.2 · Visitor Dwell Time and Movement Flow Analysis
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Performance
-- **Value:** Measures how long visitors and employees spend in specific zones and tracks movement patterns between areas. For corporate campuses, this optimizes cafeteria layouts, identifies bottleneck corridors, and improves wayfinding. For retail environments, it measures engagement with displays and optimizes store layouts. For healthcare, it tracks patient flow through departments to reduce wait times. Dwell time analysis reveals which spaces create value and which are passed through without engagement.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Location Analytics
-- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
-- **Data Sources:** Cisco Spaces Firehose API (DEVICE_LOCATION_UPDATE, DEVICE_PRESENCE events — entry, exit, dwell)
-- **SPL:**
-```spl
-index=cisco_spaces sourcetype="cisco:spaces:location"
-| search eventType="DEVICE_PRESENCE"
-| eval dwell_min=round((exitTime-entryTime)/60, 1)
-| where isnotnull(dwell_min) AND dwell_min > 0
-| stats avg(dwell_min) as avg_dwell, median(dwell_min) as median_dwell, max(dwell_min) as max_dwell, count as visits by zoneName, building, floor
-| eval engagement=case(avg_dwell>30, "High", avg_dwell>10, "Medium", avg_dwell>2, "Low", 1==1, "Pass-through")
-| sort -visits
-| table zoneName, building, floor, visits, avg_dwell, median_dwell, max_dwell, engagement
-```
-- **Implementation:** Enable location analytics in Cisco Spaces with zone definitions mapped to your floor plans. Configure the Firehose API to stream DEVICE_PRESENCE and DEVICE_LOCATION_UPDATE events. Define meaningful zones in Cisco Spaces (lobbies, meeting areas, cafeterias, collaboration spaces). Device presence events fire at entry, after 10 minutes of inactivity, and at exit. Filter out devices with dwell times under 2 minutes to exclude pass-throughs. Build movement flow analysis by sequencing location updates per device MAC.
-- **Visualization:** Sankey diagram (movement flows between zones), Heat map (dwell time by zone and time of day), Bar chart (visits and avg dwell by zone), Table (zone engagement ranking).
-- **CIM Models:** N/A
-
----
-
-### UC-11.4.3 · Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)
-- **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability, Performance
-- **Value:** Monitors environmental conditions using Meraki MT sensors — temperature, humidity, air quality (PM2.5, TVOC, CO2), and water leaks. Protects server rooms and network closets from overheating, monitors warehouse cold-chain compliance, detects water leaks before they cause damage, and ensures office air quality meets health standards. Sensor data with five days of onboard storage survives network outages. Threshold-based alerting enables immediate response to environmental hazards.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces IoT Explorer, Meraki Dashboard API
-- **Equipment Models:** Cisco Meraki MT10 (temperature/humidity), MT11 (temperature probe), MT12 (water leak), MT14 (air quality — PM2.5, TVOC, noise, temp, humidity), MT15 (CO2, PM2.5, TVOC, noise, temp, humidity), MT20 (open/close door sensor), MT30 (smart automation button)
-- **Data Sources:** Cisco Spaces Firehose API (IOT_TELEMETRY events), Meraki sensor API
+- **Monitoring type:** Availability
+- **Value:** Distinct from mail queue depth monitoring — this checks whether the SMTP daemon is accepting TCP connections and responding to EHLO. A crashed postfix or sendmail process stops inbound/outbound mail entirely without generating queue entries. Nagios `check_smtp` verifies this at the connection layer; Splunk replicates it via daemon-level log monitoring.
+- **App/TA:** `Splunk_TA_syslog`, `Splunk_TA_postfix` (community)
+- **Data Sources:** `sourcetype=syslog` (postfix, sendmail, exim logs), `sourcetype=postfix:syslog`
 - **SPL:**
 ```spl
-index=cisco_spaces sourcetype="cisco:spaces:sensors"
-| eval alert=case(temperature>28, "High Temperature", temperature<16, "Low Temperature", humidity>70, "High Humidity", humidity<20, "Low Humidity", pm25>35, "Poor Air Quality (PM2.5)", co2>1000, "High CO2", tvoc>500, "High TVOC", waterDetected="true", "Water Leak Detected", 1==1, null())
-| where isnotnull(alert)
-| stats latest(temperature) as temp, latest(humidity) as humidity, latest(pm25) as pm25, latest(co2) as co2, values(alert) as alerts by sensorName, sensorModel, location, building
-| sort -temp
-| table sensorName, sensorModel, location, building, temp, humidity, pm25, co2, alerts
+index=mail (sourcetype=syslog process=postfix* OR sourcetype="postfix:syslog")
+| bucket _time span=5m
+| stats count as smtp_events by host, _time
+| streamstats window=3 min(smtp_events) as min_events by host
+| where min_events=0
+| eval status="SMTP_DOWN"
+| table _time, host, status
 ```
-- **Implementation:** Deploy Meraki MT sensors and associate them with Meraki MR access points as BLE gateways. Configure sensor thresholds in Meraki Dashboard for local alerting. Stream telemetry to Splunk via the Spaces Add-On or direct Meraki webhook integration to HEC. Define location-specific thresholds (server rooms: 18-27°C; offices: 20-24°C; cold storage: 2-8°C). Create severity tiers: warning (approaching threshold), critical (exceeding threshold), emergency (water leak, extreme temperature). MT sensors have five-year battery life and five days of onboard data storage.
-- **Visualization:** Gauge panels (current temp/humidity per zone), Line chart (environmental trends over 7 days), Map (sensor locations with color-coded status), Alert table (active environmental alerts).
+- **Implementation:** Ingest Postfix/Sendmail syslog output via Universal Forwarder. Under normal operation, an active MTA generates constant log activity (queue manager, cleanup, smtp/smtpd). Absence of events for 5–10 minutes on an expected mail host indicates SMTP process death or service failure. Alert after 2 consecutive empty windows. Complement with a scripted input: `echo QUIT | nc -w5 host 25` — log exit code as synthetic probe result. Monitor separately for TLS handshake failures (port 587/465) as distinct service checks.
+- **Visualization:** Single value (SMTP hosts down), Timeline (downtime events), Line chart (event rate per mail host), Table (host, MTA type, last event timestamp).
 - **CIM Models:** N/A
 
 ---
 
-### UC-11.4.4 · Asset Tracking and Geofencing Alerts
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security, Availability
-- **Value:** Tracks the real-time location of high-value assets (medical equipment, network gear, tools, laptops, carts) using BLE tags and Cisco Spaces IoT Explorer. Geofencing alerts notify when assets leave designated zones — preventing theft, loss, and misplacement. In healthcare, this tracks infusion pumps and wheelchairs across departments. In manufacturing, it ensures tools return to storage after shifts. Historical location data supports asset utilization analysis and procurement decisions.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces IoT Explorer
-- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86 (as BLE gateways), BLE asset tags (various vendors)
-- **Data Sources:** Cisco Spaces Firehose API (IOT_TELEMETRY, DEVICE_LOCATION_UPDATE events for BLE tags)
+### UC-11.4.2 · POP3 / IMAP Mail Retrieval Service Availability
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** POP3 and IMAP services allow mail clients to retrieve messages. Even when delivery works correctly, a crashed Dovecot or Cyrus daemon prevents users from reading email, appearing as a total mail outage. Nagios `check_pop` and `check_imap` monitor these ports directly; Splunk replicates availability detection through daemon log analysis.
+- **App/TA:** `Splunk_TA_syslog`
+- **Data Sources:** `sourcetype=syslog` (dovecot, cyrus-imapd logs), Dovecot authentication log
 - **SPL:**
 ```spl
-index=cisco_spaces sourcetype="cisco:spaces:assets"
-| eval zone_violation=if(currentZone!=assignedZone AND isnotnull(assignedZone), "Out of Zone", null())
-| eval missing=if(_time-lastSeenTime>3600, "Not Seen >1hr", null())
-| where isnotnull(zone_violation) OR isnotnull(missing)
-| stats latest(currentZone) as current_zone, latest(assignedZone) as assigned_zone, latest(building) as building, latest(floor) as floor, latest(lastSeenTime) as last_seen by assetName, assetTag, assetCategory
-| eval status=case(isnotnull(zone_violation), "GEOFENCE ALERT", isnotnull(missing), "MISSING", 1==1, "Unknown")
-| table assetName, assetTag, assetCategory, status, current_zone, assigned_zone, building, floor, last_seen
+index=mail sourcetype=syslog (process=dovecot OR process=imap OR process=pop3)
+| bucket _time span=5m
+| stats count as imap_events by host, _time
+| where isnull(imap_events) OR imap_events=0
+| eval status="IMAP_POP3_DOWN"
+| table _time, host, status
 ```
-- **Implementation:** Register assets in Cisco Spaces IoT Explorer with BLE tags. Define geofence zones matching building floor plans. Configure the Firehose API to stream asset location updates. Maintain a lookup table of asset assignments (asset_tag, assigned_zone, asset_category, asset_value). Alert immediately on high-value assets leaving their zone. For lower-value assets, alert after 30 minutes outside zone. Track "last seen" timestamps and flag assets not seen for >1 hour during business hours. Generate weekly utilization reports (time in zone vs. time out of zone) to optimize asset distribution.
-- **Visualization:** Floor plan map (asset locations with icons), Table (geofence violations and missing assets), Bar chart (assets by zone), Timeline (asset movement history).
+- **Implementation:** Forward Dovecot or Cyrus IMAP logs via Universal Forwarder. Dovecot logs login events, failed auth, and daemon lifecycle events continuously during normal operation. Zero events for >10 minutes on a mail host indicates a process crash or service failure. Alert after 2 consecutive empty windows. Cross-correlate with auth failures (could indicate process restart loops). For comprehensive coverage, deploy a scripted TCP probe on ports 143 (IMAP), 993 (IMAPS), 110 (POP3), 995 (POP3S).
+- **Visualization:** Table (host, protocol, port, status), Timeline (downtime events), Single value (services down count), Line chart (login event rate as proxy for service health).
 - **CIM Models:** N/A
 
 ---
 
-### UC-11.4.5 · After-Hours Wireless Presence Detection
+### UC-11.4.3 · Mail Queue Depth and Deferred Message Backlog
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Growing mail queue (deferred, hold) indicates delivery failures, recipient issues, or abuse. Detecting backlog early prevents bounce storms and blacklisting.
+- **App/TA:** `Splunk_TA_syslog`, custom scripted input (mailq, postqueue)
+- **Data Sources:** Postfix `mailq`, Sendmail queue, Exchange queue length
+- **SPL:**
+```spl
+index=mail sourcetype=mail_queue host=*
+| stats latest(queue_depth) as depth, latest(deferred_count) as deferred, latest(_time) as last_seen by host
+| where depth > 100 OR deferred > 50
+| table host depth deferred last_seen
+```
+- **Implementation:** Run `mailq` or equivalent every 5 minutes. Parse queue depth and deferred count. Alert when queue exceeds 100 or deferred exceeds 50. Correlate with rejection logs and recipient domains.
+- **Visualization:** Line chart (queue depth over time), Table (host, queue, deferred), Single value (max queue).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.4.4 · SMTP Authentication and Relay Policy Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Detects Wi-Fi-connected devices present in buildings or restricted zones outside of business hours. Correlates with badge access data and employee schedules to identify unauthorized presence — potential tailgating, after-hours theft, or social engineering. Unlike badge-only systems which only detect entry, wireless presence confirms ongoing physical presence. Supports investigations by providing device MAC, location, and duration of after-hours presence. Particularly valuable for facilities with sensitive areas (data centers, labs, executive floors).
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Firehose API
-- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86
-- **Data Sources:** Cisco Spaces Firehose API (DEVICE_PRESENCE events — entry/exit with timestamps)
+- **Value:** Failed SMTP auth or unauthorized relay attempts may indicate credential stuffing or abuse. Monitoring supports security and ensures relay policy is enforced.
+- **App/TA:** `Splunk_TA_syslog`, mail server logs
+- **Data Sources:** Postfix maillog, Sendmail logs, Exchange SMTP receive connector logs
 - **SPL:**
 ```spl
-index=cisco_spaces sourcetype="cisco:spaces:presence" eventType="DEVICE_ENTRY"
-| eval hour=strftime(_time, "%H")
-| eval day=strftime(_time, "%u")
-| where (hour<6 OR hour>20) OR day>5
-| lookup known_devices.csv macAddress OUTPUT owner, department, authorized_afterhours
-| where authorized_afterhours!="yes" OR isnull(authorized_afterhours)
-| stats count as entries, earliest(_time) as first_seen, latest(_time) as last_seen by macAddress, owner, department, building, floor, zoneName
+index=mail sourcetype=syslog (process=postfix OR process=sendmail) ("authentication failed" OR "relay denied" OR "reject")
+| rex "user=(?<sasl_user>\S+)"
+| stats count by src, sasl_user, action
+| where count > 10
 | sort -count
-| table macAddress, owner, department, building, floor, zoneName, first_seen, last_seen, entries
 ```
-- **Implementation:** Configure Cisco Spaces Firehose API to stream DEVICE_PRESENCE events with entry/exit notifications. Build a known devices lookup by correlating MAC addresses with user identities from ISE or Active Directory (via 802.1X authentication records). Define business hours per building/zone (some facilities operate 24/7). Maintain an authorized_afterhours list for security, janitorial, and operations staff. Alert on unknown devices or unauthorized users detected after hours in sensitive zones. Integrate with badge access logs for cross-validation.
-- **Visualization:** Floor plan map (after-hours device locations), Timeline (presence events outside business hours), Table (unauthorized after-hours presence), Bar chart (after-hours detections by zone).
+- **Implementation:** Forward mail server logs. Extract auth and relay outcomes. Alert on high volume of auth failures from single IP or relay denied for internal IPs (possible misconfiguration).
+- **Visualization:** Table (IP, user, action, count), Timechart of failures, Map (GeoIP).
 - **CIM Models:** Authentication
 
 ---
 
-### UC-11.4.6 · Workspace Utilization and Ghost Booking Detection
+### UC-11.4.5 · Mail Delivery Rate and Bounce Rate by Domain
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
-- **Value:** Combines room booking data with actual physical occupancy from Cisco Spaces and Webex device sensors to calculate true workspace utilization. Identifies "ghost bookings" — rooms reserved but never occupied — which waste available space and frustrate employees searching for rooms. Reveals which rooms are most/least popular, optimal room sizes for actual group sizes, and peak usage patterns. Directly supports real estate cost reduction by providing evidence-based recommendations for space consolidation, redesign, or expansion.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), `ta_cisco_webex_add_on_for_splunk` (GitHub), calendar integration
-- **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Webex Room Kit, Room Bar, Room Navigator, Webex Board
-- **Data Sources:** Cisco Spaces occupancy data, Webex device people count (RoomAnalytics), calendar/booking system data
+- **Value:** Sudden drop in delivery rate or spike in bounces for a domain indicates reputation or configuration issues. Trending supports deliverability and capacity planning.
+- **App/TA:** Mail server logs, bounce logs
+- **Data Sources:** Postfix/Sendmail delivery status, bounce messages, Exchange tracking logs
 - **SPL:**
 ```spl
-index=cisco_spaces sourcetype="cisco:spaces:workspace"
-| join type=left max=0 workspaceId [search index=webex sourcetype="webex:workspace_bookings" | fields workspaceId, bookingStart, bookingEnd, organizer]
-| eval booked=if(isnotnull(bookingStart), 1, 0)
-| eval occupied=if(peopleCount>0, 1, 0)
-| eval ghost_booking=if(booked=1 AND occupied=0, 1, 0)
-| eval unbooked_usage=if(booked=0 AND occupied=1, 1, 0)
-| stats sum(booked) as total_bookings, sum(ghost_booking) as ghost_bookings, sum(unbooked_usage) as walk_ins, avg(peopleCount) as avg_occupants, max(roomCapacity) as capacity by workspaceName, building, floor
-| eval ghost_rate=if(total_bookings>0, round(ghost_bookings/total_bookings*100, 1), 0)
-| eval avg_fill=if(capacity>0, round(avg_occupants/capacity*100, 1), 0)
-| sort -ghost_rate
-| table workspaceName, building, floor, capacity, total_bookings, ghost_bookings, ghost_rate, walk_ins, avg_occupants, avg_fill
+index=mail sourcetype=mail_delivery
+| stats count(eval(status="delivered")) as delivered, count(eval(status="bounce")) as bounces by domain, _time span=1h
+| eval bounce_rate=round(bounces/(delivered+bounces)*100, 2)
+| where bounce_rate > 5 OR delivered < 10
+| table domain delivered bounces bounce_rate
 ```
-- **Implementation:** Enable Webex RoomAnalytics people counting on all room devices (`xConfiguration RoomAnalytics PeopleCountOutOfCall: On`). Ingest room booking data from your calendar system (Google Calendar, Microsoft 365, or Webex Workspaces API). Stream occupancy data from Cisco Spaces. Correlate bookings with actual occupancy using workspace IDs and time windows. Define ghost booking as: room booked but no occupancy detected within 10 minutes of booking start. Generate weekly facility reports showing: ghost booking rate per floor/building, rooms with avg occupancy below 25% of capacity, and peak vs. off-peak usage patterns.
-- **Visualization:** Heat map (utilization by room and time slot), Bar chart (ghost booking rate by floor), Table (workspace utilization summary), Scatter plot (room capacity vs. actual avg occupants).
+- **Implementation:** Parse delivery and bounce events by recipient domain. Compute hourly delivery and bounce rate. Alert when bounce rate exceeds 5% or delivery volume drops significantly for critical domains.
+- **Visualization:** Line chart (delivery and bounce rate by domain), Table (domain, delivered, bounces, %), Bar chart (bounce rate by domain).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.4.6 · Outbound Mail Volume and Recipient Anomaly
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Unusual outbound volume or new bulk recipients may indicate compromised account or phishing campaign. Baseline and anomaly detection support incident response.
+- **App/TA:** Mail server logs
+- **Data Sources:** Postfix/Sendmail/Exchange outbound logs
+- **SPL:**
+```spl
+index=mail sourcetype=mail_send
+| stats dc(recipient) as recipients, count as msg_count by sender, _time span=1h
+| eventstats avg(msg_count) as avg_count, stdev(msg_count) as std_count by sender
+| eval z_score=if(std_count>0, (msg_count-avg_count)/std_count, 0)
+| where z_score > 3 OR recipients > 100
+| table _time sender msg_count recipients z_score
+```
+- **Implementation:** Ingest outbound send events. Baseline message count and unique recipients per sender (hourly). Alert when volume or recipient count exceeds 3 standard deviations or recipient count >100 in one hour.
+- **Visualization:** Table (sender, count, recipients, z-score), Line chart (volume by sender), Bar chart (top senders).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.4.7 · Mail Server TLS and Certificate Expiration
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Security
+- **Value:** Expired or expiring TLS certificates on SMTP/IMAP/POP break encryption and can cause delivery failures. Proactive monitoring prevents outages.
+- **App/TA:** Custom scripted input (openssl s_client)
+- **Data Sources:** TLS handshake to mail server ports (25, 465, 587, 993, 995)
+- **SPL:**
+```spl
+index=mail sourcetype=mail_tls host=*
+| eval days_left=round((expiry_epoch-now())/86400, 0)
+| where days_left < 30
+| table host port days_left subject
+| sort days_left
+```
+- **Implementation:** Script that connects to mail server ports and extracts certificate expiry (e.g. `openssl s_client -connect host:25 -starttls smtp`). Ingest daily. Alert when expiry is within 30 days.
+- **Visualization:** Table (host, port, days left), Single value (soonest expiry), Gauge (days remaining).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.4.8 · SMTP Relay Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Availability
+- **Value:** Tracks messages relayed through internal SMTP gateways vs policy — unexpected relay volume or open relay abuse paths.
+- **App/TA:** `Splunk_TA_syslog`, Postfix/Exchange logs
+- **Data Sources:** `postfix:syslog` `relay=`, `status=sent`, `reject` relay attempts
+- **SPL:**
+```spl
+index=mail sourcetype="postfix:syslog" OR sourcetype=syslog process=postfix
+| search relay=* OR "relay access denied"
+| stats count by relay_domain, action, src
+| where count > 500
+```
+- **Implementation:** Parse relay lines for authorized vs denied. Alert on high relay denied from single IP (scanning) or high accepted relay to external domains (misconfiguration).
+- **Visualization:** Table (relay domain, count), Line chart (relay attempts), Single value (relay denied rate).
 - **CIM Models:** N/A
 
 ---

@@ -3215,25 +3215,6 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 
 ---
 
-### UC-1.2.14 · IIS Web Server Monitoring
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** IIS access logs provide visibility into web application health — error rates, response times, and request volumes. Critical for web-facing services.
-- **App/TA:** `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS
-- **Data Sources:** `sourcetype=ms:iis:auto` or `sourcetype=iis`
-- **SPL:**
-```spl
-index=web sourcetype="ms:iis:auto"
-| timechart span=5m count by sc_status
-| eval error_rate = round((sc_status_500 + sc_status_502 + sc_status_503) / (sc_status_200 + sc_status_500 + sc_status_502 + sc_status_503) * 100, 2)
-```
-- **Implementation:** Configure IIS to use W3C Extended Log Format with time-taken field. Forward IIS logs from `%SystemDrive%\inetpub\logs\LogFiles`. Use the Microsoft IIS TA for field extraction. Create alerts on 5xx error rate >5%.
-- **Visualization:** Line chart (requests by status code), Single value (error rate %), Table of top error URIs.
-- **CIM Models:** N/A
-
----
-
 ### UC-1.2.15 · DNS Server Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
@@ -3293,30 +3274,6 @@ index=os sourcetype=certificate_inventory host=*
 ```
 - **Implementation:** Create a PowerShell scripted input: `Get-ChildItem -Path Cert:\LocalMachine -Recurse | Select Subject, NotAfter, Issuer`. Run daily. Alert at 90/60/30/7 day thresholds.
 - **Visualization:** Table sorted by days to expiry, Single value (certs expiring within 30d), Status indicator (red/yellow/green).
-- **CIM Models:** N/A
-
----
-
-### UC-1.2.18 · Active Directory Replication
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** AD replication failures cause authentication inconsistencies — users locked out in one site but not another, stale GPOs, and split-brain scenarios.
-- **App/TA:** `Splunk_TA_windows`
-- **Data Sources:** `sourcetype=WinEventLog:Directory Service`, custom scripted input (`repadmin /replsummary`)
-- **SPL:**
-```spl
-index=wineventlog sourcetype="WinEventLog:Directory Service" (EventCode=1864 OR EventCode=1865 OR EventCode=2042 OR EventCode=1388 OR EventCode=1988)
-| table _time host EventCode Message
-| sort -_time
-
-| comment "Replication health from scripted input"
-index=ad sourcetype=repadmin_replsummary
-| where failures > 0
-| table source_dc dest_dc failures last_failure last_success
-```
-- **Implementation:** Collect Directory Service event log from all DCs. Create scripted input running `repadmin /replsummary /csv` daily. Alert on any replication failure events. Critical alert on EventCode 2042 (tombstone lifetime exceeded).
-- **Visualization:** Table of replication partners with status, Events timeline, Network diagram of DC replication.
 - **CIM Models:** N/A
 
 ---
@@ -4662,55 +4619,6 @@ index=perfmon sourcetype="Perfmon:NTDS" counter IN ("LDAP Searches/sec","LDAP Su
 
 ---
 
-### UC-1.2.74 · Hyper-V VM State Changes
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Unexpected VM power state changes (shutdowns, paused, critical saves) indicate host issues, resource contention, or unauthorized administrative actions.
-- **App/TA:** `Splunk_TA_windows`
-- **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` (EventCode 12320, 12322, 12324, 18304)
-- **SPL:**
-```spl
-index=wineventlog source="WinEventLog:Microsoft-Windows-Hyper-V-VMMS*"
-  EventCode IN (12320, 12322, 12324, 18304, 18310, 18312)
-| eval action=case(EventCode=12320,"VM started",EventCode=12322,"VM stopped",EventCode=12324,"VM saved",EventCode=18304,"VM critical",EventCode=18310,"VM paused",EventCode=18312,"VM resumed")
-| table _time, host, action, VmName, VmId
-| sort -_time
-```
-- **Implementation:** Forward Hyper-V VMMS Admin logs from all Hyper-V hosts. EventCode 18304=VM entered critical state (memory pressure, lost storage), 18310=VM paused (out of disk, integration services failure). Alert on any critical state transitions. Track unexpected shutdowns (12322 without preceding 12320 by admin). Correlate with host-level resource monitoring to identify the root cause.
-- **Visualization:** Timeline (VM state changes), Status grid (VM × state), Table (critical events), Single value (VMs in critical state).
-- **CIM Models:** Change
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
-| sort -count
-```
-
----
-
-### UC-1.2.75 · AD Certificate Services (ADCS) Anomalies
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** ADCS misconfigurations enable privilege escalation (ESC1-ESC8 attacks). Monitoring certificate requests catches unauthorized certificate enrollment for domain admin impersonation.
-- **App/TA:** `Splunk_TA_windows`
-- **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888)
-- **SPL:**
-```spl
-index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4886, 4887, 4888)
-| eval action=case(EventCode=4886,"Request received",EventCode=4887,"Certificate issued",EventCode=4888,"Certificate denied")
-| stats count by Requester, CertificateTemplate, SubjectName, action
-| where CertificateTemplate IN ("User","SmartcardLogon","Machine") AND NOT match(Requester, "(?i)(SYSTEM|machine\\$)")
-| sort -count
-```
-- **Implementation:** Enable Certificate Services auditing on CA servers. EventCode 4887=certificate issued — track who requested which template. Alert on certificates with Subject Alternative Names (SANs) containing admin usernames (ESC1 attack). Monitor for certificate requests from non-standard templates. Track enrollment agent certificates (ESC3). Audit CA configuration for overly permissive templates with `certutil -v -template`.
-- **Visualization:** Table (certificate issuances), Bar chart (requests by template), Timeline, Alert on SAN mismatches.
-- **CIM Models:** N/A
-
----
-
 ### UC-1.2.76 · AdminSDHolder Modification
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
@@ -4809,27 +4717,6 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 
 ---
 
-### UC-1.2.80 · Windows Backup Job Monitoring
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
-- **Value:** Windows Server Backup failures mean the server has no recovery point. Silent failures create a false sense of protection.
-- **App/TA:** `Splunk_TA_windows`
-- **Data Sources:** `sourcetype=WinEventLog:Microsoft-Windows-Backup` (EventCode 4, 5, 8, 9, 14, 17, 22)
-- **SPL:**
-```spl
-index=wineventlog source="WinEventLog:Microsoft-Windows-Backup"
-  EventCode IN (4, 5, 8, 9, 14)
-| eval status=case(EventCode=4,"Backup completed",EventCode=5,"Backup failed",EventCode=8,"Backup failed (VSS)",EventCode=9,"Warning",EventCode=14,"Backup completed with warnings")
-| table _time, host, status, EventCode, BackupTarget
-| sort -_time
-```
-- **Implementation:** Forward Windows Backup event logs. EventCode 4=success, 5=failure, 8=VSS failure. Alert on any backup failure (EventCode 5, 8). Also monitor for missing backups — if a server stops reporting EventCode 4, the backup job may have been disabled or deleted. Compare actual backup frequency against RTO/RPO requirements. Escalate servers with no successful backup in 48+ hours.
-- **Visualization:** Status grid (host × backup status), Table (failures), Line chart (backup success rate over time), Single value (hours since last backup).
-- **CIM Models:** N/A
-
----
-
 ### UC-1.2.81 · SMBv1 Usage Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -4924,34 +4811,6 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 - **Implementation:** Deploy Sysmon with PipeCreated (17) and PipeConnected (18) monitoring. Known malicious pipe names: `MSSE-*` (Metasploit), `msagent_*` (Cobalt Strike), `postex_*` (Cobalt Strike post-exploitation), `status_*` (default Cobalt Strike). Also detect PsExec pipes (`PSEXESVC`). Baseline normal pipes per application role, then alert on anomalies.
 - **Visualization:** Table (pipe events), Bar chart (top pipe names), Timeline, Alert on known-bad patterns.
 - **CIM Models:** N/A
-
----
-
-### UC-1.2.85 · IIS Application Pool Crashes & Recycling
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Capacity
-- **Value:** Application pool crashes cause HTTP 503 errors and service outages. Frequent recycling indicates memory leaks or configuration issues in web applications.
-- **App/TA:** `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS
-- **Data Sources:** `sourcetype=WinEventLog:System` (Source=WAS, EventCode 5002, 5010, 5011, 5012, 5013)
-- **SPL:**
-```spl
-index=wineventlog sourcetype="WinEventLog:System" Source="WAS"
-  EventCode IN (5002, 5010, 5011, 5012, 5013)
-| eval event=case(EventCode=5002,"AppPool crashed",EventCode=5010,"Process termination timeout",EventCode=5011,"AppPool auto-disabled",EventCode=5012,"AppPool rapid failures",EventCode=5013,"AppPool timeout")
-| table _time, host, event, AppPoolName
-| sort -_time
-```
-- **Implementation:** WAS (Windows Activation Service) events log automatically on IIS servers. EventCode 5002=worker process crashed, 5011=pool auto-disabled due to rapid failures (5 in 5 minutes default), 5012=rapid failure protection triggered. Alert on any 5011 event (pool disabled = site down). Track recycling frequency per pool. Correlate with WER EventCode 1000 for crash details including the faulting module.
-- **Visualization:** Table (app pool events), Timechart (recycling frequency), Status grid (pool × health), Single value (disabled pools — target: 0).
-- **CIM Models:** Endpoint
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
-```
 
 ---
 
@@ -5255,32 +5114,6 @@ index=wineventlog EventCode IN (6272, 6273, 6274)
   where Authentication.action=failure
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
-```
-
----
-
-### UC-1.2.99 · MSMQ Queue Depth Monitoring
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Capacity
-- **Value:** Message queue buildup indicates application processing failures. Monitoring queue depth prevents message loss and detects downstream system outages.
-- **App/TA:** `Splunk_TA_windows`
-- **Data Sources:** `sourcetype=Perfmon:MSMQ`
-- **SPL:**
-```spl
-index=perfmon source="Perfmon:MSMQ Service" counter="Total Messages in all Queues"
-| timechart span=5m avg(Value) as AvgQueueDepth by host
-| foreach * [eval <<FIELD>>=round('<<FIELD>>', 0)]
-```
-- **Implementation:** Configure Perfmon input for MSMQ Service counters: Total Messages in all Queues, Total Bytes in all Queues, Sessions. Also monitor individual queue counters via `MSMQ Queue` object. Alert when queue depth exceeds baseline (messages accumulating). Monitor journal queue size for message delivery confirmations. Track dead-letter queue growth for undeliverable messages.
-- **Visualization:** Timechart (queue depth trend), Single value (current depth), Alert on queue growth exceeding threshold.
-- **CIM Models:** Performance
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
 ```
 
 ---
