@@ -844,6 +844,11 @@ html.light-mode .uc-es-badge, html.light-mode .modal-es-badge { color: #00796b; 
 html.light-mode .uc-archived-badge { color: #e65100; background: rgba(230,81,0,0.08); border-color: rgba(230,81,0,0.2); }
 html.light-mode .archived-warning-box { background: rgba(255,152,0,0.06); border-color: rgba(230,81,0,0.2); }
 html.light-mode .archived-warning-box strong { color: #e65100; }
+html.light-mode .adv-mitre-btn { border-color: #d0d4dc; background: #fff; }
+html.light-mode .adv-mitre-dd { background: #fff; border-color: #d0d4dc; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+html.light-mode .adv-mitre-search { background: #fff; border-bottom-color: #e0e4eb; }
+html.light-mode .adv-mitre-tactic { background: #f3f5f8; border-top-color: #e0e4eb; }
+html.light-mode .adv-mitre-opt:hover { background: rgba(0,100,200,0.06); }
 
 /* Layout — sidebar and main align on same top and shared column grid */
 .app-layout {
@@ -1047,7 +1052,50 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
 }
 .adv-search-input:focus { outline: none; border-color: var(--accent); }
 .adv-search-input::placeholder { color: var(--splunk-text-tertiary); }
-.adv-mitre-select { min-width: 240px; max-width: 420px; flex: 2; }
+.adv-mitre-wrap { position: relative; min-width: 240px; max-width: 480px; flex: 2; }
+.adv-mitre-btn {
+  width: 100%; text-align: left; padding: 6px 32px 6px 10px; border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04);
+  color: var(--splunk-text-primary); font-size: var(--text-sm); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative;
+  transition: border-color 0.2s;
+}
+.adv-mitre-btn::after { content: '\25BC'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--splunk-text-tertiary); }
+.adv-mitre-btn.open::after { content: '\25B2'; }
+.adv-mitre-btn:hover, .adv-mitre-btn.has-value { border-color: var(--accent); }
+.adv-mitre-dd {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  max-height: 380px; overflow-y: auto; z-index: 200;
+  background: var(--splunk-surface-raised); border: 1px solid var(--splunk-border-subtle);
+  border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.adv-mitre-dd.show { display: block; }
+.adv-mitre-search {
+  position: sticky; top: 0; z-index: 1; width: 100%; padding: 8px 12px; border: none;
+  border-bottom: 1px solid var(--splunk-border-subtle); background: var(--splunk-surface-raised);
+  color: var(--splunk-text-primary); font-size: var(--text-sm); outline: none;
+}
+.adv-mitre-search::placeholder { color: var(--splunk-text-tertiary); }
+.adv-mitre-tactic {
+  padding: 8px 12px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--accent); background: var(--splunk-bg-base);
+  border-top: 1px solid var(--splunk-border-subtle); position: sticky; top: 37px; z-index: 1;
+}
+.adv-mitre-tactic:first-of-type { border-top: none; }
+.adv-mitre-opt {
+  padding: 6px 12px 6px 20px; font-size: var(--text-sm); cursor: pointer;
+  color: var(--splunk-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.adv-mitre-opt:hover { background: rgba(var(--splunk-green-rgb), 0.08); color: var(--splunk-text-primary); }
+.adv-mitre-opt.selected { background: rgba(var(--splunk-green-rgb), 0.15); color: var(--splunk-green); font-weight: 600; }
+.adv-mitre-opt .mitre-tid { color: var(--splunk-text-tertiary); font-size: var(--text-xs); margin-right: 6px; font-family: var(--font-mono, monospace); }
+.adv-mitre-opt.selected .mitre-tid { color: var(--splunk-green); }
+.adv-mitre-none { padding: 12px; text-align: center; color: var(--splunk-text-tertiary); font-size: var(--text-sm); }
+.adv-mitre-clear {
+  padding: 6px 12px; font-size: var(--text-sm); cursor: pointer;
+  color: var(--splunk-text-tertiary); font-style: italic;
+}
+.adv-mitre-clear:hover { background: rgba(255,255,255,0.04); color: var(--splunk-text-primary); }
 
 /* Active filter tags */
 .active-filters {
@@ -2903,17 +2951,20 @@ function advancedFilterPanel() {
   html += '</div><div class="adv-row">';
 
   html += '<label class="adv-label">MITRE ATT&amp;CK</label>';
-  html += '<select class="filter-select adv-mitre-select' + (currentMitreFilter?' has-value':'') + '" onchange="setAdvFilter(\'mitre\',this.value)">';
-  html += '<option value=""' + (!currentMitreFilter?' selected':'') + '>All techniques</option>';
-  if (typeof FILTER_FACETS !== 'undefined') FILTER_FACETS.mitre.forEach(function(group) {
-    html += '<optgroup label="' + escHtml(group.label) + '">';
-    group.techniques.forEach(function(t) {
-      var label = t.id + (t.name ? ' \u2014 ' + t.name : '');
-      html += '<option value="' + escHtml(t.id) + '"' + (currentMitreFilter===t.id?' selected':'') + '>' + escHtml(label) + '</option>';
+  var mitreLabel = currentMitreFilter ? currentMitreFilter : 'All techniques';
+  if (currentMitreFilter && typeof FILTER_FACETS !== 'undefined') {
+    FILTER_FACETS.mitre.some(function(g) {
+      var found = g.techniques.find(function(t) { return t.id === currentMitreFilter; });
+      if (found) { mitreLabel = found.id + ' \u2014 ' + found.name; return true; }
     });
-    html += '</optgroup>';
-  });
-  html += '</select>';
+  }
+  html += '<div class="adv-mitre-wrap" id="mitre-dd-wrap">';
+  html += '<button type="button" class="adv-mitre-btn' + (currentMitreFilter ? ' has-value' : '') + '" onclick="toggleMitreDd()">' + escHtml(mitreLabel) + '</button>';
+  html += '<div class="adv-mitre-dd" id="mitre-dd">';
+  html += '<input type="text" class="adv-mitre-search" placeholder="Search techniques\u2026" oninput="filterMitreDd(this.value)">';
+  html += '<div id="mitre-dd-list">';
+  html += buildMitreDdList('');
+  html += '</div></div></div>';
 
   html += '<label class="adv-label">Data source</label>';
   html += '<input type="text" class="adv-search-input" placeholder="e.g. syslog, WinEventLog" value="' + escHtml(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)">';
@@ -2923,6 +2974,67 @@ function advancedFilterPanel() {
 }
 
 function toggleAdvFilters() { advFiltersOpen = !advFiltersOpen; reRender(); }
+
+function buildMitreDdList(query) {
+  if (typeof FILTER_FACETS === 'undefined') return '';
+  var q = query.toLowerCase().trim();
+  var html = '';
+  html += '<div class="adv-mitre-clear" onclick="selectMitreTech(\'\')">\u2190 All techniques</div>';
+  var anyVisible = false;
+  FILTER_FACETS.mitre.forEach(function(group) {
+    var matched = group.techniques.filter(function(t) {
+      if (!q) return true;
+      return t.id.toLowerCase().indexOf(q) !== -1 || (t.name && t.name.toLowerCase().indexOf(q) !== -1);
+    });
+    if (matched.length === 0) return;
+    anyVisible = true;
+    html += '<div class="adv-mitre-tactic">' + escHtml(group.label) + '</div>';
+    matched.forEach(function(t) {
+      var sel = currentMitreFilter === t.id ? ' selected' : '';
+      html += '<div class="adv-mitre-opt' + sel + '" onclick="selectMitreTech(\'' + escHtml(t.id) + '\')">';
+      html += '<span class="mitre-tid">' + escHtml(t.id) + '</span>' + escHtml(t.name || '');
+      html += '</div>';
+    });
+  });
+  if (!anyVisible) html += '<div class="adv-mitre-none">No techniques match your search</div>';
+  return html;
+}
+
+function toggleMitreDd() {
+  var dd = document.getElementById('mitre-dd');
+  var btn = dd && dd.previousElementSibling;
+  if (!dd) return;
+  var show = !dd.classList.contains('show');
+  dd.classList.toggle('show', show);
+  if (btn) btn.classList.toggle('open', show);
+  if (show) {
+    var inp = dd.querySelector('.adv-mitre-search');
+    if (inp) { inp.value = ''; inp.focus(); }
+    document.getElementById('mitre-dd-list').innerHTML = buildMitreDdList('');
+  }
+}
+
+function filterMitreDd(val) {
+  var list = document.getElementById('mitre-dd-list');
+  if (list) list.innerHTML = buildMitreDdList(val);
+}
+
+function selectMitreTech(id) {
+  currentMitreFilter = id;
+  var dd = document.getElementById('mitre-dd');
+  if (dd) { dd.classList.remove('show'); var btn = dd.previousElementSibling; if (btn) btn.classList.remove('open'); }
+  reRender();
+  buildSidebar();
+  updateCountLabel();
+}
+
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('mitre-dd-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    var dd = document.getElementById('mitre-dd');
+    if (dd) { dd.classList.remove('show'); var btn = dd.previousElementSibling; if (btn) btn.classList.remove('open'); }
+  }
+});
 
 function setAdvFilter(key, val) {
   if (key === 'escu') currentEscuFilter = val;
@@ -2941,8 +3053,7 @@ var _advDebounceTimer = null;
 function debounceAdvSearch(key, val) {
   clearTimeout(_advDebounceTimer);
   _advDebounceTimer = setTimeout(function() {
-    if (key === 'mitre') currentMitreFilter = val;
-    else if (key === 'datasource') currentDatasourceFilter = val;
+    if (key === 'datasource') currentDatasourceFilter = val;
     reRender();
     buildSidebar();
     updateCountLabel();
