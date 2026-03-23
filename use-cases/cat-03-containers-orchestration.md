@@ -457,6 +457,173 @@ index=containers sourcetype="falco:alert" priority="Critical" OR priority="Error
 
 ---
 
+### UC-3.1.22 · Container Health Check Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Docker HEALTHCHECK provides a built-in liveness signal. Containers stuck in "unhealthy" or "starting" state may still appear as "running" but are no longer serving traffic correctly, masking outages from basic uptime checks.
+- **App/TA:** Splunk Docker logging driver (HEC), `docker events` scripted input
+- **Data Sources:** `sourcetype=docker:events`, `sourcetype=docker:inspect`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:events" type="container" action="health_status*"
+| rex field=action "health_status: (?<health_status>\w+)"
+| where health_status="unhealthy"
+| stats count as unhealthy_count, latest(_time) as last_unhealthy by container_name, container_id, host
+| where unhealthy_count > 3
+| sort -unhealthy_count
+```
+- **Implementation:** Docker emits `health_status` events for containers with a HEALTHCHECK instruction. Forward Docker daemon events to Splunk via HEC or syslog. Alert when a container enters "unhealthy" state or stays in "starting" for longer than the start period. Correlate with container logs to identify the failing check command. Track health check failure rate per image to identify systemic issues.
+- **Visualization:** Table (unhealthy containers with count), Single value (unhealthy container count), Timeline (health status transitions).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.23 · Container Network I/O Anomalies
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** Per-container network throughput monitoring detects noisy neighbors saturating shared networks, unusual outbound traffic indicating data exfiltration, and connectivity issues causing application timeouts.
+- **App/TA:** `docker stats` scripted input, cAdvisor metrics
+- **Data Sources:** `sourcetype=docker:stats`, `sourcetype=cadvisor`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:stats"
+| eval rx_mb=round(rx_bytes/1048576,2), tx_mb=round(tx_bytes/1048576,2)
+| timechart span=5m avg(rx_mb) as rx_avg_mb, avg(tx_mb) as tx_avg_mb by container_name
+| eventstats avg(tx_avg_mb) as baseline_tx, stdev(tx_avg_mb) as stdev_tx by container_name
+| where tx_avg_mb > baseline_tx + 3*stdev_tx
+```
+- **Implementation:** Collect `docker stats` output or cAdvisor metrics at regular intervals. Extract `rx_bytes`, `tx_bytes`, `rx_packets`, `tx_packets`, and `rx_dropped`/`tx_dropped` per container. Baseline per-container network profiles and alert on deviations above 3 standard deviations. High TX from a container that normally has low outbound traffic is a strong exfiltration indicator. Dropped packets signal network saturation.
+- **Visualization:** Line chart (TX/RX per container), Bar chart (top talkers), Table (anomalous containers).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-3.1.24 · Docker Exec Session Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** `docker exec` into a running container is an interactive access event that should be rare in production. Unexpected exec sessions may indicate troubleshooting without change control, unauthorized access, or an attacker establishing a foothold.
+- **App/TA:** `docker events` scripted input, Docker daemon logs
+- **Data Sources:** `sourcetype=docker:events`, `sourcetype=docker:daemon`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:events" type="container" action="exec_start*"
+| rex field=action "exec_start: (?<exec_cmd>.+)"
+| stats count as exec_count, values(exec_cmd) as commands by container_name, host, _time
+| sort -_time
+```
+- **Implementation:** Docker emits `exec_start` and `exec_create` events when someone runs `docker exec`. Forward daemon events to Splunk. Alert on any exec in production environments, especially during non-business hours. Flag high-risk commands (shells like `/bin/bash`, `/bin/sh`, or commands accessing sensitive paths). Correlate with host SSH/login events to attribute the session to a user.
+- **Visualization:** Table (exec sessions with command and container), Timeline (exec events), Single value (exec count last 24h).
+- **CIM Models:** Change
+
+---
+
+### UC-3.1.25 · Docker Socket Exposure Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Mounting `/var/run/docker.sock` inside a container grants full Docker API access, effectively giving root-level control over the host. This is the most common Docker privilege escalation vector and should be flagged immediately.
+- **App/TA:** `docker inspect` scripted input, Falco
+- **Data Sources:** `sourcetype=docker:inspect`, `sourcetype=falco:alert`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:inspect"
+| spath output=mounts path=Mounts{}
+| mvexpand mounts
+| spath input=mounts output=mount_source path=Source
+| where mount_source="/var/run/docker.sock"
+| table _time, container_name, image, host, mount_source
+```
+- **Implementation:** Periodically run `docker inspect` on all containers and forward the JSON output. Search bind mounts for `/var/run/docker.sock` or the Docker API socket path. Alert on any detection. For runtime detection, use Falco rules that trigger on socket access. Also check for TCP Docker daemon exposure (`-H tcp://0.0.0.0`) in daemon configuration. Only allow socket mounting for explicitly approved infrastructure containers (e.g., Portainer, Traefik) via an allowlist lookup.
+- **Visualization:** Table (containers with socket mount), Single value (exposed container count), Alert (immediate page).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.26 · Image Pull Failures and Registry Connectivity
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Failed image pulls block container starts, scaling operations, and deployments. Common causes include registry rate limits (Docker Hub's 100 pulls/6h for free accounts), expired credentials, network issues, and deleted image tags.
+- **App/TA:** Docker daemon logs, `docker events` scripted input
+- **Data Sources:** `sourcetype=docker:daemon`, `sourcetype=docker:events`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:daemon" ("pull" AND ("error" OR "denied" OR "rate limit" OR "not found" OR "timeout"))
+| rex "Error response from daemon: (?<error_msg>.+)"
+| stats count as failures, latest(error_msg) as last_error by image, host
+| sort -failures
+```
+- **Implementation:** Forward Docker daemon logs to Splunk. Search for pull-related error messages including authentication failures, rate limit responses (HTTP 429), image-not-found errors, and network timeouts. Alert on any pull failure in production. Track pull failure rate over time to detect intermittent registry connectivity issues. For Docker Hub rate limits, monitor the `RateLimit-Remaining` header if available in debug logs.
+- **Visualization:** Table (failed images with error), Bar chart (failures by registry), Line chart (pull failure rate over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.27 · Dangling Images and Volume Cleanup
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Orphaned image layers and anonymous volumes accumulate silently and can consume tens of gigabytes of disk. On CI/CD build hosts this is especially aggressive. Monitoring prevents disk-full incidents caused by Docker storage waste.
+- **App/TA:** `docker system df` scripted input
+- **Data Sources:** `sourcetype=docker:system_df`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:system_df"
+| eval reclaimable_gb=round(reclaimable_bytes/1073741824,2)
+| where type IN ("Images","Volumes","BuildCache") AND reclaimable_gb > 5
+| table _time, host, type, total_count, active_count, size_gb, reclaimable_gb
+| sort -reclaimable_gb
+```
+- **Implementation:** Run `docker system df -v --format json` on a schedule and forward the output to Splunk. Track `Reclaimable` bytes for images, volumes, and build cache. Alert when reclaimable space exceeds a threshold (e.g., 10 GB or 50% of Docker storage). For automated cleanup, trigger `docker system prune` via a webhook alert action, but only on non-production hosts. Track cleanup events to verify disk recovery.
+- **Visualization:** Gauge (reclaimable space per host), Line chart (storage growth trend), Table (hosts with most waste).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.28 · Docker Swarm Service Replica Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Swarm services may show the correct replica count globally but have tasks stuck in "pending", "rejected", or "failed" state. Monitoring task-level health catches scheduling failures, resource constraints, and rolling update stalls that the service-level view hides.
+- **App/TA:** `docker service` scripted input, Docker daemon logs
+- **Data Sources:** `sourcetype=docker:service`, `sourcetype=docker:daemon`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:service"
+| where desired_replicas != running_replicas OR failed_tasks > 0
+| eval gap=desired_replicas - running_replicas
+| table _time, service_name, desired_replicas, running_replicas, gap, failed_tasks, update_status
+| sort -gap
+```
+- **Implementation:** Poll `docker service ls --format json` and `docker service ps <service> --format json` on a schedule. Extract `desired`, `running`, and task states. Alert when running replicas are fewer than desired for more than 2 consecutive checks. Track `update_status` during rolling updates — alert when an update is "paused" (hit failure threshold). Monitor task rejection reasons (resource constraints, image pull failures, port conflicts) to diagnose scheduling issues.
+- **Visualization:** Table (services with replica gaps), Single value (unhealthy service count), Timeline (task failures).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.1.29 · Container Filesystem Write Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** High write rates to the container's writable layer (overlay filesystem) indicate missing volume mounts, excessive application logging to local disk, or tmp file abuse. This degrades performance and fills the Docker storage driver, potentially affecting all containers on the host.
+- **App/TA:** `docker stats` scripted input, cAdvisor metrics
+- **Data Sources:** `sourcetype=docker:stats`, `sourcetype=cadvisor`
+- **SPL:**
+```spl
+index=containers sourcetype="docker:stats"
+| eval block_write_mb=round(block_write_bytes/1048576,2)
+| timechart span=5m sum(block_write_mb) as write_mb by container_name
+| where write_mb > 100
+```
+- **Implementation:** Collect `docker stats` or cAdvisor block I/O metrics at regular intervals. Extract `blkio.io_service_bytes_recursive` for read and write operations per container. Alert when any container sustains write rates above 100 MB per 5-minute window. Investigate which process inside the container is writing (use `docker exec` or container logs). Common root causes: application logging to stdout captured by json-file driver with no rotation, temp file accumulation, and missing persistent volume mounts for data directories.
+- **Visualization:** Line chart (write rate per container), Bar chart (top writers), Table (containers exceeding threshold).
+- **CIM Models:** Performance
+
+---
+
 ## 3.2 Kubernetes
 
 **Primary App/TA:** Splunk OpenTelemetry Collector for Kubernetes, Splunk Connect for Kubernetes — Free
