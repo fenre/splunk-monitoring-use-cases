@@ -2162,21 +2162,72 @@ def extract_filter_facets(data):
         "cim": sorted(cim_models),
         "sapp": [{"id": k, "name": v} for k, v in sorted(sapp_map.items(), key=lambda x: x[1])],
         "industry": sorted(industries),
-        "mitre": _mitre_with_names(sorted(mitres)),
+        "mitre": _mitre_by_tactic(sorted(mitres)),
     }
 
 
-def _mitre_with_names(technique_ids):
-    """Enrich MITRE technique IDs with human-readable names from mitre_techniques.json."""
-    names_path = os.path.join(SCRIPT_DIR, "mitre_techniques.json")
-    names = {}
-    if os.path.isfile(names_path):
-        with open(names_path, encoding="utf-8") as f:
-            names = json.load(f)
-    result = []
+MITRE_TACTIC_ORDER = [
+    "reconnaissance", "resource-development", "initial-access", "execution",
+    "persistence", "privilege-escalation", "defense-evasion", "credential-access",
+    "discovery", "lateral-movement", "collection", "command-and-control",
+    "exfiltration", "impact",
+    "evasion", "inhibit-response-function", "impair-process-control",
+]
+
+MITRE_TACTIC_LABELS = {
+    "reconnaissance": "Reconnaissance",
+    "resource-development": "Resource Development",
+    "initial-access": "Initial Access",
+    "execution": "Execution",
+    "persistence": "Persistence",
+    "privilege-escalation": "Privilege Escalation",
+    "defense-evasion": "Defense Evasion",
+    "credential-access": "Credential Access",
+    "discovery": "Discovery",
+    "lateral-movement": "Lateral Movement",
+    "collection": "Collection",
+    "command-and-control": "Command and Control",
+    "exfiltration": "Exfiltration",
+    "impact": "Impact",
+    "evasion": "ICS: Evasion",
+    "inhibit-response-function": "ICS: Inhibit Response Function",
+    "impair-process-control": "ICS: Impair Process Control",
+}
+
+
+def _mitre_by_tactic(technique_ids):
+    """Group MITRE technique IDs by tactic, sorted in kill-chain order."""
+    tech_path = os.path.join(SCRIPT_DIR, "mitre_techniques.json")
+    tech_db = {}
+    if os.path.isfile(tech_path):
+        with open(tech_path, encoding="utf-8") as f:
+            tech_db = json.load(f)
+
+    tactic_map = {}  # tactic_slug -> [(id, name), ...]
+    ungrouped = []
     for tid in technique_ids:
-        name = names.get(tid, "")
-        result.append({"id": tid, "name": name})
+        info = tech_db.get(tid, {})
+        name = info.get("name", "") if isinstance(info, dict) else info
+        tactics = info.get("tactics", []) if isinstance(info, dict) else []
+        if not tactics:
+            ungrouped.append({"id": tid, "name": name})
+        else:
+            for tactic in tactics:
+                tactic_map.setdefault(tactic, []).append({"id": tid, "name": name})
+
+    ordered_tactics = [t for t in MITRE_TACTIC_ORDER if t in tactic_map]
+    remaining = sorted(set(tactic_map.keys()) - set(MITRE_TACTIC_ORDER))
+    ordered_tactics.extend(remaining)
+
+    result = []
+    for tactic in ordered_tactics:
+        label = MITRE_TACTIC_LABELS.get(tactic, tactic.replace("-", " ").title())
+        items = sorted(tactic_map[tactic], key=lambda x: x["id"])
+        result.append({"tactic": tactic, "label": label, "techniques": items})
+
+    if ungrouped:
+        result.append({"tactic": "_other", "label": "Other", "techniques": sorted(ungrouped, key=lambda x: x["id"])})
+
     return result
 
 

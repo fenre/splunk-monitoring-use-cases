@@ -835,7 +835,8 @@ html.light-mode .ov-stat-num {
   background: linear-gradient(135deg, #1a1c20 0%, #0264d7 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
-html.light-mode .ov-stat-item { border-right-color: #e0e4eb; }
+html.light-mode .ov-stat-item { border-color: #e0e4eb; background: #f8f9fb; }
+html.light-mode .ov-stat-item:hover { border-color: var(--accent); background: #fff; }
 html.light-mode .uc-pillar-tag.security { color: #b71c1c; background: rgba(183,28,28,0.08); border-color: rgba(183,28,28,0.2); }
 html.light-mode .uc-pillar-tag.observability { color: #1565c0; background: rgba(21,101,192,0.08); border-color: rgba(21,101,192,0.2); }
 html.light-mode .uc-reg-tag { color: #6a1b9a; background: rgba(106,27,154,0.08); border-color: rgba(106,27,154,0.2); }
@@ -1554,21 +1555,25 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
   max-width: 640px; line-height: 1.7;
 }
 .ov-stats {
-  display: flex; gap: 0; margin-top: var(--space-6); flex-wrap: wrap;
+  display: flex; gap: var(--space-3); margin-top: var(--space-6); flex-wrap: wrap;
 }
 .ov-stat-item {
-  display: flex; flex-direction: column; padding: var(--space-2) var(--space-5);
-  border-right: 1px solid var(--splunk-border-subtle); text-align: center; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: var(--space-4) var(--space-5);
+  background: var(--splunk-surface-raised); border: 1px solid var(--splunk-border-subtle);
+  border-radius: var(--radius-lg); text-align: center; min-width: 120px; flex: 1;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.ov-stat-item:first-child { padding-left: 0; }
-.ov-stat-item:last-child { border-right: none; }
+.ov-stat-item:hover {
+  border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 2px 8px rgba(0,0,0,0.08);
+}
 .ov-stat-num {
-  font-size: 32px; font-weight: 800; line-height: 1; letter-spacing: -0.04em;
+  font-size: 36px; font-weight: 800; line-height: 1; letter-spacing: -0.04em;
   background: linear-gradient(135deg, var(--splunk-text-primary) 0%, var(--splunk-green) 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 .ov-stat-label {
-  font-size: 11px; color: var(--splunk-text-tertiary); margin-top: 6px;
+  font-size: 11px; color: var(--splunk-text-tertiary); margin-top: 8px;
   text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; white-space: nowrap;
 }
 
@@ -2057,13 +2062,12 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
   .ov-hero { padding: var(--space-5) var(--space-4); }
   .ov-hero h2 { font-size: var(--text-xl); }
   .ov-stats {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
-    border-top: 1px solid var(--splunk-border-subtle); margin-top: var(--space-4); padding-top: var(--space-3);
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);
+    margin-top: var(--space-4);
   }
   .ov-stat-item {
-    padding: var(--space-2) var(--space-3); border-right: none; text-align: left;
+    padding: var(--space-3); min-width: 0; text-align: center;
   }
-  .ov-stat-item:nth-child(odd) { border-right: 1px solid var(--splunk-border-subtle); }
   .ov-stat-num { font-size: 24px; }
   .hero-domains { gap: var(--space-2); margin-top: var(--space-4); padding-top: var(--space-4); }
   .hero-domain { font-size: 12px; padding: 4px 10px; }
@@ -2896,9 +2900,13 @@ function advancedFilterPanel() {
   html += '<label class="adv-label">MITRE ATT&amp;CK</label>';
   html += '<select class="filter-select adv-mitre-select' + (currentMitreFilter?' has-value':'') + '" onchange="setAdvFilter(\'mitre\',this.value)">';
   html += '<option value=""' + (!currentMitreFilter?' selected':'') + '>All techniques</option>';
-  if (typeof FILTER_FACETS !== 'undefined') FILTER_FACETS.mitre.forEach(function(t) {
-    var label = t.id + (t.name ? ' \u2014 ' + t.name : '');
-    html += '<option value="' + escHtml(t.id) + '"' + (currentMitreFilter===t.id?' selected':'') + '>' + escHtml(label) + '</option>';
+  if (typeof FILTER_FACETS !== 'undefined') FILTER_FACETS.mitre.forEach(function(group) {
+    html += '<optgroup label="' + escHtml(group.label) + '">';
+    group.techniques.forEach(function(t) {
+      var label = t.id + (t.name ? ' \u2014 ' + t.name : '');
+      html += '<option value="' + escHtml(t.id) + '"' + (currentMitreFilter===t.id?' selected':'') + '>' + escHtml(label) + '</option>';
+    });
+    html += '</optgroup>';
   });
   html += '</select>';
 
@@ -2955,7 +2963,11 @@ function activeFilterTags() {
   }
   if (currentMitreFilter) {
     var mitreLabel = currentMitreFilter;
-    if (typeof FILTER_FACETS !== 'undefined') { var mf = FILTER_FACETS.mitre.find(function(t){return t.id===currentMitreFilter}); if (mf && mf.name) mitreLabel = mf.id + ' ' + mf.name; }
+    if (typeof FILTER_FACETS !== 'undefined') {
+      var mf = null;
+      FILTER_FACETS.mitre.some(function(g) { mf = g.techniques.find(function(t){return t.id===currentMitreFilter}); return !!mf; });
+      if (mf && mf.name) mitreLabel = mf.id + ' ' + mf.name;
+    }
     tags.push({label: 'MITRE: ' + mitreLabel, fn: "setAdvFilter('mitre','')"});
   }
   if (currentDatasourceFilter) tags.push({label: 'Data source: ' + currentDatasourceFilter, fn: "clearAdvSearch('datasource')"});
