@@ -11,8 +11,8 @@
 window.SITE_CUSTOM = {
   // Hero (Overview top)
   heroBadge: "> Solving IT Issues Together",
-  heroTitle: "Infrastructure Monitoring with Splunk",
-  heroTitleSpan: "Getting Started",
+  heroTitle: "Use Case Repository",
+  heroTitleSpan: "for Splunk",
   heroIntro: "Find {useCases} use cases across {categories} infrastructure domains. ",
   statUseCases: "Use Cases",
   statCategories: "Categories",
