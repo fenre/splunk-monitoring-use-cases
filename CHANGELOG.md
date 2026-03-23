@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Non-technical view rewrite** — All 22 categories rewritten with 120 monitoring areas and 360 representative UC references. Build-time validation via `validate_non_technical()` ensures UC IDs stay in sync.
 - **Sources reference popup** — Footer button opens a catalog of all documentation, apps, frameworks, and community resources used to research and build the use cases — Splunk Lantern, ESCU, MITRE ATT&CK, vendor docs, and regulatory frameworks.
 - **SD-WAN use case expansion** — Subcategory 5.5 expanded from 10 to 20 dedicated SD-WAN use cases. New coverage includes OMP route monitoring, BFD session tracking, edge device resource utilization, firmware compliance, DPI application visibility, Cloud OnRamp performance, UTD security policy violations, vManage cluster health, transport circuit SLA tracking, and overlay topology validation. Two misplaced wireless use cases relocated to 5.4.
+- **Meraki subcategory dissolved** — All 110 Cisco Meraki UCs redistributed into their functional subcategories: 21 wireless UCs to 5.4, 20 switching UCs to 5.1, 22 firewall/security UCs to 5.2, 5 DNS/DHCP UCs to 5.6, 17 management UCs to 5.8, 9 camera UCs to 15.3, 10 environmental sensor UCs to 14.1, and 6 MDM UCs to new subcategory 9.6. ThousandEyes renumbered to 5.9, Carrier Signaling to 5.10.
 
 ---
 

@@ -292,6 +292,199 @@ index=network sourcetype IN ("snmp:auth","cisco:ios")
 
 ---
 
+
+### UC-14.1.15 · Temperature Sensor Threshold Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Alerts when environmental temperatures exceed safe thresholds to prevent equipment damage.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*temperature*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*temperature*"
+| stats latest(temperature) as current_temp, min(temperature) as min_temp, max(temperature) as max_temp by sensor_location
+| where current_temp > 30 OR current_temp < 5
+```
+- **Implementation:** Monitor temperature sensor threshold alerts from syslog. Alert on exceedance.
+- **Visualization:** Temperature gauge per location; trend timeline; alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.16 · Humidity Monitoring and Dew Point Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Monitors humidity levels to ensure optimal conditions for equipment and prevent moisture damage.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*humidity*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*humidity*"
+| stats latest(humidity) as current_humidity, avg(humidity) as avg_humidity by sensor_location
+| eval dew_point="calculated_value"
+```
+- **Implementation:** Monitor humidity sensor data. Calculate dew point for condensation risk.
+- **Visualization:** Humidity gauge per location; humidity vs temperature correlation; trend chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.17 · Door Open/Close Event Detection and Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks door access events for security and facility monitoring.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*door*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*door*" (action="open" OR action="close")
+| stats count as door_events, latest(timestamp) as last_event by door_location, action
+```
+- **Implementation:** Monitor door sensor events. Alert on unusual access patterns.
+- **Visualization:** Door event timeline; access pattern analysis; alert table.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.18 · Water Leak Detection and Flood Alerts
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Immediately detects water leaks to prevent equipment damage and business interruption.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*water*" OR signature="*leak*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*water*" OR signature="*leak*")
+| stats count as leak_events, latest(timestamp) as last_detection by sensor_location
+| where leak_events > 0
+```
+- **Implementation:** Monitor water/leak detection sensors. Create critical alert.
+- **Visualization:** Leak alert dashboard; sensor location map; event timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.19 · Power Monitoring and Electrical Load Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Tracks electrical power consumption and load to identify anomalies and plan upgrades.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" sensor_type="power" power_watts=*
+| stats avg(power_watts) as avg_power, max(power_watts) as peak_power by location
+| eval power_capacity_pct=round(peak_power*100/15000, 2)
+```
+- **Implementation:** Query sensor API for power metrics. Track consumption and peaks.
+- **Visualization:** Power consumption gauge; peak load timeline; capacity planning chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.20 · Air Quality and CO2 Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Monitors indoor air quality to ensure safe working conditions.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api sensor_type="air_quality"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" sensor_type="air_quality" co2_ppm=*
+| stats latest(co2_ppm) as current_co2, avg(co2_ppm) as avg_co2 by location
+| where current_co2 > 1000
+```
+- **Implementation:** Monitor CO2 and air quality sensor data. Alert on high levels.
+- **Visualization:** CO2 level gauge per location; trend timeline; air quality status chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.21 · Ambient Noise Level Monitoring and Trend Analysis
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks noise levels to ensure comfortable working environment and detect anomalies.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api sensor_type="noise"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" sensor_type="noise" noise_db=*
+| stats avg(noise_db) as avg_noise, max(noise_db) as peak_noise by location
+| timechart avg(noise_db) by location
+```
+- **Implementation:** Ingest noise sensor data. Track by location and time of day.
+- **Visualization:** Noise level gauge; time-of-day heat map; location comparison chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.22 · Indoor Climate Trending and HVAC Optimization
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Analyzes temperature and humidity trends to optimize HVAC system efficiency.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api sensor_type IN ("temperature", "humidity")`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" sensor_type IN ("temperature", "humidity")
+| stats avg(value) as avg_value by sensor_type, location
+| timechart avg(value) by sensor_type
+```
+- **Implementation:** Correlate temperature and humidity data. Identify optimization opportunities.
+- **Visualization:** Climate trend line chart; comfort zone indicator; energy efficiency analysis.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.23 · Environmental Sensor Battery Health and Replacement Alerts
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Tracks sensor battery levels to ensure sensors remain operational and schedule replacements.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" battery_level=*
+| stats latest(battery_level) as battery_pct by sensor_id, location
+| where battery_pct < 20
+| sort battery_pct
+```
+- **Implementation:** Query sensor API for battery metrics. Alert on <20% battery.
+- **Visualization:** Battery health table; battery trend timeline; replacement alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.24 · Sensor Connectivity and Heartbeat Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Ensures all sensors maintain connectivity and operational status.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api"
+| stats latest(last_report) as last_checkin by sensor_id
+| eval hours_since_checkin=round((now()-strptime(last_report, "%Y-%m-%dT%H:%M:%S"))/3600, 1)
+| where hours_since_checkin > 2
+```
+- **Implementation:** Query sensor API for last report time. Alert on missing heartbeats.
+- **Visualization:** Sensor status table; last heartbeat timeline; offline sensor list.
+- **CIM Models:** N/A
+
+---
+
+
 ### 14.2 Industrial Control Systems (ICS/SCADA)
 
 **Primary App/TA:** Splunk Edge Hub (OPC-UA, Modbus, MQTT protocols), Splunk OT Intelligence (Splunkbase #5180).

@@ -1208,3 +1208,178 @@ index=physical sourcetype="access_control:panel"
 - **Implementation:** Alert at critical on tamper. Dispatch security to site. Log for forensic chain of custody.
 - **Visualization:** Table (panels in fault), Timeline (tamper), Single value (panels compromised).
 - **CIM Models:** N/A
+
+
+### UC-15.3.22 · Camera Uptime and Availability Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Monitors video surveillance system availability to ensure continuous monitoring coverage.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MV sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MV
+| stats latest(status) as camera_status, latest(last_status_change) as status_change by camera_name, location
+| where camera_status="offline"
+```
+- **Implementation:** Monitor MV camera status via device API. Alert on offline cameras.
+- **Visualization:** Camera status map; offline camera list; availability percentage gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.23 · Video Retention and Cloud Archive Storage Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Tracks cloud storage usage for video archives to manage costs and ensure retention SLA.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" storage_usage=*
+| stats sum(storage_usage) as total_storage_gb by camera_id, retention_days
+| eval storage_pct=round(total_storage_gb*100/1000, 2)
+| where storage_pct > 80
+```
+- **Implementation:** Query camera API for storage metrics. Alert on >80% utilization.
+- **Visualization:** Storage utilization gauge; retention timeline; storage trend chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.24 · Motion Detection Events and Alert Volume Analysis
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Analyzes motion detection event patterns to optimize camera sensitivity and reduce false alerts.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*motion*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*motion*"
+| timechart count as motion_events by camera_name
+| eval daily_avg=round(motion_events/1440, 2)
+```
+- **Implementation:** Ingest motion detection events. Track volume and patterns.
+- **Visualization:** Motion detection timeline; heat map by time of day; camera comparison chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.25 · Camera Video Quality Score and Stream Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Monitors video quality metrics to identify network or hardware issues affecting video feeds.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" quality_score=*
+| stats avg(quality_score) as avg_quality, min(quality_score) as min_quality by camera_name
+| where avg_quality < 80
+| sort avg_quality
+```
+- **Implementation:** Query camera API for quality_score metric. Alert on <80 average.
+- **Visualization:** Quality score gauge per camera; quality trend line; affected camera list.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.26 · Cloud Archive Status and Backup Validation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Ensures video archives are successfully uploaded to cloud and backup integrity is maintained.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api archive_status=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" archive_status=*
+| stats latest(archive_status) as backup_status, latest(last_archive_time) as last_backup by camera_id
+| where archive_status != "success"
+```
+- **Implementation:** Check camera API archive status. Alert on failures.
+- **Visualization:** Archive status table; last backup time timeline; failure alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.27 · Video Stream Connection Errors and Quality Issues
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Detects video stream connection failures that prevent remote viewing or recording.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*stream*" OR signature="*connection*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*stream*" OR signature="*connection*")
+| stats count as error_count by camera_name, error_type
+| where error_count > 10
+```
+- **Implementation:** Monitor stream connection events. Alert on error spikes.
+- **Visualization:** Connection error timeline; affected camera list; error type breakdown.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.28 · Camera Firmware Compliance and Update Management
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Ensures all cameras run current firmware with security patches.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MV`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MV
+| stats latest(firmware_version) as camera_fw, count as camera_count
+| lookup recommended_camera_fw.csv camera_model OUTPUTNEW recommended_version
+| where camera_fw != recommended_version
+```
+- **Implementation:** Query MV device API for firmware. Compare to recommended baseline.
+- **Visualization:** Firmware version table; compliance percentage gauge; outdated camera list.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.29 · Night Mode Effectiveness and Low-Light Performance
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Monitors camera performance in low-light conditions to ensure night surveillance effectiveness.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api night_mode=true`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" night_mode=true
+| stats avg(quality_score) as night_quality, count as night_mode_events by camera_name
+| where night_quality < 75
+```
+- **Implementation:** Track camera performance during night mode. Monitor quality metrics.
+- **Visualization:** Night mode quality gauge; low-light performance timeline; affected camera list.
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.30 · People Counting Trends and Occupancy Analytics
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Uses camera people counting to track foot traffic trends for space utilization and facility planning.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api people_count=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" people_count=*
+| timechart avg(people_count) as avg_occupancy by location
+```
+- **Implementation:** Extract people_count metrics from camera API. Aggregate by location and time.
+- **Visualization:** Occupancy heat map by time of day; location comparison bar chart; trend sparkline.
+- **CIM Models:** N/A
+
+---
+

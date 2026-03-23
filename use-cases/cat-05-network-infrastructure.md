@@ -780,6 +780,393 @@ index=network (sourcetype=snmp:lldp OR sourcetype=snmp:cdp OR sourcetype="cisco:
 ---
 
 
+### UC-5.1.36 · Port Utilization and Congestion Alerts
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Identifies port saturation and congestion events that require capacity upgrades or load balancing adjustments.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MS`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MS
+| stats avg(port_utilization) as avg_util, max(port_utilization) as max_util by switch_name, port_id
+| where max_util > 80
+| sort - max_util
+```
+- **Implementation:** Query MS switch device API for port utilization metrics. Alert on sustained >80% utilization.
+- **Visualization:** Table of congested ports; timeline showing peak congestion; port utilization heatmap.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.37 · Power over Ethernet (PoE) Consumption Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Monitors PoE power allocation to prevent over-subscription and ensure sufficient power for all devices.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MS`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MS poe_consumption=*
+| stats sum(poe_consumption) as total_power_watts, avg(poe_consumption) as avg_power by switch_name
+| eval power_capacity_pct=round(total_power_watts*100/1000, 2)
+| where power_capacity_pct > 80
+```
+- **Implementation:** Pull poe_consumption metrics from MS device API. Aggregate by switch.
+- **Visualization:** Gauge showing power utilization percentage; stacked bar of PoE by port; capacity dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.38 · Spanning Tree Protocol (STP) Topology Changes
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Alerts on unexpected STP topology changes that indicate link failures or network configuration issues.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*STP*" OR signature="*topology*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*STP*" OR signature="*topology*")
+| stats count as change_count by switch_name, change_type
+| where change_count > 3
+```
+- **Implementation:** Monitor STP-related syslog events. Alert on excessive topology changes.
+- **Visualization:** Timeline of topology changes; table of affected switches; alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.39 · Port Security Violations and Rogue Device Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Detects unauthorized MAC addresses and port security breaches that indicate potential network intrusion.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*Port Security*" OR signature="*Unauthorized MAC*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*Port Security*" OR signature="*Unauthorized*")
+| stats count as violation_count by switch_name, port_id, mac_address
+| where violation_count > 0
+| sort - violation_count
+```
+- **Implementation:** Monitor port security violation events from syslog. Create alert for each unique violation.
+- **Visualization:** Table of violations; timeline of events; network detail with affected ports.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.40 · Switch Interface Up/Down Events and Link Flapping
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Identifies port flapping, cable issues, and unstable link states that cause intermittent connectivity.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*link*" OR signature="*Interface*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" OR signature="*Interface*" OR signature="*up*" OR signature="*down*")
+| stats count as event_count by switch_name, port_id
+| eval flap_rate=round(event_count/24, 2)
+| where flap_rate > 2
+```
+- **Implementation:** Track interface up/down state changes over 24 hours. Alert on flapping (>2 changes/hour).
+- **Visualization:** Time-series showing flap events; table of affected ports; link state history.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.41 · VLAN Configuration Mismatches and Tagging Violations
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Detects VLAN configuration errors and tagging violations that disrupt network segmentation.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api` (MS), `sourcetype=meraki` (security/syslog)
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*VLAN*"
+| stats count as vlan_error_count by switch_name, vlan_id
+| where vlan_error_count > 5
+```
+- **Implementation:** Monitor VLAN-related error events. Cross-reference with API device VLAN config.
+- **Visualization:** Table of VLAN issues; timeline of configuration changes; network diagram with VLAN details.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.42 · MAC Flooding and Bridge Table Exhaustion
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Detects MAC address table exhaustion and flooding attacks that could overwhelm switch resources.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*MAC*" OR signature="*bridge*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*MAC*" OR signature="*flood*")
+| stats count as flood_count by switch_name, port_id
+| where flood_count > 50
+```
+- **Implementation:** Monitor MAC-related syslog events. Alert on suspicious patterns.
+- **Visualization:** Table of affected switches/ports; time-series of flood events; alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.43 · DHCP Snooping Violations
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Detects unauthorized DHCP servers and spoofing attempts that disrupt network address allocation.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*DHCP Snooping*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*Snooping*"
+| stats count as violation_count by switch_name, port_id, server_ip
+| where violation_count > 0
+```
+- **Implementation:** Enable DHCP snooping on MS switches. Monitor syslog for violations.
+- **Visualization:** Table of violations; timeline of events; affected port details.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.44 · Broadcast Storm Detection and Mitigation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
+- **Value:** Identifies and alerts on broadcast storms that can freeze network performance across all switches.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*broadcast*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*broadcast*"
+| stats sum(packet_count) as broadcast_packets by switch_name, port_id
+| where broadcast_packets > 10000
+```
+- **Implementation:** Monitor broadcast traffic thresholds. Alert on sustained high broadcast rates.
+- **Visualization:** Real-time alert dashboard; time-series of broadcast packets; affected port list.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.45 · Switch CPU and Memory Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Monitors switch hardware resources to prevent performance degradation or device failure.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MS`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MS
+| stats avg(cpu_usage) as avg_cpu, max(cpu_usage) as peak_cpu, avg(memory_usage) as avg_mem by switch_name
+| where avg_cpu > 75 OR avg_mem > 80
+```
+- **Implementation:** Query MS device API for CPU and memory metrics. Alert on threshold breaches.
+- **Visualization:** Gauge charts for CPU/memory; time-series trends; capacity planning dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.46 · Stack Unit and Redundancy Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Ensures switch stacking configuration remains healthy and redundancy is not compromised.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MS stack_id=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MS stack_id=*
+| stats count as stack_members, count(eval(status="offline")) as offline_members by stack_id
+| where offline_members > 0
+```
+- **Implementation:** Monitor stack member status via device API. Alert on member removal or failure.
+- **Visualization:** Table of stack members and status; redundancy gauge; alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.47 · Trunk Link Utilization and Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Monitors inter-switch and uplink trunk utilization to identify bandwidth constraints.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MS`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MS port_type="trunk"
+| stats avg(port_utilization) as avg_trunk_util, max(port_utilization) as peak_util by switch_name, port_id
+| where peak_util > 70
+| sort - peak_util
+```
+- **Implementation:** Query MS API for trunk port utilization. Alert on sustained high utilization.
+- **Visualization:** Trunk link utilization heatmap; timeline showing peak demand; capacity planning chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.48 · QoS Queue Drops and Priority Violations
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Detects QoS queue overflow and drops that indicate traffic priority issues.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*QoS*" OR signature="*queue*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*QoS*" OR signature="*queue*" OR signature="*drop*")
+| stats sum(packets_dropped) as total_drops by switch_name, queue_id
+| where total_drops > 1000
+```
+- **Implementation:** Monitor QoS-related syslog events and drops. Alert on significant drop rates.
+- **Visualization:** Table of drops by queue; time-series of drop events; traffic distribution pie chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.49 · Port Access Control List (ACL) Hits and Block Events
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Tracks ACL rule hits to monitor policy enforcement and identify anomalous traffic.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*ACL*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*ACL*" action="block"
+| stats count as block_count by switch_name, src_mac, dest_mac
+| sort - block_count
+```
+- **Implementation:** Monitor ACL deny/block events from syslog. Track frequently blocked source/destinations.
+- **Visualization:** Table of blocked traffic; timeline of ACL hits; top blocked addresses chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.50 · Cable Test Results and Port Diagnostics
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Analyzes cable integrity test results to identify wiring faults before they cause outages.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*cable*" OR signature="*diagnostic*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*" OR signature="*diagnostic*")
+| stats count as test_count by switch_name, port_id, test_result
+| where test_result="FAIL"
+```
+- **Implementation:** Periodically run cable tests on switch ports. Ingest results into syslog.
+- **Visualization:** Table of failed cable tests; port detail with diagnostic results; failure timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.51 · Uplink Health and Failover Events
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors primary/secondary uplink status to detect failover events and connection issues.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*Uplink*" OR signature="*failover*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*Uplink*" OR signature="*failover*")
+| stats count as failover_count by uplink_name, event_type
+| where failover_count > 0
+```
+- **Implementation:** Monitor uplink status change events in syslog. Alert on failover.
+- **Visualization:** Uplink status dashboard; failover event timeline; connection health gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.52 · Cellular Gateway Signal Strength Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Monitors cellular signal strength to ensure reliable backup connectivity.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MG`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MG
+| stats avg(signal_strength) as avg_signal, min(signal_strength) as min_signal by cellular_gateway_id
+| eval signal_quality=case(avg_signal > -90, "Excellent", avg_signal > -110, "Good", 1=1, "Poor")
+```
+- **Implementation:** Query MG device API for signal metrics. Alert on degraded signal.
+- **Visualization:** Signal strength gauge; trend timeline; cellular quality status.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.53 · Cellular Data Usage and Overage Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Tracks cellular data consumption to manage carrier costs and prevent overages.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MG data_usage=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MG data_usage=*
+| stats sum(data_usage) as total_data_usage_mb by cellular_gateway_id
+| eval overage_alert=if(total_data_usage_mb > 100000, "Yes", "No")
+```
+- **Implementation:** Query MG API for data usage metrics. Track monthly consumption.
+- **Visualization:** Data usage gauge per gateway; consumption timeline; overage alert table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.54 · Carrier Connection Health and Network Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Monitors carrier connectivity and network performance metrics for backup internet links.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*carrier*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*cellular*" OR signature="*carrier*")
+| stats count as event_count by event_type, carrier_name
+| where event_type="connection_error" OR event_type="network_error"
+```
+- **Implementation:** Monitor carrier connection and network events. Alert on issues.
+- **Visualization:** Carrier health timeline; connection error table; network performance gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.1.55 · SIM Status and Plan Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Tracks SIM card status and plan expiration to ensure continuous cellular connectivity.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MG sim_status=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MG
+| stats latest(sim_status) as sim_status, latest(plan_expiry) as expiry_date by gateway_id, sim_id
+| eval days_until_expire=round((strptime(plan_expiry, "%Y-%m-%d")-now())/86400, 0)
+| where sim_status != "active" OR days_until_expire < 30
+```
+- **Implementation:** Query MG API for SIM status and plan expiry. Alert before expiration.
+- **Visualization:** SIM status table; plan expiry countdown; renewal alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+
 ## 5.2 Firewalls
 
 **Primary App/TA:** Palo Alto Networks Add-on for Splunk (`Splunk_TA_paloalto`, Splunkbase 7523), Fortinet FortiGate Add-On for Splunk (`TA-fortinet_fortigate`, Splunkbase 2846) — Free
@@ -1292,6 +1679,464 @@ index=network sourcetype="pan:system" "threat version" OR "content update"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+---
+
+
+### UC-5.2.19 · VPN Tunnel Status and Path Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Ensures all site-to-site and client VPN tunnels remain active and operative.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=vpn sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=vpn
+| stats latest(status) as tunnel_status, latest(last_changed) as status_change_time by tunnel_id, remote_site
+| where tunnel_status="down" OR tunnel_status="unstable"
+```
+- **Implementation:** Monitor VPN tunnel state from syslog and API. Alert on status != "up".
+- **Visualization:** VPN tunnel status matrix; site connectivity map; tunnel health sparklines.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.20 · Content Filtering and URL Category Blocks
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Tracks blocked URLs and categories to monitor policy compliance and identify misclassified content.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=urls action="blocked"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=urls action="blocked"
+| stats count as block_count by url_category, src
+| sort - block_count
+| head 20
+```
+- **Implementation:** Ingest URL filtering events from MX syslog. Categorize by policy.
+- **Visualization:** Table of top blocked categories; bar chart by category; user detail table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.21 · IDS/IPS Alert Analysis and Threat Scoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Identifies and prioritizes intrusion detection alerts for investigation and threat response.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=ids_alert`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=ids_alert
+| stats count as alert_count by signature, priority, src, dest
+| eval severity=case(priority=1, "Critical", priority=2, "High", priority=3, "Medium", 1=1, "Low")
+| where priority <= 2
+| sort - alert_count
+```
+- **Implementation:** Ingest IDS/IPS alert events from MX appliance. Enrich with threat intelligence.
+- **Visualization:** Alert timeline; severity breakdown pie chart; alert detail table; threat map.
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+| eval bytes=bytes_in+bytes_out
+| sort -bytes
+```
+
+---
+
+### UC-5.2.22 · Malware Detection and AMP File Reputation Events
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Detects and tracks file-based threats to respond quickly to potential malware infections.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*malware*" OR signature="*AMP*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*malware*" OR signature="*AMP*")
+| stats count as malware_count by src, threat_name, file_name
+| where malware_count > 0
+| sort - malware_count
+```
+- **Implementation:** Enable AMP on MX appliance. Ingest malware detection events.
+- **Visualization:** Threat timeline; infected hosts table; file reputation detail; incident dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.23 · Firewall Rule Hit Analysis and Top Denied Flows
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Identifies top denied flows to optimize firewall rules and detect policy violations.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=flow action="deny"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=flow action="deny"
+| stats count as deny_count by firewall_rule, src, dest, dest_port
+| sort - deny_count
+| head 20
+```
+- **Implementation:** Analyze firewall deny events from flow logs. Correlate with rules.
+- **Visualization:** Top denied flows table; denial timeline; source/dest distribution heatmap.
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+| eval bytes=bytes_in+bytes_out
+| sort -bytes
+```
+
+---
+
+### UC-5.2.24 · Traffic Shaping Effectiveness and QoS Policy Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures the impact of traffic shaping policies on bandwidth distribution and priority.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=flow sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=flow priority_queue=*
+| stats sum(bytes) as total_bytes, avg(latency) as avg_latency by priority_queue
+| eval efficiency=round(total_bytes/sum(total_bytes)*100, 2)
+```
+- **Implementation:** Extract priority_queue field from flow logs. Measure bandwidth by priority.
+- **Visualization:** Stacked bar chart of bandwidth by priority; latency by QoS class; efficiency gauge.
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+| eval bytes=bytes_in+bytes_out
+| sort -bytes
+```
+
+---
+
+### UC-5.2.25 · Site-to-Site VPN Latency and Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Monitors latency and jitter on VPN tunnels to ensure quality of critical business traffic.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=vpn sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=vpn latency=*
+| stats avg(latency) as avg_vpn_latency, max(jitter) as max_jitter by tunnel_id, remote_site
+| where avg_vpn_latency > 50
+```
+- **Implementation:** Extract VPN latency and jitter metrics. Monitor tunnel performance.
+- **Visualization:** Gauge of VPN latency; latency trend line; jitter comparison chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.26 · Client VPN Connections and Remote Access Patterns
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Tracks client VPN usage patterns for remote workers and identifies problematic connections.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=vpn client_vpn=true`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=vpn client_vpn=true
+| stats count as connection_count, avg(duration) as avg_session_length by user_id, src
+| where connection_count > 10
+```
+- **Implementation:** Filter VPN logs for client connections. Track by user and source IP.
+- **Visualization:** Connected users timeline; session duration histogram; geography map of remote users.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.27 · NAT Pool Usage and Exhaustion Alerts
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Monitors NAT pool utilization to prevent address exhaustion that could block outbound traffic.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" nat_pool_usage=*
+| stats max(nat_pool_usage) as peak_nat_usage, count by nat_pool_id
+| eval nat_capacity_pct=round(peak_nat_usage*100/254, 2)
+| where nat_capacity_pct > 80
+```
+- **Implementation:** Query appliance API for NAT pool metrics. Alert on >80% utilization.
+- **Visualization:** Gauge of NAT pool usage; capacity timeline; pool exhaustion alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.28 · BGP Peering Status and Route Stability
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Ensures BGP peers remain established and routing remains stable for multi-ISP designs.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*BGP*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*BGP*" (signature="*neighbor*" OR signature="*route*")
+| stats count as bgp_event_count by bgp_neighbor, event_type
+| where bgp_event_count > 5
+```
+- **Implementation:** Monitor BGP event syslog. Alert on neighbor state changes.
+- **Visualization:** BGP peer status table; route change timeline; peering stability gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.29 · Threat Intelligence Correlation and IoC Matching
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Correlates network traffic with threat intelligence databases to detect known malicious IPs and domains.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event OR type=urls OR type=flow`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR type=flow)
+| lookup threat_intelligence_list src as src OUTPUTNEW threat_name, threat_severity
+| where threat_severity="high" OR threat_severity="critical"
+| stats count as hit_count by src, dest, threat_name
+| sort - hit_count
+```
+- **Implementation:** Create threat intelligence lookup table. Correlate with network events.
+- **Visualization:** IoC match timeline; threat severity breakdown; affected hosts table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.30 · Geo-Blocking Event Tracking and Geographic Policy Enforcement
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Tracks geo-blocking policy enforcement to verify compliance with data residency and export controls.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=urls action="blocked" country=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=urls action="blocked"
+| lookup geo_ip.csv dest OUTPUTNEW country, city
+| stats count as block_count by country
+| sort - block_count
+```
+- **Implementation:** Ingest URL logs with GeoIP enrichment. Track blocks by geography.
+- **Visualization:** Geo-block map; country block count chart; policy compliance dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.31 · Application Visibility and Network Application Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Identifies top applications and protocols on network to understand usage patterns and detect anomalies.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=flow application=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=flow application=*
+| stats sum(bytes) as app_bytes, count as flow_count by application, application_category
+| eval app_bandwidth_pct=round(app_bytes*100/sum(app_bytes), 2)
+| sort - app_bytes
+| head 20
+```
+- **Implementation:** Extract application field from flow logs. Aggregate by app and category.
+- **Visualization:** App bandwidth pie chart; top apps bar chart; bandwidth timeline by app.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.32 · Bandwidth by Application and Department
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Tracks bandwidth consumption by application and business unit for chargeback and optimization.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=flow`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=flow
+| lookup department_by_ip.csv src OUTPUTNEW department
+| stats sum(sent_bytes) as upload_mb, sum(received_bytes) as download_mb by application, department
+| eval total_mb=upload_mb+download_mb
+| sort -total_mb
+```
+- **Implementation:** Correlate flows with IP-to-department mapping. Aggregate by app and dept.
+- **Visualization:** Stacked bar of bandwidth by dept/app; heatmap of app usage per dept.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.33 · WAN Link Quality Monitoring (Jitter, Latency, Packet Loss)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Continuously monitors WAN quality metrics to detect link degradation before impacting users.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api wan_metrics=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" uplink=*
+| stats avg(latency) as avg_latency, avg(jitter) as avg_jitter, avg(packet_loss) as avg_loss by uplink_id
+| eval link_quality=case(avg_loss > 5, "Critical", avg_latency > 100, "Poor", avg_jitter > 50, "Fair", 1=1, "Good")
+```
+- **Implementation:** Query appliance API for uplink WAN metrics. Monitor quality KPIs.
+- **Visualization:** Uplink quality scorecard; latency/jitter/loss timeline; quality gauge per uplink.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.34 · Internet Uplink Failover Events and Recovery Time
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Tracks failover events, recovery time, and uplink behavior to ensure high availability.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*failover*" OR signature="*recovery*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*failover*" OR signature="*recovery*")
+| stats count as failover_count, latest(recovery_time) as recovery_duration by uplink_id, failure_reason
+| where failover_count > 0
+```
+- **Implementation:** Monitor failover and recovery events from syslog. Calculate recovery MTTR.
+- **Visualization:** Failover timeline; recovery time gauge; uplink failure cause pie chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.35 · Cellular Modem Failover Activation and Usage
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Tracks cellular backup activation to monitor failover effectiveness and cellular data usage.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*4G*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*cellular*" OR signature="*4G*" OR signature="*LTE*")
+| stats count as cellular_events, sum(data_usage_mb) as total_cellular_data by event_type
+| where total_cellular_data > 0
+```
+- **Implementation:** Ingest cellular failover events. Track data consumption.
+- **Visualization:** Cellular usage timeline; failover event table; data usage gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.36 · Warm Spare Failover and Appliance Redundancy
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Ensures warm spare failover mechanism is operational and redundancy is maintained.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*warm spare*" OR signature="*HA*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*warm spare*" OR signature="*HA*" OR signature="*redundancy*")
+| stats latest(ha_status) as redundancy_status, count as status_change_count by appliance_pair
+| where ha_status!="active/standby"
+```
+- **Implementation:** Monitor HA/warm spare events. Alert on status != "active/standby".
+- **Visualization:** HA status dashboard; failover timeline; redundancy health gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.37 · Auto VPN Path Changes and Tunnel Switching
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Tracks automatic VPN path optimization to understand tunnel usage and convergence behavior.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=vpn signature="*Auto VPN*" OR signature="*path change*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR signature="*path change*")
+| stats count as path_change_count by tunnel_id, new_path, old_path
+| where path_change_count > 3
+```
+- **Implementation:** Monitor Auto VPN path optimization events. Alert on excessive changes.
+- **Visualization:** Path change timeline; tunnel path change distribution; convergence analysis.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.38 · Connection Rate Analysis and DOS Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Detects denial of service attacks by analyzing abnormal connection establishment rates.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=flow protocol="tcp" tcp_flags="SYN"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
+| timechart count as new_connections by src
+| where new_connections > 1000
+```
+- **Implementation:** Monitor TCP SYN rate by source IP. Alert on anomalous connection rates.
+- **Visualization:** Connection rate timeline; source IP detail table; DOS alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.39 · Data Loss Prevention (DLP) Event Analysis
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Detects and alerts on sensitive data transmission to prevent data exfiltration.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*DLP*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*DLP*"
+| stats count as dlp_match_count by src, dest, dlp_policy, data_type
+| where dlp_match_count > 0
+| sort - dlp_match_count
+```
+- **Implementation:** Enable DLP on MX appliance. Ingest DLP match events.
+- **Visualization:** DLP incident timeline; data type breakdown; source/destination detail.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.40 · Meraki VPN Tunnel and Failover Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Site-to-site and client VPN tunnel state directly impacts remote site and user connectivity. Detecting tunnel down or failover events supports quick remediation.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API
+- **Data Sources:** `sourcetype=meraki:api` (VPN status), syslog from MX
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
+| stats latest(tunnel_state) as state, latest(peer_ip) as peer by device_serial, tunnel_id
+| where state != "up"
+| table device_serial tunnel_id peer state _time
+```
+- **Implementation:** Poll Meraki API for VPN tunnel status or ingest MX syslog for tunnel events. Alert when any tunnel is down. Track failover events for active/standby links.
+- **Visualization:** Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
+- **CIM Models:** N/A
 
 ---
 
@@ -1820,6 +2665,426 @@ index=network sourcetype="cisco:wlc" "associated"
 ```
 - **Implementation:** Collect client association events with channel info. Calculate the ratio of 5 GHz vs 2.4 GHz clients per SSID. Target >70% on 5 GHz for dual-band capable clients.
 - **Visualization:** Pie chart (band distribution), Bar chart (by SSID), Timechart (trending).
+- **CIM Models:** N/A
+
+---
+
+
+### UC-5.4.12 · Wireless Client Association Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Identifies recurring authentication failures and SSID configuration issues that prevent users from connecting to wireless networks.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*Association*" OR signature="*authentication*" status="failure"
+| stats count by ap_name, client_mac, reason, signature
+| sort -count
+```
+- **Implementation:** Monitor syslog events from Meraki MR access points for failed association attempts. Correlate with SSID configuration and 802.1X radius responses.
+- **Visualization:** Table with top APs/clients by failure count; time-series chart of failures over time by AP.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.13 · RSSI/Signal Strength Degradation Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Proactively identifies weak WiFi coverage areas and client placement issues before users experience connectivity problems.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api"
+| eval rssi_level=case(rssi>=-50, "Excellent", rssi>=-60, "Good", rssi>=-70, "Fair", rssi<-70, "Poor")
+| stats avg(rssi) as avg_rssi, min(rssi) as min_rssi, count by ap_name, ssid, rssi_level
+| where min_rssi < -70 or avg_rssi < -65
+```
+- **Implementation:** Ingest Meraki API client data periodically; analyze RSSI distribution by AP and SSID. Set thresholds for "poor" signal (< -70 dBm).
+- **Visualization:** Heatmap of RSSI by AP location; histogram of signal strength distribution; gauge charts for coverage quality by SSID.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.14 · Excessive Client Roaming Activity
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Detects unstable roaming patterns and AP handoff issues that cause latency spikes and dropped connections.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*Roaming*" OR signature="*handoff*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*Roaming*" OR signature="*handoff*")
+| stats count as roam_count by client_mac, ap_name
+| eventstats sum(roam_count) as total_roams by client_mac
+| where total_roams > 20
+| sort -total_roams
+```
+- **Implementation:** Track client handoff events between APs. Alert when a single client roams more than threshold in a 15-minute window.
+- **Visualization:** Table of heavy roamers; line chart of roaming frequency by client; network diagram showing roam paths.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.15 · SSID Performance Ranking and Trend Analysis
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Compares performance across multiple SSIDs to identify underperforming networks and optimize deployment strategy.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api"
+| stats avg(connection_duration) as avg_duration, count as client_count, avg(rssi) as avg_rssi by ssid
+| eval performance_score=round((avg_rssi+100)*client_count/100, 2)
+| sort - performance_score
+```
+- **Implementation:** Aggregate client connection metrics by SSID. Compare average connection duration, client count, and signal strength.
+- **Visualization:** Bar chart comparing SSID performance; sparklines for trend; scorecard showing top/bottom performers.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.16 · WiFi Channel Utilization and Interference Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Identifies channel congestion and interference sources to optimize channel assignments and reduce co-channel interference.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MR
+| stats count by channel, band
+| eval utilization_pct=round(count*100/sum(count), 2)
+| where utilization_pct > 40
+| sort - utilization_pct
+```
+- **Implementation:** Query API device data for MR access points; track channel assignments. Correlate with interference signature logs.
+- **Visualization:** Stacked bar chart of channel utilization by band; channel heatmap over time; interference event timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.17 · Rogue and Unauthorized AP Detection (Air Marshal)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Identifies unauthorized wireless networks and malicious APs that may represent security threats or network intrusion attempts.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=air_marshal`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=air_marshal signature="*Rogue*" OR signature="*Unauthorized*"
+| stats count by ssid, bssid, first_detected, last_seen, threat_level
+| where threat_level="high" OR threat_level="critical"
+| sort - first_detected
+```
+- **Implementation:** Enable Air Marshal on MR APs and ingest syslog events. Create alert for new rogue AP detections with risk scoring.
+- **Visualization:** Table of detected rogues with threat indicators; map showing rogue AP locations; timeline of detections.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.18 · Client Device Type Distribution and Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Tracks device types connecting to network for capacity planning, security policy enforcement, and support optimization.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api"
+| stats count as device_count by os_type, device_family
+| eval pct=round(device_count*100/sum(device_count), 2)
+| sort - device_count
+```
+- **Implementation:** Use API clients endpoint to retrieve device OS and type information. Aggregate across network.
+- **Visualization:** Pie chart of device types; bar chart by OS; treemap of device distribution; trend sparklines.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.19 · Band Steering Effectiveness Assessment
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Measures effectiveness of steering clients from 2.4GHz to 5GHz bands to reduce congestion and improve performance.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api"
+| stats count as client_count by band
+| eval band_ratio=round(client_count*100/sum(client_count), 2)
+| fields band, client_count, band_ratio
+```
+- **Implementation:** Query clients API to get current band distribution. Compare against expected ratio for band steering policy.
+- **Visualization:** Gauge showing 5GHz percentage; pie chart of band distribution; trend line showing steering progress.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.20 · 802.1X Authentication Failures and Radius Issues
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Identifies authentication server problems, credential issues, and 802.1X configuration mismatches.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*802.1X*" OR signature="*Radius*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*802.1X*" OR signature="*Radius*" OR signature="*authentication*")
+| stats count as auth_failures by client_mac, ap_name, signature
+| eventstats sum(auth_failures) as total_failures by client_mac
+| where total_failures > 10
+| sort -total_failures
+```
+- **Implementation:** Ingest 802.1X and RADIUS-related syslog events. Correlate with RADIUS server logs.
+- **Visualization:** Table of failing clients; time-series of auth failures; client-level detail dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.21 · Wireless Latency Analysis by SSID and Location
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Identifies latency patterns across network to optimize AP placement, channel allocation, and client routing.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" latency=*
+| stats avg(latency) as avg_latency, max(latency) as max_latency, count by ssid, ap_name
+| eval latency_sla="OK"
+| eval latency_sla=if(avg_latency > 50, "Warning", latency_sla)
+| eval latency_sla=if(avg_latency > 100, "Critical", latency_sla)
+```
+- **Implementation:** Use API clients endpoint with latency metric. Aggregate by SSID and AP location.
+- **Visualization:** Heatmap of latency by AP; line chart of latency trends; SLA compliance dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.22 · Splash Page Engagement and Redirection Analytics
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks guest network splash page performance and user acceptance rates for marketing and network access purposes.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*Splash*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*Splash*"
+| stats count as redirect_count by result, ap_name
+| eval acceptance_rate=round(count*100/sum(count), 2)
+```
+- **Implementation:** Capture splash page interaction events from syslog. Track accepts vs. denies.
+- **Visualization:** Pie chart of acceptance rates; funnel chart of splash interactions; time-series trending.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.23 · Multicast and Broadcast Storm Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Anomaly
+- **Value:** Identifies multicast/broadcast flooding that degrades wireless performance across multiple client devices.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=flow`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=flow dest="255.255.255.255" OR dest_mac="ff:ff:ff:ff:ff:ff"
+| stats sum(sent_bytes) as total_bytes, count as pkt_count by ap_name, src_mac
+| where pkt_count > 1000
+| sort - pkt_count
+```
+- **Implementation:** Monitor broadcast/multicast flows in syslog. Set thresholds for abnormal packet rates.
+- **Visualization:** Table of broadcast sources; time-series of broadcast packets; alert threshold dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.24 · Wireless Health Score Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Provides a composite health metric across all APs to facilitate executive reporting and trend analysis.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MR`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MR
+| stats avg(health_score) as network_health, min(health_score) as worst_ap, count(eval(health_score<80)) as unhealthy_aps by network_id
+| eval health_status=if(network_health >= 85, "Healthy", if(network_health >= 70, "Degraded", "Critical"))
+```
+- **Implementation:** Pull health_score metric from MR devices API. Aggregate across network.
+- **Visualization:** Gauge of overall health; bar chart of individual AP health; trend sparkline; KPI dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.25 · Connected Client Count Trending and Capacity Planning
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Tracks client density by AP and SSID for capacity planning and performance optimization.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api"
+| stats count as client_count by ap_name, ssid
+| eval capacity_pct=round(client_count*100/30, 2)
+| where capacity_pct > 70
+| sort - client_count
+```
+- **Implementation:** Query clients API to count connected devices. Track over time.
+- **Visualization:** Bubble chart of capacity by AP; stacked bar of clients by SSID; capacity gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.26 · Top Talker Analysis and Bandwidth Hogs
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Identifies bandwidth-intensive clients and applications to enforce QoS policies and prevent network congestion.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=flow`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=flow
+| stats sum(sent_bytes) as upload_bytes, sum(received_bytes) as download_bytes by client_mac, application
+| eval total_bytes=upload_bytes+download_bytes
+| sort -total_bytes
+| head 20
+```
+- **Implementation:** Analyze flow records from syslog; track data usage by client and application.
+- **Visualization:** Table of top talkers; horizontal bar chart of data usage; Sankey diagram of flows.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.27 · Connection Duration and Session Quality
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Analyzes typical session lengths and stability to identify problematic SSIDs or time-based issues.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" connection_duration=*
+| stats avg(connection_duration) as avg_session_time, min(connection_duration) as min_session, max(connection_duration) as max_session by ssid
+| eval session_quality=if(avg_session_time > 3600, "Stable", "Short")
+```
+- **Implementation:** Extract connection_duration from clients API. Aggregate by SSID and time of day.
+- **Visualization:** Histogram of session durations; time-of-day heatmap; SSID comparison chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.28 · AP Uptime and Availability Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Ensures all access points are online and operational; alerts on unexpected AP outages.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api device_type=MR`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MR
+| stats latest(status) as ap_status, latest(last_status_change) as last_change by ap_name, ap_mac
+| where ap_status="offline"
+```
+- **Implementation:** Monitor device status API for all MR devices. Alert on status="offline".
+- **Visualization:** Status table with last seen time; uptime percentage gauge; event alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.29 · Mesh Network Link Quality and Backhaul Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Monitors wireless mesh backhaul links to ensure reliability of remote AP connections.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api` (MR), `sourcetype=meraki` (events, e.g. `type=security_event`)
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" device_type=MR mesh_link_quality=*
+| stats avg(mesh_link_quality) as avg_link_quality by ap_name, upstream_ap
+| where avg_link_quality < 70
+| sort avg_link_quality
+```
+- **Implementation:** Query MR device API for mesh_link_quality metric. Alert on degraded quality (<70%).
+- **Visualization:** Network topology showing link quality; color-coded links; detail table with metrics.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.30 · Guest Network Access Patterns and Usage
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Tracks guest network adoption, usage patterns, and peak times for network provisioning.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api ssid="guest*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" ssid="guest"
+| stats count as guest_users by _time
+| timechart avg(guest_users) as avg_concurrent_guests
+```
+- **Implementation:** Filter clients API results for guest SSIDs. Track concurrent count over time.
+- **Visualization:** Time-series of guest users; daily/weekly heatmap; trend dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.31 · WiFi Geolocation and Location Analytics
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Uses Cisco Meraki location services to track foot traffic patterns and heat maps in physical spaces.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api location_data=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" ap_name=*
+| stats count as foot_traffic by ap_name, floor
+| geom geo_from_metric lat, lon
+```
+- **Implementation:** Use Meraki location API to get AP-based location estimates. Map to floor/zone.
+- **Visualization:** Heat map by physical location; AP heat map overlay; zone traffic comparison.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.4.32 · Wireless Client Association and Roaming Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** High association failure or roaming failure rates indicate coverage gaps, interference, or AP misconfiguration. Trending supports WLAN troubleshooting and capacity planning.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (WLC), wireless controller logs
+- **Data Sources:** Meraki wireless events, Cisco WLC syslog
+- **SPL:**
+```spl
+index=cisco_network sourcetype=meraki:wireless (event_type="association_failed" OR event_type="roam_failed")
+| stats count by ap_serial, ssid, _time span=15m
+| where count > 20
+| sort -count
+```
+- **Implementation:** Ingest wireless client events from Meraki or WLC. Extract association and roam outcomes. Alert when failure rate exceeds threshold per AP or SSID. Dashboard by location and time.
+- **Visualization:** Table (AP, SSID, failures), Line chart (failure rate over time), Heatmap (AP by location).
 - **CIM Models:** N/A
 
 ---
@@ -2609,6 +3874,108 @@ index=network sourcetype="stream:dns"
 ---
 
 
+### UC-5.6.13 · Failed DHCP Assignments and IP Pool Exhaustion
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Detects DHCP server failures and IP pool exhaustion that prevent new clients from obtaining addresses.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*DHCP*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*" (signature="*failure*" OR signature="*NACK*")
+| stats count as failure_count by ap_name, signature
+| where failure_count > 5
+| sort - failure_count
+```
+- **Implementation:** Monitor syslog for DHCP NACK and failure events. Alert on sustained failure rate.
+- **Visualization:** Table of DHCP failures by AP; time-series showing failure spike; alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.6.14 · DNS Resolution Performance and Failures
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Monitors DNS query resolution times and failures to identify misconfiguration or server issues affecting user experience.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*DNS*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*DNS*" resolution_time=*
+| stats avg(resolution_time) as avg_dns_time, max(resolution_time) as max_dns_time, count by ap_name
+| where avg_dns_time > 100
+```
+- **Implementation:** Extract DNS query timing from syslog events. Set SLA thresholds (e.g., <100ms average).
+- **Visualization:** Gauge showing average DNS time; histogram of query times; slow query detail table.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.6.15 · DHCP Pool Exhaustion and Address Allocation Issues
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Alerts when DHCP pools approach depletion to prevent clients from obtaining IP addresses.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" dhcp_pool=*
+| stats latest(addresses_available) as available_ips, latest(pool_size) as total_pool by vlan_id
+| eval allocation_pct=round((total_pool-available_ips)*100/total_pool, 2)
+| where allocation_pct > 85
+```
+- **Implementation:** Query appliance API for DHCP metrics by VLAN. Alert on >85% allocation.
+- **Visualization:** DHCP pool gauge per VLAN; timeline of pool usage; alert dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-5.6.16 · DHCP Lease Exhaustion and Scope Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Exhausted DHCP scopes prevent new devices from joining the network. Monitoring utilization and lease count supports proactive scope expansion or cleanup.
+- **App/TA:** Infoblox, Microsoft DHCP, ISC DHCP — scripted input or API
+- **Data Sources:** DHCP server logs, lease table export, SNMP (DHCP pool MIB)
+- **SPL:**
+```spl
+index=network sourcetype=dhcp_scope
+| eval used_pct=round(leases_in_use/scope_size*100, 1)
+| stats latest(used_pct) as pct, latest(leases_in_use) as used by scope_name, server
+| where pct > 85
+| table scope_name server used scope_size pct
+```
+- **Implementation:** Poll DHCP server (Infoblox API, Windows WMI, or lease file) for scope size and in-use count. Ingest daily or hourly. Alert when utilization exceeds 85%. Track lease duration and stale lease cleanup.
+- **Visualization:** Gauge per scope, Table (scope, used, size, %), Line chart (utilization trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.6.17 · DNS Query Latency and Resolution Failure by Resolver
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Slow or failing DNS resolution impacts all applications. Tracking latency and NXDOMAIN/timeout rates per resolver supports capacity and upstream provider decisions.
+- **App/TA:** Custom scripted input (dig, DNS query log), Infoblox/BIND query logs
+- **Data Sources:** DNS resolver query logs, synthetic DNS probes
+- **SPL:**
+```spl
+index=network sourcetype=dns_query
+| stats avg(response_time_ms) as avg_ms, count(eval(response_code="NXDOMAIN" OR response_code="SERVFAIL")) as failures, count as total by resolver_ip, _time span=5m
+| eval fail_rate=round(failures/total*100, 2)
+| where avg_ms > 200 OR fail_rate > 5
+| table resolver_ip avg_ms fail_rate total
+```
+- **Implementation:** Run synthetic DNS probes (e.g. dig to critical domains) from multiple hosts; ingest response time and result. Optionally ingest resolver query logs. Alert when latency exceeds 200ms or failure rate exceeds 5%.
+- **Visualization:** Line chart (latency by resolver), Table (resolver, avg ms, fail rate), Single value (p95 latency).
+- **CIM Models:** N/A
+
+---
+
+
 ## 5.7 Network Flow Data
 
 **Primary App/TA:** Splunk App for Stream, Splunk Add-on for NetFlow — Free
@@ -3068,1217 +4435,7 @@ index=network sourcetype="config:diff"
 ---
 
 
-## 5.9 Cisco Meraki
-
-**Primary App/TA:** Cisco Meraki Add-on for Splunk (Splunkbase 5580) — Free on Splunkbase
-
----
-
-### UC-5.9.1 · Wireless Client Association Failures
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Identifies recurring authentication failures and SSID configuration issues that prevent users from connecting to wireless networks.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*Association*" OR signature="*authentication*" status="failure"
-| stats count by ap_name, client_mac, reason, signature
-| sort -count
-```
-- **Implementation:** Monitor syslog events from Meraki MR access points for failed association attempts. Correlate with SSID configuration and 802.1X radius responses.
-- **Visualization:** Table with top APs/clients by failure count; time-series chart of failures over time by AP.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.2 · RSSI/Signal Strength Degradation Detection
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Proactively identifies weak WiFi coverage areas and client placement issues before users experience connectivity problems.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api"
-| eval rssi_level=case(rssi>=-50, "Excellent", rssi>=-60, "Good", rssi>=-70, "Fair", rssi<-70, "Poor")
-| stats avg(rssi) as avg_rssi, min(rssi) as min_rssi, count by ap_name, ssid, rssi_level
-| where min_rssi < -70 or avg_rssi < -65
-```
-- **Implementation:** Ingest Meraki API client data periodically; analyze RSSI distribution by AP and SSID. Set thresholds for "poor" signal (< -70 dBm).
-- **Visualization:** Heatmap of RSSI by AP location; histogram of signal strength distribution; gauge charts for coverage quality by SSID.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.3 · Excessive Client Roaming Activity
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Detects unstable roaming patterns and AP handoff issues that cause latency spikes and dropped connections.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*Roaming*" OR signature="*handoff*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*Roaming*" OR signature="*handoff*")
-| stats count as roam_count by client_mac, ap_name
-| eventstats sum(roam_count) as total_roams by client_mac
-| where total_roams > 20
-| sort -total_roams
-```
-- **Implementation:** Track client handoff events between APs. Alert when a single client roams more than threshold in a 15-minute window.
-- **Visualization:** Table of heavy roamers; line chart of roaming frequency by client; network diagram showing roam paths.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.4 · SSID Performance Ranking and Trend Analysis
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Compares performance across multiple SSIDs to identify underperforming networks and optimize deployment strategy.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api"
-| stats avg(connection_duration) as avg_duration, count as client_count, avg(rssi) as avg_rssi by ssid
-| eval performance_score=round((avg_rssi+100)*client_count/100, 2)
-| sort - performance_score
-```
-- **Implementation:** Aggregate client connection metrics by SSID. Compare average connection duration, client count, and signal strength.
-- **Visualization:** Bar chart comparing SSID performance; sparklines for trend; scorecard showing top/bottom performers.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.5 · WiFi Channel Utilization and Interference Detection
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Performance
-- **Value:** Identifies channel congestion and interference sources to optimize channel assignments and reduce co-channel interference.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MR
-| stats count by channel, band
-| eval utilization_pct=round(count*100/sum(count), 2)
-| where utilization_pct > 40
-| sort - utilization_pct
-```
-- **Implementation:** Query API device data for MR access points; track channel assignments. Correlate with interference signature logs.
-- **Visualization:** Stacked bar chart of channel utilization by band; channel heatmap over time; interference event timeline.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.6 · Rogue and Unauthorized AP Detection (Air Marshal)
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Identifies unauthorized wireless networks and malicious APs that may represent security threats or network intrusion attempts.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=air_marshal`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=air_marshal signature="*Rogue*" OR signature="*Unauthorized*"
-| stats count by ssid, bssid, first_detected, last_seen, threat_level
-| where threat_level="high" OR threat_level="critical"
-| sort - first_detected
-```
-- **Implementation:** Enable Air Marshal on MR APs and ingest syslog events. Create alert for new rogue AP detections with risk scoring.
-- **Visualization:** Table of detected rogues with threat indicators; map showing rogue AP locations; timeline of detections.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.7 · Client Device Type Distribution and Compliance
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
-- **Value:** Tracks device types connecting to network for capacity planning, security policy enforcement, and support optimization.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api"
-| stats count as device_count by os_type, device_family
-| eval pct=round(device_count*100/sum(device_count), 2)
-| sort - device_count
-```
-- **Implementation:** Use API clients endpoint to retrieve device OS and type information. Aggregate across network.
-- **Visualization:** Pie chart of device types; bar chart by OS; treemap of device distribution; trend sparklines.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.8 · Band Steering Effectiveness Assessment
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Measures effectiveness of steering clients from 2.4GHz to 5GHz bands to reduce congestion and improve performance.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api"
-| stats count as client_count by band
-| eval band_ratio=round(client_count*100/sum(client_count), 2)
-| fields band, client_count, band_ratio
-```
-- **Implementation:** Query clients API to get current band distribution. Compare against expected ratio for band steering policy.
-- **Visualization:** Gauge showing 5GHz percentage; pie chart of band distribution; trend line showing steering progress.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.9 · Failed DHCP Assignments and IP Pool Exhaustion
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Capacity
-- **Value:** Detects DHCP server failures and IP pool exhaustion that prevent new clients from obtaining addresses.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*DHCP*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*" (signature="*failure*" OR signature="*NACK*")
-| stats count as failure_count by ap_name, signature
-| where failure_count > 5
-| sort - failure_count
-```
-- **Implementation:** Monitor syslog for DHCP NACK and failure events. Alert on sustained failure rate.
-- **Visualization:** Table of DHCP failures by AP; time-series showing failure spike; alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.10 · 802.1X Authentication Failures and Radius Issues
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Identifies authentication server problems, credential issues, and 802.1X configuration mismatches.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*802.1X*" OR signature="*Radius*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*802.1X*" OR signature="*Radius*" OR signature="*authentication*")
-| stats count as auth_failures by client_mac, ap_name, signature
-| eventstats sum(auth_failures) as total_failures by client_mac
-| where total_failures > 10
-| sort -total_failures
-```
-- **Implementation:** Ingest 802.1X and RADIUS-related syslog events. Correlate with RADIUS server logs.
-- **Visualization:** Table of failing clients; time-series of auth failures; client-level detail dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.11 · DNS Resolution Performance and Failures
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Monitors DNS query resolution times and failures to identify misconfiguration or server issues affecting user experience.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*DNS*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*DNS*" resolution_time=*
-| stats avg(resolution_time) as avg_dns_time, max(resolution_time) as max_dns_time, count by ap_name
-| where avg_dns_time > 100
-```
-- **Implementation:** Extract DNS query timing from syslog events. Set SLA thresholds (e.g., <100ms average).
-- **Visualization:** Gauge showing average DNS time; histogram of query times; slow query detail table.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.12 · Wireless Latency Analysis by SSID and Location
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Identifies latency patterns across network to optimize AP placement, channel allocation, and client routing.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" latency=*
-| stats avg(latency) as avg_latency, max(latency) as max_latency, count by ssid, ap_name
-| eval latency_sla="OK"
-| eval latency_sla=if(avg_latency > 50, "Warning", latency_sla)
-| eval latency_sla=if(avg_latency > 100, "Critical", latency_sla)
-```
-- **Implementation:** Use API clients endpoint with latency metric. Aggregate by SSID and AP location.
-- **Visualization:** Heatmap of latency by AP; line chart of latency trends; SLA compliance dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.13 · Splash Page Engagement and Redirection Analytics
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Tracks guest network splash page performance and user acceptance rates for marketing and network access purposes.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*Splash*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*Splash*"
-| stats count as redirect_count by result, ap_name
-| eval acceptance_rate=round(count*100/sum(count), 2)
-```
-- **Implementation:** Capture splash page interaction events from syslog. Track accepts vs. denies.
-- **Visualization:** Pie chart of acceptance rates; funnel chart of splash interactions; time-series trending.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.14 · Multicast and Broadcast Storm Detection
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Anomaly
-- **Value:** Identifies multicast/broadcast flooding that degrades wireless performance across multiple client devices.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=flow`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=flow dest="255.255.255.255" OR dest_mac="ff:ff:ff:ff:ff:ff"
-| stats sum(sent_bytes) as total_bytes, count as pkt_count by ap_name, src_mac
-| where pkt_count > 1000
-| sort - pkt_count
-```
-- **Implementation:** Monitor broadcast/multicast flows in syslog. Set thresholds for abnormal packet rates.
-- **Visualization:** Table of broadcast sources; time-series of broadcast packets; alert threshold dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.15 · Wireless Health Score Trending
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Provides a composite health metric across all APs to facilitate executive reporting and trend analysis.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MR`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MR
-| stats avg(health_score) as network_health, min(health_score) as worst_ap, count(eval(health_score<80)) as unhealthy_aps by network_id
-| eval health_status=if(network_health >= 85, "Healthy", if(network_health >= 70, "Degraded", "Critical"))
-```
-- **Implementation:** Pull health_score metric from MR devices API. Aggregate across network.
-- **Visualization:** Gauge of overall health; bar chart of individual AP health; trend sparkline; KPI dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.16 · Connected Client Count Trending and Capacity Planning
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Capacity
-- **Value:** Tracks client density by AP and SSID for capacity planning and performance optimization.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api"
-| stats count as client_count by ap_name, ssid
-| eval capacity_pct=round(client_count*100/30, 2)
-| where capacity_pct > 70
-| sort - client_count
-```
-- **Implementation:** Query clients API to count connected devices. Track over time.
-- **Visualization:** Bubble chart of capacity by AP; stacked bar of clients by SSID; capacity gauge.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.17 · Top Talker Analysis and Bandwidth Hogs
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Identifies bandwidth-intensive clients and applications to enforce QoS policies and prevent network congestion.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=flow`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=flow
-| stats sum(sent_bytes) as upload_bytes, sum(received_bytes) as download_bytes by client_mac, application
-| eval total_bytes=upload_bytes+download_bytes
-| sort -total_bytes
-| head 20
-```
-- **Implementation:** Analyze flow records from syslog; track data usage by client and application.
-- **Visualization:** Table of top talkers; horizontal bar chart of data usage; Sankey diagram of flows.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.18 · Connection Duration and Session Quality
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Analyzes typical session lengths and stability to identify problematic SSIDs or time-based issues.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" connection_duration=*
-| stats avg(connection_duration) as avg_session_time, min(connection_duration) as min_session, max(connection_duration) as max_session by ssid
-| eval session_quality=if(avg_session_time > 3600, "Stable", "Short")
-```
-- **Implementation:** Extract connection_duration from clients API. Aggregate by SSID and time of day.
-- **Visualization:** Histogram of session durations; time-of-day heatmap; SSID comparison chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.19 · AP Uptime and Availability Monitoring
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Ensures all access points are online and operational; alerts on unexpected AP outages.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MR`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MR
-| stats latest(status) as ap_status, latest(last_status_change) as last_change by ap_name, ap_mac
-| where ap_status="offline"
-```
-- **Implementation:** Monitor device status API for all MR devices. Alert on status="offline".
-- **Visualization:** Status table with last seen time; uptime percentage gauge; event alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.20 · Mesh Network Link Quality and Backhaul Health
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Monitors wireless mesh backhaul links to ensure reliability of remote AP connections.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api` (MR), `sourcetype=meraki` (events, e.g. `type=security_event`)
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MR mesh_link_quality=*
-| stats avg(mesh_link_quality) as avg_link_quality by ap_name, upstream_ap
-| where avg_link_quality < 70
-| sort avg_link_quality
-```
-- **Implementation:** Query MR device API for mesh_link_quality metric. Alert on degraded quality (<70%).
-- **Visualization:** Network topology showing link quality; color-coded links; detail table with metrics.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.21 · Guest Network Access Patterns and Usage
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Tracks guest network adoption, usage patterns, and peak times for network provisioning.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api ssid="guest*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" ssid="guest"
-| stats count as guest_users by _time
-| timechart avg(guest_users) as avg_concurrent_guests
-```
-- **Implementation:** Filter clients API results for guest SSIDs. Track concurrent count over time.
-- **Visualization:** Time-series of guest users; daily/weekly heatmap; trend dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.22 · WiFi Geolocation and Location Analytics
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Uses Cisco Meraki location services to track foot traffic patterns and heat maps in physical spaces.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api location_data=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" ap_name=*
-| stats count as foot_traffic by ap_name, floor
-| geom geo_from_metric lat, lon
-```
-- **Implementation:** Use Meraki location API to get AP-based location estimates. Map to floor/zone.
-- **Visualization:** Heat map by physical location; AP heat map overlay; zone traffic comparison.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.23 · Port Utilization and Congestion Alerts
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Identifies port saturation and congestion events that require capacity upgrades or load balancing adjustments.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MS`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS
-| stats avg(port_utilization) as avg_util, max(port_utilization) as max_util by switch_name, port_id
-| where max_util > 80
-| sort - max_util
-```
-- **Implementation:** Query MS switch device API for port utilization metrics. Alert on sustained >80% utilization.
-- **Visualization:** Table of congested ports; timeline showing peak congestion; port utilization heatmap.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.24 · Power over Ethernet (PoE) Consumption Tracking
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
-- **Value:** Monitors PoE power allocation to prevent over-subscription and ensure sufficient power for all devices.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MS`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS poe_consumption=*
-| stats sum(poe_consumption) as total_power_watts, avg(poe_consumption) as avg_power by switch_name
-| eval power_capacity_pct=round(total_power_watts*100/1000, 2)
-| where power_capacity_pct > 80
-```
-- **Implementation:** Pull poe_consumption metrics from MS device API. Aggregate by switch.
-- **Visualization:** Gauge showing power utilization percentage; stacked bar of PoE by port; capacity dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.25 · Spanning Tree Protocol (STP) Topology Changes
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Alerts on unexpected STP topology changes that indicate link failures or network configuration issues.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*STP*" OR signature="*topology*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*STP*" OR signature="*topology*")
-| stats count as change_count by switch_name, change_type
-| where change_count > 3
-```
-- **Implementation:** Monitor STP-related syslog events. Alert on excessive topology changes.
-- **Visualization:** Timeline of topology changes; table of affected switches; alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.26 · Port Security Violations and Rogue Device Detection
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Detects unauthorized MAC addresses and port security breaches that indicate potential network intrusion.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*Port Security*" OR signature="*Unauthorized MAC*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*Port Security*" OR signature="*Unauthorized*")
-| stats count as violation_count by switch_name, port_id, mac_address
-| where violation_count > 0
-| sort - violation_count
-```
-- **Implementation:** Monitor port security violation events from syslog. Create alert for each unique violation.
-- **Visualization:** Table of violations; timeline of events; network detail with affected ports.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.27 · Switch Interface Up/Down Events and Link Flapping
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Identifies port flapping, cable issues, and unstable link states that cause intermittent connectivity.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*link*" OR signature="*Interface*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" OR signature="*Interface*" OR signature="*up*" OR signature="*down*")
-| stats count as event_count by switch_name, port_id
-| eval flap_rate=round(event_count/24, 2)
-| where flap_rate > 2
-```
-- **Implementation:** Track interface up/down state changes over 24 hours. Alert on flapping (>2 changes/hour).
-- **Visualization:** Time-series showing flap events; table of affected ports; link state history.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.28 · VLAN Configuration Mismatches and Tagging Violations
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Detects VLAN configuration errors and tagging violations that disrupt network segmentation.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api` (MS), `sourcetype=meraki` (security/syslog)
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*VLAN*"
-| stats count as vlan_error_count by switch_name, vlan_id
-| where vlan_error_count > 5
-```
-- **Implementation:** Monitor VLAN-related error events. Cross-reference with API device VLAN config.
-- **Visualization:** Table of VLAN issues; timeline of configuration changes; network diagram with VLAN details.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.29 · MAC Flooding and Bridge Table Exhaustion
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Capacity
-- **Value:** Detects MAC address table exhaustion and flooding attacks that could overwhelm switch resources.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*MAC*" OR signature="*bridge*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*MAC*" OR signature="*flood*")
-| stats count as flood_count by switch_name, port_id
-| where flood_count > 50
-```
-- **Implementation:** Monitor MAC-related syslog events. Alert on suspicious patterns.
-- **Visualization:** Table of affected switches/ports; time-series of flood events; alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.30 · DHCP Snooping Violations
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Security
-- **Value:** Detects unauthorized DHCP servers and spoofing attempts that disrupt network address allocation.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*DHCP Snooping*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*Snooping*"
-| stats count as violation_count by switch_name, port_id, server_ip
-| where violation_count > 0
-```
-- **Implementation:** Enable DHCP snooping on MS switches. Monitor syslog for violations.
-- **Visualization:** Table of violations; timeline of events; affected port details.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.31 · Broadcast Storm Detection and Mitigation
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Anomaly
-- **Value:** Identifies and alerts on broadcast storms that can freeze network performance across all switches.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*broadcast*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*broadcast*"
-| stats sum(packet_count) as broadcast_packets by switch_name, port_id
-| where broadcast_packets > 10000
-```
-- **Implementation:** Monitor broadcast traffic thresholds. Alert on sustained high broadcast rates.
-- **Visualization:** Real-time alert dashboard; time-series of broadcast packets; affected port list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.32 · Switch CPU and Memory Utilization
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Fault
-- **Value:** Monitors switch hardware resources to prevent performance degradation or device failure.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MS`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS
-| stats avg(cpu_usage) as avg_cpu, max(cpu_usage) as peak_cpu, avg(memory_usage) as avg_mem by switch_name
-| where avg_cpu > 75 OR avg_mem > 80
-```
-- **Implementation:** Query MS device API for CPU and memory metrics. Alert on threshold breaches.
-- **Visualization:** Gauge charts for CPU/memory; time-series trends; capacity planning dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.33 · Stack Unit and Redundancy Health
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Ensures switch stacking configuration remains healthy and redundancy is not compromised.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MS stack_id=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS stack_id=*
-| stats count as stack_members, count(eval(status="offline")) as offline_members by stack_id
-| where offline_members > 0
-```
-- **Implementation:** Monitor stack member status via device API. Alert on member removal or failure.
-- **Visualization:** Table of stack members and status; redundancy gauge; alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.34 · Trunk Link Utilization and Performance
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Monitors inter-switch and uplink trunk utilization to identify bandwidth constraints.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MS`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS port_type="trunk"
-| stats avg(port_utilization) as avg_trunk_util, max(port_utilization) as peak_util by switch_name, port_id
-| where peak_util > 70
-| sort - peak_util
-```
-- **Implementation:** Query MS API for trunk port utilization. Alert on sustained high utilization.
-- **Visualization:** Trunk link utilization heatmap; timeline showing peak demand; capacity planning chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.35 · QoS Queue Drops and Priority Violations
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Detects QoS queue overflow and drops that indicate traffic priority issues.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*QoS*" OR signature="*queue*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*QoS*" OR signature="*queue*" OR signature="*drop*")
-| stats sum(packets_dropped) as total_drops by switch_name, queue_id
-| where total_drops > 1000
-```
-- **Implementation:** Monitor QoS-related syslog events and drops. Alert on significant drop rates.
-- **Visualization:** Table of drops by queue; time-series of drop events; traffic distribution pie chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.36 · Port Access Control List (ACL) Hits and Block Events
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Security
-- **Value:** Tracks ACL rule hits to monitor policy enforcement and identify anomalous traffic.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*ACL*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*ACL*" action="block"
-| stats count as block_count by switch_name, src_mac, dest_mac
-| sort - block_count
-```
-- **Implementation:** Monitor ACL deny/block events from syslog. Track frequently blocked source/destinations.
-- **Visualization:** Table of blocked traffic; timeline of ACL hits; top blocked addresses chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.37 · Cable Test Results and Port Diagnostics
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Analyzes cable integrity test results to identify wiring faults before they cause outages.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*cable*" OR signature="*diagnostic*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*" OR signature="*diagnostic*")
-| stats count as test_count by switch_name, port_id, test_result
-| where test_result="FAIL"
-```
-- **Implementation:** Periodically run cable tests on switch ports. Ingest results into syslog.
-- **Visualization:** Table of failed cable tests; port detail with diagnostic results; failure timeline.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.38 · Uplink Health and Failover Events
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Monitors primary/secondary uplink status to detect failover events and connection issues.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*Uplink*" OR signature="*failover*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*Uplink*" OR signature="*failover*")
-| stats count as failover_count by uplink_name, event_type
-| where failover_count > 0
-```
-- **Implementation:** Monitor uplink status change events in syslog. Alert on failover.
-- **Visualization:** Uplink status dashboard; failover event timeline; connection health gauge.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.39 · VPN Tunnel Status and Path Monitoring
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Ensures all site-to-site and client VPN tunnels remain active and operative.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=vpn sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=vpn
-| stats latest(status) as tunnel_status, latest(last_changed) as status_change_time by tunnel_id, remote_site
-| where tunnel_status="down" OR tunnel_status="unstable"
-```
-- **Implementation:** Monitor VPN tunnel state from syslog and API. Alert on status != "up".
-- **Visualization:** VPN tunnel status matrix; site connectivity map; tunnel health sparklines.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.40 · Content Filtering and URL Category Blocks
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
-- **Value:** Tracks blocked URLs and categories to monitor policy compliance and identify misclassified content.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=urls action="blocked"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=urls action="blocked"
-| stats count as block_count by url_category, src
-| sort - block_count
-| head 20
-```
-- **Implementation:** Ingest URL filtering events from MX syslog. Categorize by policy.
-- **Visualization:** Table of top blocked categories; bar chart by category; user detail table.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.41 · IDS/IPS Alert Analysis and Threat Scoring
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Identifies and prioritizes intrusion detection alerts for investigation and threat response.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=ids_alert`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=ids_alert
-| stats count as alert_count by signature, priority, src, dest
-| eval severity=case(priority=1, "Critical", priority=2, "High", priority=3, "Medium", 1=1, "Low")
-| where priority <= 2
-| sort - alert_count
-```
-- **Implementation:** Ingest IDS/IPS alert events from MX appliance. Enrich with threat intelligence.
-- **Visualization:** Alert timeline; severity breakdown pie chart; alert detail table; threat map.
-- **CIM Models:** Network_Traffic
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
-```
-
----
-
-### UC-5.9.42 · Malware Detection and AMP File Reputation Events
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Detects and tracks file-based threats to respond quickly to potential malware infections.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*malware*" OR signature="*AMP*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*malware*" OR signature="*AMP*")
-| stats count as malware_count by src, threat_name, file_name
-| where malware_count > 0
-| sort - malware_count
-```
-- **Implementation:** Enable AMP on MX appliance. Ingest malware detection events.
-- **Visualization:** Threat timeline; infected hosts table; file reputation detail; incident dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.43 · Firewall Rule Hit Analysis and Top Denied Flows
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Identifies top denied flows to optimize firewall rules and detect policy violations.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=flow action="deny"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=flow action="deny"
-| stats count as deny_count by firewall_rule, src, dest, dest_port
-| sort - deny_count
-| head 20
-```
-- **Implementation:** Analyze firewall deny events from flow logs. Correlate with rules.
-- **Visualization:** Top denied flows table; denial timeline; source/dest distribution heatmap.
-- **CIM Models:** Network_Traffic
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
-```
-
----
-
-### UC-5.9.44 · Traffic Shaping Effectiveness and QoS Policy Analysis
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Measures the impact of traffic shaping policies on bandwidth distribution and priority.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=flow sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=flow priority_queue=*
-| stats sum(bytes) as total_bytes, avg(latency) as avg_latency by priority_queue
-| eval efficiency=round(total_bytes/sum(total_bytes)*100, 2)
-```
-- **Implementation:** Extract priority_queue field from flow logs. Measure bandwidth by priority.
-- **Visualization:** Stacked bar chart of bandwidth by priority; latency by QoS class; efficiency gauge.
-- **CIM Models:** Network_Traffic
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
-```
-
----
-
-### UC-5.9.45 · Site-to-Site VPN Latency and Performance
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Monitors latency and jitter on VPN tunnels to ensure quality of critical business traffic.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=vpn sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=vpn latency=*
-| stats avg(latency) as avg_vpn_latency, max(jitter) as max_jitter by tunnel_id, remote_site
-| where avg_vpn_latency > 50
-```
-- **Implementation:** Extract VPN latency and jitter metrics. Monitor tunnel performance.
-- **Visualization:** Gauge of VPN latency; latency trend line; jitter comparison chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.46 · Client VPN Connections and Remote Access Patterns
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Security
-- **Value:** Tracks client VPN usage patterns for remote workers and identifies problematic connections.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=vpn client_vpn=true`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=vpn client_vpn=true
-| stats count as connection_count, avg(duration) as avg_session_length by user_id, src
-| where connection_count > 10
-```
-- **Implementation:** Filter VPN logs for client connections. Track by user and source IP.
-- **Visualization:** Connected users timeline; session duration histogram; geography map of remote users.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.47 · NAT Pool Usage and Exhaustion Alerts
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Capacity
-- **Value:** Monitors NAT pool utilization to prevent address exhaustion that could block outbound traffic.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" nat_pool_usage=*
-| stats max(nat_pool_usage) as peak_nat_usage, count by nat_pool_id
-| eval nat_capacity_pct=round(peak_nat_usage*100/254, 2)
-| where nat_capacity_pct > 80
-```
-- **Implementation:** Query appliance API for NAT pool metrics. Alert on >80% utilization.
-- **Visualization:** Gauge of NAT pool usage; capacity timeline; pool exhaustion alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.48 · BGP Peering Status and Route Stability
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Ensures BGP peers remain established and routing remains stable for multi-ISP designs.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*BGP*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*BGP*" (signature="*neighbor*" OR signature="*route*")
-| stats count as bgp_event_count by bgp_neighbor, event_type
-| where bgp_event_count > 5
-```
-- **Implementation:** Monitor BGP event syslog. Alert on neighbor state changes.
-- **Visualization:** BGP peer status table; route change timeline; peering stability gauge.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.49 · DHCP Pool Exhaustion and Address Allocation Issues
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Capacity
-- **Value:** Alerts when DHCP pools approach depletion to prevent clients from obtaining IP addresses.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" dhcp_pool=*
-| stats latest(addresses_available) as available_ips, latest(pool_size) as total_pool by vlan_id
-| eval allocation_pct=round((total_pool-available_ips)*100/total_pool, 2)
-| where allocation_pct > 85
-```
-- **Implementation:** Query appliance API for DHCP metrics by VLAN. Alert on >85% allocation.
-- **Visualization:** DHCP pool gauge per VLAN; timeline of pool usage; alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.50 · Threat Intelligence Correlation and IoC Matching
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security
-- **Value:** Correlates network traffic with threat intelligence databases to detect known malicious IPs and domains.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event OR type=urls OR type=flow`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR type=flow)
-| lookup threat_intelligence_list src as src OUTPUTNEW threat_name, threat_severity
-| where threat_severity="high" OR threat_severity="critical"
-| stats count as hit_count by src, dest, threat_name
-| sort - hit_count
-```
-- **Implementation:** Create threat intelligence lookup table. Correlate with network events.
-- **Visualization:** IoC match timeline; threat severity breakdown; affected hosts table.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.51 · Geo-Blocking Event Tracking and Geographic Policy Enforcement
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
-- **Value:** Tracks geo-blocking policy enforcement to verify compliance with data residency and export controls.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=urls action="blocked" country=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=urls action="blocked"
-| lookup geo_ip.csv dest OUTPUTNEW country, city
-| stats count as block_count by country
-| sort - block_count
-```
-- **Implementation:** Ingest URL logs with GeoIP enrichment. Track blocks by geography.
-- **Visualization:** Geo-block map; country block count chart; policy compliance dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.52 · Application Visibility and Network Application Trending
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Capacity
-- **Value:** Identifies top applications and protocols on network to understand usage patterns and detect anomalies.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=flow application=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=flow application=*
-| stats sum(bytes) as app_bytes, count as flow_count by application, application_category
-| eval app_bandwidth_pct=round(app_bytes*100/sum(app_bytes), 2)
-| sort - app_bytes
-| head 20
-```
-- **Implementation:** Extract application field from flow logs. Aggregate by app and category.
-- **Visualization:** App bandwidth pie chart; top apps bar chart; bandwidth timeline by app.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.53 · Bandwidth by Application and Department
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Tracks bandwidth consumption by application and business unit for chargeback and optimization.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=flow`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=flow
-| lookup department_by_ip.csv src OUTPUTNEW department
-| stats sum(sent_bytes) as upload_mb, sum(received_bytes) as download_mb by application, department
-| eval total_mb=upload_mb+download_mb
-| sort -total_mb
-```
-- **Implementation:** Correlate flows with IP-to-department mapping. Aggregate by app and dept.
-- **Visualization:** Stacked bar of bandwidth by dept/app; heatmap of app usage per dept.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.54 · WAN Link Quality Monitoring (Jitter, Latency, Packet Loss)
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
-- **Value:** Continuously monitors WAN quality metrics to detect link degradation before impacting users.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api wan_metrics=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" uplink=*
-| stats avg(latency) as avg_latency, avg(jitter) as avg_jitter, avg(packet_loss) as avg_loss by uplink_id
-| eval link_quality=case(avg_loss > 5, "Critical", avg_latency > 100, "Poor", avg_jitter > 50, "Fair", 1=1, "Good")
-```
-- **Implementation:** Query appliance API for uplink WAN metrics. Monitor quality KPIs.
-- **Visualization:** Uplink quality scorecard; latency/jitter/loss timeline; quality gauge per uplink.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.55 · Internet Uplink Failover Events and Recovery Time
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Tracks failover events, recovery time, and uplink behavior to ensure high availability.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*failover*" OR signature="*recovery*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*failover*" OR signature="*recovery*")
-| stats count as failover_count, latest(recovery_time) as recovery_duration by uplink_id, failure_reason
-| where failover_count > 0
-```
-- **Implementation:** Monitor failover and recovery events from syslog. Calculate recovery MTTR.
-- **Visualization:** Failover timeline; recovery time gauge; uplink failure cause pie chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.56 · Cellular Modem Failover Activation and Usage
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Tracks cellular backup activation to monitor failover effectiveness and cellular data usage.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*4G*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cellular*" OR signature="*4G*" OR signature="*LTE*")
-| stats count as cellular_events, sum(data_usage_mb) as total_cellular_data by event_type
-| where total_cellular_data > 0
-```
-- **Implementation:** Ingest cellular failover events. Track data consumption.
-- **Visualization:** Cellular usage timeline; failover event table; data usage gauge.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.57 · Warm Spare Failover and Appliance Redundancy
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Ensures warm spare failover mechanism is operational and redundancy is maintained.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*warm spare*" OR signature="*HA*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*warm spare*" OR signature="*HA*" OR signature="*redundancy*")
-| stats latest(ha_status) as redundancy_status, count as status_change_count by appliance_pair
-| where ha_status!="active/standby"
-```
-- **Implementation:** Monitor HA/warm spare events. Alert on status != "active/standby".
-- **Visualization:** HA status dashboard; failover timeline; redundancy health gauge.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.58 · Auto VPN Path Changes and Tunnel Switching
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Tracks automatic VPN path optimization to understand tunnel usage and convergence behavior.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=vpn signature="*Auto VPN*" OR signature="*path change*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR signature="*path change*")
-| stats count as path_change_count by tunnel_id, new_path, old_path
-| where path_change_count > 3
-```
-- **Implementation:** Monitor Auto VPN path optimization events. Alert on excessive changes.
-- **Visualization:** Path change timeline; tunnel path change distribution; convergence analysis.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.59 · Connection Rate Analysis and DOS Detection
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Detects denial of service attacks by analyzing abnormal connection establishment rates.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=flow protocol="tcp" tcp_flags="SYN"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
-| timechart count as new_connections by src
-| where new_connections > 1000
-```
-- **Implementation:** Monitor TCP SYN rate by source IP. Alert on anomalous connection rates.
-- **Visualization:** Connection rate timeline; source IP detail table; DOS alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.60 · Data Loss Prevention (DLP) Event Analysis
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Security
-- **Value:** Detects and alerts on sensitive data transmission to prevent data exfiltration.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*DLP*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*DLP*"
-| stats count as dlp_match_count by src, dest, dlp_policy, data_type
-| where dlp_match_count > 0
-| sort - dlp_match_count
-```
-- **Implementation:** Enable DLP on MX appliance. Ingest DLP match events.
-- **Visualization:** DLP incident timeline; data type breakdown; source/destination detail.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.61 · SSL/TLS Certificate Expiration Tracking
+### UC-5.8.9 · SSL/TLS Certificate Expiration Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4299,7 +4456,7 @@ index=cisco_network sourcetype="meraki:api" certificate_expiry=*
 
 ---
 
-### UC-5.9.62 · Firmware Update Compliance and Version Tracking
+### UC-5.8.10 · Firmware Update Compliance and Version Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
@@ -4319,7 +4476,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.9.63 · API Call Rate Monitoring and Rate Limit Alerts
+### UC-5.8.11 · API Call Rate Monitoring and Rate Limit Alerts
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4339,7 +4496,7 @@ index=cisco_network sourcetype="meraki:api:*"
 
 ---
 
-### UC-5.9.64 · License Expiration Tracking and Renewal Alerts
+### UC-5.8.12 · License Expiration Tracking and Renewal Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4360,7 +4517,7 @@ index=cisco_network sourcetype="meraki:api" license_expiry=*
 
 ---
 
-### UC-5.9.65 · Network Device Inventory and Change Audit
+### UC-5.8.13 · Network Device Inventory and Change Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Configuration
@@ -4380,7 +4537,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.9.66 · Admin Activity Logging and Access Control Audit
+### UC-5.8.14 · Admin Activity Logging and Access Control Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
@@ -4399,7 +4556,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*admin*"
 
 ---
 
-### UC-5.9.67 · Admin Privilege Changes and Permission Escalation
+### UC-5.8.15 · Admin Privilege Changes and Permission Escalation
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -4418,7 +4575,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*privile
 
 ---
 
-### UC-5.9.68 · Alert Volume Trending and Alert Fatigue Analysis
+### UC-5.8.16 · Alert Volume Trending and Alert Fatigue Analysis
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
@@ -4437,7 +4594,7 @@ index=cisco_network sourcetype="meraki:webhook"
 
 ---
 
-### UC-5.9.69 · Network Health Score Aggregation and Executive Reporting
+### UC-5.8.17 · Network Health Score Aggregation and Executive Reporting
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -4457,7 +4614,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.9.70 · Device Online/Offline Status Monitoring
+### UC-5.8.18 · Device Online/Offline Status Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -4477,7 +4634,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.9.71 · Multi-Organization Comparison and Benchmarking
+### UC-5.8.19 · Multi-Organization Comparison and Benchmarking
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -4496,7 +4653,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.9.72 · Configuration Change Window Compliance
+### UC-5.8.20 · Configuration Change Window Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
@@ -4517,7 +4674,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*config*"
 
 ---
 
-### UC-5.9.73 · Webhook Delivery Failure Tracking
+### UC-5.8.21 · Webhook Delivery Failure Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -4536,7 +4693,7 @@ index=cisco_network sourcetype="meraki:webhook" (status="failure" OR status="err
 
 ---
 
-### UC-5.9.74 · API Error Rate and Endpoint Health
+### UC-5.8.22 · API Error Rate and Endpoint Health
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -4556,7 +4713,7 @@ index=cisco_network sourcetype="meraki:api:*" (http_status_code=4* OR http_statu
 
 ---
 
-### UC-5.9.75 · Dashboard Configuration and Export Backup
+### UC-5.8.23 · Dashboard Configuration and Export Backup
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
@@ -4576,644 +4733,7 @@ index=cisco_network sourcetype="meraki:api" backup_timestamp=*
 
 ---
 
-### UC-5.9.76 · Camera Uptime and Availability Tracking
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Monitors video surveillance system availability to ensure continuous monitoring coverage.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MV sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MV
-| stats latest(status) as camera_status, latest(last_status_change) as status_change by camera_name, location
-| where camera_status="offline"
-```
-- **Implementation:** Monitor MV camera status via device API. Alert on offline cameras.
-- **Visualization:** Camera status map; offline camera list; availability percentage gauge.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.77 · Video Retention and Cloud Archive Storage Utilization
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Tracks cloud storage usage for video archives to manage costs and ensure retention SLA.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" storage_usage=*
-| stats sum(storage_usage) as total_storage_gb by camera_id, retention_days
-| eval storage_pct=round(total_storage_gb*100/1000, 2)
-| where storage_pct > 80
-```
-- **Implementation:** Query camera API for storage metrics. Alert on >80% utilization.
-- **Visualization:** Storage utilization gauge; retention timeline; storage trend chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.78 · Motion Detection Events and Alert Volume Analysis
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Analyzes motion detection event patterns to optimize camera sensitivity and reduce false alerts.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*motion*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*motion*"
-| timechart count as motion_events by camera_name
-| eval daily_avg=round(motion_events/1440, 2)
-```
-- **Implementation:** Ingest motion detection events. Track volume and patterns.
-- **Visualization:** Motion detection timeline; heat map by time of day; camera comparison chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.79 · Camera Video Quality Score and Stream Health
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Monitors video quality metrics to identify network or hardware issues affecting video feeds.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" quality_score=*
-| stats avg(quality_score) as avg_quality, min(quality_score) as min_quality by camera_name
-| where avg_quality < 80
-| sort avg_quality
-```
-- **Implementation:** Query camera API for quality_score metric. Alert on <80 average.
-- **Visualization:** Quality score gauge per camera; quality trend line; affected camera list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.80 · Cloud Archive Status and Backup Validation
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Ensures video archives are successfully uploaded to cloud and backup integrity is maintained.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api archive_status=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" archive_status=*
-| stats latest(archive_status) as backup_status, latest(last_archive_time) as last_backup by camera_id
-| where archive_status != "success"
-```
-- **Implementation:** Check camera API archive status. Alert on failures.
-- **Visualization:** Archive status table; last backup time timeline; failure alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.81 · Video Stream Connection Errors and Quality Issues
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Detects video stream connection failures that prevent remote viewing or recording.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*stream*" OR signature="*connection*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*stream*" OR signature="*connection*")
-| stats count as error_count by camera_name, error_type
-| where error_count > 10
-```
-- **Implementation:** Monitor stream connection events. Alert on error spikes.
-- **Visualization:** Connection error timeline; affected camera list; error type breakdown.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.82 · Camera Firmware Compliance and Update Management
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
-- **Value:** Ensures all cameras run current firmware with security patches.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MV`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MV
-| stats latest(firmware_version) as camera_fw, count as camera_count
-| lookup recommended_camera_fw.csv camera_model OUTPUTNEW recommended_version
-| where camera_fw != recommended_version
-```
-- **Implementation:** Query MV device API for firmware. Compare to recommended baseline.
-- **Visualization:** Firmware version table; compliance percentage gauge; outdated camera list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.83 · Night Mode Effectiveness and Low-Light Performance
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Monitors camera performance in low-light conditions to ensure night surveillance effectiveness.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api night_mode=true`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" night_mode=true
-| stats avg(quality_score) as night_quality, count as night_mode_events by camera_name
-| where night_quality < 75
-```
-- **Implementation:** Track camera performance during night mode. Monitor quality metrics.
-- **Visualization:** Night mode quality gauge; low-light performance timeline; affected camera list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.84 · People Counting Trends and Occupancy Analytics
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Uses camera people counting to track foot traffic trends for space utilization and facility planning.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api people_count=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" people_count=*
-| timechart avg(people_count) as avg_occupancy by location
-```
-- **Implementation:** Extract people_count metrics from camera API. Aggregate by location and time.
-- **Visualization:** Occupancy heat map by time of day; location comparison bar chart; trend sparkline.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.85 · Temperature Sensor Threshold Alerts
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Fault
-- **Value:** Alerts when environmental temperatures exceed safe thresholds to prevent equipment damage.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*temperature*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*temperature*"
-| stats latest(temperature) as current_temp, min(temperature) as min_temp, max(temperature) as max_temp by sensor_location
-| where current_temp > 30 OR current_temp < 5
-```
-- **Implementation:** Monitor temperature sensor threshold alerts from syslog. Alert on exceedance.
-- **Visualization:** Temperature gauge per location; trend timeline; alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.86 · Humidity Monitoring and Dew Point Tracking
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Fault
-- **Value:** Monitors humidity levels to ensure optimal conditions for equipment and prevent moisture damage.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*humidity*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*humidity*"
-| stats latest(humidity) as current_humidity, avg(humidity) as avg_humidity by sensor_location
-| eval dew_point="calculated_value"
-```
-- **Implementation:** Monitor humidity sensor data. Calculate dew point for condensation risk.
-- **Visualization:** Humidity gauge per location; humidity vs temperature correlation; trend chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.87 · Door Open/Close Event Detection and Alerts
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Tracks door access events for security and facility monitoring.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*door*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*door*" (action="open" OR action="close")
-| stats count as door_events, latest(timestamp) as last_event by door_location, action
-```
-- **Implementation:** Monitor door sensor events. Alert on unusual access patterns.
-- **Visualization:** Door event timeline; access pattern analysis; alert table.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.88 · Water Leak Detection and Flood Alerts
-- **Criticality:** 🔴 Critical
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
-- **Value:** Immediately detects water leaks to prevent equipment damage and business interruption.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*water*" OR signature="*leak*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*water*" OR signature="*leak*")
-| stats count as leak_events, latest(timestamp) as last_detection by sensor_location
-| where leak_events > 0
-```
-- **Implementation:** Monitor water/leak detection sensors. Create critical alert.
-- **Visualization:** Leak alert dashboard; sensor location map; event timeline.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.89 · Power Monitoring and Electrical Load Analysis
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Tracks electrical power consumption and load to identify anomalies and plan upgrades.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" sensor_type="power" power_watts=*
-| stats avg(power_watts) as avg_power, max(power_watts) as peak_power by location
-| eval power_capacity_pct=round(peak_power*100/15000, 2)
-```
-- **Implementation:** Query sensor API for power metrics. Track consumption and peaks.
-- **Visualization:** Power consumption gauge; peak load timeline; capacity planning chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.90 · Air Quality and CO2 Monitoring
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Monitors indoor air quality to ensure safe working conditions.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api sensor_type="air_quality"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" sensor_type="air_quality" co2_ppm=*
-| stats latest(co2_ppm) as current_co2, avg(co2_ppm) as avg_co2 by location
-| where current_co2 > 1000
-```
-- **Implementation:** Monitor CO2 and air quality sensor data. Alert on high levels.
-- **Visualization:** CO2 level gauge per location; trend timeline; air quality status chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.91 · Ambient Noise Level Monitoring and Trend Analysis
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Tracks noise levels to ensure comfortable working environment and detect anomalies.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api sensor_type="noise"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" sensor_type="noise" noise_db=*
-| stats avg(noise_db) as avg_noise, max(noise_db) as peak_noise by location
-| timechart avg(noise_db) by location
-```
-- **Implementation:** Ingest noise sensor data. Track by location and time of day.
-- **Visualization:** Noise level gauge; time-of-day heat map; location comparison chart.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.92 · Indoor Climate Trending and HVAC Optimization
-- **Criticality:** 🟢 Low
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Capacity
-- **Value:** Analyzes temperature and humidity trends to optimize HVAC system efficiency.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api sensor_type IN ("temperature", "humidity")`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" sensor_type IN ("temperature", "humidity")
-| stats avg(value) as avg_value by sensor_type, location
-| timechart avg(value) by sensor_type
-```
-- **Implementation:** Correlate temperature and humidity data. Identify optimization opportunities.
-- **Visualization:** Climate trend line chart; comfort zone indicator; energy efficiency analysis.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.93 · Environmental Sensor Battery Health and Replacement Alerts
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Tracks sensor battery levels to ensure sensors remain operational and schedule replacements.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" battery_level=*
-| stats latest(battery_level) as battery_pct by sensor_id, location
-| where battery_pct < 20
-| sort battery_pct
-```
-- **Implementation:** Query sensor API for battery metrics. Alert on <20% battery.
-- **Visualization:** Battery health table; battery trend timeline; replacement alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.94 · Sensor Connectivity and Heartbeat Monitoring
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
-- **Value:** Ensures all sensors maintain connectivity and operational status.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api"
-| stats latest(last_report) as last_checkin by sensor_id
-| eval hours_since_checkin=round((now()-strptime(last_report, "%Y-%m-%dT%H:%M:%S"))/3600, 1)
-| where hours_since_checkin > 2
-```
-- **Implementation:** Query sensor API for last report time. Alert on missing heartbeats.
-- **Visualization:** Sensor status table; last heartbeat timeline; offline sensor list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.95 · Device Compliance Status and Policy Enforcement
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
-- **Value:** Ensures all managed devices comply with security policies and configuration standards.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api compliance_status=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" (compliance_status="noncompliant" OR compliance_status="unknown")
-| stats count as noncompliant_count by os_type, compliance_reason
-| eval compliance_pct=round(noncompliant_count*100/total_devices, 2)
-```
-- **Implementation:** Query device compliance status from SM API. Alert on noncompliance.
-- **Visualization:** Compliance status table; compliance percentage gauge; noncompliant device list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.96 · Mobile Device Enrollment and MDM Status Tracking
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Tracks device enrollment status to ensure mobile device management coverage.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api enrollment_status=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" enrollment_status IN ("enrolled", "pending", "failed")
-| stats count as device_count by enrollment_status, os_type
-| eval enrollment_pct=round(count*100/sum(count), 2)
-```
-- **Implementation:** Query device enrollment status. Track pending and failed enrollments.
-- **Visualization:** Enrollment status pie chart; pending enrollment timeline; device count by OS.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.97 · Geofencing Alerts and Location-Based Policy Triggers
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Uses geofencing to detect when devices leave secure zones and trigger location-based policies.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*geofence*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*geofence*"
-| stats count as geofence_event_count by device_id, zone_name, event_type
-| where event_type="left_zone"
-```
-- **Implementation:** Monitor geofence event triggers. Track zone entry/exit by device.
-- **Visualization:** Geofence event timeline; zone heat map; affected device list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.98 · Mobile Security Policy Violations and App Restrictions
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Security
-- **Value:** Detects policy violations and restricted app usage attempts.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*policy*" OR signature="*app*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*policy*" OR signature="*app*") violation="true"
-| stats count as violation_count by device_id, policy_name, violation_type
-| where violation_count > 5
-```
-- **Implementation:** Monitor security policy violation events. Alert on repeated violations.
-- **Visualization:** Policy violation timeline; violation type breakdown; affected device list.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.99 · Lost Mode Device Activation and Recovery Tracking
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
-- **Value:** Tracks activation of lost mode on devices to ensure recovery protocols are working.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*lost mode*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*lost mode*"
-| stats count as lost_mode_count, latest(timestamp) as last_activation by device_id, activation_reason
-```
-- **Implementation:** Monitor lost mode activation events. Track recovery time.
-- **Visualization:** Lost mode event timeline; affected device table; recovery status dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.100 · Mobile App Deployment Success Rate and Distribution Status
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Tracks app deployment success and identifies devices with failed or incomplete deployments.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*app*deployment*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*app*deployment*"
-| stats count as deployment_count, count(eval(status="success")) as success_count, count(eval(status="failed")) as failed_count by app_name
-| eval success_rate=round(success_count*100/deployment_count, 2)
-| where success_rate < 95
-```
-- **Implementation:** Monitor app deployment status events. Alert on low success rates.
-- **Visualization:** Deployment success rate gauge; app deployment timeline; failure detail table.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.101 · Cellular Gateway Signal Strength Trending
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Monitors cellular signal strength to ensure reliable backup connectivity.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MG`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MG
-| stats avg(signal_strength) as avg_signal, min(signal_strength) as min_signal by cellular_gateway_id
-| eval signal_quality=case(avg_signal > -90, "Excellent", avg_signal > -110, "Good", 1=1, "Poor")
-```
-- **Implementation:** Query MG device API for signal metrics. Alert on degraded signal.
-- **Visualization:** Signal strength gauge; trend timeline; cellular quality status.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.102 · Cellular Data Usage and Overage Monitoring
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Tracks cellular data consumption to manage carrier costs and prevent overages.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MG data_usage=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MG data_usage=*
-| stats sum(data_usage) as total_data_usage_mb by cellular_gateway_id
-| eval overage_alert=if(total_data_usage_mb > 100000, "Yes", "No")
-```
-- **Implementation:** Query MG API for data usage metrics. Track monthly consumption.
-- **Visualization:** Data usage gauge per gateway; consumption timeline; overage alert table.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.103 · Carrier Connection Health and Network Performance
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
-- **Value:** Monitors carrier connectivity and network performance metrics for backup internet links.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki type=security_event signature="*cellular*" OR signature="*carrier*"`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cellular*" OR signature="*carrier*")
-| stats count as event_count by event_type, carrier_name
-| where event_type="connection_error" OR event_type="network_error"
-```
-- **Implementation:** Monitor carrier connection and network events. Alert on issues.
-- **Visualization:** Carrier health timeline; connection error table; network performance gauge.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.104 · SIM Status and Plan Monitoring
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Tracks SIM card status and plan expiration to ensure continuous cellular connectivity.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
-- **Data Sources:** `sourcetype=meraki:api device_type=MG sim_status=*`
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" device_type=MG
-| stats latest(sim_status) as sim_status, latest(plan_expiry) as expiry_date by gateway_id, sim_id
-| eval days_until_expire=round((strptime(plan_expiry, "%Y-%m-%d")-now())/86400, 0)
-| where sim_status != "active" OR days_until_expire < 30
-```
-- **Implementation:** Query MG API for SIM status and plan expiry. Alert before expiration.
-- **Visualization:** SIM status table; plan expiry countdown; renewal alert dashboard.
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.105 · Meraki VPN Tunnel and Failover Health
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
-- **Value:** Site-to-site and client VPN tunnel state directly impacts remote site and user connectivity. Detecting tunnel down or failover events supports quick remediation.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API
-- **Data Sources:** `sourcetype=meraki:api` (VPN status), syslog from MX
-- **SPL:**
-```spl
-index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
-| stats latest(tunnel_state) as state, latest(peer_ip) as peer by device_serial, tunnel_id
-| where state != "up"
-| table device_serial tunnel_id peer state _time
-```
-- **Implementation:** Poll Meraki API for VPN tunnel status or ingest MX syslog for tunnel events. Alert when any tunnel is down. Track failover events for active/standby links.
-- **Visualization:** Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.106 · Wireless Client Association and Roaming Failures
-- **Criticality:** 🟡 Medium
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** High association failure or roaming failure rates indicate coverage gaps, interference, or AP misconfiguration. Trending supports WLAN troubleshooting and capacity planning.
-- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (WLC), wireless controller logs
-- **Data Sources:** Meraki wireless events, Cisco WLC syslog
-- **SPL:**
-```spl
-index=cisco_network sourcetype=meraki:wireless (event_type="association_failed" OR event_type="roam_failed")
-| stats count by ap_serial, ssid, _time span=15m
-| where count > 20
-| sort -count
-```
-- **Implementation:** Ingest wireless client events from Meraki or WLC. Extract association and roam outcomes. Alert when failure rate exceeds threshold per AP or SSID. Dashboard by location and time.
-- **Visualization:** Table (AP, SSID, failures), Line chart (failure rate over time), Heatmap (AP by location).
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.107 · DHCP Lease Exhaustion and Scope Utilization
-- **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Capacity
-- **Value:** Exhausted DHCP scopes prevent new devices from joining the network. Monitoring utilization and lease count supports proactive scope expansion or cleanup.
-- **App/TA:** Infoblox, Microsoft DHCP, ISC DHCP — scripted input or API
-- **Data Sources:** DHCP server logs, lease table export, SNMP (DHCP pool MIB)
-- **SPL:**
-```spl
-index=network sourcetype=dhcp_scope
-| eval used_pct=round(leases_in_use/scope_size*100, 1)
-| stats latest(used_pct) as pct, latest(leases_in_use) as used by scope_name, server
-| where pct > 85
-| table scope_name server used scope_size pct
-```
-- **Implementation:** Poll DHCP server (Infoblox API, Windows WMI, or lease file) for scope size and in-use count. Ingest daily or hourly. Alert when utilization exceeds 85%. Track lease duration and stale lease cleanup.
-- **Visualization:** Gauge per scope, Table (scope, used, size, %), Line chart (utilization trend).
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.108 · DNS Query Latency and Resolution Failure by Resolver
-- **Criticality:** 🟠 High
-- **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
-- **Value:** Slow or failing DNS resolution impacts all applications. Tracking latency and NXDOMAIN/timeout rates per resolver supports capacity and upstream provider decisions.
-- **App/TA:** Custom scripted input (dig, DNS query log), Infoblox/BIND query logs
-- **Data Sources:** DNS resolver query logs, synthetic DNS probes
-- **SPL:**
-```spl
-index=network sourcetype=dns_query
-| stats avg(response_time_ms) as avg_ms, count(eval(response_code="NXDOMAIN" OR response_code="SERVFAIL")) as failures, count as total by resolver_ip, _time span=5m
-| eval fail_rate=round(failures/total*100, 2)
-| where avg_ms > 200 OR fail_rate > 5
-| table resolver_ip avg_ms fail_rate total
-```
-- **Implementation:** Run synthetic DNS probes (e.g. dig to critical domains) from multiple hosts; ingest response time and result. Optionally ingest resolver query logs. Alert when latency exceeds 200ms or failure rate exceeds 5%.
-- **Visualization:** Line chart (latency by resolver), Table (resolver, avg ms, fail rate), Single value (p95 latency).
-- **CIM Models:** N/A
-
----
-
-### UC-5.9.109 · Network Device Configuration Backup and Drift
+### UC-5.8.24 · Network Device Configuration Backup and Drift
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
@@ -5233,7 +4753,7 @@ index=network sourcetype=config_backup
 
 ---
 
-### UC-5.9.110 · SNMP Trap Storm Detection
+### UC-5.8.25 · SNMP Trap Storm Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -5256,13 +4776,14 @@ index=network sourcetype=snmptrap
 
 ---
 
-## 5.10 Cisco ThousandEyes
+
+## 5.9 Cisco ThousandEyes
 
 **Primary App/TA:** Cisco ThousandEyes App for Splunk (Splunkbase 7719) — Cisco Supported
 
 ---
 
-### UC-5.10.1 · Network Latency Monitoring (Agent-to-Server)
+### UC-5.9.1 · Network Latency Monitoring (Agent-to-Server)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -5283,7 +4804,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.2 · Network Packet Loss Monitoring
+### UC-5.9.2 · Network Packet Loss Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -5303,7 +4824,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.3 · Network Jitter Monitoring
+### UC-5.9.3 · Network Jitter Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -5323,7 +4844,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.4 · Agent-to-Agent Latency and Throughput
+### UC-5.9.4 · Agent-to-Agent Latency and Throughput
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5343,7 +4864,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.5 · Path Hop Count Analysis
+### UC-5.9.5 · Path Hop Count Analysis
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5363,7 +4884,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.6 · Network Path Change Detection
+### UC-5.9.6 · Network Path Change Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Anomaly
@@ -5383,7 +4904,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.7 · WAN Link Quality Scoring
+### UC-5.9.7 · WAN Link Quality Scoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5406,7 +4927,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.8 · BGP Reachability Monitoring
+### UC-5.9.8 · BGP Reachability Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5426,7 +4947,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.9 · BGP Path Change Trending
+### UC-5.9.9 · BGP Path Change Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Anomaly
@@ -5444,7 +4965,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.10 · BGP Update Volume Tracking
+### UC-5.9.10 · BGP Update Volume Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Anomaly
@@ -5462,7 +4983,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.11 · BGP AS Path Monitoring
+### UC-5.9.11 · BGP AS Path Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Anomaly
@@ -5482,7 +5003,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.12 · Prefix Reachability by Region
+### UC-5.9.12 · Prefix Reachability by Region
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -5507,7 +5028,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.13 · DNS Availability Monitoring
+### UC-5.9.13 · DNS Availability Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5527,7 +5048,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.14 · DNS Resolution Time Trending
+### UC-5.9.14 · DNS Resolution Time Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -5546,7 +5067,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.15 · DNSSEC Validity Monitoring
+### UC-5.9.15 · DNSSEC Validity Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5566,7 +5087,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.16 · DNS Provider Comparison
+### UC-5.9.16 · DNS Provider Comparison
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5586,7 +5107,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.17 · DNS Trace Delegation Chain Monitoring
+### UC-5.9.17 · DNS Trace Delegation Chain Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -5607,7 +5128,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.18 · Network Outage Event Detection
+### UC-5.9.18 · Network Outage Event Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5626,7 +5147,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.19 · ISP Performance Degradation Alerts
+### UC-5.9.19 · ISP Performance Degradation Alerts
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5645,7 +5166,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.20 · DNS Issue Event Tracking
+### UC-5.9.20 · DNS Issue Event Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5664,7 +5185,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.21 · Proxy Issue Detection
+### UC-5.9.21 · Proxy Issue Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5683,7 +5204,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.22 · Local Agent Issue Monitoring
+### UC-5.9.22 · Local Agent Issue Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -5702,7 +5223,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.23 · Internet Outage Correlation with Internal Alerts
+### UC-5.9.23 · Internet Outage Correlation with Internal Alerts
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability
@@ -5726,7 +5247,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.24 · Endpoint Experience Score Monitoring
+### UC-5.9.24 · Endpoint Experience Score Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -5746,7 +5267,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.25 · Remote Worker Connectivity Health
+### UC-5.9.25 · Remote Worker Connectivity Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5766,7 +5287,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.26 · VPN Path Performance
+### UC-5.9.26 · VPN Path Performance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5787,7 +5308,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.27 · Endpoint Connection Type and Network Score
+### UC-5.9.27 · Endpoint Connection Type and Network Score
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5807,7 +5328,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.28 · Geographic Workforce Performance Comparison
+### UC-5.9.28 · Geographic Workforce Performance Comparison
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5827,7 +5348,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.29 · SD-WAN Overlay vs Underlay Performance
+### UC-5.9.29 · SD-WAN Overlay vs Underlay Performance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
@@ -5848,7 +5369,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.30 · SASE Secure Edge Performance
+### UC-5.9.30 · SASE Secure Edge Performance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5869,7 +5390,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.31 · Multi-Cloud Network Performance
+### UC-5.9.31 · Multi-Cloud Network Performance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5890,7 +5411,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.32 · CDN Edge Network Performance
+### UC-5.9.32 · CDN Edge Network Performance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5911,7 +5432,7 @@ index=network sourcetype=snmptrap
 
 ---
 
-### UC-5.10.33 · Cloud Provider Path Visualization
+### UC-5.9.33 · Cloud Provider Path Visualization
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -5931,9 +5452,9 @@ index=network sourcetype=snmptrap
 
 ---
 
-## 5.11 Carrier and Service Provider Signaling
+## 5.10 Carrier and Service Provider Signaling
 
-### UC-5.11.1 · Diameter Signaling Health Monitoring
+### UC-5.10.1 · Diameter Signaling Health Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Performance
@@ -5958,7 +5479,7 @@ sourcetype="stream:diameter"
 
 ---
 
-### UC-5.11.2 · Diameter Subscriber Data Accounting
+### UC-5.10.2 · Diameter Subscriber Data Accounting
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
@@ -5983,7 +5504,7 @@ sourcetype="stream:diameter" command_code=271
 
 ---
 
-### UC-5.11.3 · Mobile Subscriber RADIUS Session Tracking
+### UC-5.10.3 · Mobile Subscriber RADIUS Session Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Availability
@@ -6007,7 +5528,7 @@ sourcetype="stream:radius" code="Accounting-Request"
 
 ---
 
-### UC-5.11.4 · Carrier SIP Trunk Failure Analysis
+### UC-5.10.4 · Carrier SIP Trunk Failure Analysis
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Performance
@@ -6031,7 +5552,7 @@ sourcetype="stream:sip" method="INVITE"
 
 ---
 
-### UC-5.11.5 · SIP Registration Storm Detection
+### UC-5.10.5 · SIP Registration Storm Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Security
@@ -6057,7 +5578,7 @@ sourcetype="stream:sip" method="REGISTER"
 
 ---
 
-### UC-5.11.6 · SIP Post-Dial Delay Monitoring
+### UC-5.10.6 · SIP Post-Dial Delay Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -6202,7 +5723,7 @@ index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip")
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Security
 - **Industry:** Telecommunications
-- **Value:** Bursts of SIP OPTIONS, REGISTER, or diameter requests can indicate reflection DDoS or misconfigured endpoints — complements UC-5.11.5 with cross-layer view.
+- **Value:** Bursts of SIP OPTIONS, REGISTER, or diameter requests can indicate reflection DDoS or misconfigured endpoints — complements UC-5.10.5 with cross-layer view.
 - **App/TA:** Splunk App for Stream, STP/Diameter capture
 - **Data Sources:** `sourcetype="stream:sip"`, `sourcetype="diameter:cap"`
 - **SPL:**

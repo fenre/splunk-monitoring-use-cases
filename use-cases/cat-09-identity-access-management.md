@@ -2072,3 +2072,125 @@ index=okta sourcetype="OktaIM2:log"
 - **Implementation:** Align event types with HRIS-driven lifecycle (create, activate, deactivate). Alert on deactivations that fail or retry, and on manual creates outside HR correlation. Feed summaries to access reviews.
 - **Visualization:** Table (event, target user, actor), Line chart (lifecycle events per day), Bar chart (events by type).
 - **CIM Models:** Change
+
+
+### 9.6 Endpoint & Mobile Device Management
+
+**Primary App/TA:** Cisco Meraki Systems Manager, MDM API integrations
+
+---
+
+### UC-9.6.1 · Device Compliance Status and Policy Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Ensures all managed devices comply with security policies and configuration standards.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api compliance_status=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" (compliance_status="noncompliant" OR compliance_status="unknown")
+| stats count as noncompliant_count by os_type, compliance_reason
+| eval compliance_pct=round(noncompliant_count*100/total_devices, 2)
+```
+- **Implementation:** Query device compliance status from SM API. Alert on noncompliance.
+- **Visualization:** Compliance status table; compliance percentage gauge; noncompliant device list.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.6.2 · Mobile Device Enrollment and MDM Status Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Tracks device enrollment status to ensure mobile device management coverage.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki:api enrollment_status=*`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki:api" enrollment_status IN ("enrolled", "pending", "failed")
+| stats count as device_count by enrollment_status, os_type
+| eval enrollment_pct=round(count*100/sum(count), 2)
+```
+- **Implementation:** Query device enrollment status. Track pending and failed enrollments.
+- **Visualization:** Enrollment status pie chart; pending enrollment timeline; device count by OS.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.6.3 · Geofencing Alerts and Location-Based Policy Triggers
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Uses geofencing to detect when devices leave secure zones and trigger location-based policies.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*geofence*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*geofence*"
+| stats count as geofence_event_count by device_id, zone_name, event_type
+| where event_type="left_zone"
+```
+- **Implementation:** Monitor geofence event triggers. Track zone entry/exit by device.
+- **Visualization:** Geofence event timeline; zone heat map; affected device list.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.6.4 · Mobile Security Policy Violations and App Restrictions
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Detects policy violations and restricted app usage attempts.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*policy*" OR signature="*app*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event (signature="*policy*" OR signature="*app*") violation="true"
+| stats count as violation_count by device_id, policy_name, violation_type
+| where violation_count > 5
+```
+- **Implementation:** Monitor security policy violation events. Alert on repeated violations.
+- **Visualization:** Policy violation timeline; violation type breakdown; affected device list.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.6.5 · Lost Mode Device Activation and Recovery Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Tracks activation of lost mode on devices to ensure recovery protocols are working.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*lost mode*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*lost mode*"
+| stats count as lost_mode_count, latest(timestamp) as last_activation by device_id, activation_reason
+```
+- **Implementation:** Monitor lost mode activation events. Track recovery time.
+- **Visualization:** Lost mode event timeline; affected device table; recovery status dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.6.6 · Mobile App Deployment Success Rate and Distribution Status
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Tracks app deployment success and identifies devices with failed or incomplete deployments.
+- **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
+- **Data Sources:** `sourcetype=meraki type=security_event signature="*app*deployment*"`
+- **SPL:**
+```spl
+index=cisco_network sourcetype="meraki" type=security_event signature="*app*deployment*"
+| stats count as deployment_count, count(eval(status="success")) as success_count, count(eval(status="failed")) as failed_count by app_name
+| eval success_rate=round(success_count*100/deployment_count, 2)
+| where success_rate < 95
+```
+- **Implementation:** Monitor app deployment status events. Alert on low success rates.
+- **Visualization:** Deployment success rate gauge; app deployment timeline; failure detail table.
+- **CIM Models:** N/A
+
+---
+

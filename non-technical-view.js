@@ -192,20 +192,15 @@ window.NON_TECHNICAL = {
         { id: "5.8.5", why: "Track whether network device configs are being backed up — missing backups mean manual rebuilds." },
         { id: "5.8.3", why: "Consolidate alerts from all devices into one place to reduce tool sprawl." }
       ]},
-      { name: "Cisco Meraki", description: "Cloud-managed networking — access points, switches, security appliances, cameras, and sensors. All in one view.", ucs: [
-        { id: "5.9.19", why: "Make sure all access points are online and catch unexpected outages." },
-        { id: "5.9.43", why: "See which firewall rules are being hit and what traffic is being denied." },
-        { id: "5.9.85", why: "Get alerts when environmental sensors detect temperatures outside safe ranges." }
-      ]},
       { name: "Internet & digital experience", description: "How does the network look from your users' perspective? ThousandEyes tests the path from users to apps — across the internet, cloud, and SD-WAN.", ucs: [
-        { id: "5.10.1", why: "Track network delay from agents to servers — slow paths mean slow apps." },
-        { id: "5.10.18", why: "Get alerted when an internet outage is detected that affects your services." },
-        { id: "5.10.25", why: "Monitor remote worker connectivity health — is the network causing their issues?" }
+        { id: "5.9.1", why: "Track network delay from agents to servers — slow paths mean slow apps." },
+        { id: "5.9.18", why: "Get alerted when an internet outage is detected that affects your services." },
+        { id: "5.9.25", why: "Monitor remote worker connectivity health — is the network causing their issues?" }
       ]},
       { name: "Carrier signaling", description: "The protocols that power mobile networks and voice calls. We watch for failures that affect subscribers.", ucs: [
-        { id: "5.11.1", why: "Track signaling health — failures here mean subscribers can't authenticate or use data." },
-        { id: "5.11.4", why: "Monitor voice trunk success rates — failed calls mean lost revenue and unhappy customers." },
-        { id: "5.11.5", why: "Detect registration storms that can overwhelm voice infrastructure within minutes." }
+        { id: "5.10.1", why: "Track signaling health — failures here mean subscribers can't authenticate or use data." },
+        { id: "5.10.4", why: "Monitor voice trunk success rates — failed calls mean lost revenue and unhappy customers." },
+        { id: "5.10.5", why: "Detect registration storms that can overwhelm voice infrastructure within minutes." }
       ]},
       { name: "Call records & voice analytics", description: "Call records from voice platforms. We analyse call patterns, failures, and trends.", ucs: [
         { id: "5.12.1", why: "Track call failure statistics — rising failure rates mean network or routing problems." },
@@ -358,6 +353,11 @@ window.NON_TECHNICAL = {
         { id: "9.5.1", why: "Track Okta authentication failures — rising rates may indicate a credential attack." },
         { id: "9.5.2", why: "Detect MFA bypass attempts — attackers try to work around your second factor." },
         { id: "9.5.14", why: "Catch Duo push fraud — attackers bombard users with MFA prompts hoping they accept." }
+      ]},
+      { name: "Endpoint & mobile devices", description: "Phones, tablets, and laptops enrolled in mobile device management. We check they follow your security policies.", ucs: [
+        { id: "9.6.1", why: "See which devices comply with your security policies — and which don't." },
+        { id: "9.6.3", why: "Get alerts when a managed device leaves an approved area." },
+        { id: "9.6.5", why: "Track lost or stolen devices — know when lost mode is activated and recovery progress." }
       ]}
     ]
   },
