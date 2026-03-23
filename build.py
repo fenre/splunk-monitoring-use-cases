@@ -493,6 +493,59 @@ SPLUNK_APPS = [
      "desc": "Collects ServiceNow incidents, events, change and CMDB data via REST APIs"},
 ]
 
+# Known Splunkbase Technology Add-ons (TAs) — matched against uc["t"] to add direct links.
+# Only entries whose Splunkbase URLs have been verified (HTTP 200) are included.
+SPLUNK_TAS = [
+    {"name": "Splunk Add-on for Unix and Linux", "id": 833,
+     "tas": ["Splunk_TA_nix"]},
+    {"name": "Splunk Add-on for Microsoft Windows", "id": 742,
+     "tas": ["Splunk_TA_windows"]},
+    {"name": "Splunk Add-on for AWS", "id": 1876,
+     "tas": ["Splunk_TA_aws"]},
+    {"name": "Splunk Add-on for Microsoft Cloud Services", "id": 3110,
+     "tas": ["Splunk_TA_microsoft-cloudservices"]},
+    {"name": "Splunk Add-on for Microsoft Office 365", "id": 4055,
+     "tas": ["Splunk_TA_MS_O365", "MS_O365"]},
+    {"name": "Splunk Add-on for Google Cloud Platform", "id": 3088,
+     "tas": ["Splunk_TA_google-cloudplatform"]},
+    {"name": "Splunk Add-on for Google Workspace", "id": 5556,
+     "tas": ["Splunk_TA_GoogleWorkspace"]},
+    {"name": "Splunk Add-on for VMware", "id": 3258,
+     "tas": ["Splunk_TA_vmware", "TA-vmware"]},
+    {"name": "Palo Alto Networks Add-on for Splunk", "id": 2757,
+     "tas": ["Splunk_TA_paloalto"]},
+    {"name": "Splunk Add-on for Fortinet FortiGate", "id": 2846,
+     "tas": ["Splunk_TA_fortinet", "TA-fortinet_fortigate"]},
+    {"name": "Splunk Add-on for Checkpoint", "id": 3435,
+     "tas": ["Splunk_TA_checkpoint"]},
+    {"name": "Splunk Add-on for ServiceNow", "id": 1767,
+     "tas": ["Splunk_TA_snow"]},
+    {"name": "Zscaler Add-on for Splunk", "id": 3865,
+     "tas": ["Splunk_TA_zscaler", "Zscaler"]},
+    {"name": "Cisco Meraki Add-on for Splunk", "id": 5580,
+     "tas": ["Cisco Meraki", "Splunkbase 5580"]},
+    {"name": "Splunk Add-on for Cisco ASA", "id": 1621,
+     "tas": ["cisco-asa", "Cisco ASA"]},
+    {"name": "Splunk Add-on for Cisco ISE", "id": 1843,
+     "tas": ["Splunk_TA_cisco-ise", "cisco-ise"]},
+    {"name": "Splunk Add-on for Cisco IOS", "id": 1467,
+     "tas": ["TA-cisco_ios"]},
+    {"name": "Okta Identity Cloud Add-on for Splunk", "id": 4412,
+     "tas": ["Splunk_TA_okta"]},
+    {"name": "Splunk Add-on for Nessus", "id": 2804,
+     "tas": ["Splunk_TA_nessus"]},
+    {"name": "OT Security Add-on for Splunk", "id": 5151,
+     "tas": ["OT Security Add-on", "Splunkbase 5151"]},
+    {"name": "TA for Zeek", "id": 5466,
+     "tas": ["Splunkbase 5466", "TA for Zeek"]},
+    {"name": "CrowdStrike Falcon Event Streams TA", "id": 5082,
+     "tas": ["TA-crowdstrike-falcon"]},
+    {"name": "Splunk Add-on for Carbon Black", "id": 4679,
+     "tas": ["Splunk_TA_vmware_carbonblack"]},
+    {"name": "TA for Tanium", "id": 6076,
+     "tas": ["Splunk_TA_tanium"]},
+]
+
 # Link to the common implementation guide (apps, inputs.conf, Splunk directory)
 IMPLEMENTATION_GUIDE_LINK = "docs/implementation-guide.md"
 
@@ -1240,6 +1293,24 @@ def apps_for_ta_string(ta_str):
                 matched.append(entry)
                 break
     return matched
+
+
+def ta_link_for_ta_string(ta_str):
+    """Given a use case's App/TA field, return first matching SPLUNK_TAS entry as {name, id, url} or None."""
+    if not (ta_str or "").strip():
+        return None
+    raw = (ta_str or "").replace("`", "").strip().lower()
+    if not raw:
+        return None
+    for ta in SPLUNK_TAS:
+        for pattern in ta["tas"]:
+            if pattern.lower() in raw:
+                return {
+                    "name": ta["name"],
+                    "id": ta["id"],
+                    "url": f"https://splunkbase.splunk.com/app/{ta['id']}",
+                }
+    return None
 
 
 def equipment_ids_for_ta_string(ta_str):
@@ -2022,6 +2093,9 @@ def parse_category_file(filepath):
             matched_apps = apps_for_ta_string(uc.get("t"))
             if matched_apps:
                 uc["sapp"] = matched_apps
+            ta_link = ta_link_for_ta_string(uc.get("t"))
+            if ta_link:
+                uc["ta_link"] = ta_link
             uc["pillar"] = assign_pillar(uc, cat_id)
 
             if not uc.get("premium"):
