@@ -2162,8 +2162,22 @@ def extract_filter_facets(data):
         "cim": sorted(cim_models),
         "sapp": [{"id": k, "name": v} for k, v in sorted(sapp_map.items(), key=lambda x: x[1])],
         "industry": sorted(industries),
-        "mitre": sorted(mitres),
+        "mitre": _mitre_with_names(sorted(mitres)),
     }
+
+
+def _mitre_with_names(technique_ids):
+    """Enrich MITRE technique IDs with human-readable names from mitre_techniques.json."""
+    names_path = os.path.join(SCRIPT_DIR, "mitre_techniques.json")
+    names = {}
+    if os.path.isfile(names_path):
+        with open(names_path, encoding="utf-8") as f:
+            names = json.load(f)
+    result = []
+    for tid in technique_ids:
+        name = names.get(tid, "")
+        result.append({"id": tid, "name": name})
+    return result
 
 
 def write_data_js(data, cat_meta, output_path):

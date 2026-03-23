@@ -1046,6 +1046,7 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
 }
 .adv-search-input:focus { outline: none; border-color: var(--accent); }
 .adv-search-input::placeholder { color: var(--splunk-text-tertiary); }
+.adv-mitre-select { min-width: 240px; max-width: 420px; flex: 2; }
 
 /* Active filter tags */
 .active-filters {
@@ -2735,8 +2736,8 @@ function getFilteredUCs() {
     result = result.filter(function(e) { return Array.isArray(e.uc.sapp) && e.uc.sapp.some(function(a){return a.id===sappId}); });
   }
   if (currentMitreFilter) {
-    var mq = currentMitreFilter.toUpperCase();
-    result = result.filter(function(e) { return Array.isArray(e.uc.mitre) && e.uc.mitre.some(function(t){return t.indexOf(mq)!==-1}); });
+    var mq = currentMitreFilter;
+    result = result.filter(function(e) { return Array.isArray(e.uc.mitre) && e.uc.mitre.indexOf(mq) !== -1; });
   }
   if (currentDatasourceFilter) {
     var dq = currentDatasourceFilter.toLowerCase();
@@ -2893,7 +2894,13 @@ function advancedFilterPanel() {
   html += '</div><div class="adv-row">';
 
   html += '<label class="adv-label">MITRE ATT&amp;CK</label>';
-  html += '<input type="text" class="adv-search-input" placeholder="e.g. T1003" value="' + escHtml(currentMitreFilter) + '" oninput="debounceAdvSearch(\'mitre\',this.value)">';
+  html += '<select class="filter-select adv-mitre-select' + (currentMitreFilter?' has-value':'') + '" onchange="setAdvFilter(\'mitre\',this.value)">';
+  html += '<option value=""' + (!currentMitreFilter?' selected':'') + '>All techniques</option>';
+  if (typeof FILTER_FACETS !== 'undefined') FILTER_FACETS.mitre.forEach(function(t) {
+    var label = t.id + (t.name ? ' \u2014 ' + t.name : '');
+    html += '<option value="' + escHtml(t.id) + '"' + (currentMitreFilter===t.id?' selected':'') + '>' + escHtml(label) + '</option>';
+  });
+  html += '</select>';
 
   html += '<label class="adv-label">Data source</label>';
   html += '<input type="text" class="adv-search-input" placeholder="e.g. syslog, WinEventLog" value="' + escHtml(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)">';
@@ -2911,6 +2918,7 @@ function setAdvFilter(key, val) {
   else if (key === 'cim') currentCimFilter = val;
   else if (key === 'sapp') currentSappFilter = val;
   else if (key === 'industry') currentIndustryFilter = val;
+  else if (key === 'mitre') currentMitreFilter = val;
   reRender();
   buildSidebar();
   updateCountLabel();
@@ -2945,7 +2953,11 @@ function activeFilterTags() {
     if (typeof FILTER_FACETS !== 'undefined') { var sf = FILTER_FACETS.sapp.find(function(s){return String(s.id)===currentSappFilter}); if (sf) sappLabel = sf.name; }
     tags.push({label: 'App: ' + sappLabel, fn: "setAdvFilter('sapp','all')"});
   }
-  if (currentMitreFilter) tags.push({label: 'MITRE: ' + currentMitreFilter, fn: "clearAdvSearch('mitre')"});
+  if (currentMitreFilter) {
+    var mitreLabel = currentMitreFilter;
+    if (typeof FILTER_FACETS !== 'undefined') { var mf = FILTER_FACETS.mitre.find(function(t){return t.id===currentMitreFilter}); if (mf && mf.name) mitreLabel = mf.id + ' ' + mf.name; }
+    tags.push({label: 'MITRE: ' + mitreLabel, fn: "setAdvFilter('mitre','')"});
+  }
   if (currentDatasourceFilter) tags.push({label: 'Data source: ' + currentDatasourceFilter, fn: "clearAdvSearch('datasource')"});
   if (selectedEquipmentId) tags.push({label: 'Equipment: ' + selectedEquipmentId, fn: "clearEquipmentFilter()"});
   if (tags.length === 0) return '';
