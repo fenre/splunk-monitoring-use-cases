@@ -2522,6 +2522,247 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.container
 
 ---
 
+### UC-4.2.46 · Azure Application Gateway and WAF Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Application Gateway is the primary L7 load balancer for most Azure web workloads. Backend health probe failures cause 502 errors for users; WAF blocks need tuning to avoid false positives.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics)
+- **Data Sources:** `sourcetype=azure:monitor:metric`, `sourcetype=azure:diagnostics` (ApplicationGatewayAccessLog, ApplicationGatewayFirewallLog)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:diagnostics" Category="ApplicationGatewayAccessLog"
+| eval is_error=if(httpStatusCode>=500,1,0)
+| timechart span=5m count as total_requests, sum(is_error) as server_errors by host
+| eval error_pct=round(100*server_errors/total_requests,2)
+| where error_pct > 5
+```
+- **Implementation:** Enable diagnostics on Application Gateway to send access logs and WAF logs via Event Hub or Storage Account to Splunk. Monitor backend pool health probe status from metrics (`UnhealthyHostCount`). Alert on rising 502/504 rates, unhealthy backends, and WAF blocks that correlate with user-reported issues. Track WAF rule hit distribution to tune rule exclusions.
+- **Visualization:** Line chart (request rate and error rate), Table (unhealthy backends), Bar chart (WAF blocks by rule ID).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-4.2.47 · Azure VPN Gateway Tunnel Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** VPN gateway tunnel drops break hybrid connectivity between Azure and on-premises networks. Nearly every enterprise Azure customer relies on site-to-site VPN; tunnel status is a fundamental availability signal.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Network/vpnGateways)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/vpngateways" metric_name="TunnelAverageBandwidth" OR metric_name="TunnelEgressBytes"
+| timechart span=5m avg(average) as avg_bandwidth by resource_name
+| where avg_bandwidth < 1
+```
+- **Implementation:** Collect Azure Monitor metrics for VPN Gateway resources. Monitor `TunnelAverageBandwidth` (drops to zero when tunnel is down), `TunnelEgressBytes`, `TunnelIngressBytes`, and `BGPPeerStatus`. Alert when tunnel bandwidth drops to zero or BGP peer status changes. Correlate with Azure Service Health events for planned maintenance.
+- **Visualization:** Line chart (tunnel bandwidth over time), Single value (tunnel status up/down), Table (tunnels with status).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-4.2.48 · Azure ExpressRoute Circuit Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** ExpressRoute provides dedicated private connectivity to Azure for large enterprises. Circuit degradation or BGP peer loss causes failover to backup paths or complete connectivity loss to Azure services.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Network/expressRouteCircuits)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/expressroutecircuits"
+| eval metric=metric_name
+| where metric IN ("BgpAvailability","ArpAvailability","BitsInPerSecond","BitsOutPerSecond")
+| timechart span=5m avg(average) as value by metric, resource_name
+```
+- **Implementation:** Collect metrics for ExpressRoute circuits: `BgpAvailability` and `ArpAvailability` (should be 100%), `BitsInPerSecond`/`BitsOutPerSecond` for throughput trending. Alert when BGP availability drops below 100% or throughput drops to zero. Track circuit utilization against provisioned bandwidth to plan capacity upgrades.
+- **Visualization:** Line chart (BGP/ARP availability %), Line chart (throughput), Single value (circuit status).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-4.2.49 · Azure Redis Cache Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Capacity
+- **Value:** Redis Cache is a common caching and session store layer in Azure architectures. High server load, memory pressure, or cache misses directly impact application response times.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Cache/Redis)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.cache/redis"
+| where metric_name IN ("serverLoad","usedmemorypercentage","cacheHits","cacheMisses","connectedclients","evictedkeys")
+| timechart span=5m avg(average) as value by metric_name, resource_name
+```
+- **Implementation:** Collect Azure Monitor metrics for Redis Cache resources. Key metrics: `serverLoad` (alert >80%), `usedmemorypercentage` (alert >90%), `evictedkeys` (any eviction signals memory pressure), and cache hit ratio (`cacheHits/(cacheHits+cacheMisses)`). Track `connectedclients` against tier limits. For Premium tier, monitor replication lag between primary and replica.
+- **Visualization:** Gauge (server load), Line chart (memory % and hit ratio), Single value (evicted keys).
+- **CIM Models:** Performance
+
+---
+
+### UC-4.2.50 · Azure Data Factory Pipeline Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Data Factory orchestrates ETL/ELT pipelines that feed data warehouses, analytics, and operational systems. Pipeline failures cause stale data, broken dashboards, and missed SLAs.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)
+- **Data Sources:** `sourcetype=azure:diagnostics` (PipelineRuns, ActivityRuns, TriggerRuns)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:diagnostics" Category="PipelineRuns"
+| where status="Failed"
+| stats count as failures, latest(start) as last_failure by pipelineName, resource_name
+| sort -failures
+```
+- **Implementation:** Enable diagnostics on Data Factory to route `PipelineRuns`, `ActivityRuns`, and `TriggerRuns` to Splunk via Event Hub. Alert on failed pipeline runs. Track activity-level errors for root cause (copy failures, data flow errors, linked service timeouts). Monitor pipeline duration trending to detect degradation before SLA breach.
+- **Visualization:** Table (failed pipelines with error), Bar chart (failures by pipeline), Line chart (pipeline duration trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.51 · Azure API Management (APIM) Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** APIM is the gateway for API-first architectures. Backend errors, high latency, and rate limit breaches directly impact API consumers and downstream applications.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.ApiManagement/service), `sourcetype=azure:diagnostics` (GatewayLogs)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:diagnostics" Category="GatewayLogs"
+| eval is_error=if(responseCode>=500,1,0)
+| timechart span=5m count as requests, sum(is_error) as errors, avg(totalTime) as avg_latency_ms by apiId
+| eval error_pct=round(100*errors/requests,2)
+| where error_pct > 5 OR avg_latency_ms > 2000
+```
+- **Implementation:** Enable diagnostics on APIM to send GatewayLogs via Event Hub to Splunk. Collect metrics for `Requests`, `BackendDuration`, `OverallDuration`, `FailedRequests`, and `UnauthorizedRequests`. Alert on backend error rate spikes, latency exceeding SLA thresholds, and capacity exhaustion (approaching unit limits). Track API-level usage patterns for capacity planning.
+- **Visualization:** Line chart (request rate and error rate by API), Gauge (latency vs. SLA), Table (top errors by API and operation).
+- **CIM Models:** Web
+
+---
+
+### UC-4.2.52 · Azure Virtual Desktop Session Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Azure Virtual Desktop provides remote desktop infrastructure. Connection failures, high round-trip latency, and session drops directly impact end-user productivity.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)
+- **Data Sources:** `sourcetype=azure:diagnostics` (WVDConnections, WVDErrors, WVDCheckpoints)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:diagnostics" Category="WVDConnections"
+| eval duration_min=round(SessionDuration/60000,1)
+| stats count as connections, avg(duration_min) as avg_session_min, dc(UserName) as unique_users by HostPoolName, SessionHostName
+| join type=left max=1 SessionHostName [
+    search index=cloud sourcetype="azure:diagnostics" Category="WVDErrors"
+    | stats count as errors by SessionHostName
+]
+| where errors > 0
+| sort -errors
+```
+- **Implementation:** Enable diagnostics on AVD host pools to route `WVDConnections`, `WVDErrors`, and `WVDCheckpoints` to Splunk. Monitor connection success rate, average session duration, and round-trip time. Alert on connection failure spikes, session host unavailability, and high input delay (>200ms). Track session host resource utilization (CPU, memory, disk) from Azure Monitor metrics.
+- **Visualization:** Table (session hosts with errors), Line chart (connections and failures over time), Single value (active sessions).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.53 · Azure Traffic Manager Endpoint Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Traffic Manager provides DNS-based global load balancing. Degraded endpoints cause traffic to shift, but undetected health changes can leave users routed to unhealthy regions.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Network/trafficManagerProfiles)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/trafficmanagerprofiles" metric_name="ProbeAgentCurrentEndpointStateByProfileResourceId"
+| timechart span=5m latest(average) as health_pct by resource_name
+| where health_pct < 100
+```
+- **Implementation:** Collect Azure Monitor metrics for Traffic Manager profiles. Monitor `ProbeAgentCurrentEndpointStateByProfileResourceId` for endpoint health percentage and `QpsByEndpoint` for query distribution. Alert when any endpoint degrades or goes offline. Track DNS query patterns to verify failover behavior is correct after endpoint changes.
+- **Visualization:** Status grid (endpoint × health), Line chart (health % per endpoint), Single value (degraded endpoint count).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.54 · Azure Bastion Session Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Bastion provides secure, auditable VM access without public IPs. Monitoring session activity ensures compliance with access policies and detects unauthorized connection attempts.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)
+- **Data Sources:** `sourcetype=azure:diagnostics` (BastionAuditLogs)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:diagnostics" Category="BastionAuditLogs"
+| stats count as sessions, dc(targetVMIPAddress) as unique_targets by userName, clientIpAddress
+| sort -sessions
+```
+- **Implementation:** Enable diagnostic logging on Azure Bastion to send audit logs via Event Hub. Track user sessions by `userName`, `targetVMIPAddress`, `protocol` (SSH/RDP), and `duration`. Alert on connections to unexpected VMs, connections from unusual IP addresses, and failed authentication attempts. Correlate with Entra ID sign-in logs for identity context.
+- **Visualization:** Table (sessions by user and target), Bar chart (sessions by protocol), Line chart (session count over time).
+- **CIM Models:** Authentication
+
+---
+
+### UC-4.2.55 · Azure Network Watcher Connection Troubleshooting
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Network Watcher captures flow logs, connection monitors, and packet captures for Azure networks. Proactive monitoring of connectivity test results detects network issues before they impact applications.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)
+- **Data Sources:** `sourcetype=azure:diagnostics` (NetworkSecurityGroupFlowEvent), `sourcetype=azure:monitor:metric` (Connection Monitor)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/networkwatchers/connectionmonitors"
+| where metric_name="ChecksFailedPercent"
+| timechart span=5m avg(average) as failed_pct by resource_name
+| where failed_pct > 10
+```
+- **Implementation:** Configure Connection Monitor tests for critical network paths (VM-to-VM, VM-to-PaaS, on-prem-to-Azure). Collect `ChecksFailedPercent`, `RoundTripTimeMs`, and `TestResult` metrics. Alert when failed check percentage exceeds threshold or round-trip time degrades significantly. Use NSG flow logs enriched with Traffic Analytics for deeper investigation.
+- **Visualization:** Line chart (check failure % by monitor), Table (failing paths), Single value (overall connectivity health).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-4.2.56 · Azure Storage Queue Depth and Poison Messages
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Fault
+- **Value:** Storage Queues decouple application components. Growing queue depth indicates consumers cannot keep up; poison messages in the poison queue represent permanently failed processing that needs attention.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Storage/storageAccounts/queueServices)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.storage/storageaccounts" metric_name="QueueMessageCount"
+| timechart span=5m avg(average) as queue_depth by resource_name
+| where queue_depth > 1000
+```
+- **Implementation:** Collect Azure Monitor metrics for Storage Account queue services. Monitor `QueueMessageCount` for growing backlogs and `QueueCapacity` for storage limits. Set up a separate alert for poison queues (queues ending in `-poison`) with any messages. Alert when main queue depth exceeds baseline by 3x or poison queue is non-empty.
+- **Visualization:** Line chart (queue depth over time), Single value (current depth), Table (queues with poison messages).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.2.57 · Azure Managed Disk Performance Throttling
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Azure managed disks have IOPS and throughput caps based on tier and size. When VMs hit these limits, disk I/O is throttled, causing application slowdowns that are hard to diagnose without platform metrics.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Compute/disks)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.compute/disks"
+| where metric_name IN ("DiskIOPSReadWrite","DiskMBpsReadWrite","BurstIOCreditsConsumedPercentage")
+| timechart span=5m avg(average) as value by metric_name, resource_name
+```
+- **Implementation:** Collect Azure Monitor metrics for managed disks. Monitor `Composite Disk Read/Write IOPS` against the disk SKU IOPS limit and `Composite Disk Read/Write Bytes/sec` against the throughput limit. For burstable disks, track `BurstIOCreditsConsumedPercentage` — when credits exhaust, performance drops to baseline. Alert when consumption exceeds 90% of provisioned capacity sustained over 15 minutes.
+- **Visualization:** Gauge (IOPS vs. limit), Line chart (throughput and burst credits), Table (disks hitting limits).
+- **CIM Models:** Performance
+
+---
+
 ## 4.3 Google Cloud Platform (GCP)
 
 **Primary App/TA:** Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`) — Free on Splunkbase

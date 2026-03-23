@@ -1071,6 +1071,45 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="ReplicaLa
 
 ---
 
+### UC-7.3.16 · Azure SQL Managed Instance Resource Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Capacity
+- **Value:** SQL Managed Instance provides near-100% SQL Server compatibility in Azure. CPU, storage I/O, and memory pressure against provisioned limits directly impact query performance and can cause throttling.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Sql/managedInstances)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.sql/managedinstances"
+| where metric_name IN ("avg_cpu_percent","io_bytes_read","io_bytes_written","storage_space_used_mb")
+| timechart span=5m avg(average) as value by metric_name, resource_name
+```
+- **Implementation:** Collect Azure Monitor metrics for SQL Managed Instance. Key metrics: `avg_cpu_percent` (alert >85% sustained), `io_bytes_read`/`io_bytes_written` against provisioned IOPS for the service tier, and `storage_space_used_mb` versus reserved storage. Monitor `virtual_core_count` utilization to guide tier scaling decisions. Alert on sustained high CPU and storage approaching the limit.
+- **Visualization:** Line chart (CPU % over time), Gauge (storage used vs. limit), Table (instances near capacity).
+- **CIM Models:** Performance
+
+---
+
+### UC-7.3.17 · Azure SQL Managed Instance Failover Group Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Failover groups provide geo-redundancy for SQL Managed Instance. Monitoring replication lag and failover events ensures disaster recovery readiness and detects unplanned failovers.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/Activity Log)
+- **Data Sources:** `sourcetype=azure:monitor:activity`, `sourcetype=azure:monitor:metric`
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:activity" resourceType="microsoft.sql/managedinstances/failovergroups"
+| where operationName="Microsoft.Sql/managedInstances/failoverGroups/failover/action"
+| table _time, caller, status, resource_name
+| sort -_time
+```
+- **Implementation:** Collect Activity Log events for failover group operations and Azure Monitor metrics for replication state. Alert on unplanned failover events (not initiated by known maintenance windows). Monitor `ReplicationState` metric — alert when state is not `SEEDING` or `CATCH_UP` for extended periods. Track replication lag to validate RPO compliance.
+- **Visualization:** Timeline (failover events), Single value (current replication state), Table (failover history).
+- **CIM Models:** N/A
+
+---
+
 ### 7.4 Data Warehouses & Analytics Platforms
 
 **Primary App/TA:** Custom REST API inputs (Snowflake Account Usage, BigQuery INFORMATION_SCHEMA), cloud provider TAs for billing/usage data.
@@ -1357,6 +1396,45 @@ index=databricks sourcetype="databricks:job_run"
 ```
 - **Implementation:** Ingest each run completion. Alert on any failure for tier-1 jobs; use fail_rate for high-volume jobs. Include `run_page_url` in raw events for triage.
 - **Visualization:** Line chart (failure rate by job), Table (failed runs), Single value (failed jobs 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.4.15 · Azure Synapse Analytics SQL Pool Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Synapse dedicated SQL pools have DWU-based resource limits. Queries competing for resources cause queueing, and tempdb contention degrades batch processing. Monitoring ensures analytics workloads meet SLAs.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.Synapse/workspaces/sqlPools), `sourcetype=azure:diagnostics` (SqlRequests)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.synapse/workspaces/sqlpools"
+| where metric_name IN ("DWUUsedPercent","ActiveQueries","QueuedQueries","AdaptiveCacheHitPercent")
+| timechart span=5m avg(average) as value by metric_name, resource_name
+```
+- **Implementation:** Collect Azure Monitor metrics for Synapse SQL pools. Alert when `DWUUsedPercent` exceeds 90% sustained (scale up DWU), when `QueuedQueries` exceeds 10 (resource contention), or when `AdaptiveCacheHitPercent` drops below 50% (cold cache after pause/resume). Enable diagnostics for `SqlRequests` to track query execution times and identify long-running queries consuming resources.
+- **Visualization:** Line chart (DWU % and queued queries), Table (long-running queries), Gauge (cache hit ratio).
+- **CIM Models:** Performance
+
+---
+
+### UC-7.4.16 · Azure Synapse Pipeline Execution Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Synapse pipelines orchestrate data movement and transformation. Failed pipeline runs cause stale analytics data, broken reports, and missed business deadlines.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)
+- **Data Sources:** `sourcetype=azure:diagnostics` (SynapsePipelineRuns, SynapseActivityRuns)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:diagnostics" Category="SynapsePipelineRuns"
+| where Status="Failed"
+| stats count as failures, latest(Start) as last_failure, latest(Error) as last_error by PipelineName, resource_name
+| sort -failures
+```
+- **Implementation:** Enable diagnostics on Synapse workspaces to route `SynapsePipelineRuns` and `SynapseActivityRuns` to Splunk via Event Hub. Alert on failed pipeline runs. Track activity-level errors for root cause analysis (data movement failures, notebook errors, SQL script timeouts). Monitor pipeline duration trending to detect degradation.
+- **Visualization:** Table (failed pipelines with error detail), Bar chart (failures by pipeline), Line chart (duration trend).
 - **CIM Models:** N/A
 
 ---
@@ -2101,7 +2179,166 @@ index=database (sourcetype="elasticsearch:server" OR sourcetype="elasticsearch:c
 
 ---
 
-### UC-7.5.12 · Solr Core Admin Health
+### UC-7.5.12 · Elasticsearch Thread Pool Rejections
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** Thread pool rejections (HTTP 429) mean the cluster cannot keep up with search or indexing load. Sustained rejections cause data loss on ingest and timeouts on search.
+- **App/TA:** Custom REST scripted input (`_nodes/stats/thread_pool`)
+- **Data Sources:** `sourcetype=elasticsearch:thread_pool`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:thread_pool"
+| eval search_rejected_delta=search.rejected-prev_search_rejected, write_rejected_delta=write.rejected-prev_write_rejected
+| where search_rejected_delta > 0 OR write_rejected_delta > 0
+| timechart span=5m sum(search_rejected_delta) as search_rejections, sum(write_rejected_delta) as write_rejections by node_name
+```
+- **Implementation:** Poll `GET _nodes/stats/thread_pool/search,write,get` every minute. Store cumulative `rejected` counters and compute deltas between samples. Alert when any node shows rejections in a 5-minute window. Correlate with JVM heap and CPU to determine root cause (undersized cluster vs. expensive queries vs. bulk indexing spikes). Do not increase queue sizes as a fix — address the underlying load.
+- **Visualization:** Line chart (rejections per pool over time), Bar chart (rejections by node), Single value (total rejections last hour).
+- **CIM Models:** Performance
+
+---
+
+### UC-7.5.13 · Elasticsearch Search Latency and Slow Queries
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Search latency trending detects degradation before users notice. Slow log analysis identifies expensive queries for optimization.
+- **App/TA:** Custom REST scripted input (`_nodes/stats`), Elasticsearch slow logs forwarded to Splunk
+- **Data Sources:** `sourcetype=elasticsearch:search_stats`, `sourcetype=elasticsearch:slow_log`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:search_stats"
+| eval query_latency_ms=search.query_time_in_millis/search.query_total
+| timechart span=5m avg(query_latency_ms) as avg_latency_ms, max(query_latency_ms) as p100_latency_ms by node_name
+| where avg_latency_ms > 500
+```
+- **Implementation:** Poll `GET _nodes/stats/indices/search` to compute per-node average query latency from cumulative counters. Enable slow logs (`index.search.slowlog.threshold.query.warn: 5s`) and forward to Splunk. Correlate slow queries with specific indices and query patterns. Alert on sustained average latency above baseline or frequent slow log entries.
+- **Visualization:** Line chart (query latency p50/p95/p100), Table (slow queries by index), Single value (current avg latency).
+- **CIM Models:** Performance
+
+---
+
+### UC-7.5.14 · Elasticsearch ILM Policy Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Failed ILM transitions leave indices in the wrong lifecycle phase — hot data stays on expensive storage, old data never deletes, rollover stops creating new indices. Silent failures accumulate until disk fills.
+- **App/TA:** Custom REST scripted input (`_ilm/explain`)
+- **Data Sources:** `sourcetype=elasticsearch:ilm_status`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:ilm_status"
+| where step="ERROR" OR action_time_millis > 3600000
+| stats count as error_count, latest(failed_step) as failed_step, latest(step_info) as reason by index, policy
+| sort -error_count
+```
+- **Implementation:** Poll `GET */_ilm/explain` periodically and extract indices where `step` equals `ERROR`. Capture the `failed_step`, `step_info`, and `phase_time` for root cause analysis. Alert on any index stuck in ERROR. Also monitor indices that have been in the same phase longer than expected (e.g., hot phase > 30 days when policy says 7 days).
+- **Visualization:** Table (indices in error with reason), Single value (error count), Bar chart (errors by policy).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.15 · Elasticsearch Snapshot Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Failed snapshots mean no viable backup for disaster recovery. Partial snapshots may leave indices unrecoverable. Monitoring ensures RPO commitments are met.
+- **App/TA:** Custom REST scripted input (`_snapshot`)
+- **Data Sources:** `sourcetype=elasticsearch:snapshot_status`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:snapshot_status"
+| where state IN ("FAILED","PARTIAL","INCOMPATIBLE")
+| stats count by snapshot, repository, state, reason
+| sort -count
+```
+- **Implementation:** Poll `GET _snapshot/_all/_all` or `GET _snapshot/<repo>/_current` to track snapshot state. Alert on any snapshot with state FAILED or PARTIAL. Also monitor time since last successful snapshot — alert when it exceeds RPO threshold (e.g., 24 hours). Check `_snapshot/<repo>/_status` for in-progress snapshot progress.
+- **Visualization:** Table (recent snapshots with state), Single value (hours since last successful), Line chart (snapshot duration trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.16 · Elasticsearch Cross-Cluster Replication Lag
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** CCR follower lag directly impacts disaster recovery readiness. Excessive lag means a failover would lose recent data. Monitoring ensures replication SLAs are met.
+- **App/TA:** Custom REST scripted input (`_ccr/stats`)
+- **Data Sources:** `sourcetype=elasticsearch:ccr_stats`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:ccr_stats"
+| eval lag_seconds=operations_behind/max(1, operations_per_second)
+| where lag_seconds > 60 OR fatal_exception IS NOT NULL
+| timechart span=5m max(lag_seconds) as max_lag_s, max(operations_behind) as ops_behind by follower_index
+```
+- **Implementation:** Poll `GET /_ccr/stats` to extract per-follower-index `operations_written`, `operations_read`, and `time_since_last_read`. Calculate replication lag as operations behind the leader. Alert when lag exceeds threshold (e.g., 60 seconds) or when `fatal_exception` is present. Monitor `read_exceptions` for transient network issues between clusters.
+- **Visualization:** Line chart (lag per follower index), Table (follower status), Single value (max lag across all followers).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.17 · Elasticsearch Pending Cluster Tasks
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** A growing backlog of pending cluster tasks indicates the master node cannot process cluster state updates fast enough. This delays shard allocation, mapping updates, and index creation.
+- **App/TA:** Custom REST scripted input (`_cluster/pending_tasks`)
+- **Data Sources:** `sourcetype=elasticsearch:pending_tasks`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:pending_tasks"
+| stats max(insert_order) as queue_depth, max(time_in_queue_millis) as max_wait_ms
+| where queue_depth > 5 OR max_wait_ms > 30000
+```
+- **Implementation:** Poll `GET _cluster/pending_tasks` every minute. Track the number of tasks and the `time_in_queue_millis` for the oldest task. Alert when queue depth stays above 5 for multiple consecutive samples or any task waits longer than 30 seconds. Common causes include frequent mapping changes, too many small indices, or an overloaded master node.
+- **Visualization:** Line chart (pending task count), Single value (current queue depth), Table (pending tasks with wait time).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.18 · Elasticsearch Fielddata and Cache Evictions
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Fielddata evictions force expensive re-computation of in-memory data structures, causing search latency spikes. Query cache evictions reduce the benefit of repeated queries. Tracking eviction rates guides memory tuning.
+- **App/TA:** Custom REST scripted input (`_nodes/stats/indices/fielddata,query_cache,request_cache`)
+- **Data Sources:** `sourcetype=elasticsearch:cache_stats`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:cache_stats"
+| eval fd_evict_delta=fielddata.evictions-prev_fd_evictions, qc_evict_delta=query_cache.evictions-prev_qc_evictions
+| where fd_evict_delta > 0 OR qc_evict_delta > 100
+| timechart span=5m sum(fd_evict_delta) as fielddata_evictions, sum(qc_evict_delta) as query_cache_evictions by node_name
+```
+- **Implementation:** Poll `GET _nodes/stats/indices/fielddata,query_cache,request_cache` and compute deltas for `evictions` counters. Any fielddata eviction is significant — alert immediately and investigate which fields use fielddata (should be using doc_values instead). For query cache, alert when eviction rate exceeds a percentage of total cache entries. Correlate with heap usage.
+- **Visualization:** Line chart (eviction rate by cache type), Bar chart (evictions by node), Single value (fielddata memory size).
+- **CIM Models:** Performance
+
+---
+
+### UC-7.5.19 · Elasticsearch Segment Merge Pressure
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Heavy segment merge activity competes with search for disk I/O, causing latency spikes. Merge throttling slows indexing. Monitoring merge pressure helps balance indexing throughput against search performance.
+- **App/TA:** Custom REST scripted input (`_nodes/stats/indices/merges`)
+- **Data Sources:** `sourcetype=elasticsearch:merge_stats`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:merge_stats"
+| eval merge_rate_mb=merges.total_size_in_bytes/1048576
+| timechart span=5m avg(merges.current) as active_merges, sum(merge_rate_mb) as merge_mb by node_name
+| where active_merges > 3
+```
+- **Implementation:** Poll `GET _nodes/stats/indices/merges` for `current`, `total_size_in_bytes`, `total_time_in_millis`, and `total_throttled_time_in_millis`. Compute merge rate and throttle ratio. Alert when active merges remain high (>3) for sustained periods, or when throttle time exceeds 50% of total merge time. Correlate with indexing rate and search latency to detect I/O contention.
+- **Visualization:** Line chart (active merges over time), Stacked area (merge vs. throttle time), Single value (current merge count).
+- **CIM Models:** Performance
+
+---
+
+### UC-7.5.20 · Solr Core Admin Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -2117,4 +2354,24 @@ index=database sourcetype="solr:core_status"
 ```
 - **Implementation:** Poll `STATUS` for all cores on a schedule; capture `instanceDir`, `dataDir`, `uptime`, replication/Cloud role fields. Ingest ERROR lines from `solr.log`. Alert when core state is not active, recovery fails, or leader/replica roles mismatch expectations.
 - **Visualization:** Status grid (core × healthy), Table (cores with errors), Single value (unhealthy core count).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.5.21 · Elasticsearch Ingest Pipeline Error Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Ingest pipeline failures silently drop or corrupt documents before indexing. Monitoring error rates per pipeline ensures data quality and completeness.
+- **App/TA:** Custom REST scripted input (`_nodes/stats/ingest`)
+- **Data Sources:** `sourcetype=elasticsearch:ingest_stats`
+- **SPL:**
+```spl
+index=database sourcetype="elasticsearch:ingest_stats"
+| eval fail_rate=round(ingest.pipelines.failed/max(1,ingest.pipelines.count)*100,2)
+| where fail_rate > 1 OR ingest.pipelines.failed > 0
+| timechart span=5m sum(ingest.pipelines.failed) as failures by pipeline_name
+```
+- **Implementation:** Poll `GET _nodes/stats/ingest` and extract per-pipeline `count` and `failed` counters. Compute deltas between samples. Alert when any pipeline shows a non-zero failure rate. Investigate pipeline processor errors in Elasticsearch logs. Common causes include grok pattern mismatches, script errors, and date parsing failures.
+- **Visualization:** Line chart (failures per pipeline), Table (pipeline error details), Single value (total ingest failures).
 - **CIM Models:** N/A

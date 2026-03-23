@@ -1652,6 +1652,24 @@ index=itsi_grouped_alerts status=5
 - **Visualization:** Single value (entity count vs license limit), Line chart (entity growth trend), Table (entity count by type).
 - **CIM Models:** N/A
 
+---
+
+### UC-13.2.36 · Azure Log Analytics Workspace Ingestion Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Azure Log Analytics Workspace is the central logging destination for Azure Monitor, Defender for Cloud, and Sentinel. Ingestion lag or data cap throttling silently breaks alerting and investigation workflows across the entire Azure monitoring stack.
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)
+- **Data Sources:** `sourcetype=azure:monitor:metric` (Microsoft.OperationalInsights/workspaces)
+- **SPL:**
+```spl
+index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.operationalinsights/workspaces"
+| where metric_name IN ("IngestionRate","IngestionLatencyInSeconds","DataBytes","BillableDataGB")
+| timechart span=5m avg(average) as value by metric_name, resource_name
+```
+- **Implementation:** Collect Azure Monitor metrics for Log Analytics workspaces. Key metrics: `IngestionLatencyInSeconds` (alert >300s — indicates data delay for all downstream analytics), `IngestionRate` (sudden drops mean data sources stopped sending), and `BillableDataGB` versus daily cap (when cap is hit, ingestion stops until reset). Track per-table ingestion volume using workspace diagnostic settings to identify data spikes.
+- **Visualization:** Line chart (ingestion latency and rate), Gauge (daily volume vs. cap), Table (top tables by volume).
+- **CIM Models:** N/A
 
 ---
 
