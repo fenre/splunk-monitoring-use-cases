@@ -1137,9 +1137,9 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
   border-radius: var(--radius-md); animation: fadeSlide .15s ease;
 }
 @keyframes fadeSlide { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-.adv-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3); }
+.adv-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-2) var(--space-3); margin-bottom: var(--space-2); }
 .adv-row:last-child { margin-bottom: 0; }
-.adv-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.adv-group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .adv-group .filter-select, .adv-group .adv-search-input { width: 100%; max-width: 100%; }
 .adv-label { font-size: var(--text-xs); color: var(--splunk-text-tertiary); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .adv-chips { display: flex; gap: var(--space-1); }
@@ -2246,7 +2246,7 @@ html.light-mode .filter-chip.fc-obs.active { background: rgba(21,101,192,0.08); 
   .filter-strip { gap: var(--space-3); }
   .filter-strip .filter-select { flex: 1; min-width: 120px; }
   .active-filters { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
-  .adv-row { grid-template-columns: 1fr; }
+  .adv-row { grid-template-columns: 1fr 1fr; }
   .adv-search-input { max-width: 100%; width: 100%; }
   .adv-filter-panel .filter-select { width: 100%; }
   body.modal-open { overflow: hidden; }
@@ -3042,6 +3042,7 @@ function filterStrip() {
 function advancedFilterPanel() {
   var html = '<div class="adv-filter-panel">';
 
+  // Row 1: All small dropdowns and chips in one dense row
   html += '<div class="adv-row">';
 
   html += '<div class="adv-group">';
@@ -3097,7 +3098,27 @@ function advancedFilterPanel() {
   });
   html += '</select></div>';
 
-  html += '</div><div class="adv-row" style="grid-template-columns: 1fr 1fr;">';
+  html += '<div class="adv-group">';
+  html += '<label class="adv-label">Data source</label>';
+  var dsIsCustom = currentDatasourceFilter && typeof FILTER_FACETS !== 'undefined'
+    && !FILTER_FACETS.datasource.some(function(d) { return d.name === currentDatasourceFilter; });
+  var dsSelectVal = dsIsCustom ? '__custom__' : (currentDatasourceFilter || 'all');
+  html += '<select class="filter-select' + (currentDatasourceFilter?' has-value':'') + '" id="ds-select" onchange="handleDsSelect(this.value)">';
+  html += '<option value="all"' + (!currentDatasourceFilter?' selected':'') + '>All sources</option>';
+  if (typeof FILTER_FACETS !== 'undefined') FILTER_FACETS.datasource.forEach(function(d) {
+    html += '<option value="' + escHtml(d.name) + '"' + (currentDatasourceFilter===d.name?' selected':'') + '>' + escHtml(d.name) + ' (' + d.count + ')</option>';
+  });
+  html += '<option value="__custom__"' + (dsIsCustom?' selected':'') + '>Other\u2026</option>';
+  html += '</select>';
+  if (dsIsCustom) {
+    html += '<input type="text" class="adv-search-input" style="max-width:100%;margin-top:3px" placeholder="Type data source\u2026" value="' + escHtml(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)" autofocus>';
+  }
+  html += '</div>';
+
+  html += '</div>';
+
+  // Row 2: MITRE ATT&CK (needs more space)
+  html += '<div class="adv-row" style="grid-template-columns: 1fr;">';
 
   html += '<div class="adv-group">';
   html += '<label class="adv-label">MITRE ATT&amp;CK</label>';
@@ -3115,7 +3136,7 @@ function advancedFilterPanel() {
     mitreLabel = tg ? 'Tactic: ' + tg.label : currentMitreTacticFilter;
   }
   html += '<div style="display:flex;gap:8px;align-items:flex-start">';
-  html += '<div class="adv-mitre-wrap" id="mitre-dd-wrap" style="flex:1">';
+  html += '<div class="adv-mitre-wrap" id="mitre-dd-wrap" style="flex:1;max-width:500px">';
   html += '<button type="button" class="adv-mitre-btn' + (mitreHasValue ? ' has-value' : '') + '" onclick="toggleMitreDd()">' + escHtml(mitreLabel) + '</button>';
   html += '<div class="adv-mitre-dd" id="mitre-dd">';
   html += '<input type="text" class="adv-mitre-search" placeholder="Search techniques\u2026" oninput="filterMitreDd(this.value)">';
@@ -3124,11 +3145,6 @@ function advancedFilterPanel() {
   html += '</div></div></div>';
   html += '<button type="button" class="mitre-map-btn" onclick="openMitreMap()" title="View interactive MITRE ATT&CK coverage map showing all tactics and techniques">' + si('shield') + ' ATT&amp;CK Coverage Map</button>';
   html += '</div></div>';
-
-  html += '<div class="adv-group">';
-  html += '<label class="adv-label">Data source</label>';
-  html += '<input type="text" class="adv-search-input" style="max-width:100%" placeholder="e.g. syslog, WinEventLog" value="' + escHtml(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)">';
-  html += '</div>';
 
   html += '</div></div>';
   return html;
@@ -3294,6 +3310,23 @@ function debounceAdvSearch(key, val) {
     buildSidebar();
     updateCountLabel();
   }, 300);
+}
+
+function handleDsSelect(val) {
+  if (val === 'all') {
+    currentDatasourceFilter = '';
+  } else if (val === '__custom__') {
+    currentDatasourceFilter = '';
+    reRender();
+    buildSidebar();
+    updateCountLabel();
+    return;
+  } else {
+    currentDatasourceFilter = val;
+  }
+  reRender();
+  buildSidebar();
+  updateCountLabel();
 }
 
 function activeFilterTags() {

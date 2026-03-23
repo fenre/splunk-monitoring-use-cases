@@ -2208,6 +2208,7 @@ def extract_filter_facets(data):
     sapp_map = {}
     industries = set()
     mitres = set()
+    datasources = {}  # normalized name → count
 
     for cat in data:
         for sub in cat.get("s", []):
@@ -2229,6 +2230,21 @@ def extract_filter_facets(data):
                 if isinstance(uc.get("mitre"), list):
                     for t in uc["mitre"]:
                         mitres.add(t)
+                if uc.get("d"):
+                    for tok in re.split(r"[,;/]+", uc["d"]):
+                        tok = tok.strip().strip("`")
+                        if not tok or len(tok) < 3:
+                            continue
+                        # Remove sourcetype= prefix for cleaner labels
+                        clean = re.sub(r"^sourcetype\s*=\s*", "", tok, flags=re.IGNORECASE).strip('"').strip("'")
+                        if clean:
+                            datasources[clean] = datasources.get(clean, 0) + 1
+
+    # Keep data sources that appear in at least 2 UCs, sorted by frequency
+    ds_filtered = sorted(
+        [(k, v) for k, v in datasources.items() if v >= 2],
+        key=lambda x: (-x[1], x[0])
+    )
 
     return {
         "dtype": sorted(dtypes),
@@ -2237,6 +2253,7 @@ def extract_filter_facets(data):
         "sapp": [{"id": k, "name": v} for k, v in sorted(sapp_map.items(), key=lambda x: x[1])],
         "industry": sorted(industries),
         "mitre": _mitre_by_tactic(sorted(mitres)),
+        "datasource": [{"name": k, "count": v} for k, v in ds_filtered],
     }
 
 
