@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import sys
+from datetime import datetime
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 UC_DIR = os.path.join(SCRIPT_DIR, "use-cases")
@@ -2756,6 +2757,231 @@ def validate_non_technical(data):
     return errors
 
 
+# ---------------------------------------------------------------------------
+#  Release-notes & count sync  (CHANGELOG.md → index.html, README.md)
+# ---------------------------------------------------------------------------
+
+VERSION_TYPE_OVERRIDES = {
+    "2.1.0": "major",
+}
+
+def _parse_changelog():
+    """Parse CHANGELOG.md into a list of version entries."""
+    path = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    versions = []
+    ver_re = re.compile(r"^## \[(.+?)\]\s*-\s*(.+)$", re.MULTILINE)
+    sec_re = re.compile(r"^### (.+)$", re.MULTILINE)
+    matches = list(ver_re.finditer(text))
+
+    for i, m in enumerate(matches):
+        ver_str = m.group(1)
+        date_raw = m.group(2).strip()
+
+        # --- date display ---
+        range_m = re.match(
+            r"(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})", date_raw
+        )
+        if range_m:
+            d1 = datetime.strptime(range_m.group(1), "%Y-%m-%d")
+            d2 = datetime.strptime(range_m.group(2), "%Y-%m-%d")
+            date_display = (
+                f"{d1.strftime('%B')} {d1.day}&ndash;{d2.day}, {d2.year}"
+            )
+        else:
+            try:
+                dt = datetime.strptime(date_raw[:10], "%Y-%m-%d")
+                date_display = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+            except ValueError:
+                date_display = date_raw
+
+        # --- version display & type ---
+        parts = ver_str.split(".")
+        try:
+            int_parts = [int(p) for p in parts]
+        except ValueError:
+            int_parts = None
+
+        if int_parts is None:
+            ver_type = "minor"
+            ver_display = ver_str
+        elif len(int_parts) == 1:
+            ver_type = "major"
+            ver_display = ver_str
+        elif len(int_parts) == 2:
+            ver_type = "major" if int_parts[1] == 0 else "minor"
+            ver_display = ver_str
+        else:
+            if int_parts[-1] > 0:
+                ver_type = "patch"
+            elif int_parts[1] == 0:
+                ver_type = "major"
+            else:
+                ver_type = "minor"
+            ver_display = ver_str
+            while ver_display.endswith(".0"):
+                ver_display = ver_display[:-2]
+
+        ver_type = VERSION_TYPE_OVERRIDES.get(ver_str, ver_type)
+
+        # --- extract content block ---
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        content = text[start:end]
+        content = re.sub(r"\n---\s*$", "", content).strip()
+
+        # --- parse sections ---
+        sections = []
+        sec_matches = list(sec_re.finditer(content))
+        for j, sm in enumerate(sec_matches):
+            title = sm.group(1).strip()
+            sec_start = sm.end()
+            sec_end = (
+                sec_matches[j + 1].start()
+                if j + 1 < len(sec_matches)
+                else len(content)
+            )
+            sec_text = content[sec_start:sec_end].strip()
+            sec_text = re.sub(r"\n---\s*$", "", sec_text).strip()
+
+            bullets = []
+            for line in sec_text.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith("- "):
+                    bullets.append(stripped[2:])
+                elif bullets and stripped:
+                    bullets[-1] += " " + stripped
+
+            if bullets:
+                sections.append({"title": title, "bullets": bullets})
+
+        versions.append(
+            {
+                "version": ver_display,
+                "date": date_display,
+                "type": ver_type,
+                "sections": sections,
+            }
+        )
+
+    return versions
+
+
+def _md_inline_to_html(text):
+    """Convert inline markdown (bold, code, special chars) to HTML."""
+    text = text.replace("&", "&amp;")
+    text = text.replace("<", "&lt;")
+    text = text.replace(">", "&gt;")
+
+    text = re.sub(
+        r"``\s*(.+?)\s*``",
+        lambda m: "<code>" + m.group(1) + "</code>",
+        text,
+    )
+    text = re.sub(r"`([^`]+?)`", r"<code>\1</code>", text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+
+    text = text.replace("\u2014", "&mdash;")   # em dash
+    text = text.replace("\u2013", "&ndash;")   # en dash
+    text = text.replace("\u2026", "&hellip;")  # ellipsis
+    return text
+
+
+def _changelog_to_html(versions):
+    """Convert parsed changelog to HTML release-notes block."""
+    lines = []
+    for idx, v in enumerate(versions):
+        lines.append(
+            f'    <div class="rn-version">'
+            f'<span class="rn-version-tag {v["type"]}">{v["version"]}</span>'
+            f'<span class="rn-version-date">{v["date"]}</span></div>'
+        )
+        for sec in v["sections"]:
+            title_html = _md_inline_to_html(sec["title"])
+            lines.append('    <div class="rn-section">')
+            lines.append(
+                f'      <h3 class="rn-section-title">{title_html}</h3>'
+            )
+            lines.append('      <ul class="rn-list">')
+            for bullet in sec["bullets"]:
+                lines.append(
+                    f"        <li>{_md_inline_to_html(bullet)}</li>"
+                )
+            lines.append("      </ul>")
+            lines.append("    </div>")
+        if idx < len(versions) - 1:
+            lines.append("")
+    return "\n".join(lines)
+
+
+def sync_release_notes():
+    """Parse CHANGELOG.md and inject HTML into index.html between sentinels."""
+    versions = _parse_changelog()
+    html = _changelog_to_html(versions)
+
+    index_path = os.path.join(SCRIPT_DIR, "index.html")
+    with open(index_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    begin = "<!-- BEGIN RELEASE_NOTES -->"
+    end = "<!-- END RELEASE_NOTES -->"
+
+    try:
+        b_idx = content.index(begin) + len(begin)
+        e_idx = content.index(end)
+    except ValueError:
+        print("  WARNING: release-notes sentinels not found in index.html")
+        return 0
+
+    content = content[:b_idx] + "\n" + html + "\n" + content[e_idx:]
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    print(f"  Release notes: {len(versions)} versions synced to index.html")
+    return len(versions)
+
+
+def sync_uc_counts(total_uc):
+    """Update use-case count strings in index.html meta tags and README.md."""
+    rounded = (total_uc // 25) * 25
+    count_str = f"{rounded:,}+"
+
+    # --- index.html: meta description / og:description / twitter:description ---
+    index_path = os.path.join(SCRIPT_DIR, "index.html")
+    with open(index_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    html = re.sub(
+        r'(content=")\d[\d,]+\+( curated)',
+        lambda m: m.group(1) + count_str + m.group(2),
+        html,
+    )
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    # --- README.md ---
+    readme_path = os.path.join(SCRIPT_DIR, "README.md")
+    with open(readme_path, "r", encoding="utf-8") as f:
+        readme = f.read()
+
+    readme = re.sub(
+        r"(\*\*)\d[\d,]+\+( IT infrastructure)",
+        lambda m: m.group(1) + count_str + m.group(2),
+        readme,
+    )
+    readme = re.sub(
+        r"\d[\d,]+\+( use cases rendered)",
+        lambda m: count_str + m.group(1),
+        readme,
+    )
+    with open(readme_path, "w", encoding="utf-8") as f:
+        f.write(readme)
+
+    print(f"  UC counts: {count_str} (actual: {total_uc})")
+
+
 def main():
     # Find and sort category files
     pattern = os.path.join(UC_DIR, "cat-[0-9]*.md")
@@ -2857,6 +3083,11 @@ def main():
             sf.write(f"  <url><loc>{u}</loc></url>\n")
         sf.write("</urlset>\n")
     print(f"Wrote {sitemap_path} ({len(sitemap_urls)} URLs)")
+
+    # Sync release notes (CHANGELOG.md → index.html) and UC counts
+    print("\nSyncing release notes and counts...")
+    sync_release_notes()
+    sync_uc_counts(total_uc)
 
 
 if __name__ == "__main__":

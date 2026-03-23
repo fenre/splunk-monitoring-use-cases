@@ -4,227 +4,254 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Section headings (e.g. `### New Use Cases`) are rendered as-is in the release
+notes popup. `build.py` auto-generates the HTML from this file — do not edit
+the release notes block in `index.html` by hand.
+
+---
+
+## [3.2] - 2026-03-23
+
+### New Use Cases
+
+- **Elasticsearch deep monitoring** — 9 new use cases covering thread pool rejections, search latency and slow logs, ILM policy failures, snapshot health, cross-cluster replication lag, pending cluster tasks, cache evictions, segment merge pressure, and ingest pipeline errors.
+- **Azure service expansion** — 15 new use cases for Application Gateway & WAF, VPN Gateway, ExpressRoute, Redis Cache, Data Factory, API Management, Virtual Desktop, Traffic Manager, Bastion, Network Watcher, Storage Queue, Managed Disk performance, SQL Managed Instance, Synapse Analytics, and Log Analytics Workspace ingestion health.
+- **Docker deep monitoring** — 8 new use cases for container health check failures, network I/O anomalies, exec session auditing, socket exposure detection, image pull failures, dangling image/volume cleanup, Swarm service replica health, and container filesystem write rate.
+
+### Data Source Filter
+
+- **Two-level cascading filter** — Data source filter redesigned with 23 named source areas (Windows Event Logs, Sysmon, AWS, Cisco, etc.). Selecting an area reveals a second dropdown with specific sources and counts. Garbage entries from SPL parsing cleaned up.
+
+### Sources Reference
+
+- **New vendor documentation** — Added Elasticsearch cluster monitoring docs, Azure Monitor docs, and Docker monitoring docs to the External & Vendor Documentation section. Updated Microsoft Cloud TA count and category references.
+
 ---
 
 ## [3.1] - 2026-03-23
 
-### Added
+### Archived Splunkbase Apps
 
-- **Archived Splunkbase app visibility** — Use cases referencing archived apps now display an amber "Archived App" badge on cards and a warning box in the modal with successor app recommendation. Palo Alto Networks App (491) newly flagged as archived with successor Splunk App for Palo Alto Networks (7505). Unix and Windows app entries now include successor links to IT Essentials Work (5403).
-- **Advanced Filters panel** — Collapsible "Advanced Filters" below the existing filter strip with 8 new filters: ES Detection (toggle), Detection type (dropdown), Premium Apps (dropdown), CIM Data Model (dropdown), App/TA (dropdown), Industry (dropdown), MITRE ATT&CK (searchable text), Data source (searchable text). All filters show as removable chips and update sidebar counts.
-- **FILTER_FACETS in data.js** — Pre-extracted unique sorted values for each advanced filter dimension, generated at build time to avoid client-side scanning of 4,600+ use cases.
-- **Non-technical view rewrite** — All 22 categories rewritten with 120 monitoring areas and 360 representative UC references. Build-time validation via `validate_non_technical()` ensures UC IDs stay in sync.
-- **Sources reference popup** — Footer button opens a catalog of all documentation, apps, frameworks, and community resources used to research and build the use cases — Splunk Lantern, ESCU, MITRE ATT&CK, vendor docs, and regulatory frameworks.
-- **SD-WAN use case expansion** — Subcategory 5.5 expanded from 10 to 20 dedicated SD-WAN use cases. New coverage includes OMP route monitoring, BFD session tracking, edge device resource utilization, firmware compliance, DPI application visibility, Cloud OnRamp performance, UTD security policy violations, vManage cluster health, transport circuit SLA tracking, and overlay topology validation. Two misplaced wireless use cases relocated to 5.4.
-- **Meraki subcategory dissolved** — All 110 Cisco Meraki UCs redistributed into their functional subcategories: 21 wireless UCs to 5.4, 20 switching UCs to 5.1, 22 firewall/security UCs to 5.2, 5 DNS/DHCP UCs to 5.6, 17 management UCs to 5.8, 9 camera UCs to 15.3, 10 environmental sensor UCs to 14.1, and 6 MDM UCs to new subcategory 9.6. ThousandEyes renumbered to 5.9, Carrier Signaling to 5.10.
+- **Archived app visibility** — Use cases referencing archived Splunkbase apps now show an amber "Archived App" badge on cards and a prominent warning box in the modal with a link to the recommended successor app.
+- **Palo Alto Networks App** — Newly identified as archived; successor is Splunk App for Palo Alto Networks (Splunkbase 7505). Unix and Windows app entries now also link to IT Essentials Work (Splunkbase 5403).
+
+### Advanced Filters
+
+- **8 new filters** — Collapsible "Advanced Filters" panel below the existing filter strip with: ES Detection toggle, Detection type, Premium Apps, CIM Data Model, App/TA, Industry, MITRE ATT&CK (searchable), and Data source (searchable).
+- **Pre-extracted facets** — `FILTER_FACETS` in data.js provides pre-sorted unique values for each filter dimension, eliminating client-side scanning of 4,600+ use cases on every page load.
+- **Active filter chips** — All advanced filters appear as removable chips in the active filter tags row and are included in sidebar count updates.
+
+### Non-Technical View
+
+- **Full rewrite** — All 22 categories rewritten with 120 monitoring areas and 360 representative use case references. Build-time validation ensures UC IDs stay in sync with technical content.
+
+### Sources Reference
+
+- **Sources popup** — New footer button opens a reference of all documentation, apps, frameworks, and community resources used to research and build the use case catalog — from Splunk Lantern and ESCU to MITRE ATT&CK, vendor docs, and regulatory frameworks.
+
+### Content Expansion
+
+- **SD-WAN use case expansion** — Subcategory 5.5 expanded from 10 to 20 dedicated SD-WAN use cases covering OMP route monitoring, BFD session tracking, edge device resource utilization, firmware compliance, DPI application visibility, Cloud OnRamp performance, UTD security policy violations, vManage cluster health, transport circuit SLA tracking, and overlay topology validation.
+- **Meraki subcategory dissolved** — All 110 Cisco Meraki UCs redistributed into their functional subcategories: wireless to 5.4, switching to 5.1, firewall/security to 5.2, DNS/DHCP to 5.6, management to 5.8, cameras to 15.3, environmental sensors to 14.1, and MDM to new subcategory 9.6.
 
 ---
 
 ## [3.0] - 2026-03-22
 
-### Added
+### Enterprise Security Detections
 
-- **Enterprise Security detection badges** — 2,070 ESCU detection rules now display a teal “ES Detection” badge on UC cards and modals. Risk-Based Alerting detections show “ES Detection — Risk-Based Alerting”. Badges are searchable via “escu”, “es detection”, “rba”.
-- **ESCU-specific implementation guidance** — build.py classifies ESCU detections by methodology (TTP, Hunting, Anomaly, Baseline, Correlation) and RBA status, then generates tailored implementation text covering ES Content Management deployment, risk score tuning, analyst response workflows per security domain, and SPL context for Risk Investigation drilldown searches. Replaces the previous generic “Deploy the detection from ESCU” boilerplate on 1,500+ use cases.
+- **ES Detection badges** — 2,070 ESCU detection rules now display a teal "ES Detection" badge on use case cards and modals, with "Risk-Based Alerting" variant for RBA-enabled detections. Searchable via "escu", "es detection", "rba".
+- **ESCU-specific implementation guidance** — Tailored deployment instructions for each detection methodology (TTP, Hunting, Anomaly, Baseline, Correlation): ES Content Management workflow, risk score tuning, analyst response per security domain, and SPL walkthrough for Risk Investigation drilldowns.
 
-### Changed
+### SPL & Content Quality
 
-- **Catalog Dashboard Studio (`catalog-quick-start-top2.json`)** — **44** separate chart objects only (one `splunk.*` visualization per use case). Each panel uses Dashboard Studio **title** and **description** for UC id + name + category — no stacked markdown “label rows” or category bands that read like a table. **3** page markdown blocks (title/subtitle/DEMO) + time picker. Regenerate with **`scripts/generate_catalog_dashboard.py`**.
-- **SPL quality: join max=1** — Added explicit max=1 to 88 join statements across all category files to prevent silent data truncation.
-- **Text quality improvements** — Revised Value, Implementation, and Visualization fields for 30 use cases across 17 category files, replacing generic descriptions with specific, actionable guidance tailored to each use case context.
-- **Markdown fixes** — Corrected duplicate sourcetypes and broken backticks in cat-05-network-infrastructure.md.
+- **join max=1** — Added explicit `max=1` to 88 `| join` statements across all categories to prevent silent data truncation at the default limit of 1.
+- **Text quality pass** — Revised Value, Implementation, and Visualization fields for 30 use cases across 17 categories with specific, actionable guidance.
+
+### Splunk Dashboard Studio (export)
+
+- **44 separate chart objects** — `dashboards/catalog-quick-start-top2.json`: exactly **one** Dashboard Studio visualization per Quick-Start use case (top 2 × 22 categories). UC id and name appear as each panel's **title**/**description**, not extra markdown blocks. Regenerate with `scripts/generate_catalog_dashboard.py`.
 
 ---
 
 ## [2.1.12] - 2026-03-21
 
-### Added
+### Splunk dashboards
 
-- **REST deploy for Dashboard Studio** — New **`scripts/deploy_dashboard_studio_rest.py`**: wraps the Studio JSON in the XML envelope required by Splunk’s **`data/ui/views`** API and **POST**s it (create, then update if the dashboard already exists). Documented in **`dashboards/README.md`** with `SPLUNK_TOKEN` or basic auth, app/owner/host options, and links to Splunk Docs.
+- **REST deploy** — `scripts/deploy_dashboard_studio_rest.py` pushes Dashboard Studio JSON to your Splunk server via the `data/ui/views` API (token or basic auth). See `dashboards/README.md`.
 
 ---
 
 ## [2.1.11] - 2026-03-21
 
-### Added
+### Splunk dashboards
 
-- **Dashboard Studio — Catalog Quick-Start Portfolio** — New **`dashboards/catalog-quick-start-top2.json`**: professional dark-theme Dashboard Studio layout with KPIs, category event bar chart, 24h trend, and a detail table for the **44** use cases (**top two** per category from **`use-cases/INDEX.md`** Quick Start). All data is **synthetic** (`makeresults` / `eval`). **`dashboards/README.md`** documents import into Splunk Enterprise/Cloud; **`scripts/generate_catalog_dashboard.py`** regenerates the JSON when Quick Start picks change.
+- **Catalog Quick-Start Portfolio** — Initial `dashboards/catalog-quick-start-top2.json` (later replaced in v3 by **44** per-UC chart panels). Demo data (`makeresults`). See `dashboards/README.md`.
 
 ---
 
 ## [2.1.10] - 2026-03-21
 
-### Changed
+### Content
 
-- **Industry Verticals (category 21)** — **Implementation** sections for aviation, telecommunications, water/wastewater, and insurance use cases now include **Domain context** (standards, regulatory, and operational notes) and **Splunk** guidance (field normalization, thresholds, time scope, and index/sourcetype caveats). Rebuild with `python3 build.py`.
+- **Industry verticals** — Category 21 implementation notes for **aviation**, **telecom**, **water/wastewater**, and **insurance** now add domain context (standards, compliance, operations) and Splunk-oriented tuning notes alongside the existing guidance.
 
 ---
 
 ## [2.1.9] - 2026-03-21
 
-### Changed
+### Detailed implementation
 
-- **Detailed implementation — SPL walkthrough** — Auto-generated “Understanding this SPL” text is now **use-case–aware**: it pulls **title**, **value**, **Data sources**, and **App/TA**, cross-checks the **first search stage** against documented sourcetypes, and adds a **Pipeline walkthrough** with richer command lines (e.g. `by`/`span` for `stats`/`timechart`, first `eval` target field, `where` condition text). CIM variants use a dedicated heading and CIM-specific intro. Implemented in `build.py` (`explain_spl_pipeline`, `_spl_explain_intro`); rebuild with `python3 build.py`.
+- **Tailored SPL explanations** — Generated guides now open with context from the use case (title, value, data sources, App/TA), compare the base search to documented sourcetypes, then walk the pipeline with command-specific detail (`stats`/`timechart` `by` and `span`, `eval` targets, `where` text). CIM blocks get a matching CIM-specific intro.
 
 ---
 
 ## [2.1.8] - 2026-03-21
 
-### Changed
+### Navigation
 
-- **Industry Verticals as its own domain group** — Category 21 is no longer grouped under Applications in `CAT_GROUPS`. The overview hero chips, sidebar, and catalog now use a dedicated **`industry`** group (with **`factory`** icon on the hero) so vertical use cases are visible next to Infrastructure, Security, Cloud, Applications, and Regulatory & Compliance.
+- **Industry verticals** — Category 21 (Industry Verticals) is its own **domain group** in the sidebar and on the overview hero chips (between Applications and Regulatory & Compliance), not buried under Applications.
 
 ---
 
 ## [2.1.7] - 2026-03-21
 
-### Changed
+### CIM field naming
 
-- **CIM-style field names** — Normalized `src_ip`/`dest_ip`/`source_ip` to **`src`** / **`dest`** across use-case SPL where appropriate; data model clauses use **`All_Traffic.src`** / **`All_Traffic.dest`** (not `*_ip`). GCP VPC flows use `eval`/`coalesce` from `connection.*`; Azure Firewall threat intel uses `rename` to `src`/`dest`; Carbon Black netconn uses `rename` to `dest`/`dest_port`; SNMP example uses `eval user=coalesce(user, user_name)`. Added `scripts/normalize_cim_fields.py` and a short **Preferred CIM-style field names** table in `docs/cim-and-data-models.md`.
+- **src / dest** — Use-case SPL now prefers CIM-aligned `src` and `dest` (and related renames) instead of `src_ip`/`dest_ip` where practical; data model searches use `All_Traffic.src`/`All_Traffic.dest`. See `docs/cim-and-data-models.md` and `scripts/normalize_cim_fields.py`.
 
 ---
 
 ## [2.1.6] - 2026-03-21
 
-### Fixed
+### SPL & documentation
 
-- **SPL review follow-up** — Applied remaining actionable items from `spl-review-findings.md`: `mvexpand … limit=N` on high-cardinality expands (cloud, Entra, GitHub, Docker); `join type=left max=0` on Webex workspace join; top-N `sort <N> -count` instead of `sort -count` + `head` in several NGFW/IDS/Web examples; AWS IoT provisioning data sources documented to prefer `aws:cloudtrail` + `eventSource` filters; RD Gateway note for XmlWinEventLog vs WinEventLog. See remediation note at top of `spl-review-findings.md`.
+- **Review follow-up** — Additional hardening from `spl-review-findings.md`: `mvexpand` limits on multivalue fields, explicit `max=` on joins, `sort <N> -count` for top-N tables, AWS IoT provisioning aligned to CloudTrail + `eventSource`, RD Gateway XmlWinEventLog note. See the remediation note in that file.
 
 ---
 
 ## [2.1.5] - 2026-03-21
 
-### Added
+### Feedback
 
-- **Report issue on GitHub** — Technical and non-technical use case modals include a link that opens **New issue** with a pre-filled title/body: UC id, category/subcategory, link to the source markdown on GitHub (`use-cases/<file>`), and the current dashboard URL with `#uc-…` hash. Forks can set `window.SITE_CUSTOM.siteRepoUrl` to point issues at their repo.
+- **Report issue on GitHub** — Every use case modal (technical and plain-language) has a button that opens a new GitHub issue with the UC id, category path, link to the source `use-cases/*.md` file, and the dashboard URL with `#uc-…`. Set `window.SITE_CUSTOM.siteRepoUrl` if you fork the repo.
 
 ---
 
 ## [2.1.4] - 2026-03-21
 
-### Added
+### Detailed implementation
 
-- **Auto-generated SPL explanations** — Every use case’s generated **Detailed implementation** (`md` in `catalog.json` / **View more detailed instructions** in the UI) now includes an **Understanding this SPL** section: plain-language bullets per pipeline stage (base search, `stats`/`timechart`, `tstats`/datamodel, joins, lookups, etc.). When a **CIM SPL** (`qs`) exists, the guide also embeds that query and a matching walkthrough. Heuristic limits keep very long ESCU-style searches readable.
+- **Understanding this SPL** — Generated step-by-step guides now include automatic pipeline explanations: what each major stage does (base search, aggregations, `tstats`/datamodel, joins, lookups, etc.). When a use case has CIM SPL, the optional accelerated query is included with a matching walkthrough.
 
 ---
 
 ## [2.1.3] - 2026-03-21
 
-### Fixed
+### SPL & Documentation
 
-- **SPL & CIM catalog pass** — aligned examples with Splunk CIM and TA conventions across multiple categories: `WinEventLog:Security` sourcetype casing (vs. `wineventlog:security`); `Network_Traffic.All_Traffic` aggregates using `bytes_in`/`bytes_out` with `eval` totals (vs. `All_Traffic.bytes` alone); LDAP `tstats` private-range filtering with `cidrmatch()`; explicit `index=windows` (vs. `index=wineventlog`) in compliance samples; FortiGate inventory search scoped to `fortinet:fortigate_system`; SOX ERP vs. AD queries split; `mvexpand` limits; `transaction`/`sort` tuning; ITSI `inputlookup` notes; markdown/Data Source backtick fixes (e.g. Meraki on UC-5.4.9).
-- **Additional SPL hygiene** — `cidrmatch()` argument order (IP first, CIDR second); UC-10.13.12 CIM egress example uses `` `drop_dm_object_name("All_Traffic")` `` then `src`/`dest` for RFC1918 tests; **cat-05** closed 100+ broken `` ` `` spans on Meraki Data Sources lines; normalized `| sort -field` (removed erroneous spaces) in Meraki SPL snippets.
+- **SPL / CIM alignment pass** — Catalog examples updated for Splunk CIM and TA conventions: `WinEventLog:Security` casing; `All_Traffic.bytes_in`/`bytes_out` totals; LDAP `tstats` + `cidrmatch()` for RFC1918; `index=windows` in compliance samples; FortiGate inventory scoped to supported sourcetypes; SOX ERP vs. AD searches split; safer `mvexpand`, `transaction`, and `sort` patterns; ITSI `inputlookup` context notes; fixed Meraki Data Sources backtick (UC-5.4.9).
+- **Follow-up hygiene** — Correct `cidrmatch()` argument order (IP, then CIDR); CIM internal/external ratio example uses `drop_dm_object_name` + plain `src`/`dest`; MITRE coverage join uses explicit `max=0` and `mvexpand … limit=500`; bulk-closed broken inline-code backticks across Meraki Data Sources in Category 5; normalized `sort -field` spacing in Meraki SPL.
 
 ---
 
 ## [2.1.2] - 2026-03-21
 
-### Fixed
+### SPL Accuracy
 
-- **ES `notable` macro** — replaced `index=notable` with the Splunk ES `` `notable` `` macro across 15 SPL queries in Category 10 (Security Infrastructure) and Category 22 (Regulatory & Compliance). The macro resolves human-readable status labels, owner fields, and other enrichment that raw index access does not provide.
+- **ES `` `notable` `` macro** — Replaced `index=notable` with the Splunk ES `` `notable` `` macro across 15 SPL queries in Category 10 (Security Infrastructure) and Category 22 (Regulatory & Compliance). The macro resolves human-readable status labels, owner fields, and other enrichment that raw index access does not provide.
 
 ---
 
 ## [2.1.1] - 2026-03-21
 
-AI and LLM discoverability improvements.
+### AI & LLM Discoverability
 
-### Added
-
-- **Self-describing catalog.json** — `_schema_url` and `_readme` keys at the top level so tools fetching the catalog cold can discover the field schema without a second fetch.
-- **Expanded sitemap.xml** — now generated by `build.py` with 33 URLs (was 4), covering all 22 category markdown files, INDEX.md, documentation pages, and AI index files. Stays in sync as categories are added.
-- **Cross-referenced llms.txt / llms-full.txt** — each file now points to the other explaining the difference (concise category index vs. full use case listing).
+- **Self-describing catalog.json** — Added `_schema_url` and `_readme` keys at the top level so LLMs and tools fetching the catalog cold can immediately discover the field schema without a second fetch.
+- **Expanded sitemap.xml** — Now generated by `build.py` with 33 URLs (was 4) — includes all 22 category files, INDEX.md, documentation pages, and AI index files. Stays in sync automatically as categories are added.
+- **Cross-referenced llms.txt / llms-full.txt** — Each file now points to the other with a one-line note explaining the difference (concise category index vs. full use case listing).
 
 ---
 
 ## [2.1.0] - 2026-03-21
 
-UI polish, non-technical view redesign, and navigation improvements.
+### Navigation & Filters
 
-### Added
+- **Tab-based content navigation** — Categories, Subcategories, Use Cases, and Quick Wins are now tabs above the content area, with the sort control on the same line.
+- **Streamlined filter strip** — Removed inline labels; filter chips are self-explanatory with criticality colors shown as inline dots.
+- **Interactive hero domain chips** — Clicking Infrastructure, Security, Cloud, Applications, Industry, or Regulatory on the front page filters the category grid and opens the relevant sidebar group.
+- **Hero domain icons** — Replaced colored dots on front-page domain chips with monochrome SVG icons (server, shield, cloud, gear, clipboard).
+- **Category icons in sidebar** — Replaced colored dots with per-category icons to avoid confusion with criticality colors.
+- **Smart sidebar folding** — Non-active category groups auto-fold; manual expand/collapse is preserved until navigation changes.
+- **Unified sidebar** — Both technical and non-technical modes now share the same grouped sidebar with collapsible sections, counts, and subcategory drill-down.
 
-- **Tab-based content navigation** — Categories, Subcategories, Use Cases, and Quick Wins as tabs with integrated sort control.
-- **Interactive hero domain chips** — front-page domain buttons now filter the category grid and expand the relevant sidebar group.
-- **Hero domain icons** — replaced colored dots with monochrome SVG icons (server, shield, cloud, gear, clipboard).
-- **Non-technical view redesign** — animated hero with gradient accent and badge, staggered card fade-ins, numbered area indicators in category detail, styled modal sections with green headings.
-- **Release notes popup** — full project history accessible from the page footer.
-- **Unified sidebar** — both technical and non-technical modes share the same grouped sidebar with collapsible sections, counts, and subcategory drill-down.
+### Non-Technical View Redesign
 
-### Changed
+- **Animated hero** — Gradient accent bar, "Proactive IT Monitoring" badge, gradient title text, and stagger-animated stats.
+- **Richer category cards** — Staggered fade-in animations, gradient left-border on hover, icon highlight, focus-area and check counts on each card.
+- **Category detail polish** — Back-to-overview button, gradient header accent, numbered area indicators, indented UC lists, and staggered area card animations.
+- **Refreshed modal** — Styled section cards with green uppercase headings, subcategory breadcrumb, and "View full technical details" button with icon.
 
-- **Filter strip** — removed inline "Pillar" and "Criticality" labels; chips are self-explanatory with criticality color dots inline.
-- **Category icons in sidebar** — replaced colored dots with per-category SVG icons to avoid confusion with criticality colors.
-- **Smart sidebar folding** — non-active groups auto-fold on navigation; manual expand/collapse preserved until category changes.
-- **Sort control** moved from filter strip to the tab bar line.
-- **Non-technical category detail** — added back-to-overview button, gradient header accent, focus-area/check counts, and outcomes in header.
+### Quality & Accessibility
 
-### Fixed
-
-- Missing `filterByRegulation` function causing runtime errors.
-- Previous/Next modal navigation not updating URL hash.
-- `clearAllFilters` not resetting overview group filter.
-- `restoreFromHash` not clearing hero domain filter state.
-- Double history entries from `filterOvGroup`.
-- Clipboard copy with no error handling.
-- `scrollToSubcat` not updating URL hash.
-- Removed dead functions (`getStarters`, `getStartersFromFiltered`, `toggleOvSPL`) and ~120 lines of unused CSS.
-- Accessibility gaps — added ARIA roles, keyboard handlers, and focus management to interactive elements.
-- Stale counts in README, CHANGELOG, and source-catalog.md.
+- **Accessibility audit** — Added ARIA roles, keyboard handlers, and focus management to logo, hero chips, roadmap toggle, and navigation elements.
+- **Release notes popup** — Full project history accessible from the page footer, covering all major and minor releases.
+- **Bug fixes** — Fixed missing `filterByRegulation` function, Previous/Next URL updates, hash routing edge cases, clipboard error handling, and removed dead code.
 
 ---
 
 ## [2.0.0] - 2026-03-20
 
-Major UI redesign and content expansion.
+### Major UI Redesign
 
-### Added
+- **Unified filter system** — Pillar, criticality, difficulty, regulation, industry, and monitoring type consolidated into a single horizontal filter strip with active filter tags.
+- **Redesigned front page** — Glassmorphism hero with animated gradient orbs, domain chips, key stats, and an expandable roadmap section.
+- **Grouped sidebar navigation** — 6 collapsible groups (Infrastructure, Security, Cloud, Applications, Industry Verticals, Regulatory & Compliance) with color-coded headers.
+- **Modern header** — Gradient header bar with integrated search (Cmd/Ctrl+K), live stats, theme toggle, and technical/non-technical view switch.
+- **Deep linking** — Hash-based URL routing with `pushState`/`popstate` support for shareable links to categories, use cases, and search results.
+- **Virtual scrolling** — IntersectionObserver-based lazy rendering for smooth performance with 4,600+ use cases.
+- **Sort controls** — Sort by criticality, difficulty, name, or category with localStorage persistence.
+- **Print stylesheet** — Clean printed output with navigation and decorative elements hidden.
+- **Mobile experience** — Off-canvas sidebar with backdrop, 44px touch targets, safe-area insets, and dynamic viewport units.
+- **Light mode overhaul** — Stronger contrast, subtle gradients, card shadows, and WCAG AA compliant tag colors.
 
-- **Category 21 — Industry Verticals**: 119 use cases for energy/utilities, manufacturing, healthcare, telecom, retail, financial services, transportation, government, education, and insurance.
-- **Category 22 — Regulatory & Compliance Frameworks**: 30 use cases across GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, and SOC 2 — promoted to a standalone category for discoverability and customer importance.
-- **Unified filter strip** replacing scattered filter blocks — pillar, criticality, difficulty, regulation, industry, monitoring type, and sort in one horizontal bar.
-- **Active filter tags** row showing applied filters with inline clear buttons.
-- **Grouped sidebar** with 5 collapsible sections (Infrastructure, Security, Cloud, Applications, Regulatory & Compliance) using color-coded headers.
-- **Deep linking** via hash-based URL routing — shareable links to `#cat-N`, `#uc-N.N.N`, and `#search=term` with full pushState/popstate support.
-- **Virtual scrolling** using IntersectionObserver for performant rendering of all 4,625+ use cases.
-- **Sort controls** (criticality, difficulty, name, category) with localStorage persistence.
-- **Keyboard shortcuts**: Cmd/Ctrl+K and `/` to focus search, Escape to close modals/sidebar.
-- **Print stylesheet** (`@media print`) hiding navigation and decorative elements for clean output.
-- **Mobile off-canvas sidebar** with backdrop, 44px touch targets, safe-area insets, and dynamic viewport height.
-- **AI-friendly metadata**: Open Graph, Twitter Card, updated JSON-LD, `sitemap.xml`, and enhanced `robots.txt`.
-- **Semantic HTML** landmarks (`<nav>`, `<section>`, `<article>`) for improved accessibility.
-- `llms.txt` and `llms-full.txt` for LLM-readable site content.
+### Content Expansion
 
-### Changed
-
-- Total use case count increased from 3,473 to **4,625** across **22** categories (up from 20).
-- **Light-mode visual overhaul**: subtle gradient backgrounds, ambient orbs, card shadows, stronger tag contrast (WCAG AA), and category-group accent colors.
-- **Front page redesign**: display-only stats, streamlined view chips (8 → 4), roadmap moved below content, category cards now navigate directly.
-- `renderOverview()`, `renderCategory()`, and `renderSearchResults()` rewritten to use `filterStrip()` and `activeFilterTags()`.
-- All 7 filter types consolidated into `getFilteredUCs()` for consistent application across views.
-- Regulatory use cases (21.11) rewritten with concrete Splunk TAs, sourcetypes, and deployable SPL.
-
-### Removed
-
-- Deprecated functions: `filterBtns()`, `getMtypeFilterBtns()`, `toggleOvCat()`, `filterByDifficulty()`, `filterByPillar()`, `filterByRegulation()`.
-- Inline difficulty legend and separate pillar/regulation filter blocks on the overview page.
+- **4,625 use cases** across 22 categories — up from 3,473 across 20.
+- **Category 22 — Regulatory & Compliance** promoted to standalone category with 30 use cases covering GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, and SOC 2.
+- **Category 21 — Industry Verticals** with 119 use cases for energy, manufacturing, healthcare, telecom, retail, financial services, transportation, government, education, and insurance.
+- **AI-friendly metadata** — Open Graph, Twitter Card, JSON-LD, `sitemap.xml`, `llms.txt`, and `llms-full.txt`.
 
 ---
 
 ## [1.0.0] - 2026-03-16
 
-First public release of the Splunk Infrastructure Monitoring Use Case Repository.
+### First Public Release
 
-### Added
-
-- **3,000+ use cases** across 20 IT infrastructure categories, each with criticality, difficulty, SPL queries, CIM mappings, implementation guidance, and visualization recommendations.
-- **Interactive single-page dashboard** (`index.html`) with search, filtering by category/equipment/criticality, non-technical view, and expandable details.
-- **Build pipeline** (`build.py`) that compiles use case markdown into `data.js` and `catalog.json`.
-- **Validation script** (`validate_md.py`) for structure and UC-ID consistency checks.
-- **Machine-readable catalog** (`catalog.json`) for scripting and external integrations.
+- **3,000+ use cases** across 20 IT infrastructure categories with criticality, difficulty, SPL queries, CIM mappings, implementation guidance, and visualization recommendations.
+- **Interactive single-page dashboard** with search, category/equipment/criticality filtering, non-technical view, and expandable use case details.
+- **Build pipeline** — `build.py` compiles markdown use cases into `data.js` and `catalog.json`.
 - **Equipment filter** with 30+ technology vendors/platforms and model-level drill-down.
-- **Non-technical view** (`non-technical-view.js`) with plain-language outcomes per category.
-- **Customizable site text** (`custom-text.js`) for hero, roadmap, and UI labels.
+- **Non-technical view** with plain-language outcomes per category for stakeholder discussions.
+- **Machine-readable catalog** (`catalog.json`) for scripting and external integrations.
 - **GitHub Pages deployment** via included GitHub Actions workflow.
-- **Documentation** covering use case fields, implementation guide, CIM/DMA/OCSF reference, equipment table, catalog schema, and hosting setup.
-- **SSE-aligned fields** (MITRE ATT&CK, detection type, known false positives, security domain) for security use cases.
-- **CIM SPL** (tstats/datamodel queries) for use cases with CIM data model support.
+- **SSE-aligned fields** — MITRE ATT&CK, detection type, known false positives, and security domain for security use cases.
+
+---
+
+## [0.x] - 2026-03-04 – 2026-03-09
+
+### Early Development
+
+- **Project created** — Initial upload of use case dashboard with basic HTML interface.
+- **Core categories established** — Network, server, storage, security, and application monitoring use cases defined with SPL queries.
+- **CIM integration** — Added Common Information Model data model references and tstats queries to use cases.
+- **Meraki use cases** — Dedicated Cisco Meraki monitoring use cases added.
+- **Cloud use cases** — AWS, Azure, and GCP monitoring categories introduced.
+- **Equipment filter** — First version of vendor/platform equipment-based filtering.
+- **Virtualization category** — VMware, Hyper-V, and container monitoring use cases.
+- **Non-technical mode** — "Sales people mode" added for stakeholder-friendly descriptions.
+- **Security Essentials integration** — Splunk Security Essentials and other app references added.
+- **ThousandEyes use cases** — Network and application performance monitoring from ThousandEyes.
+- **Cisco color scheme** — UI updated to align with Cisco brand guidelines.
+- **LLM support** — Initial `llms.txt` for AI-assisted discovery.
