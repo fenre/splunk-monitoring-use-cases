@@ -3925,3 +3925,29 @@ index=_internal sourcetype="splunkd_http_input" (status=401 OR status=403)
 - **CIM Models:** N/A
 
 ---
+
+### UC-14.7.9 · Centralized Model Retraining for Industrial Sensor ML (DSDL)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance, Fault
+- **Value:** Edge-deployed ML models (autoencoder anomaly detection, XGBoost predictive maintenance, CNN visual inspection) degrade over time as equipment ages, processes change, and seasonal conditions shift. Centralized retraining in Splunk aggregates sensor data from all edge gateways, trains updated models via DSDL containers, and tracks model drift — ensuring edge predictions stay accurate without requiring data science expertise at each plant site.
+- **App/TA:** Splunk Deep Learning Toolkit (DSDL), Splunk Edge Hub, Litmus Edge
+- **Premium Apps:** None (DSDL is free)
+- **Data Sources:** `index=ot sourcetype=edge_hub:metrics`, `index=ot sourcetype=litmus:edge`, model performance logs
+- **SPL:**
+```spl
+index=ot sourcetype IN ("edge_hub:metrics","litmus:edge")
+| bin _time span=1h
+| stats avg(metric_value) as val stdev(metric_value) as val_std by _time, sensor_id, metric_name, site
+| eval feature_vector=val.",".val_std
+| fit AutoEncoderAE feature_vector into industrial_anomaly_model_v2
+| summary industrial_anomaly_model_v2
+| eval model_version="v2_".strftime(now(), "%Y%m%d")
+| eval training_samples=count
+| table model_version, training_samples, reconstruction_error_mean, reconstruction_error_std
+```
+- **Implementation:** Aggregate sensor data from all edge gateways (Edge Hub, Litmus Edge, Cisco EI) into a centralized OT index. Schedule weekly retraining jobs via DSDL containers running PyTorch or TensorFlow autoencoders. Track model performance metrics (reconstruction error distribution, anomaly detection rate, false positive rate) in a model registry KV store. Compare new model metrics against the production model before promotion. Deploy updated model weights back to edge gateways via the Edge Hub container management API or Litmus Edge's model deployment pipeline. Alert data engineering when model drift exceeds thresholds (reconstruction error mean shifting more than 2 standard deviations from the training baseline). Maintain model versioning and rollback capability.
+- **Visualization:** Line chart (reconstruction error over model versions), Bar chart (anomaly detection rate by site), Table (model registry with version, accuracy, deployment status), Single value (model age in days).
+- **CIM Models:** N/A
+
+---

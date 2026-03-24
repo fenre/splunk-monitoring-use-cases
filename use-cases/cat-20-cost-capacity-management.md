@@ -930,6 +930,57 @@ index=virtualization sourcetype="vmware:inv:vm" earliest=-1d
 
 ---
 
+### UC-20.2.24 · Cloud Cost Anomaly with Seasonal Decomposition (MLTK)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost
+- **Value:** Cloud costs follow predictable weekly and monthly cycles — batch jobs on weekends, month-end reporting spikes, quarterly compliance scans. Static thresholds generate noise during normal peaks and miss slow-growth anomalies during quiet periods. By decomposing cost into seasonal, trend, and residual components with MLTK, this detection flags true anomalies against the expected cost shape for that specific day and hour.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP
+- **Data Sources:** `index=cloud sourcetype=aws:billing` or `sourcetype=azure:costmanagement` or `sourcetype=gcp:billing`
+- **SPL:**
+```spl
+index=cloud sourcetype IN ("aws:billing","azure:costmanagement","gcp:billing")
+| bin _time span=1d
+| stats sum(cost) as daily_cost by _time, service_name, account_id
+| eval dow=strftime(_time, "%A"), dom=strftime(_time, "%d")
+| fit StateSpaceForecast daily_cost holdback=0 forecast_k=14 conf_interval=95 by service_name into cost_seasonal_model
+| eval residual=daily_cost - 'predicted(daily_cost)'
+| eval pct_deviation=round(100*residual/nullif('predicted(daily_cost)', 0), 1)
+| where abs(pct_deviation) > 25 OR daily_cost > 'upper95(predicted(daily_cost))'
+| table _time, service_name, account_id, daily_cost, "predicted(daily_cost)", pct_deviation
+| sort -pct_deviation
+```
+- **Implementation:** Ingest cloud billing data daily from CUR (AWS), Cost Management exports (Azure), or BigQuery billing export (GCP). Train StateSpaceForecast models per service that capture weekly seasonality (weekend dips) and monthly patterns (month-end peaks). Forecast 14 days ahead with 95% confidence intervals. Alert FinOps teams when actual cost exceeds the upper confidence bound or deviates more than 25% from the seasonal prediction. Include account-level drill-down to identify the specific workload driving the anomaly. Retrain models monthly. Pair with UC-20.1.13 for budget variance context and UC-20.1.18 for orphaned resource identification when cost spikes correlate with new resources.
+- **Visualization:** Area chart (actual vs forecast with confidence band), Table (anomalous services), Bar chart (top cost deviations by service).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.25 · Capacity Exhaustion Prediction with Confidence Intervals (MLTK)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** Linear extrapolation of resource growth is dangerously simplistic — it misses seasonal acceleration, step changes from new workloads, and growth rate changes after migrations. Probabilistic forecasting with MLTK provides a range of exhaustion dates (best/expected/worst case) so capacity teams can plan procurement and migrations with appropriate urgency.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK)
+- **Data Sources:** `index=infra sourcetype=vmware:perf:cpu` or `sourcetype=linux:cpu` or `index=k8s sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=infra sourcetype IN ("vmware:perf:cpu","linux:cpu","nix:df")
+| bin _time span=1d
+| stats avg(pctUsed) as avg_utilization by _time, host, resource_type
+| fit StateSpaceForecast avg_utilization holdback=0 forecast_k=90 conf_interval=95 by host into capacity_forecast_model
+| where 'upper95(predicted(avg_utilization))' > 85
+| eval days_to_85=round(('upper95(predicted(avg_utilization))' - avg_utilization) / (('predicted(avg_utilization)' - avg_utilization) / 90), 0)
+| where days_to_85 > 0 AND days_to_85 < 90
+| table host, resource_type, avg_utilization, "predicted(avg_utilization)", "upper95(predicted(avg_utilization))", days_to_85
+| sort days_to_85
+```
+- **Implementation:** Collect daily average utilization metrics for CPU, memory, disk, and network across hosts, VMs, and containers. Train StateSpaceForecast models per host-resource combination that learn growth trends and seasonal patterns. Forecast 90 days ahead with 95% confidence intervals. Flag resources where the upper confidence bound crosses the saturation threshold (85%) within the forecast window. Provide three timeline estimates: optimistic (lower bound), expected (point forecast), and pessimistic (upper bound). Integrate with CMDB for asset lifecycle context. Alert capacity planning teams monthly with prioritized lists sorted by days-to-exhaustion.
+- **Visualization:** Area chart (utilization forecast with confidence band), Table (resources approaching saturation), Gantt chart (exhaustion timelines by host).
+- **CIM Models:** N/A
+
+---
+
 ### 20.3 License & Subscription Management
 
 **Primary App/TA:** Microsoft 365 / Entra ID reporting add-ons, Salesforce Splunk Connector, Flexera / ServiceNow SAM exports, `license:usage` HEC, cloud marketplace billing (AWS/Azure/GCP subscription lines).

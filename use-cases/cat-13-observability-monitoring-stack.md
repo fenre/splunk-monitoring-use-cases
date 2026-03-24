@@ -905,6 +905,161 @@ index=_internal sourcetype=splunkd group=deploymentclient
 - **Visualization:** Bar chart (forwarders by version), Single value (% compliant).
 - **CIM Models:** N/A
 
+---
+
+### UC-13.1.46 · Log Volume and Error Rate Anomaly per Sourcetype (MLTK)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Performance
+- **Value:** Silent data pipeline breaks — a forwarder stops sending, a sourcetype drops to zero, or error rates spike — are invisible to threshold alerts that only fire on presence. By modeling expected log volume and error rate per sourcetype with MLTK, this detection catches ingestion failures within minutes instead of hours, preventing blind spots in security and operational monitoring.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK)
+- **Data Sources:** `index=_internal sourcetype=splunkd` (metrics.log), `index=_internal sourcetype=splunkd` (component=Metrics)
+- **SPL:**
+```spl
+| tstats count WHERE index=* by _time span=15m, sourcetype
+| xyseries _time sourcetype count
+| fillnull value=0
+| untable _time sourcetype count
+| fit DensityFunction count by sourcetype into sourcetype_volume_model
+| rename "IsOutlier(count)" as isOutlier
+| where isOutlier > 0 OR count=0
+| eval anomaly_type=if(count=0, "silent_drop", "volume_anomaly")
+| table _time, sourcetype, count, anomaly_type
+| sort anomaly_type, -_time
+```
+- **Implementation:** Schedule every 15 minutes against a 30-day trained DensityFunction model per sourcetype. Zero-count windows flag silent pipeline drops immediately. Volume spikes or dips that deviate from the learned distribution trigger volume anomaly alerts. Enrich with forwarder host metadata to pinpoint the broken pipeline segment. Integrate with PagerDuty or Splunk On-Call for infrastructure on-call routing. Retrain the model weekly via a separate scheduled search. Exclude maintenance windows using a KV store lookup.
+- **Visualization:** Line chart (volume per sourcetype with anomaly markers), Table (anomalous sourcetypes), Single value (active silent drops).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.47 · License Usage Forecast with Seasonality (MLTK)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity
+- **Value:** Splunk license overages trigger warnings and eventually block indexing. Forecasting daily license consumption with seasonal decomposition (weekly and monthly patterns) gives administrators 7–30 day advance warning to act — whether by reducing noisy sourcetypes, requesting license expansion, or shifting workloads.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK)
+- **Data Sources:** `index=_internal sourcetype=splunk_resource_usage` OR License Usage Report view
+- **SPL:**
+```spl
+index=_internal source=*license_usage.log type=Usage
+| bin _time span=1d
+| stats sum(b) as bytes_used by _time
+| eval gb_used=round(bytes_used/1073741824, 2)
+| fit StateSpaceForecast gb_used holdback=0 forecast_k=30 conf_interval=95 into license_forecast_model
+| eval over_license=if('predicted(gb_used)' > license_limit_gb, 1, 0)
+| table _time, gb_used, "predicted(gb_used)", "lower95(predicted(gb_used))", "upper95(predicted(gb_used))", over_license
+```
+- **Implementation:** Pull daily license usage from `license_usage.log` and train a StateSpaceForecast model that captures weekly cycles (lower weekend volumes) and monthly trends (end-of-month batch jobs). Forecast 30 days ahead with 95% confidence intervals. Alert when the upper confidence bound crosses the licensed capacity threshold. Display the forecast in a capacity planning dashboard alongside current daily consumption. Retrain monthly. Supplement with `predict` command for simpler deployments that lack MLTK.
+- **Visualization:** Area chart (actual vs forecast with confidence band), Single value (days until projected overage), Table (daily forecast).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.48 · Splunk Internal Queue Depth Multivariate Anomaly (MLTK)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Individual queue metrics (parsing, merging, typing, indexing) may fluctuate normally, but simultaneous pressure across multiple queues indicates a systemic bottleneck. Multivariate anomaly detection catches correlated queue saturation that per-queue thresholds miss, enabling proactive capacity intervention before data loss occurs.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK)
+- **Data Sources:** `index=_internal sourcetype=splunkd` (component=Metrics, group=queue)
+- **SPL:**
+```spl
+index=_internal sourcetype=splunkd component=Metrics group=queue
+| bin _time span=5m
+| stats avg(current_size_kb) as avg_size by _time, name
+| xyseries _time name avg_size
+| fillnull value=0
+| fit DensityFunction parsingQueue indexQueue typingQueue mergingQueue tcpin_queue into queue_multivariate_model
+| where isOutlier > 0
+| eval severity=case(
+    parsingQueue > 500 AND indexQueue > 500, "critical",
+    parsingQueue > 500 OR indexQueue > 500, "high",
+    true(), "medium")
+| table _time, parsingQueue, indexQueue, typingQueue, mergingQueue, severity
+| sort -_time
+```
+- **Implementation:** Collect queue metrics from `metrics.log` across all indexers. Pivot into a wide table (one column per queue) for multivariate DensityFunction modeling. The model learns the joint distribution of queue depths, catching correlated saturation that single-queue thresholds miss. Alert on critical (multiple large queues) and high (single large queue) severity. Correlate with ingestion volume spikes and forwarder connection counts. Route alerts to the Splunk platform team. Retrain the model weekly.
+- **Visualization:** Multi-line chart (all queue depths over time), Heatmap (queue × indexer), Single value (current anomaly status).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.49 · Service Latency Seasonality and Anomaly (MLTK)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Application response times follow predictable patterns — higher during business hours, lower at night. By decomposing latency into seasonal (hour-of-week) and residual components, this detection flags abnormal slowdowns that coincide with deployments, infrastructure changes, or emerging incidents — even when raw latency stays within static thresholds.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Observability Cloud (optional)
+- **Data Sources:** `index=main sourcetype=access_combined` or APM traces, `index=o11y sourcetype=otel:metrics`
+- **SPL:**
+```spl
+index=main sourcetype=access_combined
+| eval response_ms=response_time*1000
+| bin _time span=5m
+| stats p95(response_ms) as p95_latency, p99(response_ms) as p99_latency, count by _time, uri_path
+| eval hour_of_week=(tonumber(strftime(_time,"%w"))*24) + tonumber(strftime(_time,"%H"))
+| fit DensityFunction p95_latency p99_latency by uri_path into latency_seasonal_model
+| rename "IsOutlier(p95_latency)" as is_p95_outlier, "IsOutlier(p99_latency)" as is_p99_outlier
+| where is_p95_outlier > 0 OR is_p99_outlier > 0
+| table _time, uri_path, p95_latency, p99_latency, hour_of_week, count
+| sort -p95_latency
+```
+- **Implementation:** Collect p95 and p99 latency per endpoint in 5-minute bins. Train DensityFunction models per `uri_path` that learn hour-of-week seasonality. Anomalies represent latency that is unusual for that specific time window, not just above a flat threshold. Correlate with deployment events from CI/CD pipelines (cat-12) and infrastructure changes. Create ITSI KPIs from the anomaly output for service health scoring. Alert application owners via Splunk On-Call with endpoint-specific context. Retrain models weekly.
+- **Visualization:** Line chart (p95 latency with seasonal overlay), Heatmap (endpoint × hour-of-week), Table (anomalous endpoints).
+- **CIM Models:** Web
+
+---
+
+### UC-13.1.50 · Kubernetes HPA Replica Count Anomaly (MLTK)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Capacity
+- **Value:** Horizontal Pod Autoscaler (HPA) replica counts reflect traffic load. Unexpected spikes in replicas without corresponding traffic increases may indicate resource leaks, crash loops, or misconfigured scaling policies. Anomaly detection on replica counts relative to traffic volume catches autoscaler misbehavior before it exhausts cluster capacity.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for Kubernetes (Splunkbase 5765)
+- **Data Sources:** `index=k8s sourcetype=kube:objects:hpa`, `index=k8s sourcetype=kube:metrics`
+- **SPL:**
+```spl
+index=k8s sourcetype="kube:objects:hpa"
+| bin _time span=5m
+| stats latest(status.currentReplicas) as replicas, latest(status.currentMetrics{}.resource.current.averageValue) as avg_cpu by _time, metadata.name, metadata.namespace
+| eval replicas=tonumber(replicas), avg_cpu=tonumber(avg_cpu)
+| fit DensityFunction replicas avg_cpu by "metadata.name" into hpa_anomaly_model
+| rename "IsOutlier(replicas)" as replica_outlier
+| where replica_outlier > 0
+| table _time, metadata.namespace, metadata.name, replicas, avg_cpu
+| sort -replicas
+```
+- **Implementation:** Collect HPA status objects from the Kubernetes API via the Splunk Add-on for Kubernetes. Model the joint distribution of replica count and CPU utilization per HPA target. Outliers where replica count spikes without proportional CPU increase indicate scaling misbehavior. Correlate with pod restart events and OOMKill signals from `kube:events`. Alert the platform engineering team and include the HPA configuration (min/max replicas, target utilization) for rapid triage. Retrain the model weekly.
+- **Visualization:** Dual-axis line chart (replicas vs CPU), Table (anomalous HPAs), Bar chart (replica count distribution by namespace).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.1.51 · SLO Burn-Rate Multivariate Anomaly (MLTK)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance, Compliance
+- **Value:** Single-dimensional SLO burn-rate alerts trigger too late or too often. By combining error budget burn rates across availability, latency, and throughput SLOs into a multivariate model, this detection identifies services heading for SLO breach across multiple dimensions simultaneously — a stronger signal than any individual budget alarm.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk ITSI (optional)
+- **Data Sources:** `index=o11y sourcetype=otel:metrics`, SLO definitions in KV store or ITSI
+- **SPL:**
+```spl
+index=o11y sourcetype="otel:metrics" metric_name IN ("slo.error_budget.remaining_pct","slo.latency_budget.remaining_pct","slo.throughput_budget.remaining_pct")
+| bin _time span=1h
+| stats latest(metric_value) as budget_pct by _time, service.name, metric_name
+| xyseries _time+"|"+service.name metric_name budget_pct
+| fillnull value=100
+| eval burn_avail=100-'slo.error_budget.remaining_pct', burn_latency=100-'slo.latency_budget.remaining_pct', burn_throughput=100-'slo.throughput_budget.remaining_pct'
+| fit DensityFunction burn_avail burn_latency burn_throughput into slo_burnrate_model
+| where isOutlier > 0
+| eval composite_burn=burn_avail + burn_latency + burn_throughput
+| sort -composite_burn
+| table _time, service.name, burn_avail, burn_latency, burn_throughput, composite_burn
+```
+- **Implementation:** Define SLOs for each service across three dimensions: availability (error rate), latency (p99 target), and throughput (requests/sec floor). Calculate hourly burn rates as the percentage of monthly error budget consumed. Train a DensityFunction model on the joint burn-rate distribution across all three dimensions per service. Services where multiple budgets burn simultaneously are flagged as multivariate outliers. Integrate with ITSI service models to propagate SLO risk into service health scores. Alert service owners at 50% budget consumed (warning) and 80% consumed (critical). Use the model to provide SRE teams with a predicted breach timeline.
+- **Visualization:** Radar chart (three SLO dimensions per service), Line chart (burn rates over time), Table (services at risk), Single value (services projected to breach this month).
+- **CIM Models:** N/A
 
 ---
 
@@ -1673,6 +1828,63 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.operation
 
 ---
 
+### UC-13.2.37 · Entity-Level Multivariate Anomaly Detection (MLTK + ITSI)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance, Fault
+- **Value:** ITSI's adaptive thresholds evaluate KPIs individually per service. But many real incidents manifest as subtle, simultaneous deviations across multiple KPIs for a single entity — CPU slightly elevated, memory climbing, response time drifting up. Per-entity multivariate anomaly detection via MLTK catches these correlated degradation patterns before any single KPI breaches its threshold, providing minutes of early warning for cascading failures.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk IT Service Intelligence (ITSI)
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_summary` (per-entity KPI values)
+- **SPL:**
+```spl
+index=itsi_summary is_service_aggregate=0 is_entity_in_maintenance=0
+    kpi_name IN ("CPU Utilization","Memory Usage","Response Time","Error Rate","Disk IO Wait")
+| bin _time span=5m
+| stats avg(alert_value) as val by _time, entity_key, entity_title, kpi_name
+| xyseries _time+"|"+entity_key kpi_name val
+| fillnull value=0
+| fit DensityFunction "CPU Utilization" "Memory Usage" "Response Time" "Error Rate" "Disk IO Wait" by entity_key into entity_multivariate_model
+| where isOutlier > 0
+| eval composite_score=round('CPU Utilization' + 'Memory Usage' + 'Response Time' + 'Error Rate', 2)
+| sort -composite_score
+| table _time, entity_key, "CPU Utilization", "Memory Usage", "Response Time", "Error Rate", "Disk IO Wait", composite_score
+```
+- **Implementation:** Extract entity-level KPI data from `itsi_summary` for all monitored KPIs within a service. Pivot into wide format (one column per KPI) per entity per time bin. Train DensityFunction models per entity that learn the joint distribution of their KPI values. Schedule the detection search every 5 minutes. Outliers represent entities where the combination of KPI values is unusual, even if each individual KPI is within its threshold. Feed the anomaly score back into ITSI as a synthetic "Entity Health Anomaly" KPI that contributes to the service health score. Alert service owners via ITSI notable event rules when the composite anomaly persists for 3+ consecutive windows. Retrain models weekly; use entity groups (by service or tier) if per-entity training data is sparse.
+- **Visualization:** Radar chart (KPI values for anomalous entity), Line chart (composite anomaly score over time), Table (top anomalous entities with KPI breakdown).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.2.38 · Causal KPI Ranking — Root-Cause Acceleration (MLTK + ITSI)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance
+- **Value:** When a parent service health score drops, operators must manually investigate child KPIs to find the root cause. A trained model that ranks which child KPIs best explain parent health changes accelerates root-cause analysis from minutes to seconds — showing "memory pressure on the database tier explains 68% of the service degradation" instead of requiring manual drill-down through dozens of KPIs.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk IT Service Intelligence (ITSI)
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `itsi_summary` (service-level and KPI-level health scores)
+- **SPL:**
+```spl
+index=itsi_summary is_service_aggregate=1
+| eval parent_health=alert_level
+| join type=left service_id _time
+    [search index=itsi_summary is_service_aggregate=0
+    | stats avg(alert_value) as kpi_val by _time, service_id, kpi_name]
+| xyseries _time+"|"+service_id kpi_name kpi_val
+| fillnull value=0
+| fit RandomForestRegressor parent_health from * into causal_kpi_model
+| summary causal_kpi_model
+| sort -importance
+| head 10
+| table feature, importance
+```
+- **Implementation:** Collect time-aligned parent service health scores and all child KPI values from `itsi_summary`. Train a RandomForestRegressor or GradientBoostedTrees model where the target variable is the parent health score and features are individual KPI values. Extract feature importance rankings to identify which KPIs most strongly influence parent health. Publish the ranked KPI list as a lookup that Glass Tables and Deep Dives reference for "top contributing KPIs" context. Retrain monthly or after service tree changes. For real-time use, apply the pre-trained model to current KPI snapshots and display the top-3 contributing KPIs alongside each degraded service on the NOC Glass Table. Consider using Shapley values (via DSDL) for more accurate per-incident causal attribution.
+- **Visualization:** Bar chart (KPI feature importance), Table (top causal KPIs per service), Sankey (parent health → child KPI contributions).
+- **CIM Models:** N/A
+
+---
+
 ### 13.3 Third-Party Monitoring Integration
 
 **Primary App/TA:** Custom webhook/API inputs, Prometheus remote write receiver, SNMP trap receiver.
@@ -2221,4 +2433,85 @@ index=ai_ops sourcetype="otel:metrics" metric_name IN ("inference.pipeline.error
 ```
 - **Implementation:** Instrument each pipeline stage with OTel counters or structured logs (`stage`, `error_class`). Emit `inference.pipeline.errors` and `inference.pipeline.requests` counters per service. Alert on SLO burn for error rate. Correlate with deployments and model version changes.
 - **Visualization:** Line chart (pipeline error rate), Table (errors by stage), Single value (SLO status).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.13 · Seq2Seq Log Anomaly Detection via Reconstruction Error (DSDL)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Fault, Security
+- **Value:** Traditional log monitoring relies on known patterns — regex, keywords, error codes. But novel failures, zero-day exploits, and subtle misconfigurations produce log lines that have never been seen before. An LSTM or Transformer autoencoder trained on normal log sequences learns the "grammar" of healthy log output and flags lines with high reconstruction error — catching anomalies that no predefined rule could anticipate.
+- **App/TA:** Splunk Deep Learning Toolkit (DSDL), custom Python container
+- **Data Sources:** Any structured log index (`index=main`, `index=os`, `index=web`, `index=security`)
+- **SPL:**
+```spl
+index=main sourcetype=syslog earliest=-1h
+| eval log_token=lower(replace(_raw, "\d+", "N"))
+| eval log_token=replace(log_token, "[0-9a-f]{8,}", "HEX")
+| streamstats count as seq_pos by host
+| apply pretrained_log_autoencoder_dsdl
+| rename reconstruction_error as recon_err
+| where recon_err > 0.85
+| eval anomaly_severity=case(recon_err>0.95, "critical", recon_err>0.90, "high", true(), "medium")
+| table _time, host, sourcetype, _raw, recon_err, anomaly_severity
+| sort -recon_err
+```
+- **Implementation:** Tokenize log lines by replacing numeric values with placeholders (N) and hex strings with HEX to reduce vocabulary size. Train an LSTM autoencoder (or Transformer encoder-decoder) in the DSDL container on 30 days of normal-state logs per sourcetype. The model learns to reconstruct typical log line sequences; lines it cannot reconstruct well (high reconstruction error) are anomalous. Deploy the model via `apply` in a scheduled search running every 15 minutes. Tune the threshold per sourcetype — security logs may have higher natural variance than infrastructure logs. Route critical anomalies (>0.95 error) to the SOC and high anomalies (>0.90) to operations. Track model performance weekly by reviewing false positive rates and adjusting the threshold. Retrain quarterly or after major infrastructure changes. Consider training separate models for high-volume sourcetypes (Windows Security, syslog, application logs) for better precision.
+- **Visualization:** Table (anomalous log lines with reconstruction error), Line chart (reconstruction error distribution over time), Histogram (error score distribution), Single value (anomalies detected in last hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.14 · Host-Metric Heatmap Anomaly via CNN (DSDL)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Performance, Fault
+- **Value:** Infrastructure metrics (CPU, memory, disk I/O, network throughput) per host form a time × metric matrix that looks like an image. A Convolutional Neural Network trained on these "metric heatmaps" detects complex, multi-metric degradation patterns — such as the specific combination of rising CPU, flat memory, and oscillating disk I/O that precedes a particular failure mode — that univariate thresholds and even multivariate statistical models cannot capture.
+- **App/TA:** Splunk Deep Learning Toolkit (DSDL), custom Python container with TensorFlow/PyTorch
+- **Data Sources:** `index=infra sourcetype=collectd_http` or `sourcetype=otel:metrics` or `sourcetype=vmware:perf:*`
+- **SPL:**
+```spl
+index=infra sourcetype IN ("collectd_http","otel:metrics","vmware:perf:cpu","vmware:perf:mem","vmware:perf:disk")
+| bin _time span=5m
+| stats avg(metric_value) as val by _time, host, metric_name
+| xyseries _time host+"|"+metric_name val
+| fillnull value=0
+| apply pretrained_metric_cnn_dsdl
+| rename anomaly_score as cnn_score
+| where cnn_score > 0.80
+| eval severity=case(cnn_score>0.95, "critical", cnn_score>0.90, "high", true(), "medium")
+| table _time, host, cnn_score, severity
+| sort -cnn_score
+```
+- **Implementation:** Construct metric heatmaps: for each host, create a 2D matrix where rows are metrics (CPU user, CPU system, memory used, disk read IOPS, disk write IOPS, network bytes in/out) and columns are time bins (e.g., 288 bins for 24 hours at 5-minute intervals). Normalize each metric row to [0,1]. Train a CNN autoencoder in the DSDL container on healthy-state heatmaps. At inference time, compute reconstruction error per host-day; high error indicates an anomalous metric pattern. The CNN captures spatial correlations across metrics that linear models miss — for example, the co-occurrence of CPU saturation with specific disk I/O patterns that precede storage controller failures. Schedule daily scoring with a 24-hour sliding window. Alert infrastructure teams on critical patterns and correlate with recent change events. Retrain monthly with new healthy baselines.
+- **Visualization:** Heatmap (metric × time for anomalous hosts), Line chart (CNN anomaly score over time), Table (top anomalous hosts), Image (reconstructed vs actual heatmap for investigation).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.4.15 · MLTK Model Drift and Performance Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Compliance
+- **Value:** All ML models deployed in production (security detections, capacity forecasts, anomaly detectors) degrade as data distributions shift. Without drift monitoring, a model that was 95% accurate at deployment may silently drop to 60% accuracy over months. This meta-use-case tracks model health metrics so teams know when to retrain before detection quality degrades.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Deep Learning Toolkit (DSDL)
+- **Data Sources:** MLTK model artifacts, custom model performance logs (`sourcetype=mltk:model:metrics`)
+- **SPL:**
+```spl
+index=ml_ops sourcetype="mltk:model:metrics"
+| bin _time span=1d
+| stats avg(precision) as precision, avg(recall) as recall, avg(f1_score) as f1, latest(training_date) as last_trained by model_name, _time
+| eval model_age_days=round((now() - strptime(last_trained, "%Y-%m-%d")) / 86400, 0)
+| eval drift_alert=case(
+    f1 < 0.70, "critical_drift",
+    f1 < 0.80, "moderate_drift",
+    model_age_days > 90, "stale_model",
+    true(), "healthy")
+| where drift_alert != "healthy"
+| table _time, model_name, precision, recall, f1, model_age_days, drift_alert
+| sort drift_alert, -model_age_days
+```
+- **Implementation:** Instrument all deployed MLTK and DSDL models to emit performance metrics (precision, recall, F1 score, reconstruction error mean/std, prediction distribution) to a dedicated `ml_ops` index. For supervised models, compare predictions against ground-truth labels (analyst dispositions, confirmed incidents). For unsupervised models, track anomaly rate stability and reconstruction error distribution. Alert data science teams when F1 drops below 0.80 or model age exceeds 90 days. Maintain a model registry KV store with model name, version, training date, data hash, and performance baseline. Automate retraining pipelines for models that drift past thresholds. Dashboard the health of all production ML models for ML platform governance.
+- **Visualization:** Line chart (F1 score over time per model), Table (model registry with drift status), Bar chart (model age distribution), Single value (models requiring retraining).
 - **CIM Models:** N/A

@@ -10,6 +10,26 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.3] - 2026-03-24
+
+### Machine Learning & Deep Learning Use Cases
+
+- **Security ML/UEBA (8 new)** — User peer-group logon anomaly, lateral movement via rare destinations, C2 beaconing detection, credential stuffing burst detection, risk score calibration, phishing NLP classification (DSDL), notable event prioritization model, and anomalous process execution — all leveraging MLTK and DSDL for threats that static rules miss.
+- **IT Ops ML (6 new)** — Log volume/error rate anomaly per sourcetype, license usage forecast with seasonality, internal queue depth multivariate anomaly, service latency seasonality detection, Kubernetes HPA replica count anomaly, and SLO burn-rate multivariate anomaly.
+- **ITSI ML extensions (2 new)** — Entity-level multivariate anomaly detection combining multiple KPIs per entity, and causal KPI ranking that automatically identifies root-cause KPIs when service health degrades.
+- **Cloud & Cost ML (3 new)** — Cloud cost anomaly with seasonal decomposition, capacity exhaustion prediction with confidence intervals, and cloud control plane API call volume anomaly detection.
+- **Deep Learning (4 new)** — Seq2seq log anomaly detection via LSTM autoencoder reconstruction error, host-metric heatmap anomaly via CNN, centralized model retraining for industrial sensor ML, and MLTK/DSDL model drift monitoring.
+
+### New Subcategory
+
+- **10.15 Machine Learning & Behavioral Analytics** — Dedicated subcategory for ML-powered security detections using MLTK and DSDL, covering UEBA, beaconing, credential attacks, and AI-assisted threat detection.
+
+### Non-Technical View
+
+- **ML areas added** — New plain-language sections explaining machine learning monitoring for security, platform intelligence, ITSI extensions, and deep learning model health.
+
+---
+
 ## [3.2] - 2026-03-23
 
 ### New Use Cases

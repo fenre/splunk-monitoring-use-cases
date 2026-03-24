@@ -4572,3 +4572,33 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="cloud_function"
 
 ---
 
+### UC-4.4.5 · Cloud Control Plane API Call Volume Anomaly (MLTK)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Performance
+- **Value:** Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence. Anomalous spikes in API call volume may indicate compromised credentials, runaway automation, or an attacker enumerating resources — all of which are invisible to static rate limits but detectable through ML-based baselining.
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP
+- **Data Sources:** `index=cloud sourcetype=aws:cloudtrail` or `sourcetype=azure:monitor:activity` or `sourcetype=google:gcp:pubsub:message`
+- **SPL:**
+```spl
+index=cloud sourcetype IN ("aws:cloudtrail","azure:monitor:activity","google:gcp:pubsub:message")
+| bin _time span=1h
+| stats count by _time, eventName, userIdentity.arn, sourceIPAddress
+| eventstats avg(count) as baseline_avg stdev(count) as baseline_std by eventName
+| eval z_score=round((count - baseline_avg) / nullif(baseline_std, 0), 2)
+| where z_score > 3 AND count > 50
+| fit DensityFunction count by eventName into cloud_api_anomaly_model
+| rename "IsOutlier(count)" as isOutlier
+| where isOutlier > 0
+| table _time, eventName, userIdentity.arn, sourceIPAddress, count, baseline_avg, z_score
+| sort -z_score
+```
+- **Implementation:** Aggregate CloudTrail / Activity Log / Admin Activity events hourly by API action and principal. Train DensityFunction models per API action on 30 days of data to capture automation schedules and deployment patterns. Flag calls that exceed 3 standard deviations from the learned baseline. Prioritize high-risk APIs: IAM mutations, security group changes, KMS key operations, and resource creation. Enrich with source IP geolocation and threat intelligence. Correlate with CI/CD deployment events (cat-12) to suppress planned automation bursts. Generate risk events for Splunk ES with MITRE T1078/T1580 annotations. Retrain models weekly.
+- **Visualization:** Line chart (API call volume vs baseline), Table (anomalous API calls with z-scores), Bar chart (top anomalous APIs by principal).
+- **CIM Models:** Change
+
+- **Known false positives:** Infrastructure-as-code deployments (Terraform apply), DR drills, and cloud migration events. Maintain a deployment calendar lookup to suppress known automation windows.
+- **MITRE ATT&CK:** T1078 (Valid Accounts), T1580 (Cloud Infrastructure Discovery), T1098 (Account Manipulation)
+
+---
+

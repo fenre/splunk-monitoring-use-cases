@@ -433,6 +433,11 @@ window.NON_TECHNICAL = {
         { id: "10.14.2", why: "Detect when unauthorised industrial protocols appear on your OT network." },
         { id: "10.14.4", why: "Alert when controller programs are changed outside of approved maintenance windows." },
         { id: "10.14.1", why: "Make sure the OT security monitoring tools themselves are healthy and configured." }
+      ]},
+      { name: "Machine learning & behavioral analytics", description: "We use AI and machine learning to spot threats that fixed rules cannot catch — suspicious user behaviour, hidden attack patterns, and phishing emails that slip past filters.", ucs: [
+        { id: "10.15.1", why: "We compare each person's login activity to their team — if someone logs in far more than their peers, it could mean their account is compromised." },
+        { id: "10.15.3", why: "We detect malware calling home to attackers by spotting unnaturally regular communication patterns hidden in normal traffic." },
+        { id: "10.15.6", why: "We use AI to read incoming emails and score them for phishing — catching cleverly worded scams that traditional filters miss." }
       ]}
     ]
   },
@@ -530,6 +535,20 @@ window.NON_TECHNICAL = {
         { id: "13.4.1", why: "Track LLM API speed and errors — slow or failing AI calls break user-facing features." },
         { id: "13.4.2", why: "See how many tokens each application uses and what it costs — AI spending can spike fast." },
         { id: "13.4.9", why: "Detect prompt injection attempts — attackers try to trick AI into doing harmful things." }
+      ]},
+      { name: "ML-powered platform intelligence", description: "We use machine learning to predict problems before they happen — license overages, queue bottlenecks, and service slowdowns that basic alerts miss.", ucs: [
+        { id: "13.1.46", why: "We watch every data source for sudden silence — if a source stops sending data, we catch it within minutes instead of hours." },
+        { id: "13.1.47", why: "We forecast your Splunk license usage 30 days ahead, so you know before you hit your limit." },
+        { id: "13.1.51", why: "We combine multiple service health signals to predict SLO breaches before any single metric looks bad on its own." }
+      ]},
+      { name: "ITSI machine learning extensions", description: "Advanced AI for IT Service Intelligence — entity-level anomaly detection and automated root-cause analysis.", ucs: [
+        { id: "13.2.37", why: "We watch each server for subtle, correlated changes across CPU, memory, and response time that individually look fine but together signal trouble." },
+        { id: "13.2.38", why: "When a service degrades, we automatically identify which specific component is causing the problem — saving minutes of manual investigation." }
+      ]},
+      { name: "Deep learning & model health", description: "Advanced neural network detections and monitoring that your deployed AI models stay accurate over time.", ucs: [
+        { id: "13.4.13", why: "We train AI to read your log files and flag lines that look 'wrong' — catching problems no rule was written for." },
+        { id: "13.4.14", why: "We turn server metrics into a picture and use image recognition AI to spot complex failure patterns across many metrics at once." },
+        { id: "13.4.15", why: "We track the accuracy of all deployed ML models — so you know when a model needs retraining before its detections go stale." }
       ]}
     ]
   },
