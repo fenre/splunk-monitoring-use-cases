@@ -4602,3 +4602,129 @@ index=cloud sourcetype IN ("aws:cloudtrail","azure:monitor:activity","google:gcp
 
 ---
 
+## 4.6 Cloud Infrastructure Trending
+
+### UC-4.6.1 · Cloud Resource Count Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** EC2/VM instance count over 90 days reveals organic growth, failed automation leaving orphan instances, or shrinkage after optimization campaigns. Supports FinOps conversations and capacity forecasts.
+- **App/TA:** Splunk Add-on for AWS, Splunk Add-on for Microsoft Cloud Services, Google Cloud add-ons
+- **Data Sources:** `index=cloud sourcetype=aws:config:notification` or `sourcetype=aws:description` (inventory); Azure Resource Graph exports; GCP Asset Inventory
+- **SPL:**
+```spl
+index=cloud sourcetype="aws:config:notification" resourceType="AWS::EC2::Instance"
+| bin _time span=1d
+| stats dc(resourceId) as instance_count by _time, awsAccountId
+| timechart span=1d sum(instance_count) as total_instances
+| trendline sma7(total_instances) as instance_trend
+| predict total_instances as predicted future_timespan=30
+```
+- **Implementation:** Ingest periodic inventory snapshots (AWS Config, DescribeInstances exports, or Azure Resource Graph) into index=cloud with one event per instance per snapshot. If only change streams exist, maintain state with a nightly summary search. Chart instance_count over 90 days; optionally split by accountId or region. For multi-cloud, normalize resourceType across providers.
+- **Visualization:** Line chart (instance count over 90 days with trend and 30-day forecast), area chart stacked by account.
+- **CIM Models:** N/A
+
+---
+
+### UC-4.6.2 · Lambda/Function Invocation Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Daily invocation counts show traffic growth, seasonal patterns, and the impact of new features or batch jobs. Sharp changes often precede cost spikes or throttling if concurrency limits are fixed.
+- **App/TA:** Splunk Add-on for AWS (CloudWatch metrics), Azure Monitor
+- **Data Sources:** `index=cloud sourcetype=aws:cloudwatch` (Lambda Invocations metric); Azure Functions metrics
+- **SPL:**
+```spl
+index=cloud sourcetype="aws:cloudwatch" Namespace="AWS/Lambda" MetricName="Invocations"
+| bin _time span=1d
+| stats sum(Sum) as invocations by _time, FunctionName
+| timechart span=1d sum(invocations) as total_invocations
+| trendline sma7(total_invocations) as invocation_trend
+```
+- **Implementation:** Enable CloudWatch metric ingestion for AWS/Lambda Invocations with FunctionName dimension. For Azure, use Microsoft.Web/sites/functions equivalent metrics. Normalize time to UTC for daily buckets. Use top-N functions by volume to keep the chart readable. Correlate step changes with deployments from CI/CD timestamps.
+- **Visualization:** Line chart (daily invocations with 7-day SMA, 30 days), column chart (top functions by volume).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.6.3 · Cloud Security Finding Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Tracking new versus resolved security findings over time shows whether your cloud security posture is improving and whether scanners or policies are flagging more issues than teams can remediate. Supports executive reporting and backlog triage.
+- **App/TA:** AWS Security Hub, Azure Defender, GCP Security Command Center — forwarded via HEC or add-on
+- **Data Sources:** `index=cloud sourcetype=aws:securityhub:finding` OR `sourcetype=azure:defender:alert` OR `sourcetype=gcp:scc:finding`
+- **SPL:**
+```spl
+index=cloud sourcetype IN ("aws:securityhub:finding", "azure:defender:alert", "gcp:scc:finding")
+| eval status=case(match(WorkflowStatus,"(?i)resolved|archived|suppressed"),"resolved",1=1,"new")
+| timechart span=1d count by status
+| trendline sma7(new) as new_trend sma7(resolved) as resolved_trend
+```
+- **Implementation:** Map your findings feed so each event represents a finding state change or daily snapshot with Severity and status. For snapshot models, compare consecutive days to derive new and resolved counts via summary search. Align severities (Critical/High/Medium) across clouds for a combined view or use separate panels per provider. Refresh suppression lookups so trends reflect true risk.
+- **Visualization:** Stacked column chart (new vs resolved per day), line chart (open critical count trend), area chart (cumulative open findings).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.6.4 · S3/Blob Storage Growth Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Total object storage bytes month over month highlights data hoarding, log retention growth, or unexpected replication. Supports budgeting and lifecycle policy decisions before bills spike.
+- **App/TA:** Splunk Add-on for AWS (S3 storage metrics), Azure Monitor metrics
+- **Data Sources:** `index=cloud sourcetype=aws:cloudwatch` (BucketSizeBytes metric); `sourcetype=azure:monitor:metrics` for storage accounts
+- **SPL:**
+```spl
+index=cloud sourcetype="aws:cloudwatch" Namespace="AWS/S3" MetricName="BucketSizeBytes"
+| bin _time span=1mon
+| stats latest(Average) as bytes by _time, BucketName
+| eval tb=round(bytes/1099511627776, 2)
+| timechart span=1mon sum(tb) as total_tb
+| predict total_tb as predicted future_timespan=3
+```
+- **Implementation:** Ingest daily CloudWatch BucketSizeBytes per bucket or storage account metrics for Azure/Blob. Use span=1mon aligned to calendar months for FinOps reporting. Convert bytes to TB for readability. Optionally exclude archive buckets matched to a lookup. Alert on month-over-month growth above a percentage threshold. Use predict to forecast 3 months ahead for capacity planning.
+- **Visualization:** Line chart (total TB monthly with 3-month forecast), bar chart (top buckets by size), table (month-over-month growth %).
+- **CIM Models:** N/A
+
+---
+
+### UC-4.6.5 · Cloud Network Traffic Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Weekly VPC flow log volume indicates shifting traffic patterns, DDoS aftermath, or misconfigured mirroring. Complements per-flow analysis with a coarse health signal and correlates with network-related cost changes.
+- **App/TA:** Splunk Add-on for AWS (VPC Flow Logs), Azure NSG flow logs
+- **Data Sources:** `index=cloud sourcetype=aws:cloudwatch:vpcflow` OR `sourcetype=azure:nsg:flow`
+- **SPL:**
+```spl
+index=cloud sourcetype="aws:cloudwatch:vpcflow"
+| eval bytes=tonumber(bytes)
+| timechart span=1w sum(bytes) as total_bytes
+| eval total_gb=round(total_bytes/1073741824, 2)
+| trendline sma4(total_gb) as traffic_trend
+```
+- **Implementation:** Parse VPC Flow or NSG flow fields so bytes is numeric. Filter internal-only noise if needed via RFC1918 CIDR lists. Use weekly buckets for medium-term trending; index volume growth also correlates with ingest cost. For Azure, map to the appropriate custom sourcetype for raw flows. Alert on sudden jumps exceeding 2x the 4-week moving average.
+- **Visualization:** Column chart (weekly total GB), line overlay (4-week SMA), dual axis with flow record count.
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-4.6.6 · CloudTrail/Activity Log Event Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Management event volume over 90 days highlights automation changes, new integrations, or possible abuse such as enumeration or bulk API use. Baselines help spot anomalies without reading every event.
+- **App/TA:** Splunk Add-on for AWS, Azure Activity Log add-on
+- **Data Sources:** `index=cloud sourcetype=aws:cloudtrail`; `sourcetype=azure:monitor:activity`
+- **SPL:**
+```spl
+index=cloud sourcetype="aws:cloudtrail" readOnly=false
+| timechart span=1d count as mgmt_events
+| trendline sma7(mgmt_events) as event_trend
+| predict mgmt_events as predicted future_timespan=14
+```
+- **Implementation:** Filter to non-read-only events for management actions. For multi-cloud, use union or a combined index with sourcetype in the by clause. Chart 90 days with daily span. Alert on statistical outliers exceeding 3x baseline. Ensure CloudTrail is multi-region and organization trails where applicable so the trend is complete. For Azure, include Activity Log management category events.
+- **Visualization:** Line chart (daily management events with 7-day SMA, 90 days), anomaly overlay, 14-day forecast.
+- **CIM Models:** Change
+

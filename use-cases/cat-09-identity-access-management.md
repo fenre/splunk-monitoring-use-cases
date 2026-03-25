@@ -2240,3 +2240,182 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*app*depl
 
 ---
 
+### 9.7 Identity & Access Trending
+
+### UC-9.7.1 · Authentication Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Performance
+- **Value:** Daily authentication success and failure volumes show whether login load, credential attacks, or misconfiguration are drifting over a quarter. A seven-day moving average smooths weekly noise so you can spot sustained shifts before they overwhelm help desks or mask intrusions.
+- **App/TA:** Splunk Common Information Model (CIM), Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`), Okta Add-on for Splunk
+- **Data Sources:** `Authentication` data model (accelerated); underlying `sourcetype` values such as `WinEventLog:Security`, `azure:aad:signin`, `Okta:im` / `OktaIM2`, `duo` (normalized to CIM Authentication)
+- **SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where earliest=-90d@d latest=@d
+  by _time span=1d Authentication.action
+| rename "Authentication.action" as action
+| timechart span=1d sum(count) by action
+| trendline sma7(success) as success_sma7 sma7(failure) as failure_sma7
+| predict failure as failure_forecast algorithm=LLP future_timespan=7
+```
+- **Implementation:** Accelerate the Authentication data model and confirm identity sources are tagged to CIM. Schedule the search over `-90d` with daily `span` for executive and SOC review dashboards. Treat a rising failure trend with flat success as password-spray or IdP issues; rising both may indicate bulk user or application changes. Tune out known maintenance windows with a time-bound macro if needed.
+- **Visualization:** Multi-series line or area chart (success vs failure vs SMA); optional overlay for short-term forecast.
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.7.2 · MFA Adoption Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Tracking the percentage of users enrolled in multi-factor authentication over time proves progress toward zero-trust and regulatory expectations. Flat or declining adoption after rollout indicates gaps in onboarding, excluded groups, or integration problems that leave accounts easier to abuse.
+- **App/TA:** Okta Add-on for Splunk, Duo Security App for Splunk, Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`) (Entra ID reporting)
+- **Data Sources:** `index=okta` `sourcetype` in (`Okta:im`, `OktaIM2`) user objects; `index=duo` `sourcetype=duo:admin` or authentication logs with enrollment fields; Entra ID audit / user detail exports ingested with MFA columns
+- **SPL:**
+```spl
+index=okta (sourcetype="Okta:im" OR sourcetype="OktaIM2") objectType=user earliest=-90d@d
+| eval has_mfa=if(mvcount('mfaFactors{}.factorType')>0 OR mvcount(mfaFactors)>0 OR like(lower(mfaStatus),"active"),1,0)
+| bin _time span=1d
+| stats sum(has_mfa) as mfa_enrolled_users, dc(id) as distinct_users by _time
+| eval adoption_pct=round(100*mfa_enrolled_users/distinct_users,2)
+| sort _time
+| trendline sma7(adoption_pct) as adoption_sma7
+| predict adoption_pct as adoption_forecast algorithm=LLP future_timespan=14
+```
+- **Implementation:** Align field names with your vendor (Okta `mfaFactors`, Duo `is_enrolled`, Entra `strongAuthenticationDetail`). Prefer a daily saved search that snapshots user inventory or use change events if full-state logs are large. Compare adoption_pct to HR onboarding cohorts to find departments lagging behind. Use the same definition of “enrolled” as your security policy for audit evidence.
+- **Visualization:** Single-value with sparkline; line chart of adoption_pct and sma7; stacked bar of enrolled vs not enrolled by day.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.7.3 · Privileged Account Activity Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Privileged logon volume should be relatively stable; spikes can indicate credential theft, mass admin activity during an incident, or automation run amok. Trending over thirty days highlights gradual increases that point-in-time thresholds miss.
+- **App/TA:** Splunk Common Information Model (CIM), Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`)
+- **Data Sources:** `Authentication` data model; `privileged_users.csv` lookup (user, is_privileged) aligned with `Authentication.user`
+- **SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where earliest=-30d@d latest=@d Authentication.action=success
+  by _time span=1d Authentication.user
+| lookup privileged_users user AS "Authentication.user" OUTPUT is_privileged
+| where is_privileged="true"
+| timechart span=1d sum(count) as privileged_logons
+| trendline sma7(privileged_logons) as priv_sma7
+| predict privileged_logons as priv_forecast algorithm=LLP future_timespan=7
+```
+- **Implementation:** Build `privileged_users.csv` from Active Directory privileged groups, cloud Global Administrator roles, and break-glass accounts; refresh on a schedule. Require `Authentication.action=success` to measure real sessions. Investigate sustained upward trends with parallel searches on source IP and workstation. Pair with change tickets to expected elevation work.
+- **Visualization:** Line chart of privileged_logons with SMA; anomaly overlay if using MLTK or `anomalydetection`.
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.7.4 · Service Account Usage Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Service accounts should authenticate in predictable volumes from known automation. A dormant account suddenly trending upward may indicate compromise, scope creep, or shadow IT scripts. Ninety-day views expose slow burns and seasonal batch jobs alike.
+- **App/TA:** Splunk Common Information Model (CIM), Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`)
+- **Data Sources:** `Authentication` data model; `service_accounts.csv` lookup (`Account_Name`, `account_type`) or naming convention `svc_*` / `service_*`
+- **SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where earliest=-90d@d latest=@d
+  by _time span=1d Authentication.user
+| lookup service_accounts.csv Account_Name AS "Authentication.user" OUTPUT account_type
+| eval is_service=if(account_type="service" OR match(lower('Authentication.user'),"^(svc|service)[-_].*"),1,0)
+| where is_service=1
+| timechart span=1d sum(count) as service_auth_volume
+| trendline sma7(service_auth_volume) as svc_sma7
+| predict service_auth_volume as svc_forecast algorithm=LLP future_timespan=14
+```
+- **Implementation:** Populate the lookup from AD and cloud app registrations; treat unknown machine accounts carefully. Baseline expected daily volume per account in a separate panel if volumes differ widely. Alert when a low-volume account crosses its historical band or when the aggregate trend jumps after no change tickets. Cross-check with password last set and owner field.
+- **Visualization:** Line chart with SMA and forecast; small multiples per high-risk service account if volume allows.
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.7.5 · Conditional Access Policy Block Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Tracking which conditional access policies block the most sign-ins over time shows whether controls are too strict, mis-targeted, or under attack. Policy-level trends support tuning reviews and prove enforcement for audits without relying on one-off investigations.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`), Microsoft Azure Add-on
+- **Data Sources:** `index=azure` or `index=mscs` `sourcetype="azure:aad:signin"` (fields such as `conditionalAccessStatus`, `conditionalAccessPolicies`, `status.errorCode`)
+- **SPL:**
+```spl
+index=azure sourcetype="azure:aad:signin" earliest=-90d@d
+| search conditionalAccessStatus="failure" OR status.errorCode="53003"
+| eval policy_name=mvindex('conditionalAccessPolicies{}.displayName',0)
+| fillnull value="unknown_policy" policy_name
+| bin _time span=1d
+| stats count as block_count by _time, policy_name
+| timechart span=1d sum(block_count) by policy_name useother=f limit=10
+| appendcols [
+    search index=azure sourcetype="azure:aad:signin" earliest=-90d@d
+      conditionalAccessStatus="failure" OR status.errorCode="53003"
+    | bin _time span=1d
+    | stats count as daily_ca_blocks by _time
+    | trendline sma7(daily_ca_blocks) as daily_ca_blocks_sma7
+  ]
+```
+- **Implementation:** Ensure sign-in logs include conditional access evaluation results (license and diagnostic settings in Entra). Expand `policy_name` with `mvexpand` if you need each policy in a multi-policy evaluation. Review top blockers monthly with app owners; correlate spikes with device compliance changes or new locations. Document exclusions for break-glass and service principals separately.
+- **Visualization:** Stacked area or line chart per policy; heatmap of policy vs week for executive summaries.
+- **CIM Models:** Authentication
+
+---
+
+### UC-9.7.6 · Password Reset Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Sudden increases in password resets—self-service or helpdesk—often align with phishing waves, credential stuffing after a breach, or attacker-driven resets. A ninety-day trend with a moving average makes campaign-scale activity visible before individual tickets pile up.
+- **App/TA:** Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Okta Add-on for Splunk, Splunk Add-on for ServiceNow or your ITSM (optional)
+- **Data Sources:** AD Security log `EventCode` 4724 (password reset attempt); `index=okta` `sourcetype=Okta:system` password reset events; ITSM `category=password` incidents
+- **SPL:**
+```spl
+(index=wineventlog sourcetype="WinEventLog:Security" EventCode=4724 earliest=-90d@d)
+ OR (index=okta sourcetype=Okta:system EVENT_TYPE=user.account.reset_password earliest=-90d@d)
+| bin _time span=1d
+| stats count as reset_volume by _time
+| sort _time
+| trendline sma7(reset_volume) as reset_sma7
+| predict reset_volume as reset_forecast algorithm=LLP future_timespan=7
+```
+- **Implementation:** Normalize multiple sources into one panel or use `eval source_system` before `stats`. Exclude routine bulk resets from known automation via a lookup of service accounts or change windows. When the SMA breaches a static or adaptive threshold, open a phishing hunt and check MFA and impossible-travel dashboards. Add helpdesk ticket volume from ITSM if self-service is low but calls spike.
+- **Visualization:** Column or line chart of daily reset_volume with SMA; optional forecast ribbon.
+- **CIM Models:** N/A
+
+---
+
+### UC-9.7.7 · Identity Provider Availability Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Identity provider outages block all applications that rely on them; weekly or monthly uptime trends show whether your vendor or network path is degrading over a quarter. That supports SLA discussions, architecture decisions, and communication to the business before users flood the service desk.
+- **App/TA:** Splunk Synthetic Monitoring, Splunk Observability Cloud Synthetics, or custom `curl`-based scripted input; vendor status is optional enrichment only
+- **Data Sources:** `sourcetype=synthetics:url_probe` or `http:response` (fields `http_status`, `url`, `target_name`); map probes to IdP login URLs
+- **SPL:**
+```spl
+index=synthetics sourcetype=synthetics:url_probe earliest=-90d@d url IN ("https://login.microsoftonline.com/*","https://*.okta.com/oauth2/*","https://accounts.google.com/*")
+| bin _time span=1d
+| stats count(eval(http_status<500)) as successes, count as probes by _time, url
+| eval daily_uptime_pct=round(100*successes/probes,3)
+| bin _time span=7d aligntime=@w0
+| stats avg(daily_uptime_pct) as weekly_uptime_pct by _time, url
+| sort _time
+| trendline sma4(weekly_uptime_pct) as uptime_sma
+| predict weekly_uptime_pct as uptime_forecast algorithm=LLP future_timespan=4
+```
+- **Implementation:** Point synthetic checks at the same endpoints your users hit for interactive login; run probes at least every few minutes from locations that match your user base. Tag each series with IdP name for clarity. Treat `weekly_uptime_pct` drops below your internal SLO as incidents even if vendor status pages are green. Combine with IdP `system` / `health` API logs if ingested for root-cause context.
+- **Visualization:** Line chart of weekly_uptime_pct by IdP; SLA threshold band; optional forecast.
+- **CIM Models:** N/A
+
+---
+

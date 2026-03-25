@@ -2444,3 +2444,124 @@ index=containers sourcetype="kube:objects:resourcequotas"
 - **Visualization:** Bar chart (quota utilization % by namespace), Table (namespaces approaching limits), Heatmap (namespace × resource type utilization), Line chart (quota utilization trend per namespace over 30 days).
 - **CIM Models:** N/A
 
+---
+
+## 3.6 Container & Kubernetes Trending
+
+### UC-3.6.1 · Pod Restart Rate Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** A rising cluster-wide pod restart rate points to unstable workloads, resource pressure, or bad rollouts before a single namespace triggers a critical alert. Trending over 30 days reveals whether reliability is improving or degrading after platform changes.
+- **App/TA:** Splunk Connect for Kubernetes, OpenTelemetry Collector for Kubernetes
+- **Data Sources:** `index=containers` metrics via `mstats` (`kube_pod_container_status_restarts_total`), or `sourcetype=kube:events`
+- **SPL:**
+```spl
+| mstats latest(kube_pod_container_status_restarts_total) as restarts WHERE index=containers by namespace span=1d
+| timechart span=1d sum(restarts) as total_restarts
+| trendline sma7(total_restarts) as restart_trend
+```
+- **Implementation:** Ensure kube-state-metrics or the OpenTelemetry Kubernetes receiver emits container restart counters into Splunk metrics. Run the panel on a 30-day window and baseline normal daily restarts per cluster. Alert when the 7-day moving average exceeds the prior 30-day baseline by more than 50%. Exclude system namespaces (kube-system, monitoring) if they skew the signal.
+- **Visualization:** Line chart (daily restarts with 7-day SMA, 30 days), area chart by namespace.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.6.2 · Container Image Vulnerability Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Tracking critical and high CVE counts per image over time shows whether your build pipeline and patching cadence are reducing risk or if new vulnerabilities are outpacing remediation. Supports prioritization of image rebuilds and exception reviews.
+- **App/TA:** Trivy/Grype/Snyk CI integration, Splunk HEC
+- **Data Sources:** `index=containers sourcetype=trivy:scan` OR `sourcetype=grype:scan`
+- **SPL:**
+```spl
+index=containers sourcetype IN ("trivy:scan", "grype:scan")
+| where Severity IN ("CRITICAL", "HIGH")
+| bin _time span=1d
+| stats dc(VulnerabilityID) as cve_count by _time, image
+| timechart span=1d sum(cve_count) as total_cves
+| trendline sma7(total_cves) as cve_trend
+```
+- **Implementation:** Ingest scanner JSON on every build or scheduled registry scan with stable image and severity fields. Normalize severity to CRITICAL/HIGH. Schedule a daily saved search to populate a summary index. Compare jumps after base-image updates as expected versus organic growth. Pair with a lookup of accepted CVEs to subtract noise for trending net-new exposure.
+- **Visualization:** Stacked area chart (critical/high CVEs over time), line chart (7-day SMA), table of top images by CVE count.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.6.3 · Deployment Velocity Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Deployments per day or week by namespace show delivery cadence and whether release practices are steady or chaotic. Sudden drops or spikes often correlate with code freezes, incidents, or CI/CD automation changes.
+- **App/TA:** Splunk Connect for Kubernetes, Argo CD / Flux logs
+- **Data Sources:** `index=containers sourcetype=kube:audit` or `sourcetype=kube:controller`
+- **SPL:**
+```spl
+index=containers sourcetype="kube:audit"
+| search objectRef.resource="deployments" verb IN ("create", "patch", "update")
+| eval namespace=coalesce('objectRef.namespace', namespace)
+| timechart span=1d dc(objectRef.name) as deployments by namespace
+```
+- **Implementation:** Ingest Kubernetes audit logs that record Deployment changes. Map objectRef.resource, verb, and namespace fields. If audit logs are unavailable, use Argo CD or Flux application sync events with the same grouping. Use span=1d or span=1w depending on whether you want daily or weekly velocity. Exclude system namespaces that skew the chart.
+- **Visualization:** Column chart (deployments per period by namespace), line chart (weekly total velocity trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.6.4 · Resource Request vs Limit Utilization Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** Comparing actual CPU and memory usage to requested and limit values shows whether workloads are over-provisioned, at risk of throttling or OOM, or drifting after code changes. Trending utilization percentages highlights capacity pressure before quotas cause scheduling failures.
+- **App/TA:** OpenTelemetry Collector, Prometheus-compatible scrape to Splunk
+- **Data Sources:** `index=containers` via `mstats` — `k8s.pod.cpu.utilization`, `k8s.pod.memory.usage`
+- **SPL:**
+```spl
+| mstats avg(k8s.pod.cpu.utilization) as cpu_util WHERE index=containers by namespace span=1d
+| timechart span=1d avg(cpu_util) as avg_cpu_util by namespace
+| trendline sma7(avg_cpu_util) as cpu_trend
+```
+- **Implementation:** Align metric names with your Prometheus/OpenTelemetry pipeline. Ensure pod labels match between usage and request series. Cap percentages at 100% for display where usage can briefly exceed requests. Review namespaces trending above 85% of request or near limit consistently for right-sizing or HPA tuning. Duplicate the panel for memory utilization.
+- **Visualization:** Line chart (avg CPU % of request by namespace, 30 days), dual panel for memory, heatmap (namespace x day).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.6.5 · Kubernetes Event Error Rate Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Warning and error Kubernetes events aggregate noise from image pulls, scheduling failures, and control-plane issues. A rising daily rate of Warning/Error events signals systemic problems even when individual alerts are not firing.
+- **App/TA:** Splunk Connect for Kubernetes
+- **Data Sources:** `index=containers sourcetype=kube:events`
+- **SPL:**
+```spl
+index=containers sourcetype="kube:events" type IN ("Warning", "Error")
+| timechart span=1d count by type
+| trendline sma7(Warning) as warning_trend sma7(Error) as error_trend
+```
+- **Implementation:** Forward Kubernetes events via the Splunk connector with the type field preserved. Filter out known noisy reasons with a lookup. Baseline typical Warning vs Error counts per day and alert when Error count exceeds threshold or Warning grows week-over-week. Optionally split by involvedObject.namespace for drilldown.
+- **Visualization:** Column chart (Warning vs Error per day), line chart overlay with 7-day SMA.
+- **CIM Models:** N/A
+
+---
+
+### UC-3.6.6 · Ingress Traffic Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Ingress requests per second trended weekly shows growth in user load, campaign effects, or misconfigured clients hammering APIs. Supports capacity planning for ingress controllers and upstream services.
+- **App/TA:** NGINX Ingress Controller / Istio Ingress Gateway logs forwarded to Splunk
+- **Data Sources:** `index=containers sourcetype=nginx:ingress` or `sourcetype=istio:ingress`
+- **SPL:**
+```spl
+index=containers sourcetype IN ("nginx:ingress", "istio:ingress")
+| timechart span=1w count as weekly_requests
+| eval avg_rps=round(weekly_requests/(7*86400), 2)
+| trendline sma4(avg_rps) as rps_trend
+```
+- **Implementation:** Prefer RED metrics from the service mesh or ingress controller scraped into Splunk metrics. If only access logs exist, each log line represents one request. Use span=1w for medium-term trending. Tag by ingress or virtual host for breakdowns. Correlate traffic spikes with marketing campaigns or releases.
+- **Visualization:** Line chart (weekly average RPS with 4-week SMA), optional breakdown by ingress class or hostname.
+- **CIM Models:** N/A
+

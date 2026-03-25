@@ -1709,3 +1709,130 @@ index=devops (sourcetype="github:webhook" OR sourcetype="argocd:application")
 - **Implementation:** Correlate Git merge or push timestamps with Argo CD successful sync or Flux `LastAppliedRevision` time for the same revision. Use lookup or transaction across indexes if needed. Report p50/p95 lead time by team and service. Exclude hotfix channels with tags if required.
 - **Visualization:** Histogram (lead time distribution), Line chart (p95 lead time trend), Bar chart (lead time by service).
 - **CIM Models:** N/A
+
+---
+
+### 12.6 DevOps Trending
+
+**Primary App/TA:** GitHub Add-on / webhooks, GitLab integrations, Jenkins log/metrics forwarders, Splunk CI/CD content for DORA-style KPIs.
+
+**Data Sources:** `index=devops` with `sourcetype=github:*`, `sourcetype=jenkins:*`, `sourcetype=gitlab:*`. Normalize repository, pipeline, environment, and conclusion fields across tools before building executive DORA panels.
+
+---
+
+### UC-12.6.1 · DORA Metrics Trending Dashboard
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Deployment frequency, lead time, change failure rate, and restore time summarize delivery health; month-over-month trends show whether engineering investments actually improved flow or reliability.
+- **App/TA:** GitHub/GitLab/Jenkins integrations, optional Splunk DORA or custom summary searches
+- **Data Sources:** `index=devops` `sourcetype IN ("github:workflow_run","gitlab:pipeline","jenkins:build")`; production deploy tags on `environment` or `branch`
+- **SPL:**
+```spl
+index=devops sourcetype="github:workflow_run" earliest=-180d@d (environment="production" OR ref="refs/heads/main")
+| eval deploy=if(conclusion="success",1,0)
+| timechart span=1mon sum(deploy) as deployment_frequency
+```
+```spl
+index=devops sourcetype="gitlab:pipeline" earliest=-180d@d environment=production status="success"
+| eval lead_hr=round(duration_sec/3600,2)
+| timechart span=1mon median(lead_hr) as lead_time_hours_median
+| trendline sma3(lead_time_hours_median) as lead_trend
+```
+```spl
+index=devops (sourcetype="github:workflow_run" OR sourcetype="jenkins:build") earliest=-180d@d
+| eval failed=if(conclusion IN ("failure","cancelled") OR result="FAILURE",1,0)
+| eval prod=if(match(lower(coalesce(environment,labels)),"(?i)prod|production"),1,0)
+| where prod=1
+| timechart span=1mon sum(failed) as failed_deploys count as deploys
+| eval change_failure_rate_pct=round(100*failed_deploys/nullif(deploys,0),2)
+| trendline sma3(change_failure_rate_pct) as cfr_trend
+| eventstats median(change_failure_rate_pct) as cfr_med
+```
+```spl
+index=devops sourcetype="github:issues" earliest=-180d@d (label="incident" OR priority="P1")
+| eval created_ts=strptime(created_at,"%Y-%m-%dT%H:%M:%SZ")
+| eval closed_ts=strptime(closed_at,"%Y-%m-%dT%H:%M:%SZ")
+| eval restore_hr=round((closed_ts-created_ts)/3600,2)
+| where restore_hr>=0
+| eval _time=closed_ts
+| timechart span=1mon median(restore_hr) as mttr_restore_hours
+| trendline sma3(mttr_restore_hours) as mttr_trend
+```
+- **Implementation:** Rarely one query fits all four DORA metrics—implement four saved searches (or a data model) that align on calendar months and team tags. Map GitHub Actions, GitLab pipelines, and Jenkins jobs to “production deploy” using branch/environment rules. For change failure rate, count failed production workflows over successful attempts to prod in the same window. Restore time often comes from incident tooling (`index=itsm`) if not in GitHub issues—join on service name. Validate timestamps are UTC-consistent.
+- **Visualization:** Four-panel executive dashboard (line charts per metric), Optional radar chart for normalized month scores, Table (monthly KPI table export).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.6.2 · Security Scan Finding Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Seeing new, open, and closed findings per sprint proves whether shift-left scanning and remediation keep pace with development; spikes in new findings after dependency upgrades are expected—flat open counts are not.
+- **App/TA:** GitHub Advanced Security (Dependabot, code scanning), GitLab SAST/DAST, Jenkins security stage plugins
+- **Data Sources:** `index=devops` `sourcetype IN ("github:dependabot_alert","github:code_scanning","gitlab:vulnerability","jenkins:security_scan")`
+- **SPL:**
+```spl
+index=devops sourcetype IN ("github:dependabot_alert","gitlab:vulnerability") earliest=-90d@d
+| eval is_open=if(lower(coalesce(state,status,"open"))="open",1,0)
+| timechart span=7d sum(is_open) as open_findings count as total_alerts
+| eval open_pct=round(100*open_findings/nullif(total_alerts,0),1)
+| trendline sma2(open_pct) as open_trend
+| eventstats avg(open_pct) as baseline_open
+```
+- **Implementation:** Ingest Dependabot and SARIF or code-scanning webhooks with stable `alert_id`. For GitLab, map `state` transitions over time or snapshot daily open counts via API. Tag by `repository` and `severity`. Exclude informational severities if policy dictates. Review sprints where `open_findings` rises while merges are flat—often a supply-chain or license scan change.
+- **Visualization:** Stacked bar (new versus closed per sprint), Line chart (open backlog trend), Treemap (findings by repo).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.6.3 · Build Queue Wait Time Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Queue wait reflects runner capacity and pipeline fan-in; rising waits delay feedback and release trains even when job success rates look fine.
+- **App/TA:** Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events)
+- **Data Sources:** `index=devops` `sourcetype="jenkins:queue"` or `sourcetype="jenkins:build"` with `queue_wait_ms`; `sourcetype="gitlab:job"` with `queued_duration`
+- **SPL:**
+```spl
+index=devops (sourcetype="jenkins:build" OR sourcetype="gitlab:job") earliest=-30d@d
+| eval wait_sec=coalesce(queue_wait_ms/1000, queued_duration, queue_time_sec)
+| where isnotnull(wait_sec)
+| timechart span=1d avg(wait_sec) as avg_wait_sec p95(wait_sec) as p95_wait_sec
+| eval avg_wait_min=round(avg_wait_sec/60,2)
+| trendline sma7(avg_wait_min) as wait_trend
+| eventstats median(avg_wait_min) as med_wait
+| eval backlog_pressure=if(avg_wait_min > med_wait*1.5,1,0)
+```
+- **Implementation:** Ensure `wait_sec` excludes container provisioning if that is tracked separately. For GitHub-only shops, ingest workflow_job events with `queued_at` and `started_at` to derive wait. Split by `label` or `runner_group` to see constrained pools. Alert when p95 wait exceeds SLA for two consecutive days.
+- **Visualization:** Line chart (average and p95 wait in minutes), Area chart (wait distribution bands), Single value (current p95 wait).
+- **CIM Models:** N/A
+
+---
+
+### UC-12.6.4 · Container Image Build Time Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Longer image builds slow every downstream deploy; sprint-level trends catch Dockerfile regressions, bloated layers, or registry latency before they dominate CI budgets.
+- **App/TA:** GitLab CI, GitHub Actions, Jenkins Pipelines with Kaniko/buildkit logging
+- **Data Sources:** `index=devops` `sourcetype IN ("gitlab:job","github:workflow_job","jenkins:build")` filtered to `image`/`container`/`docker` job or stage names
+- **SPL:**
+```spl
+index=devops sourcetype IN ("gitlab:job","github:workflow_job") earliest=-90d@d
+| eval job_lower=lower(coalesce(name,job_name,workflow_name))
+| where match(job_lower,"(?i)image|container|docker|build.*push|kaniko|buildkit")
+| eval dur_min=round(coalesce(duration_sec,duration)/60,2)
+| eval sprint=strftime(_time,"%Y-W%V")
+| stats avg(dur_min) as avg_build_min median(dur_min) as med_build_min by sprint, project
+| eventstats median(avg_build_min) as fleet_med by sprint
+| eval regression=if(avg_build_min > fleet_med*1.35,1,0)
+| sort sprint project
+```
+- **Implementation:** Standardize job naming so filters stay reliable; alternatively maintain a lookup of pipeline IDs that produce images. Strip cache-hit jobs if duration is near-zero noise. Compare medians per repo against its own 8-sprint baseline to reduce cross-team skew. Pair with container registry pull latency dashboards when build times spike only in certain regions.
+- **Visualization:** Line chart (average image build minutes by sprint), Bar chart (top regressing projects), Table (sprint, project, avg, median).
+- **CIM Models:** N/A
+
+---
+

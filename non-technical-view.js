@@ -112,6 +112,11 @@ window.NON_TECHNICAL = {
         { id: "3.5.13", why: "We see every network connection between containers at the kernel level — catching unexpected communication that application monitoring misses." },
         { id: "3.5.14", why: "We detect suspicious processes, file access, and privilege escalation inside containers before attackers can do damage." },
         { id: "3.5.15", why: "We automatically measure service speed and errors without changing any code — instant visibility for legacy and third-party applications." }
+      ]},
+      { name: "Container & Kubernetes trending", description: "We chart pod restarts, vulnerabilities, deployment velocity, resource usage, error rates, and traffic over weeks and months so you see whether your container platform is getting healthier or needs attention.", ucs: [
+        { id: "3.6.1", why: "We track pod restart rates over 30 days so you can see whether your workloads are stabilizing or getting less reliable." },
+        { id: "3.6.2", why: "We chart critical container image vulnerabilities over time so you know if your patching is keeping up with new threats." },
+        { id: "3.6.5", why: "We trend Kubernetes warning and error events daily so you catch systemic problems before they become outages." }
       ]}
     ]
   },
@@ -146,6 +151,11 @@ window.NON_TECHNICAL = {
         { id: "4.5.1", why: "Track function errors — failed functions mean broken workflows." },
         { id: "4.5.2", why: "Monitor cold start delays — slow starts hurt user experience for the first request." },
         { id: "4.5.3", why: "Alert when concurrency limits are hit — functions start getting rejected." }
+      ]},
+      { name: "Cloud infrastructure trending", description: "We chart resource counts, function usage, security findings, storage growth, network volumes, and API activity over months so you see where your cloud is heading.", ucs: [
+        { id: "4.6.1", why: "We track how many cloud instances you have over 90 days so you can spot runaway growth or orphaned resources before they hit your bill." },
+        { id: "4.6.3", why: "We trend new versus resolved cloud security findings so you know if your security posture is improving or falling behind." },
+        { id: "4.6.4", why: "We chart storage growth monthly so you can forecast costs and set lifecycle policies before storage bills surprise you." }
       ]}
     ]
   },
@@ -279,6 +289,11 @@ window.NON_TECHNICAL = {
         { id: "7.5.1", why: "Know when your search cluster goes red or yellow — searches may fail or return incomplete results." },
         { id: "7.5.2", why: "Detect when data chunks can't be distributed properly — can cause data loss or slow queries." },
         { id: "7.5.8", why: "Alert before disk fills up and the search engine locks itself to protect data." }
+      ]},
+      { name: "Database trending", description: "Long-term trends for database health — connection pressure, slow queries, replication delay, backup growth, and index maintenance. We help you plan capacity and catch regressions early.", ucs: [
+        { id: "7.6.1", why: "We track how full database connection pools get over time — so you can scale or tune before new requests are rejected." },
+        { id: "7.6.2", why: "We count slow queries day by day — rising trends often mean a bad release or missing indexes." },
+        { id: "7.6.3", why: "We watch replication lag across replicas — growing lag means riskier failovers and stale reads." }
       ]}
     ]
   },
@@ -319,6 +334,11 @@ window.NON_TECHNICAL = {
         { id: "8.6.1", why: "Monitor SSH service availability — if it goes down, teams can't reach servers remotely." },
         { id: "8.6.11", why: "Track HashiCorp Vault seal status — a sealed vault blocks all secret access." },
         { id: "8.6.16", why: "Watch NTP clock drift — out-of-sync clocks break authentication and logging." }
+      ]},
+      { name: "Application trending", description: "Trends in sessions, API speed, reliability budgets, caches, and message queues. We help product and platform teams see direction, not just today's snapshot.", ucs: [
+        { id: "8.7.1", why: "We track how many user sessions run each day or week — a simple signal for growth and capacity." },
+        { id: "8.7.2", why: "We chart API latency at typical and worst-case percentiles — tail latency is where user pain hides." },
+        { id: "8.7.3", why: "We show how fast your error budget is shrinking — so you can slow releases before reliability goals break." }
       ]}
     ]
   },
@@ -358,6 +378,11 @@ window.NON_TECHNICAL = {
         { id: "9.6.1", why: "See which devices comply with your security policies — and which don't." },
         { id: "9.6.3", why: "Get alerts when a managed device leaves an approved area." },
         { id: "9.6.5", why: "Track lost or stolen devices — know when lost mode is activated and recovery progress." }
+      ]},
+      { name: "Identity & access trending", description: "We chart how logins, privileged use, multi-factor adoption, and identity-provider health change over weeks and months so you spot drift before it becomes an incident.", ucs: [
+        { id: "9.7.1", why: "See whether successful and failed logins are trending up or down over the quarter — a simple way to catch attacks or overload." },
+        { id: "9.7.2", why: "Track how many people actually use multi-factor authentication over time — proof you are closing risky gaps." },
+        { id: "9.7.7", why: "Know whether your login service stays reliably available week to week — outages hit everyone at once." }
       ]}
     ]
   },
@@ -443,6 +468,11 @@ window.NON_TECHNICAL = {
         { id: "10.15.1", why: "We compare each person's login activity to their team — if someone logs in far more than their peers, it could mean their account is compromised." },
         { id: "10.15.3", why: "We detect malware calling home to attackers by spotting unnaturally regular communication patterns hidden in normal traffic." },
         { id: "10.15.6", why: "We use AI to read incoming emails and score them for phishing — catching cleverly worded scams that traditional filters miss." }
+      ]},
+      { name: "Security operations trending", description: "Trends for the security operations centre — attack surface, alert quality, detection and response times, email threats, firewall activity, risk scores, and endpoint protection coverage.", ucs: [
+        { id: "10.16.1", why: "We watch how your exposed services and ports change over time — unexpected growth can mean misconfiguration or shadow systems." },
+        { id: "10.16.3", why: "We measure how quickly threats are detected quarter by quarter — leadership can see whether investments in detection are paying off." },
+        { id: "10.16.4", why: "We track how long it takes to contain issues after detection — so you can improve playbooks and staffing where it matters." }
       ]}
     ]
   },
@@ -531,6 +561,11 @@ window.NON_TECHNICAL = {
         { id: "12.5.1", why: "Detect when ArgoCD can't sync your desired state — deployments are blocked." },
         { id: "12.5.7", why: "Track rollback frequency — frequent rollbacks signal quality problems." },
         { id: "12.5.10", why: "Measure deployment lead time from Git commit to running in production." }
+      ]},
+      { name: "DevOps trending", description: "We watch delivery and security metrics over time — how often you ship, how long builds wait, and whether quality scans keep improving.", ucs: [
+        { id: "12.6.1", why: "We trend delivery health (deployment frequency, lead time, failures, recovery) month by month so leaders see improvement or drift early." },
+        { id: "12.6.2", why: "We track open security findings from scans over sprints — so you know remediation is keeping up with new code." },
+        { id: "12.6.3", why: "We watch how long jobs sit in build queues — long waits slow every release even when pipelines succeed." }
       ]}
     ]
   },
@@ -633,6 +668,11 @@ window.NON_TECHNICAL = {
         { id: "14.6.1", why: "Track PLC read and write operations — unusual patterns could indicate tampering." },
         { id: "14.6.5", why: "Audit Modbus function codes — some codes should rarely appear in normal operations." },
         { id: "14.6.20", why: "Detect unknown protocols on your OT network — they should not be there." }
+      ]},
+      { name: "IoT & OT trending", description: "We watch plant and fleet metrics over weeks and months — who is online, data quality, equipment effectiveness, and maintenance signals.", ucs: [
+        { id: "14.8.1", why: "We track what share of your devices are reporting — drops warn you before you lose visibility on the plant floor." },
+        { id: "14.8.2", why: "We trend bad or missing sensor readings — so data quality problems are fixed before dashboards and alarms go blind." },
+        { id: "14.8.3", why: "We watch overall equipment effectiveness over time — to see whether maintenance and changeovers really improve output." }
       ]}
     ]
   },
@@ -691,6 +731,11 @@ window.NON_TECHNICAL = {
         { id: "16.4.1", why: "Detect unauthorised changes — changes made without approval are a top cause of outages." },
         { id: "16.4.3", why: "Correlate failed changes with incident spikes — did a change cause the outage?" },
         { id: "16.4.4", why: "Track release deployment success rates — failed releases mean delayed features and more risk." }
+      ]},
+      { name: "ITSM trending", description: "We watch service desk and change metrics over time — backlogs, success rates, knowledge use, resolution speed, and escalations.", ucs: [
+        { id: "16.5.1", why: "We track how long work sits in the queue by age — growing older backlogs warn you before customers feel the pain." },
+        { id: "16.5.2", why: "We trend how often changes finish successfully — a falling rate means your change process or testing needs attention." },
+        { id: "16.5.3", why: "We measure how often people solve issues with self-service knowledge — so you see whether help articles really reduce ticket load." }
       ]}
     ]
   },
@@ -865,6 +910,11 @@ window.NON_TECHNICAL = {
         { id: "22.3.1", why: "DORA ICT risk management dashboard — track digital resilience for financial services." },
         { id: "22.5.1", why: "Monitor MiFID II trade reporting completeness — missing reports mean regulatory fines." },
         { id: "22.8.1", why: "Continuous monitoring of SOC 2 trust service criteria — evidence collection for auditors." }
+      ]},
+      { name: "Compliance trending", description: "We chart posture scores, audit closure, control tests, incident response time, and policy violations over time so you see direction, not a single snapshot.", ucs: [
+        { id: "22.9.1", why: "We track how overall compliance scores move across major frameworks quarter by quarter — so leadership sees whether posture is improving." },
+        { id: "22.9.2", why: "We watch open versus closed audit findings and how long fixes take — so backlogs and slow remediation surface before the next audit." },
+        { id: "22.9.3", why: "We monitor pass rates by control domain — so weak domains get attention before an assessment finds them first." }
       ]}
     ]
   }

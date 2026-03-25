@@ -2168,3 +2168,113 @@ index=network sourcetype="snmp:audit" OR (sourcetype=syslog process=snmpd)
 
 ---
 
+### 8.7 Application Trending
+
+Long-horizon trends for application operations: user session load, API latency percentiles, service-level error budgets, cache efficiency, and message queue backlog. Uses web access, application, and middleware indexes for capacity planning and SRE reviews.
+
+---
+
+### UC-8.7.1 · User Session Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Daily or weekly active session counts show adoption, campaign effects, and capacity needs before saturation. Seasonal patterns become visible for staffing and infrastructure scale plans.
+- **App/TA:** Splunk OTel Collector / app instrumentation, Tomcat / IIS / NGINX TAs as applicable
+- **Data Sources:** `index=web` `sourcetype=access_combined`, `index=app` session or access logs, optional `JSESSIONID` / `session_id` fields
+- **SPL:**
+```spl
+index=web OR index=app (sourcetype=access_combined OR sourcetype="tomcat:access" OR sourcetype="iis:access")
+| eval sid=coalesce(JSESSIONID, session_id, client_session)
+| bin _time span=1d
+| stats dc(sid) as approx_active_sessions by _time
+| timechart span=1d sum(approx_active_sessions) as daily_sessions
+```
+- **Implementation:** Prefer application-native session metrics if available (Spring session registry, .NET session state). Deduplicate proxies and bots with a known crawler user-agent lookup. For stateless APIs, substitute `dc(client_ip)` or OAuth `sub` as a proxy with documented caveats. Align time zones with business reporting.
+- **Visualization:** Line chart (daily sessions), column chart (week-over-week), single value (rolling 7-day average).
+- **CIM Models:** Web
+
+---
+
+### UC-8.7.2 · API Endpoint Latency Percentile Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** p50, p95, and p99 latency over 30 days highlights tail latency regressions that averages hide. Trends support SLO setting and regression detection after releases.
+- **App/TA:** API gateway TAs (Kong, AWS API Gateway), reverse proxy logs, OpenTelemetry span export to Splunk
+- **Data Sources:** `index=web` or `index=app`, `sourcetype=access_combined` with response time, `index=middleware` gateway logs
+- **SPL:**
+```spl
+index=web OR index=app sourcetype=access_combined earliest=-30d
+| eval ms=coalesce(response_time_ms, duration_ms, tonumber(substr(response_time,1,10)))
+| where isnotnull(ms) AND match(uri_path,"/api/")
+| timechart span=1d p50(ms) as p50 p95(ms) as p95 p99(ms) as p99
+```
+- **Implementation:** Normalize time units (seconds vs milliseconds) at ingest. Filter to API paths only; exclude static assets. Tag `service_name` for microservice drilldowns. Compare against canary or blue-green cohorts with a `deployment` field when available. Store weekly aggregates in `sourcetype=stash` for long retention.
+- **Visualization:** Line chart (p50/p95/p99 over time), heatmap (endpoint × day for p95), table (worst endpoints).
+- **CIM Models:** Web
+
+---
+
+### UC-8.7.3 · Application Error Budget Burn Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Error budget remaining over a sprint or month shows whether reliability goals are sustainable. Accelerating burn triggers freeze or rollback decisions before users experience widespread outages.
+- **App/TA:** Custom SLO pipeline, Splunk Observability Cloud export, or scripted inputs from service catalogs
+- **Data Sources:** `index=app` SLO metrics, `sourcetype=stash` error-budget summaries, `index=middleware` synthetic or gateway SLO fields
+- **SPL:**
+```spl
+index=app sourcetype=stash source="*error_budget*" OR index=middleware sourcetype="slos:metrics"
+| eval remaining_pct=coalesce(error_budget_remaining_pct, slo_remaining_percent, 100 - burn_rate_pct)
+| eval sprint=strftime(_time,"%Y-W%V")
+| bin _time span=1d
+| stats first(remaining_pct) as budget_remaining by _time, service
+| timechart span=1d min(budget_remaining) as min_budget_remaining by service limit=10
+```
+- **Implementation:** Populate `remaining_pct` from your SLO tool (Datadog, Dynatrace, homemade) via HEC or scheduled pull. Define calendar alignment (monthly vs rolling 30d) consistently with product owners. Combine with release markers using `annotate` or a `releases` lookup. Alert on multi-day burn-rate thresholds per Google SRE multi-window practice if you export windowed burn fields.
+- **Visualization:** Area chart (budget remaining %), line chart with release annotations, single value (days of budget left at current burn).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.4 · Cache Hit Ratio Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Cache hit ratio over 30 days reveals memory sizing issues, key churn, and upstream slowdowns that force more origin fetches. Declining trends often precede latency SLO breaches.
+- **App/TA:** Splunk Add-on for Redis, Memcached, Varnish or CDN logs
+- **Data Sources:** `index=middleware` `sourcetype=redis:info`, `memcached:stats`, or application-emitted cache metrics
+- **SPL:**
+```spl
+index=middleware (sourcetype="redis:info" OR sourcetype="memcached:stats" OR sourcetype="app:cache:metrics")
+| eval hits=coalesce(keyspace_hits, cache_hits, 0)
+| eval misses=coalesce(keyspace_misses, cache_misses, 0)
+| eval hit_ratio=if((hits+misses)>0, round(100*hits/(hits+misses),2), null())
+| timechart span=1d avg(hit_ratio) as cache_hit_ratio_pct
+```
+- **Implementation:** Poll INFO/stats on a fixed interval; compute ratio in SPL or at ingest for accuracy. Split by `instance` or `cluster` for sharded caches. Correlate drops with deployments and TTL changes. For HTTP caches, derive hits from `X-Cache` or CDN logs instead.
+- **Visualization:** Line chart (hit ratio %), dual axis (hits and misses counts), single value (30-day min hit ratio).
+- **CIM Models:** N/A
+
+---
+
+### UC-8.7.5 · Message Queue Backlog Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Queue depth over 7 and 30 days shows sustained consumer lag versus transient spikes. Growth trends drive consumer scaling, partition adds, or poison-message handling before disk limits or SLA misses.
+- **App/TA:** Splunk Add-on for Kafka, RabbitMQ, ActiveMQ, AWS MSK / Azure Event Hubs TAs
+- **Data Sources:** `index=middleware` `sourcetype=kafka:consumer`, `rabbitmq:queue`, `activemq:queue`, `azure:eventhub:metrics`
+- **SPL:**
+```spl
+index=middleware earliest=-30d (sourcetype="kafka:consumer" OR sourcetype="rabbitmq:queue" OR sourcetype="activemq:queue")
+| eval depth=coalesce(consumer_lag, lag, queue_depth, backlog_messages)
+| eval qname=coalesce(topic_queue, queue, destination)
+| timechart span=1d max(depth) as queue_depth by qname limit=15
+```
+- **Implementation:** Align Kafka lag with consumer group and partition; use `max` across partitions for worst-case visibility. Exclude retry/DLQ topics from primary charts or show separately. Set thresholds from peak business hours using historical baselines. For cloud queues, map metric dimensions to the same `qname` namespace.
+- **Visualization:** Line chart (max depth by queue), area chart (7d vs 30d overlay using `timewrap`), table (top queues by growth rate).
+- **CIM Models:** N/A
+
+---
+

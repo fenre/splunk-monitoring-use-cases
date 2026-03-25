@@ -1309,3 +1309,128 @@ index=itsm sourcetype="snow:change_request" state="Closed"
 - **Visualization:** Matrix heatmap (predicted vs actual), Table (low-risk failures), Line chart (calibration trend quarter over quarter).
 - **CIM Models:** N/A
 
+---
+
+### 16.5 ITSM Trending
+
+**Primary App/TA:** Splunk Add-on for ServiceNow (`Splunk_TA_snow`), Splunk Add-on for Jira Service Management, optional scheduled export jobs that post daily aggregates to HEC.
+
+**Data Sources:** `index=itsm` with `sourcetype=snow:*` (incident, change_request, knowledge, reporting snapshots) and `sourcetype=jira:*` for hybrid fleets. Backlog composition over time is best sourced from a daily ServiceNow report or Splunk summary index (`snow:backlog_daily`) with fields `snapshot_date`, `age_bucket`, `open_count`.
+
+---
+
+### UC-16.5.1 · Ticket Backlog Aging Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Watching how open work ages shows whether queues are draining or stagnating; growth in older buckets signals staffing, tooling, or upstream failure demand that will eventually breach customer expectations.
+- **App/TA:** `Splunk_TA_snow`, optional HEC forwarder for ServiceNow scheduled reports
+- **Data Sources:** `index=itsm` `sourcetype="snow:backlog_daily"` (recommended) or `sourcetype="snow:incident"` with snapshot pipeline; `sourcetype=jira:*` for Jira SM parity
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:backlog_daily" earliest=-30d@d
+| eval _time=strptime(snapshot_date,"%Y-%m-%d")
+| timechart span=1d sum(open_count) by age_bucket
+| foreach * [ trendline sma7(<<FIELD>>) as trend_<<FIELD>> ]
+```
+- **Implementation:** Publish a daily ServiceNow report (or scripted REST) that counts open incidents or tasks by age bucket (`0-7d`, `7-30d`, `30-90d`, `90d+`) and send results to Splunk with stable field names. If you cannot ingest snapshots yet, run a nightly saved search that writes the same structure to a summary index. Map `age_bucket` labels to your CMDB time zones; exclude cancelled records. If `foreach` is unavailable on your Splunk version, add a `trendline` per series in Dashboard Studio or clone the search per bucket. For Jira, mirror buckets using `created` versus `resolutiondate`.
+- **Visualization:** Stacked area or column chart (buckets over 30 days), Line chart (trendline overlays per bucket), Single value (90d+ share of open backlog).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.5.2 · Change Success Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** A falling change success rate warns that testing, communication, or risk scoring is degrading before major outages; trending by week ties process fixes to measurable improvement.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:change_request"`; optional `sourcetype=jira:*` change records
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" earliest=-365d@d state="Closed"
+| eval ok=if(match(lower(close_code),"(?i)successful|success|complete") OR match(lower(u_outcome),"(?i)success"),1,0)
+| timechart span=1w sum(ok) as successes count as total
+| eval success_pct=round(100*successes/nullif(total,0),1)
+| trendline sma8(success_pct) as success_pct_trend
+| eventstats median(success_pct) as med_qtr
+| eval vs_median=round(success_pct - med_qtr,1)
+```
+- **Implementation:** Normalize `close_code` and `u_outcome` from ServiceNow; treat emergency and standard changes consistently in scope. Exclude duplicate closure events by deduping on `number` and `sys_updated_on`. Align week boundaries to your CAB calendar. Alert when `success_pct` drops below target for two consecutive weeks or falls more than 10 points under the trailing quarterly median.
+- **Visualization:** Line chart (weekly success % with trendline), Single value (rolling 13-week average), Table (worst assignment groups).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.5.3 · Knowledge Article Deflection Rate Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Deflection measures whether self-service content reduces human-handled tickets; sustained improvement validates knowledge investment and lowers support cost.
+- **App/TA:** `Splunk_TA_snow`, Knowledge Management KPIs (custom fields)
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` with `u_knowledge_used`, `resolved_by_knowledge`, or related task flags; `sourcetype="snow:kb_use"` if you ingest portal analytics separately
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-180d@d
+| eval deflected=if(match(lower(coalesce(u_knowledge_used,resolved_by_knowledge,knowledge_flag)),"(?i)true|yes|1|deflected"),1,0)
+| timechart span=1w sum(deflected) as deflected count as closed_total
+| eval deflect_pct=round(100*deflected/nullif(closed_total,0),1)
+| trendline sma8(deflect_pct) as deflect_trend
+| eventstats avg(deflect_pct) as run_avg
+| eval delta_vs_avg=round(deflect_pct - run_avg,2)
+```
+- **Implementation:** Map the fields your instance uses for “resolved with knowledge” or portal self-solve. If deflection is only visible on closure codes, translate codes via a lookup. Include chatbot-assisted resolutions if they write back to the incident. Review monthly with content owners when `deflect_pct` flatlines despite new articles.
+- **Visualization:** Line chart (deflection % and trend), Bar chart (deflected count by category), Table (top knowledge articles linked from incidents).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.5.4 · MTTR by Priority Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Priority-weighted resolution time shows whether urgent work truly gets faster attention; quarterly trends highlight chronic bottlenecks for P1/P2 paths.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`opened_at`, `closed_at`, `priority`); `sourcetype=jira:*` with `created`/`resolved`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-365d@d
+| where lower(state) IN ("closed","resolved","6","7")
+| eval open_ts=strptime(opened_at,"%Y-%m-%d %H:%M:%S")
+| eval close_ts=strptime(closed_at,"%Y-%m-%d %H:%M:%S")
+| eval mttr_hr=round((close_ts-open_ts)/3600,2)
+| where mttr_hr>=0 AND isnotnull(priority)
+| eval _time=close_ts
+| bin _time span=1q
+| stats avg(mttr_hr) as mttr_hr by priority, _time
+| sort _time priority
+```
+- **Implementation:** Confirm timestamp formats and business-pause fields; subtract `business_wait` or `on_hold_duration` if extracted. Normalize priority text (`1 - Critical` → `P1`). Use `close_ts` as the event time so each resolution lands in the correct quarter. For a single “all priorities” reference line, add a second panel with `stats avg(mttr_hr) by _time` without splitting by `priority`. Pair with staffing and major-incident dashboards when P1 MTTR regresses.
+- **Visualization:** Line chart (MTTR hours by priority over quarters), Heatmap (priority × quarter), Optional overlay (overall MTTR from a companion search).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.5.5 · Escalation Rate Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Escalations consume senior time and often reflect unclear front-line tooling; a rising share of escalated incidents points to training gaps, bad routing, or unstable services.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`escalation_level`, `u_escalated`, `assignment_group` history); optional `sourcetype=jira:*` with escalation labels
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-90d@d
+| eval esc=if(escalation_level>0 OR match(lower(coalesce(u_escalated,u_escalation_flag)),"(?i)true|yes|1") OR match(lower(category),"escalat"),1,0)
+| timechart span=1w sum(esc) as escalations count as inc_total
+| eval esc_rate_pct=round(100*escalations/nullif(inc_total,0),1)
+| trendline sma6(esc_rate_pct) as esc_trend
+| eventstats median(esc_rate_pct) as baseline_med
+| eval spike=if(esc_rate_pct > baseline_med*1.25,1,0)
+```
+- **Implementation:** Define “escalation” consistently—for example, reassignment to a major-incident queue counts, but simple handoffs within L1 may not. Ingest assignment history if escalation is inferred from group changes. Exclude mass-test records. When `spike=1` for two weeks, trigger a problem review with service owners.
+- **Visualization:** Line chart (escalation % of incidents with trendline), Stacked bar (escalations versus total), Table (assignment groups with highest esc_rate_pct).
+- **CIM Models:** N/A
+
+---
+

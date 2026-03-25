@@ -3951,3 +3951,100 @@ index=ot sourcetype IN ("edge_hub:metrics","litmus:edge")
 - **CIM Models:** N/A
 
 ---
+
+### 14.8 IoT & OT Trending
+
+**Primary App/TA:** Splunk Add-on for Edge Hub (metrics), Industrial Protocols Add-ons (Modbus, OPC-UA), Splunk Operational Telemetry (OT/IoT) data model where enabled.
+
+**Data Sources:** `index=ot` with `sourcetype=edge_hub:*`, `sourcetype=modbus:*`, `sourcetype=opcua:*`. Metrics indexes should expose device health, OEE, and anomaly scores via `metric_name` dimensions aligned to your Edge Hub pipelines.
+
+---
+
+### UC-14.8.1 · Device Fleet Online Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The share of devices reporting on schedule is a leading indicator of network, power, or gateway issues before production KPIs degrade; trending over 30 days shows whether fixes stick across sites.
+- **App/TA:** Splunk Add-on for Edge Hub, optional Splunk OTel for OT gateways
+- **Data Sources:** `index=ot` metrics: `sourcetype=edge_hub:metrics` with `metric_name` such as `device.online`, `device.heartbeat`, or `gateway.device_active`; dimensions `device_id`, `site_id`
+- **SPL:**
+```spl
+| mstats avg(_value) WHERE index=ot metric_name IN ("device.online","device.heartbeat_ok") span=1d BY device_id
+| eval online_flag=if('avg(_value)'>0.5,1,0)
+| stats avg(online_flag) as fleet_online_rate by _time
+| eval online_pct=round(100*fleet_online_rate,1)
+| trendline sma7(online_pct) as online_trend
+| eventstats median(online_pct) as med30
+| eval vs_baseline=round(online_pct - med30,2)
+```
+- **Implementation:** Normalize `device.online` to 0/1 (or heartbeat) in the metrics pipeline. Multiply `fleet_online_rate` by a fleet `inputlookup` total if `mstats` only returns devices that reported—otherwise the average is the share of devices reporting at least one healthy sample per day. Align `metric_name` with Edge Hub transforms. If metrics are not available, use daily `dc(device_id)` from `edge_hub:*` heartbeats divided by the inventory lookup. Alert when `online_pct` drops more than 5 points below the 30-day median for three consecutive days.
+- **Visualization:** Line chart (online % and trendline), Area chart (online versus offline device-days), Single value (current fleet availability).
+- **CIM Models:** Operational Telemetry (Metrics) where tagged; otherwise N/A
+
+---
+
+### UC-14.8.2 · Sensor Data Quality Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Missing or stale readings break historians, dashboards, and ML features; daily trending exposes ingestion gaps early so teams can fix collectors, radios, or brokers before safety or quality thresholds are blind.
+- **App/TA:** Edge Hub, Modbus/OPC-UA TAs
+- **Data Sources:** `index=ot` `sourcetype IN ("edge_hub:metrics","edge_hub:events","modbus:readings","opcua:telemetry")`
+- **SPL:**
+```spl
+index=ot sourcetype IN ("edge_hub:metrics","modbus:readings","opcua:telemetry") earliest=-30d@d
+| eval bad=if(match(lower(coalesce(quality,data_quality)),"(?i)bad|invalid|stale") OR isnull(metric_value),1,0)
+| timechart span=1d sum(bad) as bad_reads count as total_reads
+| eval bad_pct=round(100*bad_reads/nullif(total_reads,0),2)
+| trendline sma7(bad_pct) as quality_trend
+| eventstats avg(bad_pct) as run_avg
+| eval delta=round(bad_pct - run_avg,2)
+```
+- **Implementation:** Map your quality field (`good`, `192` OPC status, Modbus exception flags). If quality is not present, infer staleness with `streamstats` per `device_id` and `tag` using gaps between `_time` greater than `3×` the expected poll interval from a lookup. Dedupe by `device_id`+`tag` to avoid double counting. Tune thresholds per line speed—fast PLCs need tighter windows than environmental sensors.
+- **Visualization:** Line chart (daily bad or stale % with trend), Stacked bar (bad readings by site), Table (worst devices by gap count).
+- **CIM Models:** Operational Telemetry (Quality / Metrics) where mapped; otherwise N/A
+
+---
+
+### UC-14.8.3 · OEE Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Overall Equipment Effectiveness summarizes availability, performance, and quality; weekly or monthly trends show whether maintenance programs and changeovers are improving plant output without waiting for quarterly business reviews.
+- **App/TA:** Edge Hub, MES or historian connectors (optional), OT metrics model
+- **Data Sources:** `index=ot` `| mstats` on `metric_name="oee"` with `asset_id` or `line_id`; fallback `sourcetype=edge_hub:metrics` events carrying `oee` fields
+- **SPL:**
+```spl
+| mstats avg(_value) WHERE index=ot metric_name="oee" span=1w BY asset_id
+| rename "avg(_value)" as oee_avg
+| eval oee_pct=round(oee_avg*100,2)
+| stats avg(oee_pct) as fleet_oee by _time
+| trendline sma4(fleet_oee) as oee_trend
+| eval gap_to_target=round(85 - fleet_oee,2)
+```
+- **Implementation:** If OEE is not pre-calculated, derive it from availability × performance × quality metrics ingested separately (use `eval` in a scheduled search writing to a summary index). Align shifts and planned downtime using a `production_calendar` lookup to avoid penalizing scheduled stops. Compare assets to peers in the same technology line. Alert when 4-week rolling OEE drops more than 5 points below baseline.
+- **Visualization:** Line chart (OEE % by line over weeks), Area chart (components if split metrics), Bullet chart (actual versus target OEE).
+- **CIM Models:** Operational Telemetry (Production / OEE) where enabled; otherwise N/A
+
+---
+
+### UC-14.8.4 · Predictive Maintenance Alert Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** ML-driven anomaly counts should rise when equipment drifts but should fall after maintenance; tracking weekly volume validates model calibration and catches alert fatigue or broken scoring pipelines.
+- **App/TA:** Splunk Machine Learning Toolkit (optional), Edge Hub anomaly outputs, DSDL or custom scoring jobs
+- **Data Sources:** `index=ot` `sourcetype IN ("edge_hub:anomaly","edge_hub:alert","edge_hub:ml")` with `severity`, `model_id`, `asset_id`
+- **SPL:**
+```spl
+index=ot sourcetype IN ("edge_hub:anomaly","edge_hub:alert") earliest=-90d@d
+| timechart span=1w count as pred_alerts
+| trendline sma6(pred_alerts) as alert_trend
+| eventstats avg(pred_alerts) as baseline
+| eval spike=if(pred_alerts > baseline*1.5,1,0)
+```
+- **Implementation:** Tag production ML alerts distinctly from threshold rules. Deduplicate repeated scores per asset per hour if the model emits bursts. Correlate spikes with maintenance windows—expected dips after work orders. If counts go to zero suddenly, validate the scoring container and HEC path. Feed counts back to data science for precision and recall reviews quarterly.
+- **Visualization:** Line chart (weekly ML alert count with trend), Bar chart (alerts by asset), Single value (alerts versus 8-week average).
+- **CIM Models:** Operational Telemetry (Maintenance / Security) as applicable; otherwise N/A
+
+---

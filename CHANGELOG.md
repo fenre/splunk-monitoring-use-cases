@@ -26,9 +26,22 @@ the release notes block in `index.html` by hand.
 
 - **13.5 OpenTelemetry, Observability Pipelines & SRE Patterns** — Dedicated subcategory for OTel tracing, APM/RUM/Synthetics, SRE frameworks (RED/USE/Golden Signals/SLOs), and observability pipeline governance.
 
+### Trend Use Cases Expansion (55 new)
+
+- **9.7 Identity & Access Trending (7 new)** — Authentication volume, MFA adoption rate, privileged account activity, service account usage, conditional access policy blocks, password reset volume, and identity provider availability — all trended over 30–90 days with moving averages and forecasts.
+- **22.9 Compliance Trending (5 new)** — Compliance posture score, audit finding closure rate, control effectiveness, regulatory incident response time, and policy violation volume trending across frameworks and quarters.
+- **3.6 Container & Kubernetes Trending (6 new)** — Pod restart rate, container image vulnerability counts, deployment velocity, resource request vs limit utilization, Kubernetes event error rate, and ingress traffic volume trending.
+- **4.6 Cloud Infrastructure Trending (6 new)** — Cloud resource count, Lambda/function invocation volume, security finding new vs resolved, S3/blob storage growth, network traffic volume, and CloudTrail/activity log event volume trending.
+- **10.16 Security Operations Trending (8 new)** — Attack surface change, SIEM alert-to-incident ratio, MTTD, MTTR, phishing attempt volume, firewall rule hit rate, risk score distribution, and endpoint protection coverage trending.
+- **8.7 Application Trending (5 new)** — User session volume, API latency percentiles (p50/p95/p99), error budget burn rate, cache hit ratio, and message queue backlog trending.
+- **7.6 Database Trending (5 new)** — Connection pool utilization, slow query volume, replication lag, backup size growth, and index fragmentation trending.
+- **16.5 ITSM Trending (5 new)** — Ticket backlog aging by bucket, change success rate, knowledge article deflection rate, MTTR by priority, and escalation rate trending.
+- **14.8 IoT & OT Trending (4 new)** — Device fleet online rate, sensor data quality, OEE (Overall Equipment Effectiveness), and predictive maintenance alert volume trending.
+- **12.6 DevOps Trending (4 new)** — DORA metrics dashboard (all four metrics), security scan finding lifecycle, build queue wait time, and container image build time trending.
+
 ### Non-Technical View
 
-- **New areas added** — Plain-language sections for OpenTelemetry and observability pipelines, distributed tracing and APM, real user and synthetic monitoring, SRE patterns and SLOs, and eBPF kernel-level observability.
+- **New areas added** — Plain-language sections for OpenTelemetry and observability pipelines, distributed tracing and APM, real user and synthetic monitoring, SRE patterns and SLOs, eBPF kernel-level observability, and trending areas for identity and access, compliance, containers, cloud, security operations, applications, databases, ITSM, IoT/OT, and DevOps.
 
 ---
 

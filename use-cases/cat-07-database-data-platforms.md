@@ -2375,3 +2375,115 @@ index=database sourcetype="elasticsearch:ingest_stats"
 - **Implementation:** Poll `GET _nodes/stats/ingest` and extract per-pipeline `count` and `failed` counters. Compute deltas between samples. Alert when any pipeline shows a non-zero failure rate. Investigate pipeline processor errors in Elasticsearch logs. Common causes include grok pattern mismatches, script errors, and date parsing failures.
 - **Visualization:** Line chart (failures per pipeline), Table (pipeline error details), Single value (total ingest failures).
 - **CIM Models:** N/A
+
+---
+
+### 7.6 Database Trending
+
+Trending metrics across relational database platforms: connection pool headroom, slow query volume, replication lag, backup growth, and index fragmentation. Uses consolidated `index=db` and native DB sourcetypes for DBA and capacity reviews.
+
+---
+
+### UC-7.6.1 · Database Connection Pool Utilization Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Peak connection pool utilization over 30 days shows how close applications are to exhausting database sessions. Rising peaks justify pool tuning, connection string fixes, or server scale-up before login storms cause outages.
+- **App/TA:** Splunk DB Connect, vendor DB TAs (MySQL Enterprise, PostgreSQL, Oracle, SQL Server), application pool metrics if forwarded
+- **Data Sources:** `index=db` `sourcetype=mysql:status`, `sourcetype=postgresql:metrics`, `sourcetype=mssql:perf`, `sourcetype=oracle:session`
+- **SPL:**
+```spl
+index=db (sourcetype="mysql:status" OR sourcetype="postgresql:metrics" OR sourcetype="mssql:perf" OR sourcetype="oracle:session")
+| eval active=coalesce(threads_connected, numbackends, active_sessions, session_count)
+| eval max_conn=coalesce(max_connections, max_connections_setting, session_limit)
+| eval pool_pct=if(max_conn>0, round(100*active/max_conn,2), null())
+| timechart span=1d max(pool_pct) as peak_pool_util_pct by instance
+```
+- **Implementation:** Map instance identifiers consistently (`host` + `port` + `db_name`). For PgBouncer or RDS proxy, track pool versus backend limits separately. Alert on sustained peaks above policy (for example 80%). Combine with application-side pool settings to find mismatches. Use `perc95` if peaks are noisy from batch jobs only.
+- **Visualization:** Line chart (peak pool % by instance), column chart (30-day max), table (instances over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.6.2 · Slow Query Volume Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Counting queries exceeding a duration threshold per day quantifies database pain for developers and DBAs. Upward trends after releases often indicate missing indexes or plan regressions before p95 latency alerts fire.
+- **App/TA:** Native slow logs, Percona, `pg_stat_statements` export, SQL Server extended events
+- **Data Sources:** `index=db` `sourcetype=mysql:slow`, `sourcetype=postgresql:log`, `sourcetype=mssql:query`, `sourcetype=oracle:audit`
+- **SPL:**
+```spl
+index=db sourcetype IN ("mysql:slow","postgresql:log","mssql:query","oracle:sql")
+| eval dur_ms=coalesce(query_time_ms, duration_ms, query_duration*1000)
+| where dur_ms > 1000
+| bin _time span=1d
+| stats count as slow_queries by _time, db_name
+| timechart span=1d sum(slow_queries) as daily_slow_queries by db_name limit=12
+```
+- **Implementation:** Tune the millisecond threshold per environment (OLTP vs reporting). Hash or truncate SQL text for cardinality control. Exclude known batch accounts via `user` lookup. Join top patterns to `EXPLAIN` workflow or query store IDs when available. Retention on verbose logs may require summary indexing to `sourcetype=stash`.
+- **Visualization:** Stacked column chart (slow queries per day by database), line chart (total slow count), table (top normalized query signatures).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.6.3 · Replication Lag Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Maximum and average replication lag by replica over 30 days validates disaster-recovery readiness and read-consistency expectations. Gradual lag growth can signal network, disk, or write-volume problems before replica promotion fails.
+- **App/TA:** MySQL replica status, PostgreSQL replication, Oracle Data Guard, SQL Server AG metrics
+- **Data Sources:** `index=db` `sourcetype=mysql:slave`, `sourcetype=postgresql:replication`, `sourcetype=oracle:dg`, `sourcetype=mssql:ag`
+- **SPL:**
+```spl
+index=db sourcetype IN ("mysql:slave","postgresql:replication","oracle:dg","mssql:ag")
+| eval lag_sec=coalesce(seconds_behind_source, replay_lag_seconds, commit_lag_sec, ag_synchronization_health_seconds)
+| timechart span=1d max(lag_sec) as max_replica_lag_sec avg(lag_sec) as avg_replica_lag_sec by replica_host limit=15
+```
+- **Implementation:** For SQL Server AG, prefer `database_replica` lag fields consistent with your sync mode. Filter out replicas in paused maintenance. Correlate spikes with large index builds or log chain breaks. Use the same clock source (NTP) across primary and replicas to avoid false lag. Cloud replicas may expose lag in milliseconds—normalize to seconds in `eval`.
+- **Visualization:** Line chart (max lag per replica), area chart (avg lag), single value (worst replica lag now).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.6.4 · Database Backup Size Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity
+- **Value:** Monthly backup size growth forecasts storage for backup appliances and cloud object storage costs. Anomalous jumps can indicate bulk data loads, failed truncations, or ransomware preparation worth investigating.
+- **App/TA:** RMAN, SQL Server backup history, mysqldump / Percona log parsers, cloud backup APIs
+- **Data Sources:** `index=db` `sourcetype=mssql:backup`, `sourcetype=mysql:backup`, `sourcetype=oracle:rman`
+- **SPL:**
+```spl
+index=db sourcetype IN ("mssql:backup","mysql:backup","oracle:rman","postgresql:backup")
+| eval size_gb=coalesce(backup_size_gb, round(backup_size_bytes/1073741824,3))
+| where backup_status IN ("success","Success","completed") OR isnull(backup_status)
+| bin _time span=1mon
+| stats max(size_gb) as backup_size_gb by _time, database_name
+| timechart span=1mon sum(backup_size_gb) as total_backup_gb by database_name limit=10
+```
+- **Implementation:** Deduplicate overlapping full/diff/incremental jobs with `backup_type`. Include compression ratio if logged for better capacity forecasting. Tag cloud vs on-prem targets separately. Alert on failed backups via a companion search; this UC focuses on growth trend only.
+- **Visualization:** Line chart (backup size GB over months), column chart (month-over-month growth %), table (largest databases).
+- **CIM Models:** N/A
+
+---
+
+### UC-7.6.5 · Index Fragmentation Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Average fragmentation percentage over 30 days guides `REBUILD`/`REORG` scheduling and fill-factor reviews. Slow upward trends on hot tables correlate with extra I/O and slower queries even when CPU looks healthy.
+- **App/TA:** SQL Server DMVs via scripted input, MySQL `information_schema` / InnoDB metrics, Oracle segment advisor exports
+- **Data Sources:** `index=db` `sourcetype=mssql:fragmentation`, `sourcetype=mysql:innodb`, `sourcetype=oracle:segment`
+- **SPL:**
+```spl
+index=db sourcetype IN ("mssql:fragmentation","mysql:innodb","oracle:segment","postgresql:index")
+| eval frag_pct=coalesce(avg_fragmentation_in_percent, fragmentation_pct, bloat_ratio*100)
+| where isnotnull(frag_pct)
+| timechart span=1d avg(frag_pct) as avg_fragmentation_pct max(frag_pct) as max_fragmentation_pct by table_name limit=12
+```
+- **Implementation:** Sample large catalogs during off-peak windows to control license cost. Exclude tiny tables where fragmentation is meaningless. Join `table_name` to owner/schema for remediation tickets. PostgreSQL bloat metrics may use different units—normalize in `eval`. Pair with maintenance windows from change records.
+- **Visualization:** Line chart (fragmentation % over time), heatmap (table × week), table (tables exceeding DBA threshold).
+- **CIM Models:** N/A
+
+---

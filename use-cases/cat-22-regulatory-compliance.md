@@ -907,3 +907,192 @@ index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 - **CIM Models:** N/A
 
 ---
+
+### 22.9 Compliance Trending
+
+**Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk DB Connect (Splunkbase 1556) for GRC database pulls.
+
+**Data Sources:** `index=compliance` / `index=grc` (framework scores, control tests, audit findings), `sourcetype="compliance:framework_score"`, `sourcetype="grc:audit_finding"`, `sourcetype="compliance:control_test"`, `` `notable` `` (compliance-tagged incidents), `sourcetype="dlp:violation"` / `sourcetype="policy:enforcement"`, `sourcetype="qualys:policy"`, `sourcetype="nessus:sc:compliance"`, CIM (Authentication, Change) where policy events are normalized.
+
+---
+
+### UC-22.9.1 · Compliance Posture Score Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** Rolling quarterly posture scores across NIST CSF, ISO 27001, and SOC 2 show whether investments in controls are improving measurable outcomes—not just checkbox activity—so executives and regulators see trajectory, not a one-time snapshot.
+- **App/TA:** Splunk DB Connect (GRC export), custom HTTP poller, or indexed CSV from Archer/ServiceNow GRC
+- **Data Sources:** `index=compliance` OR `index=grc` `sourcetype IN ("compliance:framework_score","grc:posture")` — fields `framework`, `overall_score`, `_time`
+- **SPL:**
+```spl
+index=compliance OR index=grc sourcetype IN ("compliance:framework_score","grc:posture") earliest=-730d
+| eval fw=case(
+    like(framework,"%NIST%"),"NIST_CSF",
+    like(framework,"%ISO%"),"ISO27001",
+    like(framework,"%SOC%"),"SOC2",
+    1=1,framework)
+| where isnum(overall_score)
+| bin _time span=90d
+| stats avg(overall_score) as avg_score by _time, fw
+| stats avg(avg_score) as portfolio_score by _time
+| timechart span=90d avg(portfolio_score)
+| trendline sma(3) avg_portfolio_score as sma_posture
+| predict avg_portfolio_score as posture_forecast algorithm=LLP future_timespan=2 period=4
+```
+```spl
+index=compliance OR index=grc sourcetype IN ("compliance:framework_score","grc:posture") earliest=-730d
+| eval fw=case(like(framework,"%NIST%"),"NIST_CSF",like(framework,"%ISO%"),"ISO27001",like(framework,"%SOC%"),"SOC2",1=1,framework)
+| timechart span=3mon avg(overall_score) by fw
+| trendline sma(2) * as roll_*
+```
+- **Implementation:** (1) Land GRC or continuous-control scores into `compliance` or `grc` with stable `framework` labels and numeric `overall_score` (0–100); (2) align calendar quarters to your audit cycle (`span=90d` vs fiscal); (3) schedule weekly and snapshot results to a summary index for year-over-year evidence; (4) validate `predict` against low-volume series—disable or widen `period` if confidence bands explode; (5) pair the portfolio panel with the by-framework panel for board-ready trending.
+- **Visualization:** Line or area chart (portfolio score, `sma_posture`, `posture_forecast`), multiseries line (scores by `fw`), overlay confidence bands from `predict`.
+- **CIM Models:** N/A
+
+---
+
+### UC-22.9.2 · Audit Finding Closure Rate Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Trending open versus closed audit findings over ninety days makes backlog and closure velocity visible before external audits, while mean time to remediate highlights whether remediation playbooks and ownership are working.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk DB Connect for GRC findings, or custom `grc:audit_finding` HEC
+- **Data Sources:** `index=grc` OR `index=compliance` `sourcetype="grc:audit_finding"` — `finding_id`, `status`, `closed_time` or `remediated_time`, `_time`
+- **SPL:**
+```spl
+index=grc OR index=compliance sourcetype="grc:audit_finding" earliest=-90d
+| eval is_closed=if(match(status,"(?i)closed|resolved|verified"),1,0)
+| eval finding_key=coalesce(finding_id,uuid,ticket_id,number)
+| timechart span=1d dc(eval(if(is_closed=0,finding_key,null()))) as open_findings
+    dc(eval(if(is_closed=1,finding_key,null()))) as distinct_closed_entities
+| trendline sma(7) open_findings as open_smoothed
+| predict open_findings as open_forecast algorithm=LLP future_timespan=14
+```
+```spl
+index=grc OR index=compliance sourcetype="grc:audit_finding" earliest=-90d
+| eval is_closed=if(match(status,"(?i)closed|resolved|verified"),1,0)
+| where is_closed=1
+| eval mttr_days=if(isnotnull(closed_time),(closed_time-_time)/86400,
+    if(isnotnull(remediated_time),(remediated_time-_time)/86400,null()))
+| where isnum(mttr_days) AND mttr_days>=0 AND mttr_days<365
+| timechart span=1w avg(mttr_days) as mean_mttr_days perc95(mttr_days) as p95_mttr_days
+| trendline sma(4) mean_mttr_days as mttr_trend
+| streamstats window=2 global=f first(mean_mttr_days) as prev_w_mttr
+| eval wow_mttr_pct=if(isnotnull(prev_w_mttr) AND prev_w_mttr>0,round(100*(mean_mttr_days-prev_w_mttr)/prev_w_mttr,1),null())
+| predict mean_mttr_days as mttr_forecast algorithm=LLP future_timespan=2
+```
+- **Implementation:** (1) Ensure each finding emits at least one event with stable `finding_key` and transition events or daily snapshots for `status`; (2) normalize `closed_time` to epoch seconds; (3) if only snapshot data exists, switch `dc()` panels to `latest()` by key in a summary index; (4) alert when `open_forecast` rises week over week or when `mean_mttr_days` exceeds your SLA; (5) export MTTR trend for audit workpapers.
+- **Visualization:** Dual-axis line (open vs closed counts), area chart (`open_smoothed`), line chart (`mean_mttr_days`, `mttr_trend`, `mttr_forecast`), single value (`wow_mttr_pct`).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.9.3 · Control Effectiveness Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** A ninety-day pass ratio by control domain exposes domains where tests are failing more often or trending down—so you prioritize control owners, evidence collection, and automation before a failed external assessment.
+- **App/TA:** Splunk Add-on for Tenable (Splunkbase 4060) for scan-based control checks, DB Connect for ITGC spreadsheets, or `compliance:control_test` automation feeds
+- **Data Sources:** `index=compliance` `sourcetype IN ("compliance:control_test","nessus:sc:compliance","qualys:policy")` — `control_domain`, `test_result` or `status`, `_time`
+- **SPL:**
+```spl
+index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance","qualys:policy") earliest=-90d
+| eval outcome=if(match(coalesce(test_result,status,result),"(?i)pass|passed|success|green"),1,0)
+| eval domain=coalesce(control_domain,pluginFamily,"UNCLASSIFIED")
+| bin _time span=7d
+| stats count as tests, sum(outcome) as passes by _time, domain
+| eval pass_ratio=if(tests>0, round(100*passes/tests, 2), null())
+| timechart span=7d avg(pass_ratio) by domain
+| trendline sma(4) * as eff_*
+```
+```spl
+index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance") earliest=-90d
+| eval outcome=if(match(coalesce(test_result,status),"(?i)pass|passed|success"),1,0)
+| bin _time span=7d
+| stats count as tests, sum(outcome) as passes by _time
+| eval org_pass_ratio=if(tests>0, round(100*passes/tests,2), null())
+| sort _time
+| trendline sma(3) org_pass_ratio as ratio_trend
+| eventstats mean(org_pass_ratio) as portfolio_mean
+| eval gap=round(org_pass_ratio-portfolio_mean,2)
+| predict org_pass_ratio as ratio_forecast algorithm=LLP future_timespan=2 period=6
+```
+- **Implementation:** (1) Map vendor fields (`pluginFamily`, Qualys title) to internal `control_domain` via lookup `control_domain_map.csv`; (2) dedupe repeated tests per asset/control daily to avoid skew; (3) review domains where `eff_*` slopes negative for four consecutive buckets; (4) tune `span=7d` to match test frequency; (5) store weekly CSV exports for assessors.
+- **Visualization:** Multiseries line or area (pass_ratio by domain), heatmap (domain x week), line (`org_pass_ratio`, `ratio_trend`, `ratio_forecast`).
+- **CIM Models:** Vulnerabilities (when Tenable/Qualys maps to CIM); otherwise N/A
+
+---
+
+### UC-22.9.4 · Regulatory Incident Response Time Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Mean time to resolve compliance-tagged incidents by quarter proves that regulatory and policy breaches are handled with discipline—supporting supervisory expectations and internal KPIs beyond generic IT MTTR.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Data Sources:** `` `notable` `` — filter with `tag`/`category`/`rule_name` for compliance/regulatory work; fields `closed_time`, `_time`
+- **SPL:**
+```spl
+`notable` earliest=-730d (tag="compliance" OR category="*compliance*" OR rule_name="*regulatory*" OR like(rule_name,"%compliance%"))
+| eval mttr_sec=if(isnotnull(closed_time) AND closed_time>_time, closed_time-_time, null())
+| where isnotnull(mttr_sec)
+| timechart span=90d avg(mttr_sec) as avg_mttr_sec perc95(mttr_sec) as p95_mttr_sec
+| eval avg_mttr_h=avg_mttr_sec/3600
+| trendline sma(2) avg_mttr_sec as mttr_trend
+| streamstats window=2 global=f first(avg_mttr_sec) as prev_q_mttr
+| eval vs_prev_q_pct=if(isnotnull(prev_q_mttr) AND prev_q_mttr>0,round(100*(avg_mttr_sec-prev_q_mttr)/prev_q_mttr,1),null())
+| predict avg_mttr_sec as mttr_forecast algorithm=LLP future_timespan=2 period=4
+```
+- **Implementation:** (1) Define a consistent ES tag or naming convention for regulatory notables; (2) confirm `closed_time` population for closed incidents (`| fieldsummary closed_time`); (3) exclude false positives with a lookup of excluded `rule_name` values; (4) compare quarterly MTTR to IT-wide MTTR in a separate panel for context; (5) document scope (which jurisdictions or policies) in the dashboard subtitle.
+- **Visualization:** Line chart (`avg_mttr_h` or `avg_mttr_sec`, `mttr_trend`, `mttr_forecast`), column chart (`p95_mttr_sec` by quarter), single value (`vs_prev_q_pct`).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.9.5 · Policy Violation Volume Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Quarterly violation counts by category—data handling, access, encryption—show whether policy drift, training gaps, or technical misconfigurations are improving or worsening, which steers awareness campaigns and control investments.
+- **App/TA:** Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for Windows (Splunkbase 742), Enterprise Security data models
+- **Data Sources:** `index=compliance` OR `index=sec` `sourcetype IN ("dlp:violation","policy:enforcement","ms:o365:management")` — `violation_category`, `PolicyName`, `Workload`; optional `sourcetype="qualys:*"` / `sourcetype="nessus:*"` for encryption posture drift correlated to policy
+- **SPL:**
+```spl
+index=compliance OR index=sec sourcetype IN ("dlp:violation","policy:enforcement") earliest=-730d
+| eval cat=case(
+    match(_raw,"(?i)encrypt|crypto|tls|bitlocker"),"encryption",
+    match(_raw,"(?i)access|privileged|login|permission"),"access",
+    match(_raw,"(?i)dlp|classification|label"),"data_handling",
+    1=1,coalesce(violation_category,"other"))
+| timechart span=90d count by cat
+| trendline sma(2) * as cat_*
+| untable _time cat violation_count
+| eventstats sum(violation_count) as quarter_total by _time
+| sort _time, cat
+```
+```spl
+index=o365 sourcetype="ms:o365:management" Workload IN ("Dlp","Security") earliest=-730d
+| eval cat=case(
+    like(Operation,"%encryption%") OR like(SensitiveInfoType,"%encryption%"),"encryption",
+    match(Operation,"(?i)login|access|role"),"access",
+    1=1,"data_handling")
+| timechart span=90d count by cat
+| trendline sma(2) * as o365_*
+```
+```spl
+index=o365 sourcetype="ms:o365:management" Workload IN ("Dlp","Security") earliest=-730d
+| timechart span=90d count as o365_violation_total
+| trendline sma(2) o365_violation_total as o365_trend
+| predict o365_violation_total as o365_fcst algorithm=LLP future_timespan=2
+```
+```spl
+index=vm OR index=compliance sourcetype IN ("nessus:sc:*","qualys:host") earliest=-730d
+| eval enc_gap=if(match(_raw,"(?i)ssl|tls|cipher|encrypt") AND match(_raw,"(?i)fail|weak|deprecated"),1,0)
+| timechart span=90d sum(enc_gap) as encryption_policy_gaps
+| trendline sma(3) encryption_policy_gaps as enc_trend
+| predict encryption_policy_gaps as enc_fcst algorithm=LLP future_timespan=2
+```
+- **Implementation:** (1) Normalize DLP and CASB events into shared `violation_category` values via `case` or lookup; (2) align `span=90d` to fiscal or regulatory reporting quarters; (3) correlate spikes with change tickets (`index=itsm`) using `join` on `_time` windows; (4) use the total-violations panel (`o365_violation_total`) when category columns are too sparse for `predict`; (5) retain quarterly PDF snapshots for compliance archives.
+- **Visualization:** Stacked column or area (counts by `cat` over time), line (`o365_violation_total`, `o365_trend`, `o365_fcst`), line (`encryption_policy_gaps`, `enc_trend`), heatmap (category x quarter).
+- **CIM Models:** N/A
+
+---
