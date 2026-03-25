@@ -43,6 +43,10 @@ the release notes block in `index.html` by hand.
 
 - **New areas added** — Plain-language sections for OpenTelemetry and observability pipelines, distributed tracing and APM, real user and synthetic monitoring, SRE patterns and SLOs, eBPF kernel-level observability, and trending areas for identity and access, compliance, containers, cloud, security operations, applications, databases, ITSM, IoT/OT, and DevOps.
 
+### Datagen & POC tooling
+
+- **Cribl / Splunk datagen guide** — `docs/guides/datagen-top10-use-cases.md` for ten representative use cases; `eventgen_data/manifest-top10.json` and per-family samples under `eventgen_data/samples/`; `scripts/generate_manifest_samples.py` (HEC NDJSON from the manifest), `scripts/parse_uc_catalog.py` (full catalog → `manifest-all.json`), `config/uc_to_log_family.json`; GitHub Actions workflow `.github/workflows/uc-manifest.yml` validates generation on push/PR.
+
 ---
 
 ## [3.4] - 2026-03-25

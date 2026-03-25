@@ -1331,7 +1331,7 @@ index=itsm sourcetype="snow:change_request" state="Closed"
 index=itsm sourcetype="snow:backlog_daily" earliest=-30d@d
 | eval _time=strptime(snapshot_date,"%Y-%m-%d")
 | timechart span=1d sum(open_count) by age_bucket
-| foreach * [ trendline sma7(<<FIELD>>) as trend_<<FIELD>> ]
+| foreach "0-7d" "7-30d" "30-90d" "90d+" [trendline sma7(<<FIELD>>) as trend_<<FIELD>>]
 ```
 - **Implementation:** Publish a daily ServiceNow report (or scripted REST) that counts open incidents or tasks by age bucket (`0-7d`, `7-30d`, `30-90d`, `90d+`) and send results to Splunk with stable field names. If you cannot ingest snapshots yet, run a nightly saved search that writes the same structure to a summary index. Map `age_bucket` labels to your CMDB time zones; exclude cancelled records. If `foreach` is unavailable on your Splunk version, add a `trendline` per series in Dashboard Studio or clone the search per bucket. For Jira, mirror buckets using `created` versus `resolutiondate`.
 - **Visualization:** Stacked area or column chart (buckets over 30 days), Line chart (trendline overlays per bucket), Single value (90d+ share of open backlog).

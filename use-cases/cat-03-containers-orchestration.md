@@ -2306,7 +2306,7 @@ index=containers sourcetype="cilium:hubble:flows"
     verdict=="AUDIT", "Audited",
     1==1, verdict)
 | bin _time span=5m
-| stats count as flows, sum(if(verdict=="DROPPED",1,0)) as dropped, dc(destination_identity) as unique_destinations by _time, source_namespace, source_pod, destination_namespace, flow_direction
+| stats count as flows, sum(eval(if(verdict=="DROPPED",1,0))) as dropped, dc(destination_identity) as unique_destinations by _time, source_namespace, source_pod, destination_namespace, flow_direction
 | eval drop_pct=round(dropped*100/flows, 2)
 | where dropped > 0 OR unique_destinations > 50
 | table _time, source_namespace, source_pod, destination_namespace, flow_direction, flows, dropped, drop_pct, unique_destinations
@@ -2519,8 +2519,9 @@ index=containers sourcetype="kube:audit"
 - **SPL:**
 ```spl
 | mstats avg(k8s.pod.cpu.utilization) as cpu_util WHERE index=containers by namespace span=1d
-| timechart span=1d avg(cpu_util) as avg_cpu_util by namespace
-| trendline sma7(avg_cpu_util) as cpu_trend
+| sort namespace, _time
+| streamstats window=7 avg(cpu_util) as cpu_trend by namespace
+| table _time, namespace, cpu_util, cpu_trend
 ```
 - **Implementation:** Align metric names with your Prometheus/OpenTelemetry pipeline. Ensure pod labels match between usage and request series. Cap percentages at 100% for display where usage can briefly exceed requests. Review namespaces trending above 85% of request or near limit consistently for right-sizing or HPA tuning. Duplicate the panel for memory utilization.
 - **Visualization:** Line chart (avg CPU % of request by namespace, 30 days), dual panel for memory, heatmap (namespace x day).

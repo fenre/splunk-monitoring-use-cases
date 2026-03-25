@@ -935,15 +935,15 @@ index=compliance OR index=grc sourcetype IN ("compliance:framework_score","grc:p
 | bin _time span=90d
 | stats avg(overall_score) as avg_score by _time, fw
 | stats avg(avg_score) as portfolio_score by _time
-| timechart span=90d avg(portfolio_score)
-| trendline sma(3) avg_portfolio_score as sma_posture
+| timechart span=90d avg(portfolio_score) as avg_portfolio_score
+| trendline sma3(avg_portfolio_score) as sma_posture
 | predict avg_portfolio_score as posture_forecast algorithm=LLP future_timespan=2 period=4
 ```
 ```spl
 index=compliance OR index=grc sourcetype IN ("compliance:framework_score","grc:posture") earliest=-730d
 | eval fw=case(like(framework,"%NIST%"),"NIST_CSF",like(framework,"%ISO%"),"ISO27001",like(framework,"%SOC%"),"SOC2",1=1,framework)
-| timechart span=3mon avg(overall_score) by fw
-| trendline sma(2) * as roll_*
+| timechart span=3mon avg(overall_score) as avg_score by fw
+| trendline sma2(NIST_CSF) as roll_NIST_CSF sma2(ISO27001) as roll_ISO27001 sma2(SOC2) as roll_SOC2
 ```
 - **Implementation:** (1) Land GRC or continuous-control scores into `compliance` or `grc` with stable `framework` labels and numeric `overall_score` (0–100); (2) align calendar quarters to your audit cycle (`span=90d` vs fiscal); (3) schedule weekly and snapshot results to a summary index for year-over-year evidence; (4) validate `predict` against low-volume series—disable or widen `period` if confidence bands explode; (5) pair the portfolio panel with the by-framework panel for board-ready trending.
 - **Visualization:** Line or area chart (portfolio score, `sma_posture`, `posture_forecast`), multiseries line (scores by `fw`), overlay confidence bands from `predict`.
@@ -965,7 +965,7 @@ index=grc OR index=compliance sourcetype="grc:audit_finding" earliest=-90d
 | eval finding_key=coalesce(finding_id,uuid,ticket_id,number)
 | timechart span=1d dc(eval(if(is_closed=0,finding_key,null()))) as open_findings
     dc(eval(if(is_closed=1,finding_key,null()))) as distinct_closed_entities
-| trendline sma(7) open_findings as open_smoothed
+| trendline sma7(open_findings) as open_smoothed
 | predict open_findings as open_forecast algorithm=LLP future_timespan=14
 ```
 ```spl
@@ -976,7 +976,7 @@ index=grc OR index=compliance sourcetype="grc:audit_finding" earliest=-90d
     if(isnotnull(remediated_time),(remediated_time-_time)/86400,null()))
 | where isnum(mttr_days) AND mttr_days>=0 AND mttr_days<365
 | timechart span=1w avg(mttr_days) as mean_mttr_days perc95(mttr_days) as p95_mttr_days
-| trendline sma(4) mean_mttr_days as mttr_trend
+| trendline sma4(mean_mttr_days) as mttr_trend
 | streamstats window=2 global=f first(mean_mttr_days) as prev_w_mttr
 | eval wow_mttr_pct=if(isnotnull(prev_w_mttr) AND prev_w_mttr>0,round(100*(mean_mttr_days-prev_w_mttr)/prev_w_mttr,1),null())
 | predict mean_mttr_days as mttr_forecast algorithm=LLP future_timespan=2
@@ -1002,8 +1002,9 @@ index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance"
 | bin _time span=7d
 | stats count as tests, sum(outcome) as passes by _time, domain
 | eval pass_ratio=if(tests>0, round(100*passes/tests, 2), null())
-| timechart span=7d avg(pass_ratio) by domain
-| trendline sma(4) * as eff_*
+| sort domain, _time
+| streamstats window=4 avg(pass_ratio) as eff_trend by domain
+| table _time, domain, tests, pass_ratio, eff_trend
 ```
 ```spl
 index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance") earliest=-90d
@@ -1012,7 +1013,7 @@ index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance"
 | stats count as tests, sum(outcome) as passes by _time
 | eval org_pass_ratio=if(tests>0, round(100*passes/tests,2), null())
 | sort _time
-| trendline sma(3) org_pass_ratio as ratio_trend
+| trendline sma3(org_pass_ratio) as ratio_trend
 | eventstats mean(org_pass_ratio) as portfolio_mean
 | eval gap=round(org_pass_ratio-portfolio_mean,2)
 | predict org_pass_ratio as ratio_forecast algorithm=LLP future_timespan=2 period=6
@@ -1037,7 +1038,7 @@ index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance"
 | where isnotnull(mttr_sec)
 | timechart span=90d avg(mttr_sec) as avg_mttr_sec perc95(mttr_sec) as p95_mttr_sec
 | eval avg_mttr_h=avg_mttr_sec/3600
-| trendline sma(2) avg_mttr_sec as mttr_trend
+| trendline sma2(avg_mttr_sec) as mttr_trend
 | streamstats window=2 global=f first(avg_mttr_sec) as prev_q_mttr
 | eval vs_prev_q_pct=if(isnotnull(prev_q_mttr) AND prev_q_mttr>0,round(100*(avg_mttr_sec-prev_q_mttr)/prev_q_mttr,1),null())
 | predict avg_mttr_sec as mttr_forecast algorithm=LLP future_timespan=2 period=4
@@ -1063,11 +1064,13 @@ index=compliance OR index=sec sourcetype IN ("dlp:violation","policy:enforcement
     match(_raw,"(?i)access|privileged|login|permission"),"access",
     match(_raw,"(?i)dlp|classification|label"),"data_handling",
     1=1,coalesce(violation_category,"other"))
-| timechart span=90d count by cat
-| trendline sma(2) * as cat_*
-| untable _time cat violation_count
-| eventstats sum(violation_count) as quarter_total by _time
+| bin _time span=90d
+| stats count by _time, cat
+| sort cat, _time
+| streamstats window=2 avg(count) as cat_trend by cat
+| eventstats sum(count) as quarter_total by _time
 | sort _time, cat
+| table _time, cat, count, cat_trend, quarter_total
 ```
 ```spl
 index=o365 sourcetype="ms:o365:management" Workload IN ("Dlp","Security") earliest=-730d
@@ -1075,20 +1078,23 @@ index=o365 sourcetype="ms:o365:management" Workload IN ("Dlp","Security") earlie
     like(Operation,"%encryption%") OR like(SensitiveInfoType,"%encryption%"),"encryption",
     match(Operation,"(?i)login|access|role"),"access",
     1=1,"data_handling")
-| timechart span=90d count by cat
-| trendline sma(2) * as o365_*
+| bin _time span=90d
+| stats count by _time, cat
+| sort cat, _time
+| streamstats window=2 avg(count) as o365_trend by cat
+| table _time, cat, count, o365_trend
 ```
 ```spl
 index=o365 sourcetype="ms:o365:management" Workload IN ("Dlp","Security") earliest=-730d
 | timechart span=90d count as o365_violation_total
-| trendline sma(2) o365_violation_total as o365_trend
+| trendline sma2(o365_violation_total) as o365_trend
 | predict o365_violation_total as o365_fcst algorithm=LLP future_timespan=2
 ```
 ```spl
 index=vm OR index=compliance sourcetype IN ("nessus:sc:*","qualys:host") earliest=-730d
 | eval enc_gap=if(match(_raw,"(?i)ssl|tls|cipher|encrypt") AND match(_raw,"(?i)fail|weak|deprecated"),1,0)
 | timechart span=90d sum(enc_gap) as encryption_policy_gaps
-| trendline sma(3) encryption_policy_gaps as enc_trend
+| trendline sma3(encryption_policy_gaps) as enc_trend
 | predict encryption_policy_gaps as enc_fcst algorithm=LLP future_timespan=2
 ```
 - **Implementation:** (1) Normalize DLP and CASB events into shared `violation_category` values via `case` or lookup; (2) align `span=90d` to fiscal or regulatory reporting quarters; (3) correlate spikes with change tickets (`index=itsm`) using `join` on `_time` windows; (4) use the total-violations panel (`o365_violation_total`) when category columns are too sparse for `predict`; (5) retain quarterly PDF snapshots for compliance archives.

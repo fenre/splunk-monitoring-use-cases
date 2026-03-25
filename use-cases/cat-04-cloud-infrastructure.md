@@ -4618,7 +4618,7 @@ index=cloud sourcetype="aws:config:notification" resourceType="AWS::EC2::Instanc
 | stats dc(resourceId) as instance_count by _time, awsAccountId
 | timechart span=1d sum(instance_count) as total_instances
 | trendline sma7(total_instances) as instance_trend
-| predict total_instances as predicted future_timespan=30
+| predict total_instances as predicted algorithm=LLP future_timespan=30
 ```
 - **Implementation:** Ingest periodic inventory snapshots (AWS Config, DescribeInstances exports, or Azure Resource Graph) into index=cloud with one event per instance per snapshot. If only change streams exist, maintain state with a nightly summary search. Chart instance_count over 90 days; optionally split by accountId or region. For multi-cloud, normalize resourceType across providers.
 - **Visualization:** Line chart (instance count over 90 days with trend and 30-day forecast), area chart stacked by account.
@@ -4681,7 +4681,7 @@ index=cloud sourcetype="aws:cloudwatch" Namespace="AWS/S3" MetricName="BucketSiz
 | stats latest(Average) as bytes by _time, BucketName
 | eval tb=round(bytes/1099511627776, 2)
 | timechart span=1mon sum(tb) as total_tb
-| predict total_tb as predicted future_timespan=3
+| predict total_tb as predicted algorithm=LLP future_timespan=3
 ```
 - **Implementation:** Ingest daily CloudWatch BucketSizeBytes per bucket or storage account metrics for Azure/Blob. Use span=1mon aligned to calendar months for FinOps reporting. Convert bytes to TB for readability. Optionally exclude archive buckets matched to a lookup. Alert on month-over-month growth above a percentage threshold. Use predict to forecast 3 months ahead for capacity planning.
 - **Visualization:** Line chart (total TB monthly with 3-month forecast), bar chart (top buckets by size), table (month-over-month growth %).
@@ -4722,7 +4722,7 @@ index=cloud sourcetype="aws:cloudwatch:vpcflow"
 index=cloud sourcetype="aws:cloudtrail" readOnly=false
 | timechart span=1d count as mgmt_events
 | trendline sma7(mgmt_events) as event_trend
-| predict mgmt_events as predicted future_timespan=14
+| predict mgmt_events as predicted algorithm=LLP future_timespan=14
 ```
 - **Implementation:** Filter to non-read-only events for management actions. For multi-cloud, use union or a combined index with sourcetype in the by clause. Chart 90 days with daily span. Alert on statistical outliers exceeding 3x baseline. Ensure CloudTrail is multi-region and organization trails where applicable so the trend is complete. For Azure, include Activity Log management category events.
 - **Visualization:** Line chart (daily management events with 7-day SMA, 90 days), anomaly overlay, 14-day forecast.

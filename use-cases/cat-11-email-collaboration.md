@@ -1169,8 +1169,10 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **SPL:**
 ```spl
 `stream_index` thousandeyes.test.type="sip-server"
-| timechart span=5m avg(sip.client.request.duration) as avg_ttfb_s avg(sip.client.request.total_time) as avg_total_s by thousandeyes.test.name
+| bin _time span=5m
+| stats avg(sip.client.request.duration) as avg_ttfb_s, avg(sip.client.request.total_time) as avg_total_s by _time, thousandeyes.test.name
 | eval avg_ttfb_ms=round(avg_ttfb_s*1000,1), avg_total_ms=round(avg_total_s*1000,1)
+| table _time, thousandeyes.test.name, avg_ttfb_ms, avg_total_ms
 ```
 - **Implementation:** The OTel metric `sip.client.request.duration` reports TTFB (time to first SIP response) in seconds, and `sip.client.request.total_time` reports total SIP transaction time. The Splunk App Voice dashboard includes a "SIP Request Duration (s)" line chart. Alert when SIP response time consistently exceeds 500 ms — this adds noticeable delay to call setup.
 - **Visualization:** Line chart (TTFB and total time over time), Table (test, TTFB, total time), Single value.
@@ -1428,7 +1430,7 @@ index=voip sourcetype="cisco:ucm:syslog" "%CCM_CALLMANAGER-CALLMANAGER-7-DeviceR
 | lookup phone_firmware_baseline model OUTPUT recommended_fw, eol_fw
 | eval compliant=if(current_fw==recommended_fw, "Yes", "No")
 | eval eol_risk=if(current_fw==eol_fw, "EOL", "Supported")
-| stats count as total, sum(if(compliant=="No",1,0)) as non_compliant, sum(if(eol_risk=="EOL",1,0)) as eol_count by model
+| stats count as total, sum(eval(if(compliant=="No",1,0))) as non_compliant, sum(eval(if(eol_risk=="EOL",1,0))) as eol_count by model
 | eval compliance_pct=round((total-non_compliant)*100/total, 1)
 ```
 - **Implementation:** CUCM generates `DeviceRegistered` syslog messages each time a phone registers or re-registers, containing the device name, firmware version (ActiveLoadID), and IP address. Forward CUCM syslog via Splunk Connect for Syslog. Build a `phone_firmware_baseline` lookup with columns: model, recommended_fw, eol_fw (populated from Cisco's firmware recommendations). Schedule daily to track fleet compliance. Alert when compliance percentage drops below 90% or any EOL firmware is detected. For more complete inventory, add a scripted input querying CUCM RIS API for real-time registered device data. Track firmware rollout progress during upgrade campaigns with a timechart of compliant vs non-compliant counts.
@@ -1614,7 +1616,7 @@ index=contact_center sourcetype="wxcc:call_legs"
 - **Data Sources:** `sourcetype=wxcc:queue_stats` (custom via API), `sourcetype=wxcc:call_legs`
 - **SPL:**
 ```spl
-index=contact_center sourcetype="wxcc:call_legs" isnotnull(queue_name)
+index=contact_center sourcetype="wxcc:call_legs" queue_name=*
 | eval answered_in_sla=if(queue_wait_sec<=30 AND isnotnull(agent_id), 1, 0)
 | eval answered=if(isnotnull(agent_id), 1, 0)
 | eval abandoned=if(isnull(agent_id) AND disposition=="Abandoned", 1, 0)
@@ -1706,7 +1708,7 @@ index=voip sourcetype="cisco:ucm:syslog" "%CCM_CALLMANAGER-CALLMANAGER-7-DeviceR
 | stats latest(version) as current_version, latest(ip) as last_ip, latest(_time) as last_seen, count as registrations by device_name, client_type
 | lookup jabber_version_baseline client_type OUTPUT min_version, eol_version
 | eval compliant=if(current_version>=min_version, "Yes", "No")
-| stats count as total, sum(if(compliant=="No",1,0)) as non_compliant by client_type
+| stats count as total, sum(eval(if(compliant=="No",1,0))) as non_compliant by client_type
 | eval compliance_pct=round((total-non_compliant)*100/total, 1)
 ```
 - **Implementation:** CUCM logs device registration events for Jabber clients using device name prefixes: CSF (desktop softphone), BOT (Jabber bot/integration), TCT (mobile phone mode), TAB (tablet). The `ActiveLoadID` contains the Jabber version. Build a `jabber_version_baseline` lookup mapping client type to minimum acceptable version (from Cisco's Jabber release matrix). Schedule daily to track compliance. For crash analysis, collect Jabber Problem Report Tool (PRT) logs submitted to CUCM — these contain stack traces, network diagnostics, and configuration snapshots. Track crash frequency per version to prioritize upgrade campaigns. Alert when any client type's compliance drops below 80%.
@@ -2079,8 +2081,10 @@ index=webex sourcetype="webex:device"
 ```spl
 index=webex sourcetype="webex:device"
 | eval up=if(connection_state="connected",1,0)
-| timechart span=1h avg(up) as uptime_ratio by device_id
+| bin _time span=1h
+| stats avg(up) as uptime_ratio by _time, device_id
 | where uptime_ratio < 0.99
+| table _time, device_id, uptime_ratio
 ```
 - **Implementation:** Derive online state from heartbeat or Control Hub connectivity. Compute rolling uptime per room vs. expected business hours. Alert on devices below 99% weekly uptime or prolonged offline spans.
 - **Visualization:** Line chart (uptime ratio by room), Single value (fleet uptime %), Table (rooms below SLA).
@@ -2187,7 +2191,7 @@ index=collaboration sourcetype="webex:room_analytics"
 - **Data Sources:** `sourcetype=webex:room_analytics` (RoomAnalytics PeopleCount), `sourcetype=cisco:spaces:occupancy`
 - **SPL:**
 ```spl
-index=collaboration sourcetype="webex:room_analytics" isnotnull(people_count)
+index=collaboration sourcetype="webex:room_analytics" people_count=*
 | where people_count > 0
 | lookup room_inventory room_id OUTPUT room_name, capacity, room_type, building, floor
 | eval utilization_pct=round(people_count*100/capacity, 1)

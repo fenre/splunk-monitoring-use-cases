@@ -1008,7 +1008,7 @@ index=healthcare sourcetype="ris:report"
 index=healthcare sourcetype="adtflow:event"
 | where event_type IN ("admit", "transfer", "discharge")
 | bin _time span=1h
-| stats dc(bed_id) as beds_used, sum(if(event_type="admit",1,0)) as admits, sum(if(event_type="discharge",1,0)) as discharges by unit, _time
+| stats dc(bed_id) as beds_used, sum(eval(if(event_type="admit",1,0))) as admits, sum(eval(if(event_type="discharge",1,0))) as discharges by unit, _time
 | eval net_flow=admits-discharges
 | table _time, unit, beds_used, admits, discharges, net_flow
 ```

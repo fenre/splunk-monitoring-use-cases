@@ -52,6 +52,10 @@ Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over
 
 The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which has **one labeled chart per** Quick-Start use case (**44** panels = top 2 × 22 categories from `use-cases/INDEX.md`). See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`). Regenerate the JSON with **`scripts/generate_catalog_dashboard.py`** after changing Quick Start lists.
 
+### Cribl / Splunk datagen (POC)
+
+**`docs/guides/datagen-top10-use-cases.md`** describes how to drive **Cribl Stream Datagen** (or HEC) for **ten** representative catalog use cases, with **`eventgen_data/manifest-top10.json`**, sample lines under **`eventgen_data/samples/`**, and scripts **`scripts/generate_manifest_samples.py`** and **`scripts/parse_uc_catalog.py`**. See **`eventgen_data/README.md`**.
+
 ---
 
 ## Repository Structure
@@ -83,6 +87,8 @@ The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **s
 │   ├── catalog-quick-start-top2.json
 │   └── executive-health-dashboard.json
 ├── docs/                   Documentation
+│   ├── guides/
+│   │   └── datagen-top10-use-cases.md   Cribl/Splunk datagen POC (10 UCs)
 │   ├── use-case-fields.md
 │   ├── implementation-guide.md
 │   ├── cim-and-data-models.md
@@ -91,6 +97,9 @@ The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **s
 │   ├── catalog-schema.md
 │   ├── github-pages-setup.md
 │   └── splunk-apps-use-cases-comparison.md
+├── eventgen_data/          Datagen manifest + per-family sample logs (POC)
+├── config/
+│   └── uc_to_log_family.json   Default log family per category (manifest-all)
 ├── other/                  Environment-specific files (not part of the core catalog)
 ├── CODEBASE-DIAGRAM.md     Mermaid diagrams of architecture and data flow
 ├── CHANGELOG.md            Release history

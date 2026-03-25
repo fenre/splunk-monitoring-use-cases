@@ -3562,7 +3562,7 @@ index=ot sourcetype="zeek:enip:json"
 - **Data Sources:** `index=ot` `sourcetype="zeek:enip:json"` (ICSNPP `cip_io.log` merged or `sourcetype="zeek:cip_io:json"`: `connection_id`, `data_length`, `sequence_number`, `io_data`)
 - **SPL:**
 ```spl
-index=ot (sourcetype="zeek:cip_io:json" OR (sourcetype="zeek:enip:json" isnotnull(io_data)))
+index=ot (sourcetype="zeek:cip_io:json" OR (sourcetype="zeek:enip:json" io_data=*))
 | bin _time span=1s
 | stats avg(data_length) as avg_len stdev(data_length) as sd_len count by _time connection_id source_h destination_h
 | eventstats avg(avg_len) as baseline by connection_id

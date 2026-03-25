@@ -2692,11 +2692,11 @@ index=ml_ops sourcetype="mltk:model:metrics"
 index=traces sourcetype="otel:traces"
 | eval duration_ms=duration_nano/1000000
 | bin _time span=15m
-| stats p50(duration_ms) as p50, p95(duration_ms) as p95, p99(duration_ms) as p99, count as span_count by _time, service_name, operation_name
-| eventstats avg(p99) as baseline_p99, stdev(p99) as std_p99 by service_name, operation_name
+| stats p50(duration_ms) as p50, p95(duration_ms) as p95, p99(duration_ms) as p99, count as span_count by _time, service_name, span_name
+| eventstats avg(p99) as baseline_p99, stdev(p99) as std_p99 by service_name, span_name
 | eval z_score=round((p99 - baseline_p99) / nullif(std_p99, 0), 2)
 | where z_score > 2 AND span_count > 50
-| table _time, service_name, operation_name, p50, p95, p99, baseline_p99, z_score, span_count
+| table _time, service_name, span_name, p50, p95, p99, baseline_p99, z_score, span_count
 | sort -z_score
 ```
 - **Implementation:** Ingest OTel trace data via OTLP exporter to Splunk (HEC or Observability Cloud). Calculate duration percentiles per service and operation in 15-minute windows. Baseline using 7-day rolling statistics. Flag operations where p99 exceeds 2 standard deviations above the baseline with sufficient sample size (>50 spans). Correlate with deployment events (cat-12) to identify which release caused the regression. For Splunk APM users, the APM service map provides built-in latency comparison; this UC replicates the pattern for platform-only deployments. Track regressions over time to measure release quality trends.
@@ -2717,13 +2717,13 @@ index=traces sourcetype="otel:traces"
 index=traces sourcetype="otel:traces"
 | eval is_error=if(status_code=="ERROR" OR status_code==2, 1, 0)
 | bin _time span=5m
-| stats count as total_spans, sum(is_error) as error_spans by _time, service_name, operation_name
+| stats count as total_spans, sum(is_error) as error_spans by _time, service_name, span_name
 | eval error_rate_pct=round(error_spans*100/total_spans, 2)
 | where error_rate_pct > 1 AND total_spans > 20
-| eventstats avg(error_rate_pct) as baseline_error by service_name, operation_name
+| eventstats avg(error_rate_pct) as baseline_error by service_name, span_name
 | eval error_spike=round(error_rate_pct / nullif(baseline_error, 0), 1)
 | where error_spike > 3 OR error_rate_pct > 5
-| table _time, service_name, operation_name, total_spans, error_spans, error_rate_pct, baseline_error, error_spike
+| table _time, service_name, span_name, total_spans, error_spans, error_rate_pct, baseline_error, error_spike
 | sort -error_rate_pct
 ```
 - **Implementation:** Ingest OTel trace data. Map status codes: OTel status `ERROR` (code=2) and HTTP status codes >=500 in span attributes indicate errors. Calculate error rate per service/operation in 5-minute windows. Alert when error rate exceeds 3x the baseline or crosses an absolute 5% threshold. Enrich with error messages from span events (exception.type, exception.message) to group errors by root cause. Build service ownership lookups to route alerts to the responsible team. Track error rate trends per service over 30 days to measure reliability improvements.
@@ -2744,8 +2744,7 @@ index=traces sourcetype="otel:traces"
 index=traces sourcetype="otel:traces"
 | bin _time span=1h
 | stats dc(span_id) as span_count, dc(service_name) as service_count,
-    sum(if(parent_span_id="" OR isnull(parent_span_id), 1, 0)) as root_spans,
-    sum(if(span_count==1, 1, 0)) as single_span_traces
+    sum(eval(if(parent_span_id="" OR isnull(parent_span_id), 1, 0))) as root_spans
     by _time, trace_id
 | eval completeness=case(
     service_count==1 AND span_count==1, "single_span",
@@ -2753,9 +2752,9 @@ index=traces sourcetype="otel:traces"
     root_spans>1, "multiple_roots",
     1==1, "complete")
 | stats count as trace_count,
-    sum(if(completeness=="single_span",1,0)) as single_spans,
-    sum(if(completeness=="orphan_no_root",1,0)) as orphans,
-    sum(if(completeness=="multiple_roots",1,0)) as multi_root
+    sum(eval(if(completeness=="single_span",1,0))) as single_spans,
+    sum(eval(if(completeness=="orphan_no_root",1,0))) as orphans,
+    sum(eval(if(completeness=="multiple_roots",1,0))) as multi_root
     by _time
 | eval completeness_pct=round((trace_count - single_spans - orphans - multi_root)*100/trace_count, 1)
 | table _time, trace_count, completeness_pct, single_spans, orphans, multi_root
@@ -2775,7 +2774,7 @@ index=traces sourcetype="otel:traces"
 - **Data Sources:** `sourcetype=otel:traces`, `index=traces`
 - **SPL:**
 ```spl
-index=traces sourcetype="otel:traces" isnotnull(parent_span_id) parent_span_id!=""
+index=traces sourcetype="otel:traces" parent_span_id=* parent_span_id!=""
 | join type=left parent_span_id [search index=traces sourcetype="otel:traces"
     | rename span_id as parent_span_id, service_name as parent_service
     | fields parent_span_id, parent_service]
@@ -2830,20 +2829,20 @@ index=app_logs
 - **SPL:**
 ```spl
 index=traces sourcetype="otel:traces"
-| stats count as span_count, dc(service_name) as service_count, max(eval(len(split(parent_chain, ".")))) as max_depth, sum(duration_nano)/1000000 as total_duration_ms by trace_id
+| stats count as span_count, dc(service_name) as service_count, sum(duration_nano)/1000000 as total_duration_ms by trace_id
 | eventstats avg(span_count) as avg_spans, stdev(span_count) as std_spans
-| eval span_z_score=round((span_count - avg_spans) / nullif(std_spans, 0), 2)
+| eval span_z_score=round((span_count - avg_spans) / if(std_spans==0,null(),std_spans), 2)
 | eval anomaly_type=case(
     span_count > 1000, "mega_trace",
     span_z_score > 3, "high_fanout",
-    max_depth > 20, "deep_nesting",
+    service_count > 15, "wide_fanout",
     1==1, null())
 | where isnotnull(anomaly_type)
 | sort -span_count
 | head 100
-| table trace_id, anomaly_type, span_count, service_count, max_depth, total_duration_ms, span_z_score
+| table trace_id, anomaly_type, span_count, service_count, total_duration_ms, span_z_score
 ```
-- **Implementation:** Aggregate span counts per trace_id to identify traces with unusually high fan-out. Traces exceeding 1,000 spans are "mega-traces" that likely indicate N+1 queries or unbounded pagination loops. Deep nesting (>20 levels) suggests recursive service calls. Calculate z-scores against the population to detect statistically anomalous traces. For each anomalous trace, identify the service and operation that generates the most child spans — this is the fan-out origin to investigate. Common root causes: ORM lazy loading in loops, recursive microservice calls without depth limits, batch jobs that create per-item spans. Alert when mega-traces exceed 5 per hour. Feed findings to development teams with specific trace IDs for investigation.
+- **Implementation:** Aggregate span counts per `trace_id` to identify traces with unusually high fan-out. Traces exceeding 1,000 spans are "mega-traces" that likely indicate N+1 queries or unbounded pagination loops. Traces touching more than 15 services signal wide fan-out across the architecture. Calculate z-scores against the population to detect statistically anomalous traces. For each anomalous trace, identify the service and operation that generates the most child spans — this is the fan-out origin to investigate. Common root causes: ORM lazy loading in loops, recursive microservice calls without depth limits, batch jobs that create per-item spans. Alert when mega-traces exceed 5 per hour. Feed findings to development teams with specific trace IDs for investigation.
 - **Visualization:** Histogram (span count distribution with anomaly threshold), Table (anomalous traces with details), Bar chart (top services producing high-fanout traces), Single value (mega-traces in last hour).
 - **CIM Models:** N/A
 
@@ -2937,8 +2936,9 @@ index=observability sourcetype="signalfx:rum:errors"
 | eval error_type=coalesce(exception_type, "UnknownError")
 | bin _time span=1h
 | stats count as error_count, dc(session_id) as affected_sessions, values(error_type) as error_types by _time, page_url, browser_name
-| join type=left page_url [search index=observability sourcetype="signalfx:rum:metrics"
-    | stats dc(session_id) as total_sessions by page_url]
+| join type=left _time page_url [search index=observability sourcetype="signalfx:rum:metrics"
+    | bin _time span=1h
+    | stats dc(session_id) as total_sessions by _time, page_url]
 | eval error_session_pct=round(affected_sessions*100/nullif(total_sessions, 0), 1)
 | where error_count > 10 OR error_session_pct > 5
 | table _time, page_url, browser_name, error_count, affected_sessions, error_session_pct, error_types
@@ -2962,7 +2962,7 @@ index=observability sourcetype="signalfx:rum:errors"
 index=observability sourcetype="signalfx:synthetics:results" test_type="browser"
 | eval step_duration_ms=step_end_ms - step_start_ms
 | bin _time span=1h
-| stats avg(step_duration_ms) as avg_step_ms, p95(step_duration_ms) as p95_step_ms, sum(if(step_status=="FAIL",1,0)) as step_failures, count as step_runs by _time, test_name, step_name, location
+| stats avg(step_duration_ms) as avg_step_ms, p95(step_duration_ms) as p95_step_ms, sum(eval(if(step_status=="FAIL",1,0))) as step_failures, count as step_runs by _time, test_name, step_name, location
 | eval step_success_pct=round((step_runs-step_failures)*100/step_runs, 1)
 | eval sla_met=if(step_success_pct >= 99.5 AND p95_step_ms < 3000, "Yes", "No")
 | stats avg(step_success_pct) as avg_success, avg(p95_step_ms) as avg_p95, min(step_success_pct) as worst_success by test_name, step_name, location
@@ -3089,7 +3089,7 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 | bin _time span=5m
 | stats count as traffic, sum(is_error) as errors, p99(duration_ms) as latency_p99 by _time, service_name
 | eval error_rate=round(errors*100/traffic, 2)
-| join type=left service_name [
+| join type=left _time service_name [
     | mstats avg(_value) as saturation WHERE index=infra_metrics metric_name="system.cpu.utilization" BY service_name span=5m]
 | eval latency_score=case(latency_p99<200, 100, latency_p99<500, 80, latency_p99<1000, 60, latency_p99<2000, 40, 1==1, 20)
 | eval error_score=case(error_rate<0.1, 100, error_rate<1, 80, error_rate<5, 60, error_rate<10, 40, 1==1, 20)
@@ -3121,9 +3121,10 @@ index=traces sourcetype="otel:traces" span_kind="SERVER" service_name="$service$
 | eval error_ratio=1-(good_count/total)
 | eval slo_target=0.999
 | eval budget_total=1-slo_target
-| streamstats sum(total) as window_total, sum(eval(total-good_count)) as window_errors window=5 by _time
+| sort _time
+| streamstats sum(total) as window_total, sum(eval(total-good_count)) as window_errors window=5
 | eval burn_rate_5m=round((window_errors/window_total)/budget_total, 2)
-| streamstats sum(total) as window_total_1h, sum(eval(total-good_count)) as window_errors_1h window=60 by _time
+| streamstats sum(total) as window_total_1h, sum(eval(total-good_count)) as window_errors_1h window=60
 | eval burn_rate_1h=round((window_errors_1h/window_total_1h)/budget_total, 2)
 | eval fast_burn_alert=if(burn_rate_5m > 14.4 AND burn_rate_1h > 14.4, 1, 0)
 | eval slow_burn_alert=if(burn_rate_1h > 6 AND burn_rate_5m > 6, 1, 0)
@@ -3239,10 +3240,10 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 | fields service_name, owning_team, service_tier, expected_signals
 | join type=left service_name [
     search index=traces sourcetype="otel:traces" earliest=-7d
-    | stats dc(trace_id) as trace_count, dc(operation_name) as operations by service_name
+    | stats dc(trace_id) as trace_count, dc(span_name) as operations by service_name
     | eval has_traces="Yes"]
 | join type=left service_name [
-    | mstats count WHERE index=otel_metrics BY service_name span=7d
+    | mstats count(_value) as count WHERE index=otel_metrics metric_name=* BY service_name span=7d
     | where count > 0
     | eval has_metrics="Yes"
     | fields service_name, has_metrics]
@@ -3251,7 +3252,7 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
     has_traces=="Yes" AND has_metrics=="Yes", "Full",
     has_traces=="Yes" OR has_metrics=="Yes", "Partial",
     1==1, "Dark")
-| stats count as total, sum(if(coverage=="Full",1,0)) as full, sum(if(coverage=="Partial",1,0)) as partial, sum(if(coverage=="Dark",1,0)) as dark by owning_team
+| stats count as total, sum(eval(if(coverage=="Full",1,0))) as full, sum(eval(if(coverage=="Partial",1,0))) as partial, sum(eval(if(coverage=="Dark",1,0))) as dark by owning_team
 | eval coverage_pct=round(full*100/total, 1)
 | table owning_team, total, full, partial, dark, coverage_pct
 | sort coverage_pct
@@ -3273,7 +3274,7 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 ```spl
 | tstats latest(_time) as last_trace WHERE index=traces sourcetype="otel:traces" BY service_name
 | join type=left service_name [
-    | mstats latest(_time) as last_metric WHERE index=otel_metrics BY service_name]
+    | mstats max(_time) as last_metric WHERE index=otel_metrics metric_name=* BY service_name]
 | join type=left service_name [
     | tstats latest(_time) as last_log WHERE index=app_logs BY service_name]
 | eval trace_age_min=round((now()-last_trace)/60, 0)
