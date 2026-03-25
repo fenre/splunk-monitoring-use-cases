@@ -10,6 +10,15 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.6] - 2026-03-25
+
+### DIPS Arena & IGEL Endpoint Monitoring
+
+- **DIPS Arena EHR monitoring (10 new)** — Application response time, FHIR API availability and latency, user authentication and SSO monitoring, database performance, Communicator message throughput and failures, integration engine error monitoring, concurrent session and license utilization, clinical document generation latency, scheduled job monitoring, and openEHR AQL query performance. Added to category 21.3 Healthcare and Life Sciences.
+- **IGEL End-User Computing / VDI Endpoints (10 new)** — Device fleet online/offline status, firmware version compliance, UMS server health monitoring, device heartbeat loss detection, OS endpoint syslog error monitoring, UMS security audit log monitoring, device resource utilization, unscheduled reboot detection, Cloud Gateway connection health, and device configuration drift detection. New subcategory 2.5 in Virtualization.
+
+---
+
 ## [3.5] - 2026-03-25
 
 ### OpenTelemetry & Observability Expansion

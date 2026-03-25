@@ -73,6 +73,11 @@ window.NON_TECHNICAL = {
         { id: "2.4.3", why: "Track how many virtual machines run on each host — too many means you're at risk if a host fails." },
         { id: "2.4.2", why: "Find virtual machines with no recent backup — a single failure could mean permanent data loss." },
         { id: "2.4.1", why: "Spot virtual machines running old operating systems that no longer get security patches." }
+      ]},
+      { name: "IGEL thin clients", description: "We monitor your IGEL thin client fleet — device availability, firmware compliance, security events, and the management server that controls them all.", ucs: [
+        { id: "2.5.1", why: "See which thin clients are online and which are offline across all your sites, so you know before users complain." },
+        { id: "2.5.2", why: "Find devices running outdated or unapproved firmware that could have security gaps or compatibility issues." },
+        { id: "2.5.3", why: "Watch the IGEL management server health — if it goes down, you lose control of all your endpoints." }
       ]}
     ]
   },
@@ -847,10 +852,10 @@ window.NON_TECHNICAL = {
         { id: "21.2.2", why: "Correlate unplanned downtime with root causes so you can prevent recurrence." },
         { id: "21.2.5", why: "Detect vibration changes in machinery before they lead to breakdowns." }
       ]},
-      { name: "Healthcare", description: "Clinical systems, cold chain compliance, and patient flow. We help healthcare organisations deliver care reliably.", ucs: [
+      { name: "Healthcare & DIPS Arena", description: "Clinical systems, cold chain compliance, patient flow, and DIPS Arena EHR monitoring for Norwegian hospitals. We help healthcare organisations deliver care reliably.", ucs: [
         { id: "21.3.1", why: "Monitor EHR response times — slow clinical systems waste clinician time and delay care." },
-        { id: "21.3.5", why: "Alert when pharmaceutical cold chain temperatures drift — protecting vaccine and medication integrity." },
-        { id: "21.3.7", why: "Track electronic signature audit trails for FDA 21 CFR Part 11 compliance." }
+        { id: "21.3.18", why: "Track DIPS Arena application performance — Norway's dominant hospital system serving 4.3 million patients." },
+        { id: "21.3.22", why: "Watch DIPS Communicator message delivery — failed health messages can delay lab results and referrals." }
       ]},
       { name: "Transport & logistics", description: "Fleet tracking, delivery SLAs, and cargo monitoring. We help logistics operations run on time.", ucs: [
         { id: "21.4.1", why: "Track fleet vehicle locations and trigger alerts when they leave permitted zones." },

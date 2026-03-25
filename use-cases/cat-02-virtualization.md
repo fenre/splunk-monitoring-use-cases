@@ -1936,3 +1936,251 @@ index=virtualization sourcetype="ovirt_datacenter"
 
 ---
 
+## 2.5 End-User Computing / VDI Endpoints
+
+**Primary App/TA:** Custom scripted inputs polling IGEL UMS REST API (IMI v3), Splunk Universal Forwarder monitoring UMS security log files, IGEL OS rsyslog forwarding via TLS
+
+**Data Sources:** IGEL UMS REST API inventory (`/v3/thinclients`, `/v3/firmwares`), UMS check-status endpoint, UMS security audit logs (`ums-server-security.log`), ICG security logs (`icg-security.log`), IGEL OS syslog (rsyslog via TLS)
+
+---
+
+### UC-2.5.1 · IGEL Device Fleet Online/Offline Status
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** IGEL thin clients are the primary interface for VDI users in healthcare, finance, and enterprise environments. When a device goes offline, the user cannot access virtual desktops or published applications. Monitoring fleet-wide online/offline ratios and identifying persistently offline devices enables rapid remediation before users are affected at scale.
+- **App/TA:** Custom scripted input polling IGEL UMS REST API (`GET /v3/thinclients`)
+- **Data Sources:** `index=endpoint` `sourcetype="igel:ums:inventory"` fields `device_name`, `online_status`, `last_ip`, `site`, `directory_path`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:ums:inventory"
+| stats latest(online_status) as status, latest(last_ip) as last_ip, latest(directory_path) as site by device_name
+| eval status_label=if(status="true", "Online", "Offline")
+| stats count as total, sum(eval(if(status="true",1,0))) as online_count by site
+| eval offline_count=total-online_count
+| eval online_pct=round(online_count/total*100,1)
+| table site, total, online_count, offline_count, online_pct
+| sort -offline_count
+```
+- **Implementation:** Create a scripted input that polls `GET /v3/thinclients` from the IGEL UMS REST API (IMI v3) every 5 minutes. Authenticate using a dedicated UMS service account with read-only permissions. Parse each device's `unitID`, `name`, `lastIP`, `movedToBin`, and online status. Index as JSON events. Group by UMS directory path (used as site/location). Alert when fleet-wide online percentage drops below 90% or when more than 10 devices at a single site go offline simultaneously.
+- **Visualization:** Single value (fleet online %), Table (sites ranked by offline count), Status grid (device online/offline by site).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.5.2 · IGEL Firmware Version Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Running outdated or unapproved IGEL OS firmware exposes endpoints to known vulnerabilities and breaks standardized VDI session configurations. Tracking firmware versions across the fleet against an approved baseline ensures compliance with patch policies and simplifies troubleshooting by eliminating version drift as a variable.
+- **App/TA:** Custom scripted input polling IGEL UMS REST API (`GET /v3/thinclients?facets=details`, `GET /v3/firmwares`)
+- **Data Sources:** `index=endpoint` `sourcetype="igel:ums:inventory"` fields `device_name`, `firmware_id`, `firmware_version`, `product_name`, `directory_path`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:ums:inventory"
+| stats latest(firmware_id) as fw_id, latest(firmware_version) as fw_version, latest(device_name) as device_name by unit_id
+| lookup igel_approved_firmware fw_version OUTPUT approved, target_version
+| eval compliant=if(approved="yes", "Compliant", "Non-Compliant")
+| stats count as device_count by fw_version, compliant, target_version
+| sort -device_count
+| table fw_version, compliant, target_version, device_count
+```
+- **Implementation:** Poll `GET /v3/thinclients?facets=details` to retrieve firmware IDs per device, and `GET /v3/firmwares` to resolve firmware IDs to version strings and product names. Maintain a lookup table (`igel_approved_firmware.csv`) with columns `fw_version`, `approved`, `target_version` mapping each known firmware version to its compliance status. Run the lookup enrichment as a scheduled search daily. Alert when non-compliant device percentage exceeds 20% or when any device runs a firmware version flagged as critical-vulnerability.
+- **Visualization:** Pie chart (compliant vs non-compliant), Table (firmware versions with device counts), Single value (compliance %).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.5.3 · IGEL UMS Server Health Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** The IGEL UMS server is the central management plane for all IGEL endpoints. If UMS goes down or enters an error state, administrators cannot push policies, update firmware, or manage device configurations. Monitoring the built-in health endpoint provides immediate alerting on database connectivity failures, HA issues, or service degradation.
+- **App/TA:** Custom scripted input polling UMS check-status endpoint
+- **Data Sources:** `index=endpoint` `sourcetype="igel:ums:health"` fields `ums_server`, `status`, `message`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:ums:health"
+| stats latest(status) as current_status, latest(message) as message, latest(_time) as last_check by ums_server
+| eval status_age_min=round((now()-last_check)/60,0)
+| where current_status!="ok" OR status_age_min > 5
+| table ums_server, current_status, message, status_age_min
+```
+- **Implementation:** Create a scripted input that polls `https://[server]:[port]/ums/check-status` every 60 seconds. The endpoint returns JSON with a `status` field (values: `init`, `ok`, `warn`, `err`) and optional `message` describing the issue. Parse the response and index as events. Alert immediately on `err` status (database connection failure, device communication port not ready). Alert on `warn` status (HA update mode, cloud gateway disconnection, certificate sync issues). Also alert if no health check event has been received in 5 minutes (endpoint unreachable).
+- **Visualization:** Single value (current status with color coding), Timeline (status changes over time), Table (all UMS servers with status).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.5.4 · IGEL Device Heartbeat Loss Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** IGEL OS 12 devices send periodic heartbeat signals to the UMS server to report operational status. When heartbeats stop, the device may be powered off, network-disconnected, or experiencing a crash loop. Detecting heartbeat loss within a configurable window enables proactive remediation before users report issues at shift start.
+- **App/TA:** Custom scripted input polling IGEL UMS REST API (`GET /v3/thinclients?facets=details`)
+- **Data Sources:** `index=endpoint` `sourcetype="igel:ums:inventory"` fields `device_name`, `last_contact`, `directory_path`, `last_ip`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:ums:inventory"
+| stats latest(last_contact) as last_contact, latest(last_ip) as last_ip, latest(directory_path) as site by device_name
+| eval contact_epoch=strptime(last_contact, "%Y-%m-%dT%H:%M:%S")
+| eval hours_since_contact=round((now()-contact_epoch)/3600, 1)
+| where hours_since_contact > 4
+| sort -hours_since_contact
+| table device_name, site, last_ip, last_contact, hours_since_contact
+```
+- **Implementation:** Poll the UMS API with `facets=details` to retrieve `lastContact` timestamps per device. Convert to epoch and compare against current time. Devices that have not contacted UMS within the configured threshold (default 4 hours, adjust for shift patterns) are flagged. Exclude devices in the UMS recycle bin (`movedToBin=true`). Correlate with site/directory to identify location-specific network outages. Trigger escalation if more than 5 devices at the same site lose heartbeat simultaneously.
+- **Visualization:** Table (stale devices sorted by hours since contact), Bar chart (devices per site with lost heartbeat), Single value (total devices with lost heartbeat).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.5.5 · IGEL OS Endpoint Syslog Error Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** IGEL OS endpoints forward syslog messages via rsyslog with TLS encryption to centralized collectors. Monitoring for error and critical severity messages across the fleet surfaces hardware failures, driver issues, network connectivity problems, and application crashes that users may not report until they become workflow-blocking.
+- **App/TA:** Splunk syslog input (TCP/TLS) receiving IGEL OS rsyslog
+- **Data Sources:** `index=endpoint` `sourcetype="igel:os:syslog"` fields `host`, `severity`, `facility`, `process`, `message`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:os:syslog" (severity="err" OR severity="crit" OR severity="alert" OR severity="emerg")
+| bin _time span=1h
+| stats count as error_count, dc(host) as affected_devices, values(process) as processes by severity, _time
+| where error_count > 10
+| table _time, severity, error_count, affected_devices, processes
+```
+- **Implementation:** Configure IGEL OS syslog forwarding via UMS profile: System > Logging > Remote mode = Client, with TLS enabled and CA certificate at `/wfs/ca-certs/ca.pem`. Point to Splunk TCP/TLS input on port 6514. Create a props.conf entry for `sourcetype=igel:os:syslog` to parse syslog priority into `severity` and `facility` fields. Alert on cluster patterns (same error across many devices = systemic issue, repeated errors on one device = hardware fault). Exclude known benign messages via a lookup filter.
+- **Visualization:** Timechart (error count by severity), Table (top errors by frequency), Bar chart (affected devices by error type).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.5.6 · IGEL UMS Security Audit Log Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Audit
+- **Value:** IGEL UMS security audit logs capture critical administrative actions: user logins, failed authentication, password changes, device policy assignments, configuration modifications, and administrator account lifecycle events. Monitoring these events is essential for detecting unauthorized administrative access, policy tampering, and insider threats targeting the endpoint management plane.
+- **App/TA:** Splunk Universal Forwarder monitoring UMS security log files
+- **Data Sources:** `index=endpoint` `sourcetype="igel:ums:security"` fields `source_tag`, `event_type`, `user`, `target`, `result`, `detail`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:ums:security"
+| eval event_category=case(
+    match(event_type, "(?i)logon|login|logoff|authentication"), "Authentication",
+    match(event_type, "(?i)password"), "Password Change",
+    match(event_type, "(?i)assignment|profile|policy"), "Policy Change",
+    match(event_type, "(?i)account|user.*creat|user.*delet"), "Account Lifecycle",
+    match(event_type, "(?i)shutdown|restart"), "Service Lifecycle",
+    1=1, "Other"
+  )
+| stats count by event_category, source_tag, result
+| sort -count
+| table event_category, source_tag, result, count
+```
+- **Implementation:** Deploy a Splunk Universal Forwarder on the UMS server (Windows or Linux). Monitor the security log files: `ums-server-security.log`, `ums-admin-security.log`, `wums-app-security.log`. Enable remote security logging in UMS Administration > Global Configuration > Logging. Parse events using source tags (`UMS-Server`, `ICG`, `IMI`, `UMS-Webapp`). Alert on: failed login attempts exceeding 5 within 10 minutes, administrator account creation/deletion, device factory reset commands, and off-hours policy modifications.
+- **Visualization:** Bar chart (events by category), Timeline (authentication events), Table (failed logins by user and source IP).
+- **CIM Models:** Authentication, Change
+
+---
+
+### UC-2.5.7 · IGEL Device Resource Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** IGEL thin clients have constrained hardware resources (CPU, memory, flash storage). Monitoring resource utilization across the fleet identifies devices that are under-provisioned for their workload, approaching flash storage capacity, or experiencing performance issues that degrade the VDI user experience. Proactive capacity trending prevents user complaints and supports hardware refresh planning.
+- **App/TA:** Custom scripted input polling IGEL UMS REST API (`GET /v3/thinclients?facets=details`)
+- **Data Sources:** `index=endpoint` `sourcetype="igel:ums:inventory"` fields `device_name`, `cpu_speed_mhz`, `mem_size_mb`, `flash_size_mb`, `battery_level`, `network_speed`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:ums:inventory"
+| stats latest(cpu_speed_mhz) as cpu_mhz, latest(mem_size_mb) as mem_mb, latest(flash_size_mb) as flash_mb, latest(battery_level) as battery, latest(device_name) as device_name by unit_id
+| eval mem_tier=case(mem_mb<2048, "Under 2GB", mem_mb<4096, "2-4GB", mem_mb<8192, "4-8GB", 1=1, "8GB+")
+| eval flash_tier=case(flash_mb<4096, "Under 4GB", flash_mb<8192, "4-8GB", 1=1, "8GB+")
+| stats count as device_count by mem_tier, flash_tier
+| sort mem_tier, flash_tier
+| table mem_tier, flash_tier, device_count
+```
+- **Implementation:** Poll `GET /v3/thinclients?facets=details` to retrieve hardware specifications for each device. The API returns CPU speed, memory size, flash storage, battery level (mobile devices), and network speed. Index these as inventory events with the device `unitID` as a unique key. Build a fleet hardware profile to identify under-provisioned devices. Alert when battery level drops below 20% on mobile IGEL devices. Use trending to forecast flash storage exhaustion. Cross-reference hardware specs against minimum requirements for the VDI workload (e.g., Citrix Workspace App, VMware Horizon Client).
+- **Visualization:** Heatmap (memory tier x flash tier), Bar chart (devices by hardware class), Table (devices below minimum specs).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.5.8 · IGEL Device Unscheduled Reboot Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Unexpected reboots on thin clients disrupt active VDI sessions, causing users to lose unsaved work and requiring re-authentication. Detecting unscheduled reboots — those not preceded by an administrator-initiated reboot command or firmware update — helps identify hardware failures, power issues, or kernel panics across the fleet before they become widespread.
+- **App/TA:** Splunk syslog input (TCP/TLS) receiving IGEL OS rsyslog
+- **Data Sources:** `index=endpoint` `sourcetype="igel:os:syslog"` fields `host`, `process`, `message`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:os:syslog" process="kernel" ("Linux version" OR "Booting" OR "Command line:")
+| stats count as boot_events, earliest(_time) as first_boot, latest(_time) as last_boot by host
+| join type=left host [search index=endpoint sourcetype="igel:ums:security" event_type="*reboot*" OR event_type="*restart*" | stats latest(_time) as scheduled_reboot by target]
+| eval unscheduled=if(isnull(scheduled_reboot) OR last_boot > scheduled_reboot + 600, "Yes", "No")
+| where unscheduled="Yes"
+| eval last_boot_fmt=strftime(last_boot, "%Y-%m-%d %H:%M:%S")
+| table host, last_boot_fmt, boot_events
+| sort -boot_events
+```
+- **Implementation:** IGEL OS kernel boot messages appear in syslog when the device starts. Cross-reference boot events against UMS security audit logs for administrator-initiated reboot commands. Boots that occur without a matching reboot command within a 10-minute window are classified as unscheduled. Alert when a single device has more than 3 unscheduled reboots in 24 hours (possible hardware failure) or when more than 5 devices at the same site reboot unexpectedly within 30 minutes (possible power event).
+- **Visualization:** Table (devices with unscheduled reboots), Timechart (reboot events over time), Single value (unscheduled reboot count last 24h).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.5.9 · IGEL Cloud Gateway Connection Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The IGEL Cloud Gateway (ICG) enables remote management of IGEL devices outside the corporate network — essential for work-from-home and branch office deployments. If ICG connectivity fails, remote devices cannot receive policy updates, firmware upgrades, or administrative commands, creating a management blind spot. Monitoring ICG health from both the UMS and ICG perspectives ensures continuous remote device manageability.
+- **App/TA:** Splunk Universal Forwarder monitoring ICG security log, custom scripted input for UMS health
+- **Data Sources:** `index=endpoint` `sourcetype="igel:icg:security"` fields `event_type`, `user`, `result`, `source_ip`; `sourcetype="igel:ums:health"` for ICG connection warnings
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:icg:security"
+| bin _time span=15m
+| stats count as total_events,
+  sum(eval(if(match(event_type, "(?i)auth.*fail"), 1, 0))) as failed_auth,
+  sum(eval(if(match(event_type, "(?i)auth.*success"), 1, 0))) as success_auth,
+  dc(source_ip) as unique_sources by _time
+| eval fail_pct=if(total_events>0, round(failed_auth/total_events*100,1), 0)
+| where failed_auth > 5 OR fail_pct > 20
+| table _time, total_events, success_auth, failed_auth, fail_pct, unique_sources
+```
+- **Implementation:** Deploy a Splunk Universal Forwarder on the ICG server to monitor `/opt/IGEL/icg/usg/logs/icg-security.log`. The ICG security log records authentication events (success/failure), user creation/deletion, and file uploads. Also monitor the UMS check-status endpoint for ICG-related warnings (cloud gateway disconnection). Alert on: sustained authentication failures from ICG (possible certificate mismatch), ICG going offline (no events for 15+ minutes), or UMS reporting ICG disconnection in its health status.
+- **Visualization:** Timechart (ICG auth success vs failure), Single value (current ICG status), Table (failed auth sources).
+- **CIM Models:** Authentication
+
+---
+
+### UC-2.5.10 · IGEL Device Configuration Drift Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** IGEL UMS manages device configurations through profiles and priority profiles assigned to devices or directories. Unauthorized or unintended configuration changes — profile reassignments, priority profile overrides, or direct device settings modifications — can break VDI session configurations, disable security controls, or create inconsistent user experiences. Detecting configuration drift from the approved baseline ensures fleet standardization.
+- **App/TA:** Splunk Universal Forwarder monitoring UMS security log files
+- **Data Sources:** `index=endpoint` `sourcetype="igel:ums:security"` fields `source_tag`, `event_type`, `user`, `target`, `detail`
+- **SPL:**
+```spl
+index=endpoint sourcetype="igel:ums:security" source_tag="UMS-Webapp" OR source_tag="UMS-Server"
+  (event_type="*profile*" OR event_type="*assignment*" OR event_type="*settings*" OR event_type="*configuration*")
+| eval change_type=case(
+    match(event_type, "(?i)priority.*profile"), "Priority Profile Change",
+    match(event_type, "(?i)profile"), "Profile Change",
+    match(event_type, "(?i)assign"), "Assignment Change",
+    1=1, "Settings Change"
+  )
+| stats count as changes, dc(target) as affected_devices, values(user) as changed_by by change_type, _time
+| where changes > 0
+| sort -_time
+| table _time, change_type, changes, affected_devices, changed_by
+```
+- **Implementation:** The UMS security audit log records all profile assignments, priority profile updates, and device configuration modifications with the acting administrator's username. Monitor for: bulk profile reassignments (more than 10 devices in 5 minutes — could be intentional rollout or accidental), off-hours configuration changes, changes by unauthorized users, and removal of security-related profiles (e.g., syslog forwarding, USB lockdown). Maintain a lookup of approved change windows and authorized administrators. Alert on changes outside approved windows or by non-authorized users.
+- **Visualization:** Timeline (configuration changes), Bar chart (changes by type), Table (recent changes with user and target details).
+- **CIM Models:** Change
+
+---
+

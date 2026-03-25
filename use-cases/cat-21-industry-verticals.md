@@ -1161,6 +1161,248 @@ index=healthcare sourcetype="cds:query"
 
 ---
 
+### UC-21.3.18 · DIPS Arena Application Response Time
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Industry:** Healthcare
+- **Value:** DIPS Arena is Norway's dominant EHR system, serving approximately 80% of Norwegian hospitals with over 100,000 healthcare professionals and 4.3 million patient records. Slow application response times directly impact clinical workflows — clinicians waiting on patient record loading, order entry, or document retrieval experience cognitive interruption and reduced throughput. Monitoring Arena's .NET/IIS application response times enables proactive intervention before degradation affects patient care delivery.
+- **App/TA:** Splunk Universal Forwarder with IIS/ASP.NET log monitoring, custom HEC input
+- **Data Sources:** `index=healthcare` `sourcetype="dips:arena:applog"` fields `response_time_ms`, `request_url`, `http_status`, `server_node`, `user_count`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:arena:applog"
+| bin _time span=5m
+| stats avg(response_time_ms) as avg_rt, perc95(response_time_ms) as p95_rt, count as requests by server_node, _time
+| where p95_rt > 3000
+| table _time, server_node, avg_rt, p95_rt, requests
+```
+- **Implementation:** Collect DIPS Arena application performance data from IIS W3C extended logs or .NET application performance counters. Arena runs on .NET with IIS hosting — enable W3C logging with `time-taken` field and forward via Splunk Universal Forwarder. Alternatively, instrument via HEC if Arena provides application-level performance logging. Set thresholds based on clinical workflow requirements: p95 < 3 seconds for interactive clinical screens, p95 < 1 second for patient lookup. Alert on sustained degradation (3 consecutive 5-minute intervals above threshold). Correlate with server resource metrics (CPU, memory, connection pool) for root cause. **Domain context:** DIPS Arena serves all regional health authorities (Helse Nord, Helse Vest, Helse Sør-Øst) — response time SLAs may vary by trust. Exclude background batch processes and API integrations from clinician-facing p95 metrics.
+- **Visualization:** Line chart (p95 response time by server node), Heatmap (server × time), Single value (current p95).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.19 · DIPS Arena FHIR API Availability and Latency
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Industry:** Healthcare
+- **Value:** DIPS Arena exposes FHIR REST APIs through the Open DIPS platform, supporting Patient, Appointment, Encounter, Observation, Condition, and many other resource types. Third-party applications, patient portals, and SMART on FHIR apps depend on these APIs being available and responsive. API degradation or outage breaks integrations and can affect clinical workflows that rely on real-time data exchange.
+- **App/TA:** Custom scripted input polling Open DIPS FHIR endpoints
+- **Data Sources:** `index=healthcare` `sourcetype="dips:arena:api"` fields `endpoint`, `http_status`, `response_time_ms`, `fhir_resource`, `error_message`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:arena:api"
+| bin _time span=5m
+| stats avg(response_time_ms) as avg_rt, perc95(response_time_ms) as p95_rt,
+  sum(eval(if(http_status>=500, 1, 0))) as server_errors,
+  sum(eval(if(http_status>=200 AND http_status<400, 1, 0))) as success,
+  count as total by fhir_resource, _time
+| eval error_pct=round(server_errors/total*100,1)
+| where error_pct > 5 OR p95_rt > 2000
+| table _time, fhir_resource, p95_rt, avg_rt, error_pct, total
+```
+- **Implementation:** Create scripted inputs that perform synthetic health checks against key FHIR endpoints: `GET /fhir/Patient`, `GET /fhir/Appointment`, `GET /fhir/Encounter`, `GET /fhir/Observation`. Authenticate using Client Credentials flow via the DIPS Federation Service (OAuth/OIDC). Also collect real API access logs from the Arena API gateway or IIS reverse proxy. Monitor response times, HTTP status codes, and error rates per FHIR resource type. Alert on: 5xx error rate exceeding 5%, p95 latency exceeding 2 seconds, or complete endpoint unavailability. Cross-reference with the Open DIPS status page (`opendips.statuspage.io`) for known outages.
+- **Visualization:** Line chart (API response time by FHIR resource), Bar chart (error rates by endpoint), Single value (current API availability %).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.20 · DIPS Arena User Authentication and SSO Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Industry:** Healthcare
+- **Value:** DIPS Arena authentication flows through the DIPS Federation Service using OAuth/OIDC, with support for DIPS credentials, Microsoft Entra ID, and SMART on FHIR SSO. Authentication failures lock clinicians out of the EHR during critical care moments. Monitoring authentication success rates, latency, and failure patterns detects identity infrastructure issues before they cascade into widespread access disruptions.
+- **App/TA:** DIPS Federation Service logs via HEC or Universal Forwarder
+- **Data Sources:** `index=healthcare` `sourcetype="dips:federation:auth"` fields `auth_flow`, `result`, `user_type`, `client_id`, `response_time_ms`, `error_code`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:federation:auth"
+| bin _time span=10m
+| stats sum(eval(if(result="success", 1, 0))) as success,
+  sum(eval(if(result="failure", 1, 0))) as failures,
+  dc(client_id) as unique_clients,
+  avg(response_time_ms) as avg_auth_ms by auth_flow, _time
+| eval fail_pct=round(failures/(success+failures)*100,1)
+| where fail_pct > 10 OR avg_auth_ms > 5000
+| table _time, auth_flow, success, failures, fail_pct, avg_auth_ms, unique_clients
+```
+- **Implementation:** Collect authentication event logs from the DIPS Federation Service. The service handles Authorization Code Flow (interactive clinician login), Client Credentials Flow (system integrations), and SMART on FHIR (embedded applications with SSO). Parse each event for authentication flow type, result (success/failure), error code, and response time. Alert on: authentication failure rate exceeding 10% within a 10-minute window, SSO response time exceeding 5 seconds (causes UI timeouts), repeated failures from a single client application (broken integration), or complete authentication service unavailability. Correlate with Microsoft Entra ID status if using federated identity.
+- **Visualization:** Timechart (success vs failure by auth flow), Bar chart (failure reasons), Single value (current auth success rate).
+- **CIM Models:** Authentication
+
+---
+
+### UC-21.3.21 · DIPS Arena Database Performance
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Industry:** Healthcare
+- **Value:** DIPS Arena's clinical data store — backed by Oracle or SQL Server — is the foundation of all EHR operations. Slow queries, lock contention, connection pool exhaustion, or tablespace pressure directly translate to sluggish clinical workflows. Monitoring database performance at the query and connection level enables DBAs to intervene before latency propagates to the application tier and affects clinician productivity.
+- **App/TA:** Splunk DB Connect or custom HEC input from database monitoring agent
+- **Data Sources:** `index=healthcare` `sourcetype="dips:arena:db"` fields `query_time_ms`, `query_type`, `wait_type`, `active_connections`, `blocking_sessions`, `tablespace_pct`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:arena:db"
+| bin _time span=5m
+| stats avg(query_time_ms) as avg_query_ms, max(query_time_ms) as max_query_ms,
+  avg(active_connections) as avg_connections, max(blocking_sessions) as max_blocks,
+  latest(tablespace_pct) as tablespace_used by db_instance, _time
+| where avg_query_ms > 500 OR max_blocks > 3 OR tablespace_used > 85
+| table _time, db_instance, avg_query_ms, max_query_ms, avg_connections, max_blocks, tablespace_used
+```
+- **Implementation:** Collect database performance metrics from the Arena backend database (Oracle or SQL Server). Use Splunk DB Connect for direct polling or deploy a database monitoring agent that forwards metrics via HEC. Key metrics: average and p95 query execution time, active connection count vs pool limit, blocking session count and duration, tablespace/datafile utilization percentage. For Oracle: monitor `V$SESSION`, `V$SYSSTAT`, `DBA_TABLESPACE_USAGE_METRICS`. For SQL Server: monitor `sys.dm_exec_query_stats`, `sys.dm_os_wait_stats`, `sys.dm_exec_connections`. Alert on sustained query latency (avg > 500ms over 15 minutes), blocking chains longer than 30 seconds, connection pool above 80% capacity, or tablespace usage above 85%.
+- **Visualization:** Line chart (query latency over time), Gauge (tablespace utilization), Table (current blocking sessions), Single value (active connections).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.22 · DIPS Communicator Message Throughput and Failures
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Industry:** Healthcare
+- **Value:** DIPS Communicator is Norway's leading healthcare messaging solution, supporting over 250 message profiles for exchanging patient-sensitive information between hospitals, primary care, labs, and pharmacies. Message delivery failures or queue backlogs can delay lab results, referral responses, discharge summaries, and prescription notifications — each with direct patient safety implications. Monitoring throughput and failure rates ensures the messaging backbone remains reliable.
+- **App/TA:** DIPS Communicator application logs via Universal Forwarder or HEC
+- **Data Sources:** `index=healthcare` `sourcetype="dips:communicator"` fields `message_profile`, `direction`, `status`, `queue_depth`, `processing_time_ms`, `partner_org`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:communicator"
+| bin _time span=15m
+| stats sum(eval(if(status="delivered", 1, 0))) as delivered,
+  sum(eval(if(status="failed", 1, 0))) as failed,
+  sum(eval(if(status="queued", 1, 0))) as queued,
+  avg(processing_time_ms) as avg_proc_ms by message_profile, direction, _time
+| eval fail_pct=if((delivered+failed)>0, round(failed/(delivered+failed)*100,1), 0)
+| where failed > 0 OR queued > 50 OR avg_proc_ms > 10000
+| table _time, message_profile, direction, delivered, failed, fail_pct, queued, avg_proc_ms
+```
+- **Implementation:** Collect DIPS Communicator application logs that record message lifecycle events: received, validated, transformed, queued, delivered, failed. Parse by message profile type (e.g., lab results, referrals, discharge summaries, radiology reports, prescriptions) and direction (inbound/outbound). Track queue depth as a leading indicator of throughput issues. Alert on: delivery failure rate exceeding 2% for any message profile, queue depth exceeding 50 messages (backlog), processing time exceeding 10 seconds (transformation bottleneck), or zero messages processed in a 30-minute window during business hours (service outage). Correlate failures with partner organization IDs to identify external connectivity issues vs internal processing failures.
+- **Visualization:** Timechart (message throughput by profile), Bar chart (failures by message profile), Gauge (current queue depth), Table (failed messages with error details).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.23 · DIPS Arena Integration Engine Error Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Industry:** Healthcare
+- **Value:** DIPS Message Broker provides the asynchronous integration interface between DIPS Arena and external systems — lab information systems, pharmacy systems, radiology PACS, patient portals, and regional health network services. Integration errors break data flows that clinicians depend on for complete patient information. Monitoring error rates and patterns across integration channels enables rapid identification and resolution of broken interfaces.
+- **App/TA:** DIPS Message Broker logs via Universal Forwarder or HEC
+- **Data Sources:** `index=healthcare` `sourcetype="dips:messagebroker"` fields `channel`, `message_type`, `error_code`, `error_description`, `source_system`, `target_system`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:messagebroker" status="error"
+| bin _time span=1h
+| stats count as error_count, dc(error_code) as unique_errors, values(error_description) as error_types by channel, source_system, target_system, _time
+| where error_count > 5
+| sort -error_count
+| table _time, channel, source_system, target_system, error_count, unique_errors, error_types
+```
+- **Implementation:** Collect DIPS Message Broker logs that record integration message processing events across all configured channels. The broker handles multiple protocols and message standards for asynchronous exchange between Arena and external systems. Parse error events with channel identification (lab, pharmacy, radiology, etc.), source/target system names, and error codes. Alert on: sustained errors on any single channel (>5 errors per hour), complete channel silence during business hours (possible connection loss), new error codes not seen before (configuration change), or error spikes correlating with system maintenance windows. Maintain a lookup of expected message patterns by channel for anomaly detection.
+- **Visualization:** Bar chart (errors by channel), Timeline (error patterns over time), Table (error details with system pairs).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.24 · DIPS Arena Concurrent Session and License Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Industry:** Healthcare
+- **Value:** DIPS Arena licenses are typically capacity-based, with limits on concurrent user sessions. Approaching the license ceiling during peak clinical hours (morning rounds, shift changes) causes session rejections that lock clinicians out of the EHR at critical care delivery moments. Trending concurrent session counts against license limits enables proactive capacity planning and license procurement.
+- **App/TA:** DIPS Arena session logs via HEC or IIS logs
+- **Data Sources:** `index=healthcare` `sourcetype="dips:arena:session"` fields `session_id`, `user_role`, `department`, `action`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:arena:session" (action="login" OR action="logout" OR action="timeout")
+| streamstats sum(eval(if(action="login",1,-1))) as concurrent_sessions
+| bin _time span=5m
+| stats max(concurrent_sessions) as peak_sessions, avg(concurrent_sessions) as avg_sessions by _time
+| eval license_limit=5000
+| eval utilization_pct=round(peak_sessions/license_limit*100,1)
+| where utilization_pct > 80
+| table _time, peak_sessions, avg_sessions, utilization_pct
+```
+- **Implementation:** Collect session lifecycle events (login, logout, session timeout) from DIPS Arena. Calculate concurrent sessions using streamstats to maintain a running count. Set the license limit as a macro or lookup value that administrators update when licenses change. Alert at 80% utilization (capacity planning trigger), 90% (operational warning), and 95% (critical — imminent session rejections). Track peak utilization by time of day and day of week to identify patterns for capacity planning. Segment by department and user role to understand which clinical areas drive peak demand. **Domain context:** Norwegian hospitals experience predictable peaks during morning ward rounds (07:00–09:00), afternoon documentation (14:00–16:00), and shift handover periods.
+- **Visualization:** Area chart (concurrent sessions over time with license limit line), Single value (current utilization %), Heatmap (session count by hour and day of week).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.25 · DIPS Arena Clinical Document Generation Latency
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Industry:** Healthcare
+- **Value:** DIPS Arena generates clinical documents — discharge summaries, referral letters, lab reports, surgical notes — that clinicians need promptly for patient handoff and continuity of care. Document generation involves openEHR archetype composition, template rendering, and PDF creation. Slow document generation delays discharges, referral processing, and inter-organizational communication via DIPS Communicator.
+- **App/TA:** DIPS Arena application logs via HEC or Universal Forwarder
+- **Data Sources:** `index=healthcare` `sourcetype="dips:arena:applog"` fields `document_type`, `generation_time_ms`, `template_id`, `page_count`, `archetype_count`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:arena:applog" action="document_generated"
+| bin _time span=1h
+| stats avg(generation_time_ms) as avg_gen_ms, perc95(generation_time_ms) as p95_gen_ms, count as doc_count by document_type, _time
+| where p95_gen_ms > 5000
+| table _time, document_type, avg_gen_ms, p95_gen_ms, doc_count
+```
+- **Implementation:** Instrument DIPS Arena document generation events with timing information. Track generation latency by document type (discharge summary, referral, operative note, etc.), template complexity (archetype count), and output size (page count). Alert when p95 generation time exceeds 5 seconds for any document type. Correlate slow generation with database performance (complex AQL queries backing document composition) and server load. **Domain context:** Discharge summaries and referral letters are time-critical for patient flow — Norwegian hospitals are increasingly measured on discharge processing speed.
+- **Visualization:** Line chart (generation latency by document type), Bar chart (document volumes), Table (slowest document types with details).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.26 · DIPS Arena Scheduled Job Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Industry:** Healthcare
+- **Value:** DIPS Arena relies on scheduled background jobs for critical operations: data synchronization between clinical modules, report generation, HL7 message queue processing, archetype validation, and database maintenance. Failed or stalled jobs can cause data inconsistencies, missing reports, and growing message backlogs that eventually affect frontline clinical operations. Monitoring job execution status ensures background processes remain healthy.
+- **App/TA:** DIPS Arena job scheduler logs via Universal Forwarder or HEC
+- **Data Sources:** `index=healthcare` `sourcetype="dips:arena:jobs"` fields `job_name`, `status`, `duration_sec`, `records_processed`, `error_message`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:arena:jobs"
+| stats latest(status) as last_status, latest(duration_sec) as last_duration, latest(_time) as last_run, latest(error_message) as error by job_name
+| eval hours_since_run=round((now()-last_run)/3600, 1)
+| where last_status="failed" OR last_status="timeout" OR hours_since_run > 25
+| sort -hours_since_run
+| table job_name, last_status, last_duration, hours_since_run, error
+```
+- **Implementation:** Collect job execution logs from the DIPS Arena job scheduler. Each event records job name, start/end time, status (success, failed, timeout, running), records processed, and error details. Alert on: any job failure, jobs that have not run within their expected schedule (e.g., daily jobs not run in 25 hours), and jobs with duration exceeding 2x their historical average (performance regression). Maintain a lookup table mapping job names to expected schedules and maximum allowed durations. Run the monitoring search every 30 minutes.
+- **Visualization:** Table (job status overview), Single value (failed jobs count), Timeline (job execution history).
+- **CIM Models:** N/A
+
+---
+
+### UC-21.3.27 · DIPS Arena openEHR AQL Query Performance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Industry:** Healthcare
+- **Value:** DIPS Arena is built on the openEHR standard, using Archetype Query Language (AQL) to retrieve structured clinical data from archetype-based compositions. Complex AQL queries — spanning multiple archetypes, deep clinical hierarchies, or large patient populations — can become performance bottlenecks that impact clinical screen loading, reporting, and API response times. Monitoring AQL query performance identifies optimization targets and prevents query-induced degradation.
+- **App/TA:** DIPS Arena EHR Server logs via HEC or Universal Forwarder
+- **Data Sources:** `index=healthcare` `sourcetype="dips:arena:aql"` fields `query_hash`, `execution_time_ms`, `archetype_count`, `result_count`, `calling_module`
+- **SPL:**
+```spl
+index=healthcare sourcetype="dips:arena:aql"
+| bin _time span=1h
+| stats avg(execution_time_ms) as avg_exec_ms, perc95(execution_time_ms) as p95_exec_ms,
+  max(execution_time_ms) as max_exec_ms, count as query_count,
+  avg(result_count) as avg_results by query_hash, calling_module, _time
+| where p95_exec_ms > 2000
+| sort -p95_exec_ms
+| table _time, calling_module, query_hash, query_count, avg_exec_ms, p95_exec_ms, max_exec_ms, avg_results
+```
+- **Implementation:** Instrument the DIPS Arena EHR Server (the openEHR service implementation) to log AQL query execution events with timing, a hash of the query text (avoid logging full queries containing patient context), archetype count (complexity indicator), result set size, and calling module (which clinical screen or API triggered the query). Alert on: p95 execution time exceeding 2 seconds for any query pattern, queries returning more than 10,000 results (likely missing constraints), and new query patterns with execution times significantly above the fleet average. Use query hash trending to detect performance regression after Arena upgrades. Correlate with database performance metrics for root cause analysis.
+- **Visualization:** Table (slowest queries by hash with module context), Line chart (AQL query latency over time), Bar chart (query distribution by calling module).
+- **CIM Models:** N/A
+
+---
+
 ### 21.4 Transportation and Logistics
 
 **Primary App/TA:** Custom HEC inputs from telematics/fleet systems, WMS/TMS application logs, IoT sensors via MQTT, GPS tracking platforms.
