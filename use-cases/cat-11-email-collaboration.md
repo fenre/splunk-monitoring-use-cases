@@ -1361,6 +1361,449 @@ sourcetype="cisco:ucm:cdr"
 
 ---
 
+### UC-11.3.35 · CUCM CDR Call Path Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Fault
+- **Value:** End-to-end call routing visibility across gateways, trunks, route patterns, and route lists exposes misconfigured route plans that silently send calls through unintended paths — causing unexpected PSTN charges, degraded codec quality, or failed calls that users report as "the phone just doesn't work." CDR path analysis turns cryptic cause codes into actionable routing intelligence.
+- **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), `Cisco CDR Reporting and Analytics` (Splunkbase #669)
+- **Equipment Models:** Cisco Unified Communications Manager (CUCM), CUBE, ISDN Gateways, Cisco VG series
+- **Data Sources:** `sourcetype=cisco:ucm:cdr`
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:cdr"
+| eval call_path=origDeviceName." → ".lastRedirectDn." → ".destDeviceName
+| eval failed=if(destCause_value!=16 AND destCause_value!=0, 1, 0)
+| stats count as total_calls, sum(failed) as failed_calls, values(origCause_value) as orig_causes, values(destCause_value) as dest_causes by call_path, origCallingPartyNumber, finalCalledPartyNumber
+| eval fail_pct=round(failed_calls*100/total_calls, 1)
+| where fail_pct > 10 OR failed_calls > 5
+| sort -fail_pct
+| table call_path, origCallingPartyNumber, finalCalledPartyNumber, total_calls, failed_calls, fail_pct, dest_causes
+```
+- **Implementation:** Ingest CUCM CDR data via the Cisco CDR Reporting TA. The `origDeviceName`, `lastRedirectDn`, and `destDeviceName` fields trace the call path through the CUCM dial plan. `destCause_value=16` (Normal Call Clearing) indicates a successful call; any other value signals routing failure, congestion, or configuration error. Common cause codes to watch: 1 (Unallocated Number), 34 (No Circuit), 47 (Resource Unavailable), 127 (Interworking). Build a lookup for cause code descriptions. Group by route pattern or called party transform pattern to identify which dial plan rules produce the most failures. Alert when a previously healthy path exceeds 10% failure rate within 1 hour. Correlate with gateway utilization (UC-11.3.38) to distinguish capacity-related failures from configuration errors.
+- **Visualization:** Sankey diagram (call flow from origin → redirect → destination), Table (failed paths with cause codes), Bar chart (failures by cause code), Line chart (path failure rate over 24 hours).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.36 · CUCM CMR Call Quality Heatmap
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Beyond per-call MOS monitoring (UC-11.3.1), mapping CMR metrics — MOS, jitter, concealed seconds, severely concealed seconds, latency — by site-pair reveals which network segments consistently degrade voice quality. A site-to-site heatmap transforms thousands of individual call quality records into an instant visual that network engineers can use to prioritize WAN/SD-WAN optimization.
+- **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), `Cisco CDR Reporting and Analytics` (Splunkbase #669)
+- **Equipment Models:** Cisco Unified Communications Manager (CUCM), IP Phone 7800 series, IP Phone 8800 series, Cisco Webex Calling
+- **Data Sources:** `sourcetype=cisco:ucm:cmr`, `sourcetype=cisco:ucm:cdr` (for location join)
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:cmr"
+| join globalCallID_callId [search index=voip sourcetype="cisco:ucm:cdr" | fields globalCallID_callId, origDeviceName, destDeviceName, callingPartyNumber_uri]
+| lookup cucm_device_location origDeviceName as origDeviceName OUTPUT location as orig_site
+| lookup cucm_device_location destDeviceName as destDeviceName OUTPUT location as dest_site
+| eval site_pair=orig_site." ↔ ".dest_site
+| stats avg(MOS) as avg_mos, avg(jitter) as avg_jitter, avg(latency) as avg_latency, sum(severelyConcealedSeconds) as total_scs, count as call_count by site_pair
+| eval quality_score=case(avg_mos>=4.0, "Good", avg_mos>=3.5, "Fair", avg_mos>=3.0, "Poor", 1==1, "Critical")
+| sort avg_mos
+```
+- **Implementation:** Join CMR records with CDR data on `globalCallID_callId` to obtain device names and caller information. Build a `cucm_device_location` lookup mapping device names to site/location codes from CUCM device pools or locations configuration. Aggregate quality metrics by site-pair to produce the heatmap matrix. Track `severelyConcealedSeconds` as a leading indicator — it measures seconds where >5% of audio frames were interpolated, indicating packet loss that may not yet impact MOS. Schedule hourly during business hours. Alert when any site-pair avg MOS drops below 3.5 for more than 2 consecutive hours. Feed results into SD-WAN QoS policy reviews.
+- **Visualization:** Heatmap (origin site × destination site, colored by avg MOS), Table (site-pairs with worst quality), Line chart (avg MOS per site-pair over 7 days), Gauge (overall fleet MOS).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.37 · CUCM Phone Firmware Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** IP phone firmware versions determine security posture and feature availability. Phones running end-of-support firmware are vulnerable to known exploits and may lack critical features like encrypted RTP. Tracking firmware across a fleet of thousands of phones via CUCM syslog registration events provides automated compliance reporting that replaces manual CUCM Admin page audits.
+- **App/TA:** `Splunk Connect for Syslog`, `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434)
+- **Equipment Models:** Cisco IP Phone 7800 series, IP Phone 8800 series, IP Phone 6800 series, Cisco ATA 190, Cisco Webex Room Kit
+- **Data Sources:** `sourcetype=cisco:ucm:syslog` (registration events), CUCM AXL/RIS API via scripted input
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:syslog" "%CCM_CALLMANAGER-CALLMANAGER-7-DeviceRegistered%"
+| rex field=_raw "DeviceName=(?<device_name>\S+).*ActiveLoadID=(?<firmware>\S+).*IPAddress=(?<ip>\S+)"
+| rex field=device_name "^(?<model>SEP|ATA|CIPC|CSF|BOT|TCT|TAB)"
+| stats latest(firmware) as current_fw, latest(ip) as ip, latest(_time) as last_seen by device_name, model
+| lookup phone_firmware_baseline model OUTPUT recommended_fw, eol_fw
+| eval compliant=if(current_fw==recommended_fw, "Yes", "No")
+| eval eol_risk=if(current_fw==eol_fw, "EOL", "Supported")
+| stats count as total, sum(if(compliant=="No",1,0)) as non_compliant, sum(if(eol_risk=="EOL",1,0)) as eol_count by model
+| eval compliance_pct=round((total-non_compliant)*100/total, 1)
+```
+- **Implementation:** CUCM generates `DeviceRegistered` syslog messages each time a phone registers or re-registers, containing the device name, firmware version (ActiveLoadID), and IP address. Forward CUCM syslog via Splunk Connect for Syslog. Build a `phone_firmware_baseline` lookup with columns: model, recommended_fw, eol_fw (populated from Cisco's firmware recommendations). Schedule daily to track fleet compliance. Alert when compliance percentage drops below 90% or any EOL firmware is detected. For more complete inventory, add a scripted input querying CUCM RIS API for real-time registered device data. Track firmware rollout progress during upgrade campaigns with a timechart of compliant vs non-compliant counts.
+- **Visualization:** Single value (fleet compliance %), Bar chart (compliance by model), Table (non-compliant devices with firmware and IP), Pie chart (firmware version distribution).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.38 · CUCM Gateway and CUBE Utilization
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** PSTN gateways and CUBE (Cisco Unified Border Element) have finite channel capacity. When all channels are in use during peak hours, additional calls receive busy signals or route to overflow destinations that may incur higher PSTN costs. Monitoring channel utilization against capacity prevents revenue-impacting call failures and supports trunk procurement decisions.
+- **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), `Cisco Networks Add-on for Splunk` (Splunkbase #1352)
+- **Equipment Models:** Cisco ISR 4000 series (CUBE), Cisco VG310/350, Cisco CUBE Enterprise, ISDN PRI Gateways
+- **Data Sources:** `sourcetype=cisco:ucm:cdr`, `sourcetype=syslog` (gateway voice counters), SNMP (CISCO-VOICE-DIAL-CONTROL-MIB)
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:cdr"
+| eval gw=coalesce(destDeviceName, origDeviceName)
+| where like(gw, "CUBE%") OR like(gw, "GW%") OR like(gw, "MGCP%")
+| bin _time span=15m
+| stats dc(globalCallID_callId) as concurrent_calls by _time, gw
+| lookup gateway_capacity gw OUTPUT max_channels
+| eval utilization_pct=round(concurrent_calls*100/max_channels, 1)
+| where utilization_pct > 80
+| table _time, gw, concurrent_calls, max_channels, utilization_pct
+| sort -utilization_pct
+```
+- **Implementation:** Ingest CDR data and identify gateway devices by naming convention (CUBE*, GW*, MGCP*) or by maintaining a gateway device lookup. Build a `gateway_capacity` lookup mapping gateway names to their maximum channel count (PRI=23 channels per T1, SIP trunk=configured max sessions). Calculate concurrent call count per 15-minute bin as a proxy for channel utilization. Alert at 80% utilization to allow proactive capacity addition. For real-time monitoring, supplement CDR analysis with SNMP polling of CISCO-VOICE-DIAL-CONTROL-MIB for active call legs. Track codec negotiation: G.711 uses 1 channel, G.729 uses 1 channel but lower bandwidth — codec distribution affects WAN planning but not channel capacity.
+- **Visualization:** Line chart (utilization % per gateway over 24 hours), Gauge (peak utilization per gateway), Table (gateways above 80%), Bar chart (concurrent calls by gateway at peak hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.39 · CUCM Cluster Database Replication Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** CUCM relies on Informix database replication between publisher and subscriber nodes to synchronize configuration and runtime data. Replication failures cause configuration drift — changes made on the publisher don't propagate, causing inconsistent dial plans, missing device registrations, and failover failures. Detecting replication lag or broken replication before it impacts call processing prevents hard-to-diagnose intermittent call failures.
+- **App/TA:** `Splunk Connect for Syslog`, CUCM RTMT log forwarding
+- **Equipment Models:** Cisco Unified Communications Manager (CUCM) — Publisher and Subscriber nodes
+- **Data Sources:** `sourcetype=cisco:ucm:syslog` (DBReplication alerts), CUCM CLI `utils dbreplication runtimestate` via scripted input
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:syslog" ("DBReplication" OR "Replication" OR "%CCM_DB-DB-3%")
+| eval severity=case(
+    like(_raw, "%CRITICAL%") OR like(_raw, "%-3-%"), "Critical",
+    like(_raw, "%WARNING%") OR like(_raw, "%-4-%"), "Warning",
+    1==1, "Info")
+| stats count as event_count, latest(_time) as last_event, values(severity) as severities by host
+| eval repl_status=if(mvfind(severities,"Critical")>=0, "BROKEN", if(mvfind(severities,"Warning")>=0, "DEGRADED", "OK"))
+| table host, repl_status, event_count, last_event, severities
+| sort -event_count
+```
+- **Implementation:** CUCM generates syslog messages with facility `%CCM_DB-DB` for replication events. Severity level 3 (Error) indicates replication failure; level 4 (Warning) indicates replication lag. Forward all CUCM node syslog via Splunk Connect for Syslog. For deeper monitoring, deploy a scripted input that runs `utils dbreplication runtimestate` via SSH/expect script on the CUCM publisher CLI every 30 minutes, parsing the output to extract replication status per subscriber (values: 0=Init, 1=Bad, 2=Good, 3=Setup, 4=Uncertain). Alert immediately on status values other than 2. After replication breaks, CUCM requires `utils dbreplication repair` or `reset` which may cause service disruption — early detection is critical. Correlate with network connectivity between CUCM nodes.
+- **Visualization:** Single value (nodes with replication OK vs broken), Table (node replication status), Timeline (replication events), Line chart (replication event rate over 7 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.40 · CUCM Call Admission Control (CAC) Rejection Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Call Admission Control prevents WAN link saturation by rejecting calls when bandwidth allocation is exhausted for a location pair. CAC rejections mean users hear reorder tone or get rerouted to PSTN (higher cost). Trending CAC rejections by location directly supports SD-WAN, MPLS, and QoS capacity planning by quantifying where and when voice bandwidth demand exceeds allocation.
+- **App/TA:** `Splunk Connect for Syslog`, `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434)
+- **Equipment Models:** Cisco Unified Communications Manager (CUCM)
+- **Data Sources:** `sourcetype=cisco:ucm:syslog` (CAC events), `sourcetype=cisco:ucm:cdr` (cause code 47)
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:cdr" destCause_value=47
+| eval location_pair=origNodeId." → ".destNodeId
+| bin _time span=1h
+| stats count as cac_rejections by _time, location_pair
+| eventstats avg(cac_rejections) as avg_rej, stdev(cac_rejections) as std_rej by location_pair
+| eval z_score=round((cac_rejections - avg_rej)/nullif(std_rej, 0), 2)
+| where cac_rejections > 5
+| table _time, location_pair, cac_rejections, avg_rej, z_score
+| sort -cac_rejections
+```
+- **Implementation:** CUCM CDR cause code 47 (Resource Unavailable) indicates CAC rejection. Map `origNodeId` and `destNodeId` to location names via a CUCM location lookup extracted from CUCM Admin. Trend rejections by hour and location pair to identify peak congestion windows. Correlate with WAN utilization data from SD-WAN (cat-05) to validate whether the location bandwidth configuration matches actual link capacity. Alert when any location pair exceeds 5 rejections in an hour — this indicates active user impact. Use this data to justify bandwidth upgrades or QoS policy changes. Track week-over-week trends to measure whether capacity additions reduce rejections.
+- **Visualization:** Line chart (CAC rejections per location pair over 7 days), Heatmap (hour of day × location pair), Table (top rejected location pairs), Single value (total rejections today vs yesterday).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.41 · CUCM Hunt Group and Line Group Overflow
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Hunt pilots distribute incoming calls across line groups (e.g., helpdesk, sales, reception). When all members of a line group are busy, calls overflow to the next group or voicemail. Excessive overflow indicates understaffing, misconfigured hunt lists, or members not logging into their phones. Tracking overflow rates per hunt pilot directly supports workforce management and ensures callers reach a live agent rather than voicemail during business hours.
+- **App/TA:** `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434)
+- **Equipment Models:** Cisco Unified Communications Manager (CUCM)
+- **Data Sources:** `sourcetype=cisco:ucm:cdr`
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:cdr"
+| where isnotnull(huntPilotDN)
+| eval answered=if(destCause_value==16, 1, 0)
+| eval overflowed=if(lastRedirectDn!=huntPilotDN AND isnotnull(lastRedirectDn), 1, 0)
+| eval to_voicemail=if(like(destDeviceName, "VM%") OR like(destDeviceName, "Unity%"), 1, 0)
+| bin _time span=1h
+| stats count as total_calls, sum(answered) as answered, sum(overflowed) as overflowed, sum(to_voicemail) as to_vm by _time, huntPilotDN
+| eval answer_pct=round(answered*100/total_calls, 1)
+| eval overflow_pct=round(overflowed*100/total_calls, 1)
+| eval vm_pct=round(to_vm*100/total_calls, 1)
+| where overflow_pct > 20 OR vm_pct > 30
+| table _time, huntPilotDN, total_calls, answer_pct, overflow_pct, vm_pct
+| sort -overflow_pct
+```
+- **Implementation:** Ingest CUCM CDR data. The `huntPilotDN` field identifies calls that entered a hunt pilot. `lastRedirectDn` shows where the call was ultimately redirected — if it differs from the hunt pilot, the call overflowed. Calls landing on devices named VM* or Unity* went to voicemail. Calculate answer rate, overflow rate, and voicemail rate per hunt pilot per hour. Alert when overflow exceeds 20% or voicemail exceeds 30% during business hours (8am-6pm). Provide daily reports to department managers showing their hunt group performance. Correlate with agent availability data if integrated with contact center (UC-11.3.42). Use trends to recommend hunt group membership changes or additional line group members during peak periods.
+- **Visualization:** Bar chart (answer/overflow/voicemail split per hunt pilot), Line chart (overflow rate trend over 5 business days), Table (hunt pilots with highest overflow), Single value (fleet-wide answer rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.42 · Webex Contact Center Agent State and Occupancy
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Capacity
+- **Value:** Agent state distribution directly determines customer wait times and contact center throughput. Agents stuck in "Not Ready" or spending excessive time in "Wrap-Up" reduce effective capacity without appearing as staffing shortages. Real-time and trended agent state analytics expose hidden productivity issues, validate workforce management schedules, and provide evidence for staffing adjustments that reduce customer wait times.
+- **App/TA:** Webex Contact Center GraphQL API via HEC or scripted input, `Cisco Webex Add-on` (Splunkbase #5781)
+- **Equipment Models:** Webex Contact Center (WxCC), Webex Contact Center Enterprise (WxCCE)
+- **Data Sources:** `sourcetype=wxcc:agent_activity` (custom via API), `sourcetype=cisco:webex:events`
+- **SPL:**
+```spl
+index=contact_center sourcetype="wxcc:agent_activity"
+| eval state_duration=if(isnotnull(duration_sec), duration_sec, 0)
+| stats sum(eval(if(state=="Available", state_duration, 0))) as avail_sec,
+        sum(eval(if(state=="Talking", state_duration, 0))) as talk_sec,
+        sum(eval(if(state=="WrapUp", state_duration, 0))) as wrap_sec,
+        sum(eval(if(state=="NotReady", state_duration, 0))) as notready_sec,
+        sum(state_duration) as total_sec
+        by agent_id, agent_name, team
+| eval occupancy_pct=round((talk_sec+wrap_sec)*100/total_sec, 1)
+| eval notready_pct=round(notready_sec*100/total_sec, 1)
+| eval avg_wrap_min=round(wrap_sec/60, 1)
+| where occupancy_pct < 50 OR notready_pct > 40
+| sort -notready_pct
+| table agent_name, team, occupancy_pct, notready_pct, avg_wrap_min, talk_sec, total_sec
+```
+- **Implementation:** Ingest Webex Contact Center agent activity data via the WxCC GraphQL API (Agent Activity endpoint) using a scripted input or HEC integration. Each record contains agent ID, state (Available, Talking, Hold, WrapUp, NotReady, RONA), state duration, and timestamp. Calculate occupancy (time in Talking+WrapUp as percentage of logged-in time) and Not Ready percentage per agent per shift. Industry benchmarks: occupancy 75-85% is healthy; below 50% indicates overstaffing or excessive breaks; NotReady above 40% requires investigation. Alert supervisors when agents exceed configured thresholds. Provide team-level aggregation for workforce management. Track daily/weekly trends to validate schedule adherence and identify coaching opportunities.
+- **Visualization:** Stacked bar chart (state distribution per agent), Gauge (team occupancy), Table (agents with low occupancy or high NotReady), Line chart (team occupancy trend over 30 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.43 · Webex Contact Center IVR Containment Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** IVR containment rate measures the percentage of callers who complete their task within the IVR self-service system without speaking to a live agent. High containment reduces agent workload and cost per contact. Declining containment signals IVR menu confusion, new customer issues not covered by self-service, or technical failures in IVR integrations (database lookup failures, speech recognition errors) — all of which increase agent queue volume and customer frustration.
+- **App/TA:** Webex Contact Center GraphQL API via HEC, `Cisco Webex Add-on` (Splunkbase #5781)
+- **Equipment Models:** Webex Contact Center (WxCC), Cisco UCCX IVR
+- **Data Sources:** `sourcetype=wxcc:ivr_activity` (custom via API), `sourcetype=wxcc:call_legs`
+- **SPL:**
+```spl
+index=contact_center sourcetype="wxcc:call_legs"
+| eval reached_agent=if(isnotnull(agent_id) AND agent_id!="", 1, 0)
+| eval self_served=if(reached_agent==0 AND disposition=="Completed", 1, 0)
+| eval abandoned_ivr=if(reached_agent==0 AND disposition=="Abandoned", 1, 0)
+| bin _time span=1d
+| stats count as total_calls, sum(self_served) as contained, sum(reached_agent) as to_agent, sum(abandoned_ivr) as abandoned by _time, entry_point
+| eval containment_pct=round(contained*100/total_calls, 1)
+| eval abandon_pct=round(abandoned*100/total_calls, 1)
+| table _time, entry_point, total_calls, contained, to_agent, abandoned, containment_pct, abandon_pct
+| sort -_time, -total_calls
+```
+- **Implementation:** Ingest WxCC call leg data which tracks each call's journey through the IVR flow. A call is "contained" if it completes with a successful disposition without ever being connected to an agent. Track containment rate daily by entry point (phone number or IVR menu). Industry benchmarks vary: 30-50% for complex support, 60-80% for billing/account inquiries. Alert when containment drops more than 10 percentage points from the 7-day average — this usually indicates an IVR integration failure (e.g., backend API timeout causing the "try again later" path). Correlate IVR path data with specific menu choices to identify where callers bail out. Report weekly to operations leadership with trend and top escalation reasons.
+- **Visualization:** Line chart (containment rate trend over 30 days), Funnel chart (IVR path flow from entry to exit), Bar chart (containment by entry point), Single value (today's containment vs target).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.44 · Webex Contact Center Customer Wait Time SLA by Skill Group
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Queue-level SLA metrics hide performance disparities across skill groups. A blended 80% service level may mask that billing support hits 95% while technical support languishes at 55%. Granular skill-group SLA tracking exposes which specializations need staffing adjustments, schedule optimization, or skills-based routing tuning — directly preventing customer churn in the skill groups that matter most to revenue.
+- **App/TA:** Webex Contact Center GraphQL API via HEC, `Cisco Webex Add-on` (Splunkbase #5781)
+- **Equipment Models:** Webex Contact Center (WxCC)
+- **Data Sources:** `sourcetype=wxcc:queue_stats` (custom via API), `sourcetype=wxcc:call_legs`
+- **SPL:**
+```spl
+index=contact_center sourcetype="wxcc:call_legs" isnotnull(queue_name)
+| eval answered_in_sla=if(queue_wait_sec<=30 AND isnotnull(agent_id), 1, 0)
+| eval answered=if(isnotnull(agent_id), 1, 0)
+| eval abandoned=if(isnull(agent_id) AND disposition=="Abandoned", 1, 0)
+| bin _time span=30m
+| stats count as offered, sum(answered) as answered, sum(answered_in_sla) as in_sla, sum(abandoned) as abandoned, avg(queue_wait_sec) as avg_wait, perc95(queue_wait_sec) as p95_wait by _time, queue_name, skill_group
+| eval sla_pct=round(in_sla*100/offered, 1)
+| eval abandon_pct=round(abandoned*100/offered, 1)
+| table _time, queue_name, skill_group, offered, answered, in_sla, sla_pct, abandoned, abandon_pct, avg_wait, p95_wait
+| sort _time, -offered
+```
+- **Implementation:** Ingest WxCC queue and call leg data. Define SLA threshold per skill group (commonly 80% of calls answered within 30 seconds, but varies: sales may target 20 seconds, tier-2 support may allow 60 seconds). Build a `skill_group_sla_target` lookup with per-group thresholds. Compare actual performance against target every 30 minutes. Alert when any skill group drops below its SLA target for 2 consecutive periods. Track p95 wait time as a customer experience indicator — even if average wait is acceptable, long tail waits destroy satisfaction. Provide real-time wallboard data and daily reports for workforce managers. Correlate with agent state data (UC-11.3.42) to determine if poor SLA is caused by insufficient staffing or high NotReady time.
+- **Visualization:** Table (skill groups with SLA status — green/red), Gauge (SLA % per skill group), Line chart (SLA trend per skill group over 30 days), Bar chart (p95 wait time by skill group).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.45 · UCCX Real-Time Queue and Agent Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** Cisco Unified Contact Center Express (UCCX) remains widely deployed for small-to-medium contact centers. Native UCCX reporting is limited to historical views, and Finesse supervisor gadgets show only a single queue at a time. Splunk aggregation of UCCX queue statistics provides a unified real-time and historical view across all Contact Service Queues (CSQs), enabling supervisors to spot developing queue emergencies and workforce planners to validate staffing models with actual data.
+- **App/TA:** Custom scripted input (UCCX REST API / Finesse API), `Splunk Connect for Syslog`
+- **Equipment Models:** Cisco Unified Contact Center Express (UCCX), Cisco Finesse
+- **Data Sources:** `sourcetype=uccx:csq_stats` (custom via REST API), `sourcetype=uccx:agent_stats`, UCCX wallboard XML feed
+- **SPL:**
+```spl
+index=contact_center sourcetype="uccx:csq_stats"
+| stats latest(calls_waiting) as waiting, latest(calls_handled) as handled, latest(calls_abandoned) as abandoned, latest(longest_wait_sec) as longest_wait, latest(agents_available) as avail_agents by csq_name
+| eval calls_per_agent=if(avail_agents>0, round(waiting/avail_agents, 1), "N/A - No Agents")
+| eval alert_level=case(
+    waiting>10 AND avail_agents==0, "CRITICAL",
+    waiting>5 OR longest_wait>120, "WARNING",
+    1==1, "OK")
+| table csq_name, waiting, handled, abandoned, longest_wait, avail_agents, calls_per_agent, alert_level
+| sort -waiting
+```
+- **Implementation:** Deploy a scripted input that polls the UCCX REST API (available on port 9443) for CSQ statistics every 60 seconds. The API returns calls waiting, calls handled, calls abandoned, average/max wait times, and available agents per CSQ. Parse into structured events and index. For agent-level data, poll the Finesse REST API for agent state and call details. Alert when any CSQ has calls waiting with zero available agents (immediate customer impact). Provide a wallboard-style dashboard with auto-refresh for supervisors. Track historical queue performance trends to validate workforce management forecasts. Combine with UCCX Historical Reporting data for end-of-day analytics.
+- **Visualization:** Single value tiles (calls waiting, longest wait, available agents — per CSQ), Table (all CSQs with status), Line chart (calls waiting trend over shift), Bar chart (handled vs abandoned by CSQ).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.46 · Contact Center Abandon Rate Correlation with Network Quality
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Performance
+- **Value:** Contact center abandons have two fundamentally different root causes: callers hanging up because of long wait times (staffing issue) vs callers disconnected due to network/voice quality failures (infrastructure issue). Distinguishing these requires correlating abandon events with network quality metrics. Misdiagnosing network-caused abandons as staffing issues wastes workforce budget; misdiagnosing wait-time abandons as network issues wastes engineering effort.
+- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), `Cisco ThousandEyes App for Splunk` (Splunkbase #7719), WxCC API
+- **Equipment Models:** Webex Contact Center, Cisco ThousandEyes, CUCM
+- **Data Sources:** `sourcetype=wxcc:call_legs`, `sourcetype=thousandeyes:tests`, `sourcetype=cisco:ucm:cmr`
+- **SPL:**
+```spl
+index=contact_center sourcetype="wxcc:call_legs" disposition="Abandoned"
+| eval abandon_after_sec=queue_wait_sec
+| eval time_bucket=case(abandon_after_sec<10, "0-10s (likely drop)", abandon_after_sec<30, "10-30s", abandon_after_sec<60, "30-60s", abandon_after_sec<120, "1-2min", 1==1, "2min+ (likely frustration)")
+| bin _time span=1h
+| stats count as abandons by _time, time_bucket, entry_point
+| append [search index=network sourcetype="thousandeyes:tests" test_type="voice"
+    | bin _time span=1h
+    | stats avg(mos) as avg_mos, avg(packet_loss_pct) as avg_loss by _time]
+| stats sum(abandons) as total_abandons, first(avg_mos) as network_mos, first(avg_loss) as network_loss by _time
+| eval likely_cause=case(network_mos<3.5 OR network_loss>2, "Network Quality", total_abandons>0 AND (isnull(network_mos) OR network_mos>=3.5), "Wait Time", 1==1, "Unknown")
+| table _time, total_abandons, network_mos, network_loss, likely_cause
+```
+- **Implementation:** Ingest both contact center abandon events and network quality metrics (ThousandEyes voice tests, CUCM CMR data, or SD-WAN quality metrics) into Splunk. Classify abandons by timing: calls abandoned within 10 seconds likely experienced a technical failure (no ring, one-way audio, poor quality); calls abandoned after 2+ minutes are likely frustrated by wait time. Correlate with concurrent ThousandEyes MOS scores and packet loss on the voice path. When a cluster of short-duration abandons coincides with network quality degradation, classify as network-caused and alert the network team rather than the workforce management team. Build a daily report showing abandon root cause distribution to drive targeted improvements.
+- **Visualization:** Stacked bar chart (abandons by time bucket), Line chart (abandon count overlaid with MOS score), Table (hourly breakdown with likely cause), Pie chart (root cause distribution).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.47 · Jabber Client Version Compliance and Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Cisco Jabber clients run on Windows, macOS, iOS, and Android with different version lifecycles and vulnerability profiles. Outdated Jabber versions may have known security vulnerabilities (CVEs), lack support for current SRTP/TLS standards, or miss critical bug fixes. Fleet-wide version tracking replaces manual inventory audits and supports security compliance reporting by quantifying the attack surface from legacy communication clients.
+- **App/TA:** `Splunk Connect for Syslog`, CUCM AXL API scripted input
+- **Equipment Models:** Cisco Jabber for Windows, Cisco Jabber for Mac, Cisco Jabber for iOS, Cisco Jabber for Android
+- **Data Sources:** `sourcetype=cisco:ucm:syslog` (CSF/BOT/TCT/TAB registration events), `sourcetype=jabber:problemreport` (Jabber PRT logs)
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:ucm:syslog" "%CCM_CALLMANAGER-CALLMANAGER-7-DeviceRegistered%"
+    (DeviceName=CSF* OR DeviceName=BOT* OR DeviceName=TCT* OR DeviceName=TAB*)
+| rex field=_raw "DeviceName=(?<device_name>\S+).*ActiveLoadID=(?<version>\S+).*IPAddress=(?<ip>\S+)"
+| eval client_type=case(
+    like(device_name, "CSF%"), "Jabber Windows/Mac",
+    like(device_name, "BOT%"), "Jabber Bot",
+    like(device_name, "TCT%"), "Jabber Mobile (Phone)",
+    like(device_name, "TAB%"), "Jabber Tablet")
+| stats latest(version) as current_version, latest(ip) as last_ip, latest(_time) as last_seen, count as registrations by device_name, client_type
+| lookup jabber_version_baseline client_type OUTPUT min_version, eol_version
+| eval compliant=if(current_version>=min_version, "Yes", "No")
+| stats count as total, sum(if(compliant=="No",1,0)) as non_compliant by client_type
+| eval compliance_pct=round((total-non_compliant)*100/total, 1)
+```
+- **Implementation:** CUCM logs device registration events for Jabber clients using device name prefixes: CSF (desktop softphone), BOT (Jabber bot/integration), TCT (mobile phone mode), TAB (tablet). The `ActiveLoadID` contains the Jabber version. Build a `jabber_version_baseline` lookup mapping client type to minimum acceptable version (from Cisco's Jabber release matrix). Schedule daily to track compliance. For crash analysis, collect Jabber Problem Report Tool (PRT) logs submitted to CUCM — these contain stack traces, network diagnostics, and configuration snapshots. Track crash frequency per version to prioritize upgrade campaigns. Alert when any client type's compliance drops below 80%.
+- **Visualization:** Pie chart (version distribution per client type), Single value (fleet compliance %), Table (non-compliant devices with version and last seen), Bar chart (compliance by client type).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.48 · IM and Presence Service Availability
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Cisco IM and Presence (IM&P) provides XMPP-based instant messaging, presence status, and federation with external systems. IM&P node failures cause presence to show all users as "Unknown," messages to queue indefinitely, and inter-cluster federation to break. Unlike voice call failures which produce immediate user complaints, IM&P degradation often goes unreported for hours while quietly impacting team coordination and collaboration workflows.
+- **App/TA:** `Splunk Connect for Syslog`, CUCM/IM&P RTMT log forwarding
+- **Equipment Models:** Cisco IM and Presence Service (IM&P), Cisco Unified Presence Server
+- **Data Sources:** `sourcetype=cisco:imp:syslog` (IM&P syslog), RTMT perfmon counters via scripted input
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:imp:syslog"
+| eval service_impact=case(
+    like(_raw, "%XMPPConnectionFailed%") OR like(_raw, "%XCPConnectionClosed%"), "XMPP",
+    like(_raw, "%SIPSubscriptionFailed%") OR like(_raw, "%PresenceSubscription%"), "Presence",
+    like(_raw, "%PeGroupNode%") OR like(_raw, "%InterCluster%"), "Federation",
+    like(_raw, "%DBReplication%") OR like(_raw, "%SchemaUpdate%"), "Database",
+    1==1, "Other")
+| where service_impact!="Other"
+| bin _time span=5m
+| stats count as events, dc(host) as affected_nodes, values(service_impact) as impacted_services by _time
+| where events > 3
+| table _time, affected_nodes, events, impacted_services
+| sort -_time
+```
+- **Implementation:** Forward IM&P node syslog via Splunk Connect for Syslog. Key events to monitor: XMPPConnectionFailed (client-facing messaging down), SIPSubscriptionFailed (presence status not updating), PeGroupNode errors (inter-cluster peering broken), and DBReplication issues (configuration sync failures). Classify events by service impact area. Alert when XMPP or Presence events spike above 3 per 5-minute window — this indicates active service degradation. For capacity monitoring, deploy a scripted input collecting IM&P RTMT perfmon counters: active XMPP sessions, SIP subscriptions, message rate, and PE node status. Track session counts against licensed capacity. Correlate IM&P health with CUCM cluster health (UC-11.3.39) as they share infrastructure.
+- **Visualization:** Single value (IM&P service status — green/yellow/red), Timeline (service impact events), Bar chart (events by impact area), Line chart (XMPP session count over 24 hours).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.49 · Unity Connection Voicemail System Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Cisco Unity Connection handles voicemail, auto-attendant, and Interactive Voice Response functions. Port exhaustion during peak hours causes callers to hear busy signals instead of reaching voicemail. Message store capacity issues cause new messages to be rejected. MWI (Message Waiting Indicator) delivery failures leave users unaware of waiting messages. Monitoring these components prevents the silent voicemail failures that users only discover when someone says "didn't you get my message?"
+- **App/TA:** `Splunk Connect for Syslog`, Unity Connection RTMT / Serviceability API scripted input
+- **Equipment Models:** Cisco Unity Connection
+- **Data Sources:** `sourcetype=cisco:unity:syslog`, `sourcetype=cisco:unity:perf` (custom via API)
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:unity:syslog"
+| eval component=case(
+    like(_raw, "%Port%") OR like(_raw, "%VoiceMail%port%"), "Ports",
+    like(_raw, "%MessageStore%") OR like(_raw, "%Mailbox%quota%"), "Storage",
+    like(_raw, "%MWI%") OR like(_raw, "%MessageWaiting%"), "MWI",
+    like(_raw, "%SMTP%") OR like(_raw, "%Notification%"), "Notifications",
+    1==1, "Other")
+| where component!="Other"
+| bin _time span=15m
+| stats count as events, values(component) as affected_components by _time, host
+| eval severity=case(
+    mvfind(affected_components, "Ports")>=0, "High",
+    mvfind(affected_components, "Storage")>=0, "High",
+    mvfind(affected_components, "MWI")>=0, "Medium",
+    1==1, "Low")
+| table _time, host, affected_components, events, severity
+| sort -_time
+```
+- **Implementation:** Forward Unity Connection syslog via Splunk Connect for Syslog. Monitor four key areas: (1) Port utilization — Unity has a fixed number of voice ports; when all are in use, callers get busy signals. Deploy a scripted input polling the CUPI REST API for port status every 2 minutes. Alert at 80% port utilization. (2) Message store capacity — track UnityDynSvc mailbox storage against configured quotas. Alert at 90% capacity. (3) MWI delivery — track MWI on/off notifications; failures mean the phone light stays off when messages are waiting. (4) SMTP notification queue — email notifications of voicemail messages queue when Exchange/O365 connectivity fails. Alert when queue depth exceeds 100. Correlate port exhaustion with CUCM call volume (UC-11.3.2) to validate port-to-call ratio.
+- **Visualization:** Gauge (port utilization %), Single value (message store capacity %), Timeline (component events), Table (affected components with severity), Line chart (port utilization trend over 24 hours).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.50 · Unity Connection Mailbox Usage and Retention Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Capacity
+- **Value:** Voicemail mailboxes that grow unbounded consume storage and may violate data retention policies (PCI, HIPAA, legal hold requirements). Users who never check voicemail accumulate messages that represent both a storage cost and a compliance risk. Tracking mailbox sizes, message aging, and auto-deletion policy compliance ensures the voicemail system operates within governance boundaries and storage capacity is allocated to active users rather than abandoned mailboxes.
+- **App/TA:** Unity Connection CUPI REST API via scripted input, `Splunk Connect for Syslog`
+- **Equipment Models:** Cisco Unity Connection
+- **Data Sources:** `sourcetype=cisco:unity:mailbox` (custom via CUPI API), `sourcetype=cisco:unity:syslog`
+- **SPL:**
+```spl
+index=voip sourcetype="cisco:unity:mailbox"
+| stats latest(mailbox_size_mb) as size_mb, latest(message_count) as msg_count, latest(oldest_msg_days) as oldest_msg, latest(unread_count) as unread, latest(quota_mb) as quota_mb by user_alias, display_name, cos_name
+| eval quota_pct=round(size_mb*100/quota_mb, 1)
+| eval retention_violation=if(oldest_msg > 90, "Yes", "No")
+| eval inactive=if(unread==msg_count AND msg_count>5, "Likely Inactive", "Active")
+| where quota_pct > 80 OR retention_violation=="Yes" OR inactive=="Likely Inactive"
+| table display_name, user_alias, cos_name, size_mb, quota_mb, quota_pct, msg_count, unread, oldest_msg, retention_violation, inactive
+| sort -quota_pct
+```
+- **Implementation:** Deploy a scripted input that queries the Unity Connection CUPI REST API (`/vmrest/users` and `/vmrest/mailbox`) daily to extract per-user mailbox statistics: size, message count, unread count, oldest message date, and quota allocation. Store in a dedicated sourcetype. Build compliance rules: (1) Messages older than 90 days violate standard retention (adjust threshold per organizational policy). (2) Mailboxes above 80% quota need notification. (3) Users where all messages are unread and count exceeds 5 are likely inactive — flag for deprovisioning review. Provide monthly compliance reports to IT governance. Track storage growth trends to forecast Unity Connection storage capacity needs.
+- **Visualization:** Table (users with compliance issues), Pie chart (quota utilization distribution), Bar chart (top 20 mailboxes by size), Single value (total retention violations), Line chart (storage growth trend over 90 days).
+- **CIM Models:** N/A
+
+---
+
 ### 11.4 Mail Transport & Relay Infrastructure
 
 **Primary App/TA:** Postfix, Sendmail, Microsoft Exchange, Cisco Email Security Appliance (ESA), generic SMTP/MTA logs
@@ -1700,4 +2143,134 @@ index=m365 sourcetype="m365:teams_cqd"
 ```
 - **Implementation:** Ingest CQD or Call Records via Graph / data export. Join subnet or building names from network inventory. Baseline per site. Alert when poor stream percentage or packet loss exceeds SLA. Feed top offenders to network ops.
 - **Visualization:** Table (users/sites with worst quality), Line chart (poor stream % trend), Map or bar chart (quality by building).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.9 · Meeting Room No-Show and Early Release Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Meeting rooms are expensive corporate assets. Rooms booked but never occupied (no-shows) and meetings that end well before the booked time waste capacity that other teams need. Quantifying no-show rates and early release patterns provides facilities and IT leadership with evidence to implement auto-release policies, shorten default booking durations, and right-size room inventory — directly improving room availability without adding physical space.
+- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), Cisco Spaces Add-On (Splunkbase #8485), calendar API integration
+- **Equipment Models:** Cisco Webex Room Kit, Webex Board, Webex Desk Pro, Cisco Room Navigator, Cisco Meraki MV Smart Cameras
+- **Data Sources:** `sourcetype=webex:room_analytics` (RoomAnalytics PeoplePresence), `sourcetype=cisco:spaces:occupancy`, calendar booking data
+- **SPL:**
+```spl
+index=collaboration sourcetype="webex:room_analytics"
+| eval booked=if(isnotnull(booking_id), 1, 0)
+| eval occupied=if(people_presence=="Yes" OR people_count>0, 1, 0)
+| eval no_show=if(booked==1 AND occupied==0, 1, 0)
+| eval early_release_min=if(booked==1 AND occupied==1, round((booking_end_epoch - actual_end_epoch)/60, 0), null())
+| eval early_release=if(isnotnull(early_release_min) AND early_release_min > round(booking_duration_min*0.5, 0), 1, 0)
+| bin _time span=1d
+| stats count(eval(booked==1)) as total_bookings, sum(no_show) as no_shows, sum(early_release) as early_releases, avg(early_release_min) as avg_early_min by _time, room_name, building
+| eval no_show_pct=round(no_shows*100/total_bookings, 1)
+| eval early_pct=round(early_releases*100/total_bookings, 1)
+| eval wasted_pct=round((no_shows+early_releases)*100/total_bookings, 1)
+| table _time, building, room_name, total_bookings, no_show_pct, early_pct, wasted_pct, avg_early_min
+| sort -wasted_pct
+```
+- **Implementation:** Combine Webex RoomOS room analytics data (PeoplePresence and PeopleCount sensors) with calendar booking data (Exchange/O365 room resource calendar or Webex calendar integration). A room is a "no-show" if it was booked but PeoplePresence remained "No" for the entire booking duration (allow 10-minute grace period). A meeting is an "early release" if it ended more than 50% before the booked end time. Track daily trends per room and building. Identify chronically wasted rooms (>30% no-show rate) for policy intervention. Feed data to Cisco Spaces for automated room release workflows. Provide monthly reports to facilities management with cost-per-wasted-hour calculations based on floor space cost allocation.
+- **Visualization:** Bar chart (no-show % by room), Line chart (fleet-wide no-show rate trend over 90 days), Heatmap (room × day-of-week waste), Table (worst rooms with waste percentage), Single value (weekly wasted hours).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.10 · Meeting Room People Count vs Capacity Optimization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** A 20-person boardroom consistently used by 2-person meetings represents a massive space efficiency failure. Conversely, 4-person huddle rooms packed with 8 people violate fire codes and degrade meeting quality. RoomOS people count data matched against room capacity enables evidence-based space optimization — converting underutilized large rooms into multiple smaller spaces, or adding capacity where demand exceeds supply — decisions worth millions in real estate savings.
+- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), Cisco Spaces Add-On (Splunkbase #8485)
+- **Equipment Models:** Cisco Webex Room Kit, Webex Board, Webex Room Kit Mini, Webex Desk Pro, Cisco Meraki MV Smart Cameras
+- **Data Sources:** `sourcetype=webex:room_analytics` (RoomAnalytics PeopleCount), `sourcetype=cisco:spaces:occupancy`
+- **SPL:**
+```spl
+index=collaboration sourcetype="webex:room_analytics" isnotnull(people_count)
+| where people_count > 0
+| lookup room_inventory room_id OUTPUT room_name, capacity, room_type, building, floor
+| eval utilization_pct=round(people_count*100/capacity, 1)
+| eval size_match=case(
+    utilization_pct <= 25, "Oversized (≤25%)",
+    utilization_pct <= 50, "Underutilized (25-50%)",
+    utilization_pct <= 100, "Right-sized (50-100%)",
+    utilization_pct > 100, "Overcrowded (>100%)")
+| bin _time span=1d
+| stats avg(people_count) as avg_attendees, avg(utilization_pct) as avg_util, max(people_count) as peak_attendees, count as meeting_count by room_name, capacity, room_type, building, size_match
+| eval avg_attendees=round(avg_attendees, 1)
+| eval avg_util=round(avg_util, 1)
+| table building, room_name, room_type, capacity, avg_attendees, peak_attendees, avg_util, size_match, meeting_count
+| sort size_match, -meeting_count
+```
+- **Implementation:** Ingest RoomOS PeopleCount data via Webex device telemetry or Cisco Spaces API. Build a `room_inventory` lookup with room ID, name, capacity, type (huddle, conference, boardroom, training), building, and floor. Calculate utilization as people count divided by room capacity. Classify each meeting as oversized, underutilized, right-sized, or overcrowded. Aggregate over 30-90 days to identify persistent patterns (not single outliers). Generate monthly right-sizing recommendations: rooms consistently below 25% utilization are candidates for subdivision or repurposing. Rooms consistently overcrowded need capacity upgrades or booking restrictions. Feed findings into corporate real estate planning with cost per square foot context.
+- **Visualization:** Scatter plot (avg attendees vs room capacity), Bar chart (room utilization by category), Table (rooms with optimization recommendations), Heatmap (building × floor utilization), Single value (fleet-wide average utilization %).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.11 · Meeting Room AV Equipment Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** "The screen doesn't work" is the most common meeting room complaint. By monitoring display/projector power state, camera connectivity, microphone mute state at meeting start, speaker health, and peripheral connectivity via RoomOS xAPI status events, IT can detect and fix equipment failures before users encounter them. Proactive AV monitoring transforms reactive room support into preventive maintenance, reducing meeting disruptions and executive frustration.
+- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), RoomOS xAPI via Webex cloud telemetry
+- **Equipment Models:** Cisco Webex Room Kit, Webex Room Kit Plus, Webex Board, Webex Desk Pro, Cisco Room Navigator, Cisco Quad Camera, Cisco SpeakerTrack 60
+- **Data Sources:** `sourcetype=webex:device` (status events), `sourcetype=webex:room_analytics` (peripheral status)
+- **SPL:**
+```spl
+index=webex sourcetype="webex:device"
+| eval issue=case(
+    like(display_status, "%NotDetected%") OR like(display_status, "%Error%"), "Display Disconnected",
+    like(camera_status, "%NotConnected%") OR camera_status=="Error", "Camera Failure",
+    like(microphone_status, "%NotConnected%"), "Microphone Disconnected",
+    like(speaker_status, "%Error%") OR like(speaker_status, "%NotConnected%"), "Speaker Failure",
+    like(usb_status, "%Error%"), "USB Peripheral Error",
+    hdmi_input_status=="NoSignal" AND display_status=="Connected", "HDMI Input Lost",
+    1==1, null())
+| where isnotnull(issue)
+| stats latest(_time) as last_reported, count as occurrences, values(issue) as issues by device_id, product, room_name, building
+| eval hours_since=round((now()-last_reported)/3600, 1)
+| eval priority=case(
+    mvcount(issues)>2, "Critical - Multiple Failures",
+    mvfind(issues, "Display")>=0 OR mvfind(issues, "Camera")>=0, "High",
+    1==1, "Medium")
+| sort priority, -occurrences
+| table room_name, building, product, issues, priority, occurrences, hours_since
+```
+- **Implementation:** Webex cloud telemetry provides device status updates including display connection state (via CEC/HDMI), camera availability, microphone mute state, speaker test results, and USB peripheral status through the RoomOS xAPI. Ingest via the Webex Add-on. Build a room equipment baseline that maps each room to its expected peripherals (e.g., Room Kit + 2 displays + ceiling mic + touch controller). Compare current status against baseline to detect missing or failed components. Alert facilities/AV team when any room has equipment issues, prioritized by room importance (executive rooms first). Schedule automated daily health checks during non-business hours. Track equipment failure patterns by product model to inform procurement decisions and warranty claims.
+- **Visualization:** Status grid (room × equipment status — green/red), Table (rooms with active issues), Bar chart (failures by equipment type), Line chart (daily failure count trend), Single value (rooms with issues vs total rooms).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.5.12 · Digital Signage and Room Scheduler Device Health
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Webex-powered digital signage displays and room schedulers (Room Navigator panels mounted outside meeting rooms) are visible indicators of IT reliability. A blank Room Navigator outside a boardroom or a frozen digital signage screen in the lobby creates a poor impression for visitors and employees. Monitoring these devices for connectivity, content delivery, and responsiveness prevents embarrassing failures in high-visibility locations.
+- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781)
+- **Equipment Models:** Cisco Room Navigator (room scheduling mode), Cisco Webex Board (signage mode), third-party Webex-compatible displays
+- **Data Sources:** `sourcetype=webex:device` (device status), `sourcetype=webex:room_analytics`
+- **SPL:**
+```spl
+index=webex sourcetype="webex:device" (product="Room Navigator" OR mode="Signage" OR mode="RoomScheduler")
+| eval device_type=case(
+    mode=="Signage", "Digital Signage",
+    mode=="RoomScheduler" OR product=="Room Navigator", "Room Scheduler",
+    1==1, "Other")
+| eval healthy=if(connection_status=="Connected" AND health_state=="ok", 1, 0)
+| stats latest(connection_status) as status, latest(health_state) as health, latest(firmware_version) as firmware, latest(_time) as last_checkin by device_id, device_type, room_name, building
+| eval hours_since_checkin=round((now()-last_checkin)/3600, 1)
+| eval alert=case(
+    status!="Connected", "Offline",
+    hours_since_checkin > 4, "Stale - No Recent Check-in",
+    health!="ok", "Health Warning",
+    1==1, "OK")
+| where alert!="OK"
+| table building, room_name, device_type, device_id, alert, status, health, hours_since_checkin, firmware
+| sort alert, building
+```
+- **Implementation:** Ingest Webex device telemetry for Room Navigator and signage-mode devices via the Webex Add-on. Room Navigators operate in RoomScheduler mode mounted outside meeting rooms, displaying availability and allowing booking via touch. Digital signage devices display content on lobby screens, wayfinding displays, or cafeteria menus. Monitor connection status (Connected/Disconnected), health state, and firmware version. Alert when any device goes offline for more than 30 minutes during business hours. Track stale devices that haven't checked in recently — these may have power issues or network disconnects that don't generate explicit offline events. Provide a daily health report grouped by building for facilities teams. Track firmware version compliance across the signage fleet.
+- **Visualization:** Status grid (device × status), Table (offline/unhealthy devices), Pie chart (device type distribution), Single value (fleet online percentage), Bar chart (issues by building).
 - **CIM Models:** N/A

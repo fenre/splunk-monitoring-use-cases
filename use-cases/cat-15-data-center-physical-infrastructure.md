@@ -1615,3 +1615,94 @@ index=physical sourcetype="access_control"
 
 ---
 
+### UC-15.3.38 · Cisco Spaces Wayfinding and Path Analytics
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Capacity
+- **Value:** Understanding how people physically move through a building reveals traffic bottlenecks, dead zones, and inefficient layouts invisible to static occupancy sensors. Cisco Spaces path analytics tracks visitor movement between zones over time — showing that 80% of foot traffic funnels through one corridor, or that a key amenity is consistently bypassed because signage directs people the wrong way. This data drives floor plan optimization, signage placement, and emergency egress planning with evidence rather than guesswork.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), Cisco Spaces API
+- **Equipment Models:** Cisco Meraki MR series (Wi-Fi location), Cisco Catalyst 9100 series (Wi-Fi), Cisco Spaces IoT Services
+- **Data Sources:** `sourcetype=cisco:spaces:location`, `sourcetype=cisco:spaces:path_analytics`
+- **SPL:**
+```spl
+index=spaces sourcetype="cisco:spaces:location"
+| sort 0 device_mac, _time
+| streamstats current=f last(zone_name) as prev_zone, last(_time) as prev_time by device_mac
+| where zone_name!=prev_zone AND isnotnull(prev_zone)
+| eval transition=prev_zone." → ".zone_name
+| eval transit_sec=_time - prev_time
+| where transit_sec < 1800
+| bin _time span=1h
+| stats count as transitions, avg(transit_sec) as avg_transit_sec, dc(device_mac) as unique_visitors by _time, transition, prev_zone, zone_name
+| eval avg_transit_min=round(avg_transit_sec/60, 1)
+| sort -transitions
+| table _time, transition, transitions, unique_visitors, avg_transit_min
+```
+- **Implementation:** Cisco Spaces uses Wi-Fi probe requests and connected client location data from Meraki or Catalyst APs to track device movement across defined zones (floors, wings, departments, amenities). Ingest location updates via the Spaces Add-On. Define zones in Cisco Spaces matching physical areas (lobby, cafeteria, elevator bank, parking, conference wing). Track zone transitions per device to build path flows. Filter out transitions longer than 30 minutes (device likely stationary, then moved). Aggregate by transition pair to identify the highest-traffic paths. Overlay with building floor plans to visualize traffic flow. Compare weekday vs weekend patterns and identify peak congestion hours. Use findings to optimize signage placement, adjust security checkpoint locations, and validate emergency egress route capacity.
+- **Visualization:** Sankey diagram (zone-to-zone flow), Floor plan overlay (traffic density by path), Bar chart (top 20 transitions by volume), Line chart (traffic volume by hour), Heatmap (zone × hour congestion).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.39 · Cisco Spaces Proximity and Engagement Analytics
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** For corporate campuses, retail environments, and visitor centers, understanding how people engage with specific zones — reception desks, demo areas, retail displays, cafeterias, wellness rooms — transforms facility management from guesswork to data-driven optimization. Cisco Spaces dwell time and repeat visit analytics quantify engagement intensity: a demo area where visitors average 30 seconds of dwell time needs redesign, while a breakout space with 45-minute average dwell validates the investment. Repeat visit patterns reveal which spaces become habit destinations vs one-time curiosities.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), Cisco Spaces API
+- **Equipment Models:** Cisco Meraki MR series, Cisco Catalyst 9100 series, Cisco Spaces IoT Services
+- **Data Sources:** `sourcetype=cisco:spaces:occupancy`, `sourcetype=cisco:spaces:dwell_time`
+- **SPL:**
+```spl
+index=spaces sourcetype="cisco:spaces:dwell_time"
+| eval dwell_bucket=case(
+    dwell_min < 5, "Passerby (<5min)",
+    dwell_min < 15, "Brief (5-15min)",
+    dwell_min < 30, "Moderate (15-30min)",
+    dwell_min < 60, "Engaged (30-60min)",
+    1==1, "Extended (60min+)")
+| bin _time span=1d
+| stats count as visits, avg(dwell_min) as avg_dwell, dc(device_mac) as unique_visitors, sum(eval(if(repeat_visit=="Yes",1,0))) as repeat_visits by _time, zone_name, zone_type
+| eval engagement_score=round((avg_dwell * 0.4) + (repeat_visits/unique_visitors * 100 * 0.3) + (unique_visitors * 0.3 / 10), 1)
+| eval repeat_pct=round(repeat_visits*100/visits, 1)
+| table _time, zone_name, zone_type, unique_visitors, visits, avg_dwell, repeat_pct, engagement_score
+| sort -engagement_score
+```
+- **Implementation:** Ingest Cisco Spaces dwell time data via the Spaces Add-On. Cisco Spaces calculates dwell time by tracking how long a device's Wi-Fi probe requests are detected within a zone boundary. Configure zone types (amenity, collaboration, retail, reception, demo) to enable category-level analysis. Track unique visitors (distinct device MACs), average dwell time, and repeat visit rate (same device returning within 7 days). Build a composite engagement score combining dwell time, repeat rate, and visitor volume. Compare engagement across similar zone types (e.g., all breakout spaces) to identify high-performing and underperforming spaces. Provide monthly reports to facilities and real estate teams. For retail environments, correlate engagement with point-of-sale data to measure conversion.
+- **Visualization:** Bar chart (engagement score by zone), Bubble chart (zones by visitor volume, dwell time, repeat rate), Line chart (engagement trend per zone over 90 days), Table (zone performance details), Heatmap (zone × day-of-week engagement).
+- **CIM Models:** N/A
+
+---
+
+### UC-15.3.40 · Cisco Spaces IoT Sensor Alert Correlation with Building Management
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Performance
+- **Value:** Environmental sensor alerts (temperature excursion, humidity spike, poor air quality) are only half the story — the other half is whether the building management system (BMS) responded correctly. Correlating Cisco Spaces IoT sensor alerts with HVAC events, BMS actions, and occupancy patterns validates automated response effectiveness. When a temperature alert fires and the HVAC doesn't respond within 15 minutes, that's an automation failure. When air quality degrades only in occupied zones during peak hours, that's a ventilation capacity issue. This correlation turns isolated alerts into actionable facility intelligence.
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), BMS/BACnet integration, Cisco Spaces IoT Services
+- **Equipment Models:** Cisco Spaces IoT sensors (temperature, humidity, air quality, CO2), Cisco Meraki MT sensors, BMS/HVAC systems
+- **Data Sources:** `sourcetype=cisco:spaces:iot_sensors`, `sourcetype=bacnet:events` or `sourcetype=bms:events`, `sourcetype=cisco:spaces:occupancy`
+- **SPL:**
+```spl
+index=spaces sourcetype="cisco:spaces:iot_sensors" alert_active=true
+| eval sensor_alert=sensor_type.": ".alert_reason
+| join type=left zone_id [search index=building sourcetype="bms:events" action_type="HVAC*"
+    | stats latest(action) as bms_action, latest(_time) as bms_response_time by zone_id]
+| join type=left zone_id [search index=spaces sourcetype="cisco:spaces:occupancy"
+    | stats latest(occupancy_count) as current_occupancy by zone_id]
+| eval response_delay_min=if(isnotnull(bms_response_time), round((_time - bms_response_time)/60, 1), null())
+| eval bms_responded=if(isnotnull(bms_action), "Yes", "No")
+| eval assessment=case(
+    bms_responded=="No", "BMS Non-Response - Investigate",
+    response_delay_min > 15, "Slow Response (".response_delay_min." min)",
+    response_delay_min <= 15, "Timely Response",
+    1==1, "Unknown")
+| table _time, zone_id, sensor_alert, current_occupancy, bms_responded, bms_action, response_delay_min, assessment
+| sort -_time
+```
+- **Implementation:** Ingest Cisco Spaces IoT sensor data (temperature, humidity, air quality index, CO2 levels) via the Spaces Add-On. Configure sensor alert thresholds in Cisco Spaces (e.g., temperature >27°C, CO2 >1000ppm, humidity >65%). Separately ingest BMS/HVAC event logs via BACnet gateway, Modbus, or BMS API integration. Correlate by zone ID and time window: when a sensor alert fires, check whether a corresponding BMS action occurred within 15 minutes. Track BMS non-responses to identify automation failures or disconnected zones. Layer in occupancy data to distinguish capacity-driven environmental issues (crowded meeting room overheating) from equipment failures (empty room overheating). Provide weekly reports to facilities management showing alert count, BMS response rate, and average response time by building zone.
+- **Visualization:** Table (active alerts with BMS response status), Gauge (BMS response rate %), Line chart (daily alert count and response rate trend), Bar chart (alerts by sensor type and zone), Floor plan overlay (alert locations with severity coloring).
+- **CIM Models:** N/A
+
+---
+

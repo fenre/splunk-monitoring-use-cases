@@ -10,6 +10,23 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.4] - 2026-03-25
+
+### Collaboration & Unified Communications Expansion
+
+- **CUCM Deep Monitoring (7 new)** — CDR call path analysis, CMR call quality heatmap by site-pair, phone firmware compliance, gateway/CUBE channel utilization, cluster database replication health, Call Admission Control (CAC) rejection trending, and hunt group/line group overflow analytics.
+- **Contact Center (5 new)** — Webex Contact Center agent state and occupancy, IVR containment rate, customer wait time SLA by skill group, UCCX real-time queue monitoring, and abandon rate correlation with network quality.
+- **Jabber & IM Presence (2 new)** — Jabber client version compliance and health, IM and Presence Service (IM&P) node availability and XMPP session monitoring.
+- **Unity Connection Voicemail (2 new)** — Voicemail system health (port utilization, message store, MWI delivery) and mailbox usage with retention compliance tracking.
+- **Meeting Room Analytics (4 new)** — No-show and early release trending, people count vs capacity optimization, AV equipment health monitoring, and digital signage/room scheduler device health.
+- **Cisco Spaces Advanced (3 new)** — Wayfinding and path analytics for traffic flow optimization, proximity and engagement analytics for space utilization, and IoT sensor alert correlation with building management response.
+
+### Non-Technical View
+
+- **New areas added** — Plain-language sections for on-premises phone systems (CUCM), contact center, messaging and presence, meeting room analytics, and indoor location/building intelligence.
+
+---
+
 ## [3.3] - 2026-03-24
 
 ### Machine Learning & Deep Learning Use Cases

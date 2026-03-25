@@ -463,6 +463,21 @@ window.NON_TECHNICAL = {
         { id: "11.3.3", why: "Track jitter, latency, and packet loss on voice calls — the main causes of bad call quality." },
         { id: "11.3.6", why: "Detect toll fraud — unauthorised calls running up your phone bill." }
       ]},
+      { name: "On-premises phone system (CUCM)", description: "Cisco phone system routing, quality, gateways, and cluster health. We help you keep on-premises voice services reliable.", ucs: [
+        { id: "11.3.35", why: "We trace how calls travel through your phone system — finding misconfigured routes that cause failed or expensive calls." },
+        { id: "11.3.38", why: "We watch phone gateway capacity so callers don't get busy signals during peak hours." },
+        { id: "11.3.39", why: "We monitor the phone system database sync between servers — if it breaks, phone settings stop updating." }
+      ]},
+      { name: "Contact center", description: "Agent performance, call queues, IVR self-service, and customer wait times. We help you keep your contact center running smoothly.", ucs: [
+        { id: "11.3.42", why: "We track how agents spend their time — finding those stuck in 'not ready' who reduce the team's capacity." },
+        { id: "11.3.43", why: "We measure how many callers get help from the automated phone menu without needing a live agent." },
+        { id: "11.3.44", why: "We monitor customer wait times by team — so billing support isn't understaffed while sales is overstaffed." }
+      ]},
+      { name: "Messaging & presence", description: "Jabber instant messaging, presence status, and voicemail. We keep your real-time communication tools working.", ucs: [
+        { id: "11.3.47", why: "We track which Jabber versions your team uses — outdated versions can have security problems." },
+        { id: "11.3.48", why: "We monitor instant messaging and presence services — when they fail, everyone shows as 'unknown' status." },
+        { id: "11.3.49", why: "We watch the voicemail system so messages don't get lost or delayed." }
+      ]},
       { name: "Mail transport & relay", description: "On-premises mail servers, SMTP relays, and mail queue health. We help you keep email flowing.", ucs: [
         { id: "11.4.1", why: "Monitor SMTP service availability — if it goes down, no emails get sent." },
         { id: "11.4.3", why: "Watch email queue depth — backed-up queues mean delayed messages." },
@@ -472,6 +487,11 @@ window.NON_TECHNICAL = {
         { id: "11.5.1", why: "Track Zoom meeting quality metrics — jitter and packet loss mean poor video and audio." },
         { id: "11.5.4", why: "Monitor the health of Webex room devices so meetings start on time." },
         { id: "11.5.8", why: "Analyse Teams meeting quality across your organisation." }
+      ]},
+      { name: "Meeting room analytics", description: "Room utilisation, no-shows, AV equipment health, and signage. We help you get more from your meeting spaces.", ucs: [
+        { id: "11.5.9", why: "We find rooms booked but never used — freeing them up for people who actually need them." },
+        { id: "11.5.10", why: "We spot when two people book a twenty-person boardroom — so you can right-size your room inventory." },
+        { id: "11.5.11", why: "We detect broken screens, cameras, and microphones before your next meeting starts." }
       ]}
     ]
   },
@@ -612,6 +632,11 @@ window.NON_TECHNICAL = {
         { id: "15.3.1", why: "Full audit of badge swipes — who entered which room and when." },
         { id: "15.3.2", why: "Alert when someone accesses the data center outside of business hours." },
         { id: "15.3.4", why: "Monitor camera system health — if cameras go offline, you lose visibility." }
+      ]},
+      { name: "Indoor location & building intelligence", description: "People movement, space engagement, and environmental response. We help you understand how your buildings are really used.", ucs: [
+        { id: "15.3.38", why: "We track how people move through your building — finding traffic bottlenecks and optimising layouts." },
+        { id: "15.3.39", why: "We measure how much time people spend in different areas — showing which spaces are popular and which are ignored." },
+        { id: "15.3.40", why: "We check that heating and cooling respond properly when sensors detect problems — catching automation failures." }
       ]}
     ]
   },
