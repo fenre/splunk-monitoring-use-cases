@@ -2418,6 +2418,230 @@ index=network sourcetype="f5:bigip:ltm" "TCL error" OR "rule error" OR "aborted"
 
 ---
 
+### UC-5.3.13 · Citrix ADC Virtual Server Health and State (NetScaler)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Citrix ADC (NetScaler) virtual servers (vServers) are the front-end load-balancing endpoints that distribute traffic to back-end service groups. A vServer transitions from UP to DOWN when all bound services fail health checks, causing a complete outage for the application it serves. Monitoring vServer state changes provides immediate alerting when applications lose load-balanced availability.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`), Splunk Connect for Syslog
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:syslog"` fields `vserver_name`, `vserver_state`, `vserver_type`, `service_name`, `service_state`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:syslog" "Vserver" ("DOWN" OR "UP" OR "OUT OF SERVICE")
+| rex "Vserver (?<vserver_name>\S+) - State (?<state>\w+)"
+| where state="DOWN" OR state="OUTOFSERVICE"
+| bin _time span=5m
+| stats count as state_changes, latest(state) as current_state, values(host) as adc_node by vserver_name, _time
+| table _time, vserver_name, current_state, state_changes, adc_node
+```
+- **Implementation:** Configure Citrix ADC to send syslog to Splunk via Splunk Connect for Syslog (SC4S). The ADC generates syslog messages for vServer state transitions (SNMP trap equivalent). Alternatively, use the NITRO API via scripted input to poll `lbvserver` statistics including `state`, `curclntconnections`, `tothits`, and `health` (percentage of UP services). Alert immediately on any vServer transitioning to DOWN. Track vServer health percentage — a vServer at 50% health means half its services are down and may be approaching failure. Correlate with service group member health checks for root cause.
+- **Visualization:** Status grid (vServer name x state), Timeline (state transitions), Table (DOWN vServers with service count).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.3.14 · Citrix ADC Service Group Member Health (NetScaler)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Behind each Citrix ADC vServer, service group members represent individual back-end servers. When health monitors detect a service group member as DOWN, the ADC stops sending traffic to that server. A single member going down may be routine (maintenance), but multiple simultaneous failures indicate a systemic issue — network partition, shared dependency failure, or deployment problem. Monitoring service group member health identifies back-end server failures faster than application-level monitoring.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`)
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:syslog"` fields `service_name`, `service_ip`, `service_port`, `service_state`, `monitor_name`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:syslog" "monitor" ("DOWN" OR "UP") "servicegroup"
+| rex "servicegroup member (?<sg_name>\S+)\((?<member_ip>[^)]+)\) - State (?<state>\w+)"
+| where state="DOWN"
+| stats count as transitions, latest(_time) as last_seen, latest(state) as current_state by sg_name, member_ip, host
+| eval last_seen_fmt=strftime(last_seen, "%Y-%m-%d %H:%M:%S")
+| sort -last_seen
+| table sg_name, member_ip, current_state, transitions, last_seen_fmt, host
+```
+- **Implementation:** The ADC logs service state transitions via syslog. For richer data, poll the NITRO API `servicegroup_servicegroupmember_binding` to enumerate all members and their states. Track `svrstate` (UP, DOWN, OUT OF SERVICE) and monitor response times. Alert when: more than 2 service group members go DOWN simultaneously (systemic issue), a critical service group drops below minimum capacity threshold, or a member remains DOWN for more than 15 minutes (stale failure). Correlate member health with application error rates for impact assessment.
+- **Visualization:** Table (service groups with DOWN members), Bar chart (DOWN members by service group), Timeline (member state changes).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.3.15 · Citrix ADC SSL Certificate Expiration Monitoring (NetScaler)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Availability
+- **Value:** SSL certificates on Citrix ADC terminate HTTPS connections for all web applications behind the load balancer. An expired certificate causes browser warnings or complete connection failures for all users. The NITRO API exposes `daystoexpiration` for every bound SSL certificate, enabling automated alerting well before expiry. Certificate expiry outages are among the most preventable yet impactful failures in production environments.
+- **App/TA:** Custom scripted input polling Citrix ADC NITRO API
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:ssl"` fields `certkey_name`, `days_to_expiry`, `subject`, `issuer`, `serial`, `bound_vserver`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:ssl"
+| stats latest(days_to_expiry) as days_left, latest(subject) as subject, latest(issuer) as issuer, values(bound_vserver) as bound_to by certkey_name, host
+| where days_left < 90
+| eval urgency=case(days_left<=7, "CRITICAL", days_left<=30, "HIGH", days_left<=90, "MEDIUM", 1=1, "LOW")
+| sort days_left
+| table certkey_name, days_left, urgency, subject, issuer, bound_to, host
+```
+- **Implementation:** Create a scripted input that polls the NITRO API `sslcertkey` resource on each ADC. The API returns `certkey` name, `subject`, `issuer`, `serial`, `clientcertnotbefore`, `clientcertnotafter`, `daystoexpiration`, and `expirymonitor` status. Also enable the built-in `expirymonitor` on the ADC with a `notificationperiod` (10–100 days). Run the scripted input daily. Alert at 90 days (plan renewal), 30 days (action required), 7 days (critical), and immediately when `daystoexpiration` reaches 0. Track all certificates bound to vServers — unbound certificates can be ignored or flagged for cleanup.
+- **Visualization:** Table (certificates sorted by expiry), Single value (certificates expiring within 30 days), Gauge (soonest expiry).
+- **CIM Models:** Certificates
+
+---
+
+### UC-5.3.16 · Citrix ADC High Availability Failover Monitoring (NetScaler)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Citrix ADC deployments typically use HA pairs where a secondary appliance takes over if the primary fails. Failover events (PRIMARY → SECONDARY swap) are disruptive — active connections may be dropped, and if configuration sync was incomplete, the new primary may have a stale configuration. Monitoring failover events, sync status, and node health ensures HA is functioning correctly and that failovers are investigated promptly.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`)
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:syslog"` fields `ha_state`, `ha_node`, `sync_status`, `failover_reason`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:syslog" ("HA state" OR "failover" OR "STAYSECONDARY" OR "CLAIMING" OR "FORCE CHANGE")
+| rex "HA state of node (?<node_id>\d+) changed from (?<from_state>\w+) to (?<to_state>\w+)"
+| where isnotnull(from_state)
+| eval is_failover=if(to_state="PRIMARY" AND from_state="SECONDARY", "Yes", "No")
+| sort -_time
+| table _time, host, node_id, from_state, to_state, is_failover
+```
+- **Implementation:** The ADC logs HA state transitions via syslog when nodes change between PRIMARY, SECONDARY, CLAIMING, and FORCE CHANGE states. Also poll the NITRO API `hanode` resource for `hacurstatus`, `hacurstate`, `hasync`, `haprop`, and `hatotpktrx`. Monitor for: any failover event (state change to PRIMARY on a formerly SECONDARY node), sync failures (`hasync` not SUCCESS — configuration mismatch between nodes), system health states (COMPLETEFAIL, PARTIALFAIL, ROUTEMONITORFAIL), and STAYSECONDARY status (forced secondary, no automatic failover possible). Alert immediately on failover events. Regularly validate sync status — a desynchronized HA pair means the secondary will come up with stale configuration after failover.
+- **Visualization:** Timeline (failover events), Status grid (node x state), Table (sync status per HA pair).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.3.17 · Citrix ADC GSLB Site and Service Health (NetScaler)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability
+- **Value:** Global Server Load Balancing (GSLB) distributes traffic across multiple data centers based on proximity, health, and load. GSLB relies on the Metric Exchange Protocol (MEP) between sites to share health and load metrics. If MEP connectivity fails between sites, the GSLB method falls back to Round Robin — potentially sending users to degraded or distant sites. Monitoring GSLB site health and MEP status ensures intelligent multi-site traffic distribution.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`), NITRO API scripted input
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:syslog"` fields `gslb_site`, `gslb_service`, `mep_status`, `site_ip`, `service_state`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:syslog" ("GSLB" OR "MEP") ("DOWN" OR "UP" OR "disabled")
+| rex "GSLB (?:site|service) (?<gslb_entity>\S+).*State (?<state>\w+)"
+| where state="DOWN" OR match(_raw, "MEP.*DOWN")
+| bin _time span=5m
+| stats count as events, latest(state) as current_state by gslb_entity, host, _time
+| table _time, gslb_entity, current_state, events, host
+```
+- **Implementation:** The ADC logs GSLB service state changes and MEP connectivity events via syslog. MEP runs on TCP ports 3011 (standard) or 3009 (secure) between GSLB sites. Additionally, poll the NITRO API `gslbsite` and `gslbservice` resources for site status, MEP status, and GSLB service health. Alert on: any GSLB service going DOWN, MEP status changing to DOWN between any pair of sites (fallback to Round Robin), and GSLB site becoming unreachable. When MEP fails, all GSLB decisions for that site pair become unaware of the remote site's health — traffic may be sent to a degraded or offline site.
+- **Visualization:** Status grid (GSLB site x MEP status), Table (DOWN GSLB services), Timeline (GSLB state changes).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.3.18 · Citrix Gateway / VPN Session Monitoring (NetScaler)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Capacity
+- **Value:** Citrix Gateway (NetScaler Gateway) provides SSL VPN access and ICA Proxy functionality for remote Citrix session launches. Monitoring active Gateway sessions provides visibility into remote user activity, concurrent connection counts (license-relevant), authentication failures (brute force detection), and session anomalies (impossible travel, excessive bandwidth). Gateway is the perimeter entry point for all remote Citrix access, making it security-critical.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`)
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:syslog"` fields `user`, `client_ip`, `session_type`, `auth_result`, `gateway_vserver`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:syslog" ("SSLVPN" OR "ICA" OR "AAA") ("LOGIN" OR "LOGOUT" OR "FAILURE")
+| rex "User (?<user>\S+) - Client_ip (?<client_ip>\S+)"
+| eval auth_result=case(match(_raw, "LOGIN"), "Success", match(_raw, "FAILURE"), "Failure", match(_raw, "LOGOUT"), "Logout", 1=1, "Other")
+| bin _time span=15m
+| stats sum(eval(if(auth_result="Success", 1, 0))) as logins,
+  sum(eval(if(auth_result="Failure", 1, 0))) as failures,
+  dc(user) as unique_users, dc(client_ip) as unique_ips by gateway_vserver, _time
+| eval fail_pct=if((logins+failures)>0, round(failures/(logins+failures)*100,1), 0)
+| where failures > 10 OR fail_pct > 30
+| table _time, gateway_vserver, logins, failures, fail_pct, unique_users, unique_ips
+```
+- **Implementation:** The ADC logs all AAA (Authentication, Authorization, Accounting) events via syslog, including Gateway login successes, failures, and logouts with client IP and username. Configure syslog with appflow and audit logging enabled. Alert on: authentication failure rate exceeding 30% (possible brute force), concurrent sessions exceeding licensed capacity, a single source IP attempting more than 20 failed logins in 15 minutes, or unusual login times/locations for known users. Track peak concurrent Gateway sessions for capacity planning.
+- **Visualization:** Timechart (logins vs failures), Bar chart (failures by source IP), Single value (concurrent sessions).
+- **CIM Models:** Authentication
+
+---
+
+### UC-5.3.19 · Citrix ADC Content Switching Policy Hit Rate (NetScaler)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Configuration
+- **Value:** Content switching vServers route HTTP/HTTPS requests to different load-balancing vServers based on URL patterns, headers, cookies, or other request attributes. Misconfigured content switching policies result in traffic hitting the default (catch-all) policy or being routed to the wrong back-end. Monitoring policy hit rates validates that routing rules are working as intended and identifies policies that are never triggered (candidate for cleanup or misconfiguration).
+- **App/TA:** Custom scripted input polling Citrix ADC NITRO API
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:cs"` fields `cs_vserver`, `policy_name`, `hits`, `target_lbvserver`, `priority`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:cs"
+| stats latest(hits) as total_hits, latest(target_lbvserver) as target, latest(priority) as priority by cs_vserver, policy_name, host
+| eventstats sum(total_hits) as vserver_total_hits by cs_vserver
+| eval hit_pct=if(vserver_total_hits>0, round(total_hits/vserver_total_hits*100,1), 0)
+| sort cs_vserver, priority
+| table cs_vserver, policy_name, priority, target, total_hits, hit_pct
+```
+- **Implementation:** Poll the NITRO API `csvserver_cspolicy_binding` to get bound policies with hit counts. Alternatively, enable AppFlow on content switching vServers to capture per-request routing decisions. Run the scripted input every 15 minutes. Flag: policies with zero hits over 7 days (never triggered — misconfigured or obsolete), the default policy receiving more than 20% of traffic (indicates missing specific rules), and sudden shifts in policy hit distribution (routing change after configuration update). Content switching is critical for multi-tenant environments where different applications share a single VIP.
+- **Visualization:** Bar chart (hit rate by policy), Table (policies with hit counts), Timechart (default policy hit rate trending).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.3.20 · Citrix ADC System Resource Utilization (NetScaler)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Performance
+- **Value:** Citrix ADC appliances (physical or VPX) have finite CPU, memory, and throughput capacity. Unlike general-purpose servers, ADC resource exhaustion directly impacts all applications it fronts — causing connection drops, increased latency, and SSL handshake failures. Monitoring ADC system resources enables capacity planning and prevents appliance-level bottlenecks that affect the entire application delivery infrastructure.
+- **App/TA:** Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`), NITRO API scripted input
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:perf"` fields `cpu_use_pct`, `mgmt_cpu_use_pct`, `mem_use_pct`, `disk_use_pct`, `active_connections`, `rx_mbps`, `tx_mbps`, `ssl_tps`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:perf"
+| bin _time span=5m
+| stats avg(cpu_use_pct) as avg_cpu, max(cpu_use_pct) as max_cpu,
+  avg(mem_use_pct) as avg_mem, avg(active_connections) as avg_conns,
+  avg(ssl_tps) as avg_ssl_tps, avg(rx_mbps) as avg_rx, avg(tx_mbps) as avg_tx by host, _time
+| where avg_cpu > 70 OR avg_mem > 80 OR max_cpu > 90
+| table _time, host, avg_cpu, max_cpu, avg_mem, avg_conns, avg_ssl_tps, avg_rx, avg_tx
+```
+- **Implementation:** Poll the NITRO API `ns` (system) resource for CPU utilization, memory usage, and packet engine stats. Also poll `ssl` stats for SSL transactions per second (TPS). Run every 5 minutes. Key thresholds: CPU above 70% average (capacity planning), CPU spike above 90% (performance impact imminent), memory above 80% (connection table pressure), SSL TPS approaching licensed limit (SSL offload bottleneck). Track packet engine CPU separately from management CPU — high management CPU with low packet CPU indicates control plane issues. Trend resource utilization to forecast when additional ADC capacity is needed.
+- **Visualization:** Line chart (CPU and memory over time), Gauge (current utilization), Table (ADCs above threshold).
+- **CIM Models:** Performance
+
+---
+
+### UC-5.3.21 · Citrix ADC Responder and Rewrite Policy Errors (NetScaler)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Responder and rewrite policies on Citrix ADC implement URL redirects, HTTP header manipulation, security rules, and custom error responses. Policy evaluation errors or undef (undefined) hits indicate misconfiguration — the policy expression failed to evaluate, causing the request to fall through to default behavior. This can result in bypassed security headers, missing redirects, or unexpected error pages being served to users.
+- **App/TA:** Custom scripted input polling Citrix ADC NITRO API
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:policy"` fields `policy_name`, `policy_type`, `hits`, `undef_hits`, `bound_to`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:policy"
+| where undef_hits > 0
+| eval error_ratio=if(hits>0, round(undef_hits/hits*100,2), 100)
+| sort -undef_hits
+| table policy_name, policy_type, bound_to, hits, undef_hits, error_ratio, host
+```
+- **Implementation:** Poll the NITRO API `responderpolicy` and `rewritepolicy` resources. Each policy exposes `hits` (successful evaluations) and `undefhits` (evaluation failures). Run every 15 minutes. Alert when any policy has `undefhits > 0` — this indicates the policy expression has a bug. Common causes: referencing a non-existent header, type mismatch in expression, or regex syntax errors. Policies with high `undefhits` relative to `hits` are effectively broken. Also monitor `responderglobal_responderpolicy_binding` and `rewriteglobal_rewritepolicy_binding` for globally bound policies that affect all traffic.
+- **Visualization:** Table (policies with undef hits), Bar chart (error ratio by policy type), Timeline (undef hits trending).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.3.22 · Citrix ADC SSL Offload Performance (NetScaler)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Citrix ADC offloads SSL/TLS processing from back-end servers, handling certificate exchange, cipher negotiation, and encryption/decryption. SSL transactions per second (TPS) is a capacity-bound metric — hardware ADC models have fixed SSL TPS limits, and VPX instances are licensed by throughput tier. Approaching the SSL TPS ceiling causes SSL handshake delays and new connection failures. Monitoring SSL performance ensures cryptographic operations do not become a bottleneck.
+- **App/TA:** Custom scripted input polling Citrix ADC NITRO API
+- **Data Sources:** `index=network` `sourcetype="citrix:netscaler:ssl"` fields `ssl_tps`, `ssl_sessions`, `ssl_new_sessions`, `ssl_session_reuse_pct`, `ssl_protocol_version`, `cipher_suite`
+- **SPL:**
+```spl
+index=network sourcetype="citrix:netscaler:ssl" metric_type="ssl_stats"
+| bin _time span=5m
+| stats avg(ssl_tps) as avg_tps, max(ssl_tps) as peak_tps, avg(ssl_session_reuse_pct) as reuse_pct by host, _time
+| where peak_tps > 5000 OR reuse_pct < 50
+| table _time, host, avg_tps, peak_tps, reuse_pct
+```
+- **Implementation:** Poll the NITRO API `ssl` statistics endpoint for SSL transaction counters: `ssltotsessions`, `ssltotnewsessions`, `ssltottlsv12sessions`, `ssltottlsv13sessions`, and session reuse rates. Calculate TPS as delta of `ssltotsessions` over the poll interval. Key thresholds: SSL TPS approaching 80% of licensed/hardware capacity (plan upgrade), session reuse rate below 50% (misconfigured session caching — excessive full handshakes), and TLS 1.0/1.1 session count > 0 (deprecated protocols in use). Track cipher suite distribution to ensure compliance with security policies (disable weak ciphers like RC4, DES, 3DES).
+- **Visualization:** Line chart (SSL TPS over time), Gauge (current TPS vs capacity), Pie chart (protocol version distribution).
+- **CIM Models:** N/A
+
+---
+
 
 ## 5.4 Wireless Infrastructure
 

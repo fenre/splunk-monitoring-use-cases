@@ -2184,3 +2184,381 @@ index=endpoint sourcetype="igel:ums:security" source_tag="UMS-Webapp" OR source_
 
 ---
 
+## 2.6 Citrix Virtual Apps & Desktops
+
+**Primary App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`, `TA-XD7-VDA`), Splunk Add-on for Microsoft Windows, Splunk Add-on for Microsoft IIS (StoreFront), Citrix Monitor Service OData API scripted inputs
+
+**Data Sources:** Citrix Broker Service event logs (indexes: `xd`, `xd_winevents`, `xd_alerts`), VDA performance counters (`xd_perfmon`), Citrix StoreFront IIS W3C logs, Citrix Monitor Service OData API (session/logon/machine data), Citrix Licensing logs, Citrix PVS streaming logs, Citrix Profile Management logs, Citrix FAS certificate events
+
+---
+
+### UC-2.6.1 · Citrix Session Logon Duration Breakdown
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Slow Citrix logon times are the most common user complaint in CVAD environments. Logon duration is composed of multiple sequential phases — brokering, VM start, HDX connection, authentication, profile load, GPO processing, and script execution. Identifying which phase contributes to slow logons enables targeted remediation rather than broad troubleshooting. A 60-second logon target is typical; exceeding it degrades user satisfaction and productivity.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` fields `logon_duration_ms`, `brokering_duration_ms`, `vm_start_duration_ms`, `hdx_connection_ms`, `authentication_ms`, `profile_load_ms`, `gpo_ms`, `logon_scripts_ms`, `user`, `delivery_group`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" event_type="SessionLogon"
+| eval total_logon_sec=logon_duration_ms/1000
+| bin _time span=1h
+| stats avg(total_logon_sec) as avg_logon, perc95(total_logon_sec) as p95_logon,
+  avg(brokering_duration_ms) as avg_broker, avg(vm_start_duration_ms) as avg_vmstart,
+  avg(hdx_connection_ms) as avg_hdx, avg(profile_load_ms) as avg_profile,
+  avg(gpo_ms) as avg_gpo, count as logon_count by delivery_group, _time
+| where p95_logon > 60
+| table _time, delivery_group, logon_count, avg_logon, p95_logon, avg_broker, avg_vmstart, avg_hdx, avg_profile, avg_gpo
+```
+- **Implementation:** Collect session logon events from the Citrix Broker Service event log on Delivery Controllers using the `TA-XD7-Broker` add-on, or poll the Monitor Service OData API endpoint `Sessions` for `LogOnDuration` breakdown. The OData API provides granular phase timing. Alert when p95 logon exceeds 60 seconds for any delivery group. Trend logon duration over weeks to detect gradual regression after GPO or profile changes. Segment by delivery group to isolate problem areas. Common root causes by phase: brokering (controller load), VM start (hypervisor contention), profile load (large profiles or slow file shares), GPO (excessive policies).
+- **Visualization:** Stacked bar chart (logon phases), Line chart (logon duration trending), Table (slowest delivery groups).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.2 · ICA/HDX Session Latency and Quality
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** ICA Round Trip Time (RTT) is the primary measure of Citrix session responsiveness — the time from a user keystroke to the response appearing on screen. Citrix defines 0–150ms as optimal, 150–300ms as acceptable, and above 300ms as degraded. Poor ICA latency causes sluggish typing, delayed screen updates, and broken audio/video, directly impacting user productivity. Monitoring ICA RTT across the fleet detects network issues, overloaded session hosts, and endpoint problems.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-VDA`), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd_perfmon` `sourcetype="citrix:vda:perfmon"` fields `ica_rtt_ms`, `ica_latency_ms`, `ica_bandwidth_in`, `ica_bandwidth_out`, `session_id`, `user`, `vda_host`
+- **SPL:**
+```spl
+index=xd_perfmon sourcetype="citrix:vda:perfmon" counter_name="ICA RTT"
+| bin _time span=5m
+| stats avg(counter_value) as avg_rtt, perc95(counter_value) as p95_rtt, max(counter_value) as max_rtt by vda_host, _time
+| eval quality=case(p95_rtt<=150, "Optimal", p95_rtt<=300, "Acceptable", 1=1, "Degraded")
+| where quality="Degraded"
+| table _time, vda_host, avg_rtt, p95_rtt, max_rtt, quality
+```
+- **Implementation:** Collect ICA RTT performance counters from VDAs using the `TA-XD7-VDA` add-on (Citrix ICA Session performance object). Alternatively, poll the Monitor Service OData API `SessionMetrics` endpoint. The difference between ICA RTT and ICA Latency indicates application processing time on the session host — if ICA Latency is high but network latency is low, the VDA is overloaded. Alert on sustained p95 RTT above 300ms. Segment by delivery group and VDA host to identify whether the issue is endpoint-specific (user's network), VDA-specific (overloaded host), or site-wide (network infrastructure).
+- **Visualization:** Line chart (ICA RTT over time by VDA), Heatmap (VDA x hour), Single value (fleet average RTT with color threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.3 · Citrix Connection Failure Analysis
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Connection failures prevent users from launching virtual desktops or published applications. Failures can occur at multiple stages: brokering (no available machines), power management (VM failed to start), registration (VDA not registered with controller), or HDX connection (protocol failure). Categorizing failures by type and correlating with infrastructure state enables rapid root-cause identification.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` fields `connection_state`, `failure_reason`, `failure_type`, `delivery_group`, `machine_name`, `user`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" event_type="ConnectionFailure"
+| bin _time span=15m
+| stats count as failures, dc(user) as affected_users, values(failure_reason) as reasons by failure_type, delivery_group, _time
+| where failures > 3
+| sort -failures
+| table _time, delivery_group, failure_type, failures, affected_users, reasons
+```
+- **Implementation:** Collect Broker Service events (Event IDs 1100–1199 for connection lifecycle) from Delivery Controllers. The Monitor Service OData API `ConnectionFailureLogs` endpoint provides structured failure data with `FailureType` (ClientConnectionFailure, MachineFailure, etc.) and `FailureReason`. Alert on: more than 3 failures in 15 minutes for any delivery group, any `MachineFailure` type (indicates infrastructure problem), or rising failure rates across the site. Correlate with machine power state and VDA registration status for root cause.
+- **Visualization:** Bar chart (failures by type), Timeline (failure events), Table (recent failures with user and machine details).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.4 · VDA Machine Registration Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Virtual Delivery Agents must register with a Delivery Controller to receive user sessions. Unregistered VDAs are effectively offline — they cannot serve users and reduce available capacity. Mass deregistration events indicate controller failures, network issues, or VDA crashes. Monitoring the ratio of registered to total machines ensures session hosting capacity meets demand.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` fields `machine_name`, `registration_state`, `delivery_group`, `catalog_name`, `fault_state`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" event_type="MachineStatus"
+| stats latest(registration_state) as reg_state, latest(fault_state) as fault by machine_name, delivery_group
+| stats count as total,
+  sum(eval(if(reg_state="Registered", 1, 0))) as registered,
+  sum(eval(if(reg_state="Unregistered", 1, 0))) as unregistered,
+  sum(eval(if(fault!="None" AND fault!="", 1, 0))) as faulted by delivery_group
+| eval reg_pct=round(registered/total*100,1)
+| where reg_pct < 95 OR faulted > 0
+| table delivery_group, total, registered, unregistered, faulted, reg_pct
+```
+- **Implementation:** Poll machine status from the Broker Service or Monitor Service OData API `Machines` endpoint. Track `RegistrationState` (Registered, Unregistered, Initializing) and `FaultState` (None, FailedToStart, StuckOnBoot, Unregistered, MaxCapacity). Alert when registration percentage drops below 95% for any delivery group. Alert immediately when more than 5 machines deregister within 5 minutes (mass deregistration = infrastructure problem). Correlate with controller health and hypervisor connectivity.
+- **Visualization:** Single value (registration % with color), Bar chart (registered vs unregistered by delivery group), Table (unregistered machines with fault state).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.5 · Citrix Delivery Controller Service Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Citrix Delivery Controllers run multiple critical Windows services: Broker Service, Configuration Service, Host Service, Machine Creation Service, and others. If the Broker Service stops, no new sessions can be brokered. If both controllers in a site fail, the entire Citrix environment becomes unavailable. Monitoring service health on all controllers ensures rapid detection and failover.
+- **App/TA:** Splunk Add-on for Microsoft Windows
+- **Data Sources:** `index=xd_winevents` `sourcetype="WinEventLog:System"` fields `EventCode`, `service_name`, `service_state`, `host`
+- **SPL:**
+```spl
+index=xd_winevents sourcetype="WinEventLog:System" EventCode=7036
+  (service_name="Citrix Broker Service" OR service_name="Citrix Configuration Service"
+  OR service_name="Citrix Host Service" OR service_name="CitrixMachineCreationService"
+  OR service_name="Citrix Storefront*")
+| eval status=if(match(Message, "running"), "Running", "Stopped")
+| stats latest(status) as current_state, latest(_time) as last_change by host, service_name
+| where current_state="Stopped"
+| eval last_change_fmt=strftime(last_change, "%Y-%m-%d %H:%M:%S")
+| table host, service_name, current_state, last_change_fmt
+```
+- **Implementation:** Deploy Splunk Universal Forwarder on all Delivery Controllers and monitor Windows System Event Log. Windows Event ID 7036 records service state changes ("entered the running/stopped state"). Track all Citrix-specific services. Alert immediately when any critical Citrix service enters the stopped state. Correlate across controllers — if the Broker Service stops on all controllers simultaneously, escalate as P1. Also monitor Event IDs 7031 (service crash) and 7034 (unexpected termination).
+- **Visualization:** Status grid (service x controller), Timeline (state change events), Table (stopped services).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.6 · Citrix Machine Power State Management
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Citrix Delivery Controllers manage VM power states through power policy schedules — powering on machines before business hours and off after hours to save resources. Failed power actions (VM failed to start, hypervisor timeout, stuck in boot) reduce available session capacity during peak hours. Monitoring power action success rates and queue depth ensures machines are ready when users arrive.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`)
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` fields `power_action`, `power_state`, `machine_name`, `delivery_group`, `action_result`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" event_type="PowerAction"
+| bin _time span=1h
+| stats sum(eval(if(action_result="Success", 1, 0))) as success,
+  sum(eval(if(action_result="Failed", 1, 0))) as failed,
+  sum(eval(if(action_result="Pending", 1, 0))) as pending,
+  count as total by power_action, delivery_group, _time
+| eval fail_pct=if(total>0, round(failed/total*100,1), 0)
+| where failed > 0 OR pending > 10
+| table _time, delivery_group, power_action, total, success, failed, pending, fail_pct
+```
+- **Implementation:** The Broker Service logs power management actions with Event IDs in the 2000–3000 range. Track power actions (TurnOn, TurnOff, Shutdown, Reset, Restart) and their results (Success, Failed, Pending, Canceled). The Broker throttles power actions per hypervisor connection to avoid overloading — a large pending queue indicates throttling bottleneck or hypervisor slowness. Alert on: any failed power actions, pending queue exceeding 10 actions (backlog), or power-on failures during scheduled scale-out windows. Use `Get-BrokerHostingPowerAction` via PowerShell scripted input for real-time queue visibility.
+- **Visualization:** Timechart (power actions by result), Bar chart (failures by delivery group), Single value (pending queue depth).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.7 · ICA/HDX Virtual Channel Bandwidth Consumption
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** HDX sessions use multiple virtual channels — graphics, audio, video, printer redirection, drive mapping, clipboard, and USB. Excessive bandwidth consumption on specific channels (e.g., large print jobs, multimedia redirection, USB device streaming) degrades the session experience for all users on the same VDA or network segment. Identifying bandwidth-heavy channels enables targeted policy optimization.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-VDA`)
+- **Data Sources:** `index=xd_perfmon` `sourcetype="citrix:vda:perfmon"` fields `counter_name`, `counter_value`, `instance_name`, `vda_host`
+- **SPL:**
+```spl
+index=xd_perfmon sourcetype="citrix:vda:perfmon"
+  (counter_name="Output Bandwidth*" OR counter_name="Input Bandwidth*")
+| bin _time span=15m
+| stats avg(counter_value) as avg_bw_bps by instance_name, counter_name, vda_host, _time
+| eval avg_bw_kbps=round(avg_bw_bps/1024, 1)
+| where avg_bw_kbps > 500
+| sort -avg_bw_kbps
+| table _time, vda_host, instance_name, counter_name, avg_bw_kbps
+```
+- **Implementation:** Collect HDX virtual channel performance counters from VDAs. The Citrix ICA Session performance object exposes per-channel bandwidth metrics (Graphics, Audio, Printing, Drive Mapping, Clipboard, etc.). Alert on abnormal channel bandwidth: graphics channel above 5 Mbps sustained (possible unoptimized video), printing channel spikes (large print jobs), or drive mapping spikes (file copy operations). Use to tune HDX policies: enable adaptive transport, configure video codec, set print quality limits.
+- **Visualization:** Stacked area chart (bandwidth by channel), Table (top bandwidth consumers), Bar chart (channel comparison by VDA).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.8 · Citrix Provisioning Services (PVS) vDisk Streaming Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** In PVS-provisioned environments, target devices boot and run entirely from vDisk images streamed over the network. If PVS streaming degrades — due to network congestion, PVS server overload, or storage bottlenecks — target devices experience slow boot times, application hangs, and blue screens. Monitoring PVS streaming health ensures the foundation of the VDI environment remains solid. Write cache exhaustion on target devices is particularly dangerous as it causes immediate device failure.
+- **App/TA:** Splunk Universal Forwarder on PVS servers, PowerShell scripted input via PVS MCLI
+- **Data Sources:** `index=xd` `sourcetype="citrix:pvs:stream"` fields `pvs_server`, `target_device`, `vdisk_name`, `boot_time_sec`, `retries`, `cache_used_pct`, `cache_type`, `status`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:pvs:stream"
+| stats latest(status) as device_status, latest(boot_time_sec) as boot_sec, latest(retries) as retries, latest(cache_used_pct) as cache_pct by target_device, pvs_server, vdisk_name
+| where device_status!="Active" OR boot_sec > 120 OR retries > 50 OR cache_pct > 80
+| eval risk=case(cache_pct>90, "Critical-CacheExhaustion", device_status!="Active", "Offline", boot_sec>120, "SlowBoot", retries>50, "HighRetries", 1=1, "Warning")
+| sort -cache_pct
+| table target_device, pvs_server, vdisk_name, device_status, boot_sec, retries, cache_pct, risk
+```
+- **Implementation:** Deploy a Splunk Universal Forwarder on PVS servers and collect Stream Service event logs (enable event logging on each PVS server's Stream Service). Additionally, create a PowerShell scripted input using PVS MCLI commands (`Mcli-Get Device`, `Mcli-Get DiskVersion`) to collect target device status, boot times, retry counts, and write cache utilization. Alert on: boot times exceeding 120 seconds, stream retry counts above 50 (network/disk issues), write cache utilization above 80% (imminent exhaustion), or target devices dropping to inactive status. Monitor vDisk lock status to detect orphan locks preventing updates.
+- **Visualization:** Table (target devices with health metrics), Gauge (write cache utilization), Bar chart (boot times by PVS server).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.9 · Citrix Profile Management Load Time
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Citrix User Profile Management (UPM) loads user profiles at session logon — including registry hives, application settings, and redirected folders. Large or corrupted profiles cause logon delays that can extend login times by minutes. Profile streaming can significantly reduce load times (from 54 seconds to 20 seconds in Citrix tests), but only if properly configured. Monitoring profile load times identifies users with bloated profiles and validates that profile optimization features are effective.
+- **App/TA:** Splunk Universal Forwarder on VDAs, Citrix UPM log collection
+- **Data Sources:** `index=xd` `sourcetype="citrix:upm:log"` fields `user`, `profile_load_time_sec`, `profile_size_mb`, `streaming_enabled`, `error_message`, `vda_host`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:upm:log" event_type="ProfileLoad"
+| bin _time span=1h
+| stats avg(profile_load_time_sec) as avg_load, perc95(profile_load_time_sec) as p95_load, avg(profile_size_mb) as avg_size, count as loads by vda_host, _time
+| where p95_load > 15
+| table _time, vda_host, loads, avg_load, p95_load, avg_size
+```
+- **Implementation:** Citrix Profile Management logs to `%SystemRoot%\System32\LogFiles\UserProfileManager` on each VDA. Configure centralized log storage via UPM policy (store logs on a network share). Forward these logs to Splunk via Universal Forwarder. Parse for profile load/unload timing events. Track profile size growth per user over time. Alert on: p95 profile load time exceeding 15 seconds, individual profiles exceeding 500 MB, or UPM errors indicating profile corruption ("Error while processing profile" events). Validate that profile streaming is enabled and effective by comparing load times with/without streaming.
+- **Visualization:** Line chart (profile load time trending), Bar chart (top users by profile size), Table (slow profile loads with user details).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.10 · Citrix StoreFront Authentication and Enumeration Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Citrix StoreFront authenticates users and enumerates available applications and desktops before the session launch process even begins. StoreFront failures manifest as users seeing a blank application list or receiving authentication errors. Since StoreFront runs on IIS, monitoring IIS response codes, authentication success rates, and enumeration latency provides early warning of issues that block all user access.
+- **App/TA:** Splunk Add-on for Microsoft IIS
+- **Data Sources:** `index=xd` `sourcetype="ms:iis:auto"` fields `cs_uri_stem`, `sc_status`, `time_taken`, `cs_username`, `s_computername`
+- **SPL:**
+```spl
+index=xd sourcetype="ms:iis:auto" s_sitename="*StoreFront*"
+| bin _time span=5m
+| stats sum(eval(if(sc_status>=500, 1, 0))) as server_errors,
+  sum(eval(if(sc_status=401, 1, 0))) as auth_failures,
+  sum(eval(if(sc_status>=200 AND sc_status<400, 1, 0))) as success,
+  avg(time_taken) as avg_response_ms, count as total by s_computername, _time
+| eval error_pct=round(server_errors/total*100,1)
+| eval auth_fail_pct=round(auth_failures/total*100,1)
+| where error_pct > 5 OR auth_fail_pct > 20 OR avg_response_ms > 5000
+| table _time, s_computername, total, success, server_errors, error_pct, auth_failures, auth_fail_pct, avg_response_ms
+```
+- **Implementation:** Install the Splunk Add-on for Microsoft IIS on StoreFront servers. StoreFront uses a custom IIS log field order — adjust the `auto_kv_for_iis_default` transform field list per Splunk's Content Pack documentation. Monitor HTTP status codes: 401 (authentication failure), 500+ (server errors), and response times. Key URIs to track: `/Citrix/StoreWeb/` (web interface), `/Citrix/Store/resources/` (resource enumeration), `/Citrix/Authentication/` (auth endpoint). Alert on server error rate exceeding 5% or authentication failure rate exceeding 20%. Correlate StoreFront errors with Active Directory health and Delivery Controller connectivity.
+- **Visualization:** Timechart (requests by status code), Bar chart (error rates by StoreFront server), Table (slowest requests).
+- **CIM Models:** Web
+
+---
+
+### UC-2.6.11 · Citrix License Server Utilization and Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Compliance
+- **Value:** Citrix licensing is capacity-based — concurrent user/device licenses or per-user/per-device named licenses. Approaching license limits during peak hours causes session launch failures with "no licenses available" errors. While Citrix provides a grace period, operating within grace period indicates a compliance gap. Trending license utilization supports procurement planning and ensures continuous service availability.
+- **App/TA:** Splunk Universal Forwarder on License Server, PowerShell scripted input
+- **Data Sources:** `index=xd` `sourcetype="citrix:licensing"` fields `license_type`, `in_use`, `total`, `available`, `grace_period_active`, `expiration_date`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:licensing"
+| stats latest(in_use) as used, latest(total) as total, latest(available) as available, latest(grace_period_active) as grace, latest(expiration_date) as expiry by license_type
+| eval utilization_pct=round(used/total*100,1)
+| eval days_to_expiry=round((strptime(expiry, "%Y-%m-%d")-now())/86400,0)
+| where utilization_pct > 80 OR grace="true" OR days_to_expiry < 90
+| table license_type, used, total, available, utilization_pct, grace, days_to_expiry
+```
+- **Implementation:** Create a PowerShell scripted input on the Citrix License Server that queries license usage via `Get-LicInventory` and `Get-LicUsage` cmdlets or the Citrix Licensing WMI provider. Collect total licenses, in-use count, available count, grace period status, and license expiration dates. Run every 15 minutes. Alert at 80% utilization (capacity planning), 90% (operational warning), and immediately if grace period becomes active. Also alert 90 days before license expiration. Track peak utilization by hour and day of week for procurement planning.
+- **Visualization:** Gauge (license utilization %), Timechart (license usage over time), Table (license types with expiry dates).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.12 · Citrix Application Usage and Popularity Analytics
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Analytics
+- **Value:** Understanding which published applications are most used, by which user groups, and at what times enables informed capacity planning, application retirement decisions, and license optimization. Applications with zero usage can be decommissioned to reduce attack surface and management overhead. High-usage applications may need dedicated delivery groups or additional server capacity.
+- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`), Citrix Monitor Service OData API
+- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` fields `app_name`, `user`, `delivery_group`, `session_duration_min`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:broker:events" event_type="ApplicationLaunch"
+| bin _time span=1d
+| stats dc(user) as unique_users, count as launches, avg(session_duration_min) as avg_duration by app_name, _time
+| sort -unique_users
+| table _time, app_name, unique_users, launches, avg_duration
+```
+- **Implementation:** Collect application launch events from the Broker Service event log or Monitor Service OData API `ApplicationInstances` endpoint. Track application name, launching user, delivery group, and session duration. Generate weekly reports showing: most-used applications (by unique users and total launches), least-used applications (candidates for retirement), peak usage hours per application, and average session duration. Correlate with license costs per application for ROI analysis.
+- **Visualization:** Bar chart (top applications by users), Heatmap (application usage by hour), Table (unused applications).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.13 · Citrix Federated Authentication Service (FAS) Certificate Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Availability
+- **Value:** Citrix FAS dynamically issues short-lived certificates that allow users to log on to VDA sessions as if they had a smart card — enabling passwordless SSO from StoreFront via SAML or other federated identity providers. If FAS cannot reach the Certificate Authority or certificate signing takes too long, user authentication fails entirely. FAS is a privileged component with access to private keys, making its security monitoring equally critical.
+- **App/TA:** Splunk Universal Forwarder on FAS servers
+- **Data Sources:** `index=xd` `sourcetype="citrix:fas:events"` fields `event_type`, `user`, `certificate_status`, `signing_time_ms`, `ca_server`, `error_message`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:fas:events"
+| bin _time span=15m
+| stats sum(eval(if(certificate_status="Issued", 1, 0))) as issued,
+  sum(eval(if(certificate_status="Failed", 1, 0))) as failed,
+  avg(signing_time_ms) as avg_sign_ms, max(signing_time_ms) as max_sign_ms by ca_server, _time
+| eval fail_pct=if((issued+failed)>0, round(failed/(issued+failed)*100,1), 0)
+| where failed > 0 OR avg_sign_ms > 2000
+| table _time, ca_server, issued, failed, fail_pct, avg_sign_ms, max_sign_ms
+```
+- **Implementation:** Deploy a Splunk Universal Forwarder on FAS servers and collect the Citrix FAS application event log. FAS logs certificate issuance attempts, CA connectivity status, and certificate signing operations. Monitor for: certificate issuance failures (CA unreachable, template misconfigured), slow certificate signing (>2 seconds impacts logon), RA certificate expiration (FAS's own registration authority certificate), and unauthorized certificate requests. FAS PowerShell cmdlets (`Get-FasRaCertificateMonitor`, `Test-FasUserCertificateCrypto`) can be used via scripted inputs for proactive health checks. Alert immediately on any certificate issuance failure as it blocks user authentication.
+- **Visualization:** Timechart (certificate issuance success vs failure), Single value (current CA reachability), Table (failed certificate requests with error details).
+- **CIM Models:** Authentication
+
+---
+
+### UC-2.6.14 · Citrix Workspace Environment Management (WEM) Optimization Effectiveness
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Citrix WEM uses CPU spike protection and CPU clamping to prevent individual processes from monopolizing session host resources. Monitoring WEM optimization actions reveals which processes trigger CPU throttling, how often protection engages, and whether the configured thresholds are appropriate. Excessive WEM interventions may indicate undersized VDAs or resource-hungry applications that need attention.
+- **App/TA:** Splunk Universal Forwarder on VDAs, WEM agent logs
+- **Data Sources:** `index=xd` `sourcetype="citrix:wem:agent"` fields `action_type`, `process_name`, `cpu_threshold`, `duration_sec`, `user`, `vda_host`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:wem:agent" (action_type="CpuSpikeProtection" OR action_type="CpuClamping")
+| bin _time span=1h
+| stats count as interventions, dc(process_name) as unique_processes, dc(user) as affected_users, values(process_name) as throttled_processes by action_type, vda_host, _time
+| where interventions > 10
+| table _time, vda_host, action_type, interventions, unique_processes, affected_users, throttled_processes
+```
+- **Implementation:** Collect WEM agent logs from VDAs. The WEM agent logs CPU spike protection events (process priority lowered) and CPU clamping events (process throttled) with the offending process name, CPU threshold that was exceeded, and duration of the intervention. Alert when a single VDA experiences more than 10 WEM interventions per hour (indicates capacity issue). Track the most frequently throttled processes — these are candidates for application optimization, isolation to dedicated delivery groups, or VDA resource increases. Compare WEM intervention frequency before and after VDA resource changes to validate capacity additions.
+- **Visualization:** Bar chart (top throttled processes), Timechart (WEM interventions over time), Table (VDAs with most frequent interventions).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.15 · Citrix Session Recording Compliance Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Value:** Citrix Session Recording captures video recordings of user sessions for compliance auditing in regulated industries (healthcare, finance, government). Monitoring ensures that recording policies are consistently applied — sessions that should be recorded are being recorded, storage capacity is adequate, and recordings maintain integrity via digital signatures. Gaps in recording coverage represent compliance violations.
+- **App/TA:** Splunk Universal Forwarder on Session Recording servers
+- **Data Sources:** `index=xd` `sourcetype="citrix:sessionrecording"` fields `recording_status`, `session_id`, `user`, `policy_name`, `file_size_mb`, `storage_used_pct`, `signed`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:sessionrecording"
+| stats sum(eval(if(recording_status="Recording", 1, 0))) as active_recordings,
+  sum(eval(if(recording_status="Failed", 1, 0))) as failed_recordings,
+  sum(file_size_mb) as total_storage_mb, latest(storage_used_pct) as storage_pct,
+  sum(eval(if(signed="false", 1, 0))) as unsigned by policy_name
+| eval fail_pct=if((active_recordings+failed_recordings)>0, round(failed_recordings/(active_recordings+failed_recordings)*100,1), 0)
+| where failed_recordings > 0 OR storage_pct > 80 OR unsigned > 0
+| table policy_name, active_recordings, failed_recordings, fail_pct, total_storage_mb, storage_pct, unsigned
+```
+- **Implementation:** Deploy a Splunk Universal Forwarder on Session Recording servers to collect session recording events and storage metrics. Monitor for: recording failures (disk full, agent disconnected, policy misconfiguration), storage capacity approaching limits (>80%), unsigned recordings (integrity concern), and sessions matching recording policy criteria that were not actually recorded (coverage gap). Generate daily compliance reports listing all recorded sessions by user, duration, and policy applied. Required for PCI DSS, HIPAA, and SOX environments where privileged access monitoring is mandated.
+- **Visualization:** Single value (recording compliance %), Gauge (storage utilization), Table (failed recordings with error details).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.16 · Citrix Cloud Connector Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** For Citrix DaaS (cloud-managed) deployments, Cloud Connectors are the link between on-premises resources and Citrix Cloud. If all Cloud Connectors in a resource location fail, the site enters Local Host Cache (LHC) mode with limited functionality — no new machine registrations, no power management, and no access to cloud-hosted services. Monitoring connector health ensures continuous cloud management connectivity.
+- **App/TA:** Splunk Universal Forwarder on Cloud Connector hosts
+- **Data Sources:** `index=xd` `sourcetype="citrix:cloudconnector"` fields `connector_host`, `connectivity_status`, `last_contact`, `service_status`, `resource_location`
+- **SPL:**
+```spl
+index=xd sourcetype="citrix:cloudconnector"
+| stats latest(connectivity_status) as cloud_status, latest(service_status) as svc_status, latest(_time) as last_seen by connector_host, resource_location
+| eval hours_since_contact=round((now()-last_seen)/3600, 1)
+| where cloud_status!="Connected" OR svc_status!="Running" OR hours_since_contact > 1
+| table connector_host, resource_location, cloud_status, svc_status, hours_since_contact
+```
+- **Implementation:** Deploy a Splunk Universal Forwarder on Cloud Connector hosts and monitor Windows Event Logs for Citrix Cloud Connector events. Also run the Cloud Health Check utility via scheduled PowerShell scripted input to validate connectivity to Citrix Cloud services. Track connectivity status (Connected, Disconnected), service health, and last successful cloud contact time. Alert when: any connector loses cloud connectivity for more than 15 minutes, all connectors in a resource location become disconnected (LHC mode imminent), or Cloud Connector services stop. Ensure at least 2 connectors per resource location for redundancy.
+- **Visualization:** Status grid (connector x resource location), Timeline (connectivity events), Single value (connected connectors count).
+- **CIM Models:** N/A
+
+---
+

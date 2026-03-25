@@ -78,6 +78,11 @@ window.NON_TECHNICAL = {
         { id: "2.5.1", why: "See which thin clients are online and which are offline across all your sites, so you know before users complain." },
         { id: "2.5.2", why: "Find devices running outdated or unapproved firmware that could have security gaps or compatibility issues." },
         { id: "2.5.3", why: "Watch the IGEL management server health — if it goes down, you lose control of all your endpoints." }
+      ]},
+      { name: "Citrix Virtual Apps & Desktops", description: "We monitor the full Citrix CVAD stack — session logon performance, ICA latency, VDA registration, controller health, PVS streaming, profile loading, StoreFront, licensing, and compliance recording.", ucs: [
+        { id: "2.6.1", why: "Break down slow Citrix logons into individual phases so you know exactly what is causing delays for users." },
+        { id: "2.6.2", why: "Track the responsiveness users actually feel in their Citrix sessions — keystroke to screen response." },
+        { id: "2.6.4", why: "Know when virtual desktop agents go unregistered and can no longer serve users — reducing available capacity." }
       ]}
     ]
   },
@@ -182,10 +187,10 @@ window.NON_TECHNICAL = {
         { id: "5.2.3", why: "Surface threat detection events — the firewall caught something suspicious." },
         { id: "5.2.10", why: "Track admin logins to firewalls — who logged in, from where, and when." }
       ]},
-      { name: "Load balancers", description: "The devices that spread traffic across your servers. We watch pool health and availability.", ucs: [
+      { name: "Load balancers & ADCs", description: "The devices that spread traffic across your servers — F5 BIG-IP, Citrix ADC (NetScaler), and others. We watch pool health, availability, SSL certificates, HA failover, and GSLB across data centers.", ucs: [
         { id: "5.3.1", why: "Alert when a server drops out of the load balancer pool — less capacity for users." },
-        { id: "5.3.2", why: "Know when a virtual server address goes down — the application is completely unreachable." },
-        { id: "5.3.6", why: "Detect when response times increase — users are waiting longer than they should." }
+        { id: "5.3.13", why: "Know when a Citrix ADC virtual server goes down — all applications behind it become unreachable." },
+        { id: "5.3.16", why: "Detect Citrix ADC failover events — the secondary took over, so something broke on the primary." }
       ]},
       { name: "WiFi & wireless", description: "WiFi access points, rogue devices, and signal quality. We help you keep wireless reliable and secure.", ucs: [
         { id: "5.4.4", why: "Detect unauthorised access points that could be used for eavesdropping." },

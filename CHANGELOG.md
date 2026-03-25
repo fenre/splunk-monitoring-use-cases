@@ -10,6 +10,15 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.7] - 2026-03-25
+
+### Citrix Virtual Apps & Desktops and Citrix ADC/NetScaler Monitoring
+
+- **Citrix CVAD monitoring (16 new)** — Session logon duration breakdown, ICA/HDX session latency and quality, connection failure analysis, VDA machine registration health, Delivery Controller service health, machine power state management, HDX virtual channel bandwidth, PVS vDisk streaming health, Profile Management load time, StoreFront authentication and enumeration, License Server utilization and compliance, application usage analytics, FAS certificate health, WEM optimization effectiveness, session recording compliance, and Cloud Connector health. New subcategory 2.6 in Virtualization.
+- **Citrix ADC/NetScaler monitoring (10 new)** — Virtual server health and state, service group member health, SSL certificate expiration, HA failover monitoring, GSLB site and service health, Gateway/VPN session monitoring, content switching policy hit rate, system resource utilization, responder/rewrite policy errors, and SSL offload performance. Added to category 5.3 Load Balancers & ADCs.
+
+---
+
 ## [3.6] - 2026-03-25
 
 ### DIPS Arena & IGEL Endpoint Monitoring
