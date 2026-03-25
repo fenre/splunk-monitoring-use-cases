@@ -236,7 +236,7 @@ index=network sourcetype IN ("snmp:auth","cisco:ios")
 ---
 
 
-### UC-14.1.15 · Temperature Sensor Threshold Alerts
+### UC-14.1.15 · Temperature Sensor Threshold Alerts (Meraki MT)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -255,7 +255,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*temperat
 
 ---
 
-### UC-14.1.16 · Humidity Monitoring and Dew Point Tracking
+### UC-14.1.16 · Humidity Monitoring and Dew Point Tracking (Meraki MT)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -274,7 +274,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*humidity
 
 ---
 
-### UC-14.1.17 · Door Open/Close Event Detection and Alerts
+### UC-14.1.17 · Door Open/Close Event Detection and Alerts (Meraki MT)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -292,7 +292,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*door*" (
 
 ---
 
-### UC-14.1.18 · Water Leak Detection and Flood Alerts
+### UC-14.1.18 · Water Leak Detection and Flood Alerts (Meraki MT)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -311,7 +311,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*water*"
 
 ---
 
-### UC-14.1.19 · Power Monitoring and Electrical Load Analysis
+### UC-14.1.19 · Power Monitoring and Electrical Load Analysis (Meraki MT)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -330,7 +330,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type="power" power_watts=*
 
 ---
 
-### UC-14.1.20 · Air Quality and CO2 Monitoring
+### UC-14.1.20 · Air Quality and CO2 Monitoring (Meraki MT)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -349,7 +349,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type="air_quality" co2_ppm=*
 
 ---
 
-### UC-14.1.21 · Ambient Noise Level Monitoring and Trend Analysis
+### UC-14.1.21 · Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -368,7 +368,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type="noise" noise_db=*
 
 ---
 
-### UC-14.1.22 · Indoor Climate Trending and HVAC Optimization
+### UC-14.1.22 · Indoor Climate Trending and HVAC Optimization (Meraki MT)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
@@ -387,7 +387,7 @@ index=cisco_network sourcetype="meraki:api" sensor_type IN ("temperature", "humi
 
 ---
 
-### UC-14.1.23 · Environmental Sensor Battery Health and Replacement Alerts
+### UC-14.1.23 · Environmental Sensor Battery Health and Replacement Alerts (Meraki MT)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -407,7 +407,7 @@ index=cisco_network sourcetype="meraki:api" battery_level=*
 
 ---
 
-### UC-14.1.24 · Sensor Connectivity and Heartbeat Monitoring
+### UC-14.1.24 · Sensor Connectivity and Heartbeat Monitoring (Meraki MT)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault

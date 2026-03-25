@@ -625,7 +625,7 @@ index=gws sourcetype="gws:admin" event_name="REQUEST_DATA_EXPORT"
 
 ---
 
-### UC-11.3.1 · Call Quality Monitoring (MOS)
+### UC-11.3.1 · Call Quality Monitoring — MOS (Cisco CUCM)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -646,7 +646,7 @@ index=voip sourcetype="cisco:ucm:cmr"
 
 ---
 
-### UC-11.3.2 · Call Volume Trending
+### UC-11.3.2 · Call Volume Trending (Cisco CUCM)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
@@ -666,7 +666,7 @@ index=voip sourcetype="cisco:ucm:cdr"
 
 ---
 
-### UC-11.3.3 · VoIP Jitter/Latency/Packet Loss
+### UC-11.3.3 · VoIP Jitter/Latency/Packet Loss (Cisco CUCM)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -686,7 +686,7 @@ index=voip sourcetype="cisco:ucm:cmr"
 
 ---
 
-### UC-11.3.4 · Trunk Utilization
+### UC-11.3.4 · Trunk Utilization (Cisco CUCM)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -707,7 +707,7 @@ index=voip sourcetype="cisco:ucm:cdr"
 
 ---
 
-### UC-11.3.5 · Conference Bridge Capacity
+### UC-11.3.5 · Conference Bridge Capacity (Cisco CUCM)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
@@ -727,7 +727,7 @@ index=voip sourcetype="webex:meetings"
 
 ---
 
-### UC-11.3.6 · Toll Fraud Detection
+### UC-11.3.6 · Toll Fraud Detection (Cisco CUCM)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
@@ -749,7 +749,7 @@ index=voip sourcetype="cisco:ucm:cdr"
 
 ---
 
-### UC-11.3.7 · Phone Registration Status
+### UC-11.3.7 · Phone Registration Status (Cisco CUCM)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability

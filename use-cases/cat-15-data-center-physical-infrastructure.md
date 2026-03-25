@@ -1272,7 +1272,7 @@ index=physical sourcetype="access_control:panel"
 - **CIM Models:** N/A
 
 
-### UC-15.3.22 · Camera Uptime and Availability Tracking
+### UC-15.3.22 · Camera Uptime and Availability Tracking (Meraki MV)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -1291,7 +1291,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MV
 
 ---
 
-### UC-15.3.23 · Video Retention and Cloud Archive Storage Utilization
+### UC-15.3.23 · Video Retention and Cloud Archive Storage Utilization (Meraki MV)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1311,7 +1311,7 @@ index=cisco_network sourcetype="meraki:api" storage_usage=*
 
 ---
 
-### UC-15.3.24 · Motion Detection Events and Alert Volume Analysis
+### UC-15.3.24 · Motion Detection Events and Alert Volume Analysis (Meraki MV)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1330,7 +1330,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*motion*"
 
 ---
 
-### UC-15.3.25 · Camera Video Quality Score and Stream Health
+### UC-15.3.25 · Camera Video Quality Score and Stream Health (Meraki MV)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -1350,7 +1350,7 @@ index=cisco_network sourcetype="meraki:api" quality_score=*
 
 ---
 
-### UC-15.3.26 · Cloud Archive Status and Backup Validation
+### UC-15.3.26 · Cloud Archive Status and Backup Validation (Meraki MV)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -1369,7 +1369,7 @@ index=cisco_network sourcetype="meraki:api" archive_status=*
 
 ---
 
-### UC-15.3.27 · Video Stream Connection Errors and Quality Issues
+### UC-15.3.27 · Video Stream Connection Errors and Quality Issues (Meraki MV)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -1388,7 +1388,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*stream*
 
 ---
 
-### UC-15.3.28 · Camera Firmware Compliance and Update Management
+### UC-15.3.28 · Camera Firmware Compliance and Update Management (Meraki MV)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
@@ -1408,7 +1408,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MV
 
 ---
 
-### UC-15.3.29 · Night Mode Effectiveness and Low-Light Performance
+### UC-15.3.29 · Night Mode Effectiveness and Low-Light Performance (Meraki MV)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance

@@ -780,7 +780,7 @@ index=network (sourcetype=snmp:lldp OR sourcetype=snmp:cdp OR sourcetype="cisco:
 ---
 
 
-### UC-5.1.36 · Port Utilization and Congestion Alerts
+### UC-5.1.36 · Port Utilization and Congestion Alerts (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -800,7 +800,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS
 
 ---
 
-### UC-5.1.37 · Power over Ethernet (PoE) Consumption Tracking
+### UC-5.1.37 · Power over Ethernet (PoE) Consumption Tracking (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -820,7 +820,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS poe_consumption=*
 
 ---
 
-### UC-5.1.38 · Spanning Tree Protocol (STP) Topology Changes
+### UC-5.1.38 · Spanning Tree Protocol (STP) Topology Changes (Meraki MS)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -839,7 +839,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*STP*" O
 
 ---
 
-### UC-5.1.39 · Port Security Violations and Rogue Device Detection
+### UC-5.1.39 · Port Security Violations and Rogue Device Detection (Meraki MS)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
@@ -859,7 +859,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Port Se
 
 ---
 
-### UC-5.1.40 · Switch Interface Up/Down Events and Link Flapping
+### UC-5.1.40 · Switch Interface Up/Down Events and Link Flapping (Meraki MS)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -879,7 +879,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" 
 
 ---
 
-### UC-5.1.41 · VLAN Configuration Mismatches and Tagging Violations
+### UC-5.1.41 · VLAN Configuration Mismatches and Tagging Violations (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -898,7 +898,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*VLAN*"
 
 ---
 
-### UC-5.1.42 · MAC Flooding and Bridge Table Exhaustion
+### UC-5.1.42 · MAC Flooding and Bridge Table Exhaustion (Meraki MS)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
@@ -917,7 +917,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*MAC*" O
 
 ---
 
-### UC-5.1.43 · DHCP Snooping Violations
+### UC-5.1.43 · DHCP Snooping Violations (Meraki MS)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -936,7 +936,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*Sno
 
 ---
 
-### UC-5.1.44 · Broadcast Storm Detection and Mitigation
+### UC-5.1.44 · Broadcast Storm Detection and Mitigation (Meraki MS)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly
@@ -955,7 +955,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*broadcas
 
 ---
 
-### UC-5.1.45 · Switch CPU and Memory Utilization
+### UC-5.1.45 · Switch CPU and Memory Utilization (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -974,7 +974,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS
 
 ---
 
-### UC-5.1.46 · Stack Unit and Redundancy Health
+### UC-5.1.46 · Stack Unit and Redundancy Health (Meraki MS)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -993,7 +993,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS stack_id=*
 
 ---
 
-### UC-5.1.47 · Trunk Link Utilization and Performance
+### UC-5.1.47 · Trunk Link Utilization and Performance (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1013,7 +1013,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MS port_type="trunk"
 
 ---
 
-### UC-5.1.48 · QoS Queue Drops and Priority Violations
+### UC-5.1.48 · QoS Queue Drops and Priority Violations (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -1032,7 +1032,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*QoS*" O
 
 ---
 
-### UC-5.1.49 · Port Access Control List (ACL) Hits and Block Events
+### UC-5.1.49 · Port Access Control List (ACL) Hits and Block Events (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -1051,7 +1051,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*ACL*" ac
 
 ---
 
-### UC-5.1.50 · Cable Test Results and Port Diagnostics
+### UC-5.1.50 · Cable Test Results and Port Diagnostics (Meraki MS)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -1070,7 +1070,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*"
 
 ---
 
-### UC-5.1.51 · Uplink Health and Failover Events
+### UC-5.1.51 · Uplink Health and Failover Events (Meraki MS)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -1089,7 +1089,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Uplink*
 
 ---
 
-### UC-5.1.52 · Cellular Gateway Signal Strength Trending
+### UC-5.1.52 · Cellular Gateway Signal Strength Trending (Meraki MG)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1108,7 +1108,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MG
 
 ---
 
-### UC-5.1.53 · Cellular Data Usage and Overage Monitoring
+### UC-5.1.53 · Cellular Data Usage and Overage Monitoring (Meraki MG)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1127,7 +1127,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MG data_usage=*
 
 ---
 
-### UC-5.1.54 · Carrier Connection Health and Network Performance
+### UC-5.1.54 · Carrier Connection Health and Network Performance (Meraki MG)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -1146,7 +1146,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cellula
 
 ---
 
-### UC-5.1.55 · SIM Status and Plan Monitoring
+### UC-5.1.55 · SIM Status and Plan Monitoring (Meraki MG)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -1683,7 +1683,7 @@ index=network sourcetype="pan:system" "threat version" OR "content update"
 ---
 
 
-### UC-5.2.19 · VPN Tunnel Status and Path Monitoring
+### UC-5.2.19 · VPN Tunnel Status and Path Monitoring (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -1702,7 +1702,7 @@ index=cisco_network sourcetype="meraki" type=vpn
 
 ---
 
-### UC-5.2.20 · Content Filtering and URL Category Blocks
+### UC-5.2.20 · Content Filtering and URL Category Blocks (Meraki MX)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
@@ -1722,7 +1722,7 @@ index=cisco_network sourcetype="meraki" type=urls action="blocked"
 
 ---
 
-### UC-5.2.21 · IDS/IPS Alert Analysis and Threat Scoring
+### UC-5.2.21 · IDS/IPS Alert Analysis and Threat Scoring (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
@@ -1751,7 +1751,7 @@ index=cisco_network sourcetype="meraki" type=ids_alert
 
 ---
 
-### UC-5.2.22 · Malware Detection and AMP File Reputation Events
+### UC-5.2.22 · Malware Detection and AMP File Reputation Events (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
@@ -1771,7 +1771,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*malware
 
 ---
 
-### UC-5.2.23 · Firewall Rule Hit Analysis and Top Denied Flows
+### UC-5.2.23 · Firewall Rule Hit Analysis and Top Denied Flows (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1799,7 +1799,7 @@ index=cisco_network sourcetype="meraki" type=flow action="deny"
 
 ---
 
-### UC-5.2.24 · Traffic Shaping Effectiveness and QoS Policy Analysis
+### UC-5.2.24 · Traffic Shaping Effectiveness and QoS Policy Analysis (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1826,7 +1826,7 @@ index=cisco_network sourcetype="meraki" type=flow priority_queue=*
 
 ---
 
-### UC-5.2.25 · Site-to-Site VPN Latency and Performance
+### UC-5.2.25 · Site-to-Site VPN Latency and Performance (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -1845,7 +1845,7 @@ index=cisco_network sourcetype="meraki" type=vpn latency=*
 
 ---
 
-### UC-5.2.26 · Client VPN Connections and Remote Access Patterns
+### UC-5.2.26 · Client VPN Connections and Remote Access Patterns (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -1864,7 +1864,7 @@ index=cisco_network sourcetype="meraki" type=vpn client_vpn=true
 
 ---
 
-### UC-5.2.27 · NAT Pool Usage and Exhaustion Alerts
+### UC-5.2.27 · NAT Pool Usage and Exhaustion Alerts (Meraki MX)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
@@ -1884,7 +1884,7 @@ index=cisco_network sourcetype="meraki:api" nat_pool_usage=*
 
 ---
 
-### UC-5.2.28 · BGP Peering Status and Route Stability
+### UC-5.2.28 · BGP Peering Status and Route Stability (Meraki MX)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -1903,7 +1903,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*BGP*" (s
 
 ---
 
-### UC-5.2.29 · Threat Intelligence Correlation and IoC Matching
+### UC-5.2.29 · Threat Intelligence Correlation and IoC Matching (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
@@ -1924,7 +1924,7 @@ index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR typ
 
 ---
 
-### UC-5.2.30 · Geo-Blocking Event Tracking and Geographic Policy Enforcement
+### UC-5.2.30 · Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
@@ -1944,7 +1944,7 @@ index=cisco_network sourcetype="meraki" type=urls action="blocked"
 
 ---
 
-### UC-5.2.31 · Application Visibility and Network Application Trending
+### UC-5.2.31 · Application Visibility and Network Application Trending (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
@@ -1965,7 +1965,7 @@ index=cisco_network sourcetype="meraki" type=flow application=*
 
 ---
 
-### UC-5.2.32 · Bandwidth by Application and Department
+### UC-5.2.32 · Bandwidth by Application and Department (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -1986,7 +1986,7 @@ index=cisco_network sourcetype="meraki" type=flow
 
 ---
 
-### UC-5.2.33 · WAN Link Quality Monitoring (Jitter, Latency, Packet Loss)
+### UC-5.2.33 · WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -2005,7 +2005,7 @@ index=cisco_network sourcetype="meraki:api" uplink=*
 
 ---
 
-### UC-5.2.34 · Internet Uplink Failover Events and Recovery Time
+### UC-5.2.34 · Internet Uplink Failover Events and Recovery Time (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -2024,7 +2024,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*failove
 
 ---
 
-### UC-5.2.35 · Cellular Modem Failover Activation and Usage
+### UC-5.2.35 · Cellular Modem Failover Activation and Usage (Meraki MX)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -2043,7 +2043,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cellula
 
 ---
 
-### UC-5.2.36 · Warm Spare Failover and Appliance Redundancy
+### UC-5.2.36 · Warm Spare Failover and Appliance Redundancy (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -2062,7 +2062,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*warm sp
 
 ---
 
-### UC-5.2.37 · Auto VPN Path Changes and Tunnel Switching
+### UC-5.2.37 · Auto VPN Path Changes and Tunnel Switching (Meraki MX)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -2081,7 +2081,7 @@ index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR sign
 
 ---
 
-### UC-5.2.38 · Connection Rate Analysis and DOS Detection
+### UC-5.2.38 · Connection Rate Analysis and DOS Detection (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -2100,7 +2100,7 @@ index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
 
 ---
 
-### UC-5.2.39 · Data Loss Prevention (DLP) Event Analysis
+### UC-5.2.39 · Data Loss Prevention (DLP) Event Analysis (Meraki MX)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -2147,7 +2147,7 @@ index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
 
 ---
 
-### UC-5.3.1 · Pool Member Health Status
+### UC-5.3.1 · Pool Member Health Status (F5 BIG-IP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -2174,7 +2174,7 @@ index=network sourcetype="f5:bigip:syslog" ("pool member" AND ("down" OR "up" OR
 
 ---
 
-### UC-5.3.2 · Virtual Server Availability
+### UC-5.3.2 · Virtual Server Availability (F5 BIG-IP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -2199,7 +2199,7 @@ index=network sourcetype="f5:bigip:syslog" "virtual" ("disabled" OR "offline" OR
 
 ---
 
-### UC-5.3.3 · Connection and Throughput Trending
+### UC-5.3.3 · Connection and Throughput Trending (F5 BIG-IP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
@@ -2225,7 +2225,7 @@ index=network sourcetype="snmp:f5"
 
 ---
 
-### UC-5.3.4 · SSL Certificate Expiry
+### UC-5.3.4 · SSL Certificate Expiry (F5 BIG-IP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -2244,7 +2244,7 @@ index=network sourcetype="f5:certificate_inventory"
 
 ---
 
-### UC-5.3.5 · HTTP Error Rate by VIP
+### UC-5.3.5 · HTTP Error Rate by VIP (F5 BIG-IP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -2272,7 +2272,7 @@ index=network sourcetype="f5:bigip:ltm:http"
 
 ---
 
-### UC-5.3.6 · Response Time Degradation
+### UC-5.3.6 · Response Time Degradation (F5 BIG-IP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -2297,7 +2297,7 @@ index=network sourcetype="f5:bigip:ltm:http"
 
 ---
 
-### UC-5.3.7 · Session Persistence Issues
+### UC-5.3.7 · Session Persistence Issues (F5 BIG-IP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Anomaly
@@ -2315,7 +2315,7 @@ index=network sourcetype="f5:bigip:syslog" "persistence" ("failed" OR "expired")
 
 ---
 
-### UC-5.3.8 · WAF Policy Violations
+### UC-5.3.8 · WAF Policy Violations (F5 BIG-IP ASM)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -2333,7 +2333,7 @@ index=network sourcetype="f5:bigip:asm:syslog"
 
 ---
 
-### UC-5.3.9 · Connection Queue Depth
+### UC-5.3.9 · Connection Queue Depth (F5 BIG-IP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Performance
@@ -2360,7 +2360,7 @@ index=network sourcetype="f5:bigip:ltm"
 
 ---
 
-### UC-5.3.10 · Backend Server Error Code Distribution
+### UC-5.3.10 · Backend Server Error Code Distribution (F5 BIG-IP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -2380,7 +2380,7 @@ index=network sourcetype="f5:bigip:ltm:http"
 
 ---
 
-### UC-5.3.11 · Rate Limiting and DDoS Mitigation Events
+### UC-5.3.11 · Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Anomaly
@@ -2399,7 +2399,7 @@ index=network sourcetype="f5:bigip:asm" attack_type="*dos*" OR violation="Rate L
 
 ---
 
-### UC-5.3.12 · iRule/Policy Errors
+### UC-5.3.12 · iRule/Policy Errors (F5 BIG-IP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -2894,7 +2894,7 @@ index=network sourcetype="cisco:wlc" "associated"
 ---
 
 
-### UC-5.4.12 · Wireless Client Association Failures
+### UC-5.4.12 · Wireless Client Association Failures (Meraki MR)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -2913,7 +2913,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*Associat
 
 ---
 
-### UC-5.4.13 · RSSI/Signal Strength Degradation Detection
+### UC-5.4.13 · RSSI/Signal Strength Degradation Detection (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -2933,7 +2933,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.4.14 · Excessive Client Roaming Activity
+### UC-5.4.14 · Excessive Client Roaming Activity (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -2954,7 +2954,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Roaming
 
 ---
 
-### UC-5.4.15 · SSID Performance Ranking and Trend Analysis
+### UC-5.4.15 · SSID Performance Ranking and Trend Analysis (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -2974,7 +2974,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.4.16 · WiFi Channel Utilization and Interference Detection
+### UC-5.4.16 · WiFi Channel Utilization and Interference Detection (Meraki MR)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
@@ -2995,7 +2995,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 
 ---
 
-### UC-5.4.17 · Rogue and Unauthorized AP Detection (Air Marshal)
+### UC-5.4.17 · Rogue and Unauthorized AP Detection — Air Marshal (Meraki MR)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
@@ -3015,7 +3015,7 @@ index=cisco_network sourcetype="meraki" type=air_marshal signature="*Rogue*" OR 
 
 ---
 
-### UC-5.4.18 · Client Device Type Distribution and Compliance
+### UC-5.4.18 · Client Device Type Distribution and Compliance (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
@@ -3035,7 +3035,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.4.19 · Band Steering Effectiveness Assessment
+### UC-5.4.19 · Band Steering Effectiveness Assessment (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -3055,7 +3055,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.4.20 · 802.1X Authentication Failures and Radius Issues
+### UC-5.4.20 · 802.1X Authentication Failures and RADIUS Issues (Meraki MR)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -3076,7 +3076,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*802.1X*
 
 ---
 
-### UC-5.4.21 · Wireless Latency Analysis by SSID and Location
+### UC-5.4.21 · Wireless Latency Analysis by SSID and Location (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -3097,7 +3097,7 @@ index=cisco_network sourcetype="meraki:api" latency=*
 
 ---
 
-### UC-5.4.22 · Splash Page Engagement and Redirection Analytics
+### UC-5.4.22 · Splash Page Engagement and Redirection Analytics (Meraki MR)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -3116,7 +3116,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*Splash*"
 
 ---
 
-### UC-5.4.23 · Multicast and Broadcast Storm Detection
+### UC-5.4.23 · Multicast and Broadcast Storm Detection (Meraki MR)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly
@@ -3136,7 +3136,7 @@ index=cisco_network sourcetype="meraki" type=flow dest="255.255.255.255" OR dest
 
 ---
 
-### UC-5.4.24 · Wireless Health Score Trending
+### UC-5.4.24 · Wireless Health Score Trending (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -3155,7 +3155,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 
 ---
 
-### UC-5.4.25 · Connected Client Count Trending and Capacity Planning
+### UC-5.4.25 · Connected Client Count Trending and Capacity Planning (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
@@ -3176,7 +3176,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.4.26 · Top Talker Analysis and Bandwidth Hogs
+### UC-5.4.26 · Top Talker Analysis and Bandwidth Hogs (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -3197,7 +3197,7 @@ index=cisco_network sourcetype="meraki" type=flow
 
 ---
 
-### UC-5.4.27 · Connection Duration and Session Quality
+### UC-5.4.27 · Connection Duration and Session Quality (Meraki MR)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -3216,7 +3216,7 @@ index=cisco_network sourcetype="meraki:api" connection_duration=*
 
 ---
 
-### UC-5.4.28 · AP Uptime and Availability Monitoring
+### UC-5.4.28 · AP Uptime and Availability Monitoring (Meraki MR)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -3235,7 +3235,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 
 ---
 
-### UC-5.4.29 · Mesh Network Link Quality and Backhaul Health
+### UC-5.4.29 · Mesh Network Link Quality and Backhaul Health (Meraki MR)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -3255,7 +3255,7 @@ index=cisco_network sourcetype="meraki:api" device_type=MR mesh_link_quality=*
 
 ---
 
-### UC-5.4.30 · Guest Network Access Patterns and Usage
+### UC-5.4.30 · Guest Network Access Patterns and Usage (Meraki MR)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -3274,7 +3274,7 @@ index=cisco_network sourcetype="meraki:api" ssid="guest"
 
 ---
 
-### UC-5.4.31 · WiFi Geolocation and Location Analytics
+### UC-5.4.31 · WiFi Geolocation and Location Analytics (Meraki MR)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -3293,7 +3293,7 @@ index=cisco_network sourcetype="meraki:api" ap_name=*
 
 ---
 
-### UC-5.4.32 · Wireless Client Association and Roaming Failures
+### UC-5.4.32 · Wireless Client Association and Roaming Failures (Meraki MR)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4098,7 +4098,7 @@ index=network sourcetype="stream:dns"
 ---
 
 
-### UC-5.6.13 · Failed DHCP Assignments and IP Pool Exhaustion
+### UC-5.6.13 · Failed DHCP Assignments and IP Pool Exhaustion (Meraki)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
@@ -4118,7 +4118,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*" (
 
 ---
 
-### UC-5.6.14 · DNS Resolution Performance and Failures
+### UC-5.6.14 · DNS Resolution Performance and Failures (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -4137,7 +4137,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DNS*" re
 
 ---
 
-### UC-5.6.15 · DHCP Pool Exhaustion and Address Allocation Issues
+### UC-5.6.15 · DHCP Pool Exhaustion and Address Allocation Issues (Meraki)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
@@ -4498,7 +4498,7 @@ index=network sourcetype="netflow"
 
 ---
 
-### UC-5.8.1 · DNA Center Assurance Alerts
+### UC-5.8.1 · DNA Center Assurance Alerts (Cisco Catalyst Center)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -4637,7 +4637,7 @@ index=network sourcetype="config:diff"
 ---
 
 
-### UC-5.8.9 · SSL/TLS Certificate Expiration Tracking
+### UC-5.8.9 · SSL/TLS Certificate Expiration Tracking (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4658,7 +4658,7 @@ index=cisco_network sourcetype="meraki:api" certificate_expiry=*
 
 ---
 
-### UC-5.8.10 · Firmware Update Compliance and Version Tracking
+### UC-5.8.10 · Firmware Update Compliance and Version Tracking (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
@@ -4678,7 +4678,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.8.11 · API Call Rate Monitoring and Rate Limit Alerts
+### UC-5.8.11 · API Call Rate Monitoring and Rate Limit Alerts (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4698,7 +4698,7 @@ index=cisco_network sourcetype="meraki:api:*"
 
 ---
 
-### UC-5.8.12 · License Expiration Tracking and Renewal Alerts
+### UC-5.8.12 · License Expiration Tracking and Renewal Alerts (Meraki)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4719,7 +4719,7 @@ index=cisco_network sourcetype="meraki:api" license_expiry=*
 
 ---
 
-### UC-5.8.13 · Network Device Inventory and Change Audit
+### UC-5.8.13 · Network Device Inventory and Change Audit (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Configuration
@@ -4739,7 +4739,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.8.14 · Admin Activity Logging and Access Control Audit
+### UC-5.8.14 · Admin Activity Logging and Access Control Audit (Meraki)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
@@ -4758,7 +4758,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*admin*"
 
 ---
 
-### UC-5.8.15 · Admin Privilege Changes and Permission Escalation
+### UC-5.8.15 · Admin Privilege Changes and Permission Escalation (Meraki)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -4777,7 +4777,7 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*privile
 
 ---
 
-### UC-5.8.16 · Alert Volume Trending and Alert Fatigue Analysis
+### UC-5.8.16 · Alert Volume Trending and Alert Fatigue Analysis (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
@@ -4796,7 +4796,7 @@ index=cisco_network sourcetype="meraki:webhook"
 
 ---
 
-### UC-5.8.17 · Network Health Score Aggregation and Executive Reporting
+### UC-5.8.17 · Network Health Score Aggregation and Executive Reporting (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -4816,7 +4816,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.8.18 · Device Online/Offline Status Monitoring
+### UC-5.8.18 · Device Online/Offline Status Monitoring (Meraki)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -4836,7 +4836,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.8.19 · Multi-Organization Comparison and Benchmarking
+### UC-5.8.19 · Multi-Organization Comparison and Benchmarking (Meraki)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
@@ -4855,7 +4855,7 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
-### UC-5.8.20 · Configuration Change Window Compliance
+### UC-5.8.20 · Configuration Change Window Compliance (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
@@ -4876,7 +4876,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*config*"
 
 ---
 
-### UC-5.8.21 · Webhook Delivery Failure Tracking
+### UC-5.8.21 · Webhook Delivery Failure Tracking (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -4895,7 +4895,7 @@ index=cisco_network sourcetype="meraki:webhook" (status="failure" OR status="err
 
 ---
 
-### UC-5.8.22 · API Error Rate and Endpoint Health
+### UC-5.8.22 · API Error Rate and Endpoint Health (Meraki)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -4915,7 +4915,7 @@ index=cisco_network sourcetype="meraki:api:*" (http_status_code=4* OR http_statu
 
 ---
 
-### UC-5.8.23 · Dashboard Configuration and Export Backup
+### UC-5.8.23 · Dashboard Configuration and Export Backup (Meraki)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance

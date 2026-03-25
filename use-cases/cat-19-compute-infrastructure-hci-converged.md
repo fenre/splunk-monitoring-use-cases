@@ -4,7 +4,7 @@
 
 **Splunk Add-on:** Cisco UCS TA, UCS Manager syslog
 
-### UC-19.1.1 · Blade/Rack Server Health
+### UC-19.1.1 · Blade/Rack Server Health (Cisco UCS)
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
@@ -31,7 +31,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 - **Visualization:** Status grid (server health map), Bar chart (faults by component), Table (active critical faults), Timechart (fault trending).
 - **CIM Models:** N/A
 
-### UC-19.1.2 · Service Profile Compliance
+### UC-19.1.2 · Service Profile Compliance (Cisco UCS)
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -56,7 +56,7 @@ index=cisco_ucs sourcetype="cisco:ucs:config"
 - **Visualization:** Pie chart (compliance breakdown), Table (non-compliant profiles), Single value (compliance percentage), Status grid (profile status by org).
 - **CIM Models:** N/A
 
-### UC-19.1.3 · Firmware Compliance
+### UC-19.1.3 · Firmware Compliance (Cisco UCS)
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
@@ -79,7 +79,7 @@ index=cisco_ucs sourcetype="cisco:ucs:inventory"
 - **Visualization:** Table (firmware compliance matrix), Bar chart (servers by firmware version), Pie chart (compliant vs non-compliant), Single value (fleet compliance percentage).
 - **CIM Models:** N/A
 
-### UC-19.1.4 · Fault Trending by Severity
+### UC-19.1.4 · Fault Trending by Severity (Cisco UCS)
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -120,7 +120,7 @@ index=cisco_ucs sourcetype="cisco:ucs:fi_stats"
 - **Visualization:** Status grid (port-channel health), Gauge (member active percentage), Timechart (utilization trending), Table (degraded port-channels).
 - **CIM Models:** N/A
 
-### UC-19.1.6 · Power and Thermal Monitoring
+### UC-19.1.6 · Power and Thermal Monitoring (Cisco UCS)
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -145,7 +145,7 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental"
 - **Visualization:** Gauge (temperature/power), Timechart (power and thermal trending), Heatmap (chassis thermal map), Single value (total power draw).
 - **CIM Models:** N/A
 
-### UC-19.1.10 · Blade Firmware Compliance
+### UC-19.1.10 · Blade Firmware Compliance (Cisco UCS)
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -166,7 +166,7 @@ index=cisco_ucs sourcetype="cisco:ucs:inventory" object_type="blade"
 - **Visualization:** Table (non-compliant blades), Bar chart (by chassis), Single value (non-compliant count).
 - **CIM Models:** N/A
 
-### UC-19.1.11 · Service Profile Association Failures
+### UC-19.1.11 · Service Profile Association Failures (Cisco UCS)
 
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
@@ -186,7 +186,7 @@ index=cisco_ucs (sourcetype="cisco:ucs:config" OR sourcetype="cisco:ucs:faults")
 - **Visualization:** Table (failed associations), Timeline, Single value (open failures).
 - **CIM Models:** N/A
 
-### UC-19.1.12 · Fault Suppression Policy Audit
+### UC-19.1.12 · Fault Suppression Policy Audit (Cisco UCS)
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
