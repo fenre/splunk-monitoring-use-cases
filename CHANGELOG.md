@@ -10,6 +10,28 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.5] - 2026-03-25
+
+### OpenTelemetry & Observability Expansion
+
+- **OTel Collector Pipeline Operations (5 new)** — Pipeline throughput and backpressure monitoring, memory/CPU utilization tracking, configuration drift detection across collector fleet, per-receiver per-signal health monitoring, and exporter retry/timeout analysis.
+- **Distributed Tracing Deep Dive (6 new)** — Trace duration anomaly and slow transaction detection, error rate by service and operation, trace completeness and orphan span detection, cross-service dependency map auto-discovery, log-to-trace correlation coverage audit, and trace fanout/depth anomaly detection.
+- **Splunk Observability Cloud / APM / RUM / Synthetics (6 new)** — APM service map RED metrics, database query performance from APM traces, RUM Core Web Vitals tracking, RUM JavaScript error rate by page, synthetic multi-step transaction SLA, and Observability Cloud detector health audit.
+- **SRE Methodology Patterns (5 new)** — RED metrics dashboard template, USE method for infrastructure, Golden Signals composite health per service, SLO multi-window burn rate alerting, and error budget policy enforcement.
+- **eBPF Observability (3 new)** — Cilium Hubble kernel-level network flow monitoring, Tetragon process-level security observability, and Beyla eBPF auto-instrumented service metrics.
+- **Observability Pipeline Governance (4 new)** — Data volume and cost attribution by team, cardinality explosion detection, instrumentation coverage audit, and telemetry signal freshness/staleness monitoring.
+- **Kubernetes Observability (2 new)** — K8s event correlation with application traces, and resource quota/LimitRange compliance trending.
+
+### New Subcategory
+
+- **13.5 OpenTelemetry, Observability Pipelines & SRE Patterns** — Dedicated subcategory for OTel tracing, APM/RUM/Synthetics, SRE frameworks (RED/USE/Golden Signals/SLOs), and observability pipeline governance.
+
+### Non-Technical View
+
+- **New areas added** — Plain-language sections for OpenTelemetry and observability pipelines, distributed tracing and APM, real user and synthetic monitoring, SRE patterns and SLOs, and eBPF kernel-level observability.
+
+---
+
 ## [3.4] - 2026-03-25
 
 ### Collaboration & Unified Communications Expansion

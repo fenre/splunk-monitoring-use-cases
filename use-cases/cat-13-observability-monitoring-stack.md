@@ -2169,6 +2169,162 @@ index=grafana sourcetype="grafana:datasource"
 
 ---
 
+### UC-13.3.15 · OpenTelemetry Collector Pipeline Throughput and Backpressure
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** The OTel Collector is a single point of failure for observability data. When exporters can't keep up with receiver intake, the batch processor queue fills and backpressure propagates upstream — first dropping low-priority data, then refusing new data entirely. By the time you notice missing traces in your backend, thousands of spans are already lost. Monitoring pipeline throughput and queue saturation in real-time catches backpressure within minutes, before it becomes data loss.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Prometheus remote write, custom HEC
+- **Data Sources:** OTel Collector internal metrics (`otelcol_receiver_accepted_*`, `otelcol_exporter_queue_size`, `otelcol_exporter_queue_capacity`, `otelcol_processor_batch_*`)
+- **SPL:**
+```spl
+| mstats latest(_value) as val WHERE index=otel_metrics metric_name IN (
+    "otelcol_receiver_accepted_spans",
+    "otelcol_receiver_accepted_metric_points",
+    "otelcol_receiver_accepted_log_records",
+    "otelcol_exporter_queue_size",
+    "otelcol_exporter_queue_capacity",
+    "otelcol_exporter_sent_spans",
+    "otelcol_exporter_sent_metric_points"
+  ) BY metric_name, service_instance_id, exporter, receiver span=1m
+| eval signal_type=case(
+    match(metric_name, "spans"), "traces",
+    match(metric_name, "metric"), "metrics",
+    match(metric_name, "log"), "logs")
+| eval component=case(
+    match(metric_name, "receiver"), "receiver",
+    match(metric_name, "exporter_queue"), "queue",
+    match(metric_name, "exporter_sent"), "exporter")
+| xyseries _time, metric_name, val
+| eval queue_pct=round('otelcol_exporter_queue_size'*100/'otelcol_exporter_queue_capacity', 1)
+| where queue_pct > 70
+| table _time, service_instance_id, exporter, queue_pct, otelcol_exporter_queue_size, otelcol_exporter_queue_capacity
+| sort -queue_pct
+```
+- **Implementation:** Every OTel Collector instance exposes internal metrics on `:8888/metrics` by default. Scrape these metrics using a second collector or Prometheus federation, then forward to Splunk via OTLP or Prometheus remote write. Key metrics: `otelcol_receiver_accepted_*` (input throughput by signal type), `otelcol_exporter_queue_size` / `queue_capacity` (export queue saturation), `otelcol_exporter_sent_*` (output throughput), and `otelcol_processor_batch_batch_send_size` (batch efficiency). Alert at 70% queue saturation (warning) and 90% (critical). Track the ratio of accepted to sent — divergence indicates data accumulation or loss. Label each collector instance by `service_instance_id` to identify which replica is under pressure. Common remediation: increase queue size, add collector replicas, tune batch processor `send_batch_size` and `timeout`, or reduce exporter concurrency.
+- **Visualization:** Line chart (queue saturation % per collector), Area chart (received vs sent throughput by signal), Gauge (peak queue saturation), Table (collectors above 70% queue).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.16 · OpenTelemetry Collector Memory and CPU Utilization
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** OTel Collectors are Go processes that can OOM-kill under sustained load or memory leaks, especially with processors like `groupbytrace` or `tail_sampling` that hold data in memory. A killed collector creates a gap in observability data exactly when you need it most — during incidents. Tracking heap allocation growth patterns and CPU utilization catches runaway collectors before the OOM killer does.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** OTel Collector process metrics (`process_runtime_*`, `runtime.uptime`)
+- **SPL:**
+```spl
+| mstats latest(_value) as val WHERE index=otel_metrics metric_name IN (
+    "process_runtime_total_alloc_bytes",
+    "process_runtime_heap_alloc_bytes",
+    "process_cpu_seconds",
+    "runtime.uptime"
+  ) BY metric_name, service_instance_id span=5m
+| eval metric_short=replace(metric_name, "process_runtime_|process_", "")
+| xyseries _time, metric_short, val
+| eval heap_mb=round(heap_alloc_bytes/1048576, 1)
+| streamstats window=6 avg(heap_mb) as avg_heap_mb by service_instance_id
+| eval heap_growth_pct=round((heap_mb - avg_heap_mb)*100/avg_heap_mb, 1)
+| where heap_mb > 512 OR heap_growth_pct > 30
+| table _time, service_instance_id, heap_mb, avg_heap_mb, heap_growth_pct
+| sort -heap_mb
+```
+- **Implementation:** OTel Collectors emit Go runtime metrics by default: `process_runtime_heap_alloc_bytes` (current heap usage), `process_runtime_total_alloc_bytes` (cumulative allocations), `process_cpu_seconds` (CPU time), and `runtime.uptime` (time since start). Ingest via the collector's internal metrics pipeline. Set memory limits using `memory_limiter` processor in collector config (recommended: 80% of container memory limit). Alert when heap exceeds 512 MB (adjust based on deployment sizing) or shows >30% growth over 30-minute rolling average. Short uptimes (<5 minutes) combined with high allocation rates indicate crash-restart loops. Correlate with Kubernetes pod restarts (UC-3.2.1) if collectors run as DaemonSets. Track CPU utilization against collector pod resource requests to identify under-provisioned instances.
+- **Visualization:** Line chart (heap MB per collector over 24 hours), Area chart (CPU seconds rate), Table (collectors exceeding memory threshold), Single value (collector with highest heap).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.17 · OpenTelemetry Collector Configuration Drift Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Fault
+- **Value:** In a fleet of dozens or hundreds of OTel Collector instances (DaemonSets, gateway deployments, agent sidecars), configuration inconsistency causes silent observability failures. One collector running a stale config may be missing a processor, dropping a signal type, or exporting to a decommissioned endpoint — while appearing healthy. Configuration drift detection ensures every collector runs the intended config after rollouts, preventing partial observability gaps.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Kubernetes ConfigMap tracking
+- **Data Sources:** OTel Collector config hash (custom metric or log), `sourcetype=kube:events` (ConfigMap updates)
+- **SPL:**
+```spl
+index=otel_metrics sourcetype="otel:collector:info"
+| stats latest(config_hash) as config_hash, latest(collector_version) as version, latest(_time) as last_seen by service_instance_id, host, k8s_namespace
+| eventstats dc(config_hash) as unique_configs, mode(config_hash) as expected_hash
+| eval drifted=if(config_hash!=expected_hash, "Yes", "No")
+| eval stale_hours=round((now()-last_seen)/3600, 1)
+| where drifted="Yes" OR stale_hours > 1
+| table service_instance_id, host, k8s_namespace, config_hash, expected_hash, drifted, version, stale_hours
+| sort drifted, -stale_hours
+```
+- **Implementation:** Add a custom processor or extension to each collector that computes a SHA-256 hash of the active configuration and emits it as a metric attribute or log event on startup and at regular intervals (every 5 minutes). Alternatively, use the `zpages` extension to expose config and scrape it. Store the expected config hash in a KV store lookup, updated when deployments roll out. Compare each collector's reported hash against the expected value. Alert when any collector reports a different hash after a rollout window (30 minutes). Also detect stale collectors that haven't reported recently — these may have crashed without restarting. For Kubernetes deployments, correlate with ConfigMap update events to verify that DaemonSet pods restarted after config changes.
+- **Visualization:** Single value (collectors with drift), Table (drifted instances with config hash comparison), Pie chart (config version distribution), Timeline (config rollout events).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.18 · OpenTelemetry Receiver Health by Signal Type
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Each OTel Collector receiver (OTLP, Jaeger, Prometheus, filelog, hostmetrics) independently accepts or refuses data by signal type (traces, metrics, logs). A receiver that starts refusing spans while accepting metrics indicates endpoint-specific authentication failures, protocol mismatches, or resource exhaustion on a single pipeline. Per-receiver, per-signal health monitoring pinpoints exactly which instrumentation endpoint is broken, reducing MTTR from "something is wrong with observability" to "the Jaeger receiver on collector-5 is refusing spans due to gRPC auth errors."
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** OTel Collector internal metrics (`otelcol_receiver_accepted_*`, `otelcol_receiver_refused_*`)
+- **SPL:**
+```spl
+| mstats latest(_value) as val WHERE index=otel_metrics metric_name IN (
+    "otelcol_receiver_accepted_spans",
+    "otelcol_receiver_refused_spans",
+    "otelcol_receiver_accepted_metric_points",
+    "otelcol_receiver_refused_metric_points",
+    "otelcol_receiver_accepted_log_records",
+    "otelcol_receiver_refused_log_records"
+  ) BY metric_name, receiver, transport, service_instance_id span=5m
+| eval signal=case(match(metric_name,"spans"),"traces", match(metric_name,"metric"),"metrics", match(metric_name,"log"),"logs")
+| eval status=if(match(metric_name,"refused"), "refused", "accepted")
+| stats sum(val) as total by _time, receiver, signal, status, service_instance_id
+| xyseries _time, status, total
+| eval refuse_pct=round(refused*100/(accepted+refused), 2)
+| where refused > 0
+| table _time, receiver, signal, service_instance_id, accepted, refused, refuse_pct
+| sort -refuse_pct
+```
+- **Implementation:** OTel Collector emits `otelcol_receiver_accepted_*` and `otelcol_receiver_refused_*` metrics per receiver and transport (grpc, http). Refused data indicates the collector rejected incoming telemetry — causes include: authentication failure, payload too large, receiver shutting down, or unsupported format. Alert when refuse rate exceeds 0% for any receiver/signal combination (any refusal is abnormal). Correlate with collector logs for the specific error reason. Track accepted counts to detect instrumentation gaps: if a receiver that normally accepts 10K spans/minute suddenly drops to zero, the upstream service likely lost connectivity. Build a receiver health matrix showing each receiver × signal type × collector instance status for fleet-wide visibility.
+- **Visualization:** Heatmap (receiver × signal health status), Line chart (accepted vs refused per receiver), Table (receivers with refusals), Single value (total active receivers).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.3.19 · OpenTelemetry Exporter Retry and Timeout Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** OTel Collector exporters retry failed sends with exponential backoff. Persistent retry failures indicate backend unavailability, authentication expiry, or network partitions. Timeouts indicate backend performance degradation that slows the entire pipeline. Monitoring retry counts and timeout rates per exporter and destination prevents the cascade where a slow backend fills queues, triggers backpressure, and ultimately causes data loss across all signals — not just the one with the failing backend.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** OTel Collector internal metrics (`otelcol_exporter_send_failed_*`, `otelcol_exporter_sent_*`), collector logs
+- **SPL:**
+```spl
+| mstats sum(_value) as val WHERE index=otel_metrics metric_name IN (
+    "otelcol_exporter_send_failed_spans",
+    "otelcol_exporter_send_failed_metric_points",
+    "otelcol_exporter_send_failed_log_records",
+    "otelcol_exporter_sent_spans",
+    "otelcol_exporter_sent_metric_points",
+    "otelcol_exporter_sent_log_records"
+  ) BY metric_name, exporter, service_instance_id span=5m
+| eval signal=case(match(metric_name,"spans"),"traces", match(metric_name,"metric"),"metrics", match(metric_name,"log"),"logs")
+| eval status=if(match(metric_name,"failed"), "failed", "sent")
+| stats sum(val) as total by _time, exporter, signal, status, service_instance_id
+| xyseries _time, status, total
+| eval failure_pct=round(failed*100/nullif(sent+failed, 0), 2)
+| where failed > 0
+| table _time, exporter, signal, service_instance_id, sent, failed, failure_pct
+| sort -failure_pct
+```
+- **Implementation:** OTel Collector exporters emit `otelcol_exporter_send_failed_*` counters per signal type and exporter name. These increment on each failed send attempt (including retries). Track failure percentage per exporter: sustained failures above 1% indicate a backend problem requiring investigation. Check collector logs for specific error codes: 429 (rate limited), 503 (backend overloaded), context deadline exceeded (timeout), and TLS handshake failures. For Splunk HEC exporters, correlate with HEC endpoint health (UC-13.1.12). For OTLP exporters, verify the receiving collector or backend is healthy. Alert when any exporter shows failures for more than 10 consecutive minutes. Monitor the retry queue: exporters with `retry_on_failure` enabled accumulate data during transient failures, but persistent failures eventually hit `max_elapsed_time` and data is dropped permanently.
+- **Visualization:** Line chart (failure rate per exporter over 24 hours), Table (exporters with active failures), Bar chart (failures by signal type and exporter), Single value (exporters currently healthy vs failing).
+- **CIM Models:** N/A
+
+---
+
 ### 13.3.TE Cisco ThousandEyes — Platform Integration
 
 ---
@@ -2514,4 +2670,622 @@ index=ml_ops sourcetype="mltk:model:metrics"
 ```
 - **Implementation:** Instrument all deployed MLTK and DSDL models to emit performance metrics (precision, recall, F1 score, reconstruction error mean/std, prediction distribution) to a dedicated `ml_ops` index. For supervised models, compare predictions against ground-truth labels (analyst dispositions, confirmed incidents). For unsupervised models, track anomaly rate stability and reconstruction error distribution. Alert data science teams when F1 drops below 0.80 or model age exceeds 90 days. Maintain a model registry KV store with model name, version, training date, data hash, and performance baseline. Automate retraining pipelines for models that drift past thresholds. Dashboard the health of all production ML models for ML platform governance.
 - **Visualization:** Line chart (F1 score over time per model), Table (model registry with drift status), Bar chart (model age distribution), Single value (models requiring retraining).
+- **CIM Models:** N/A
+
+---
+
+### 13.5 OpenTelemetry, Observability Pipelines & SRE Patterns
+
+**Primary App/TA:** Splunk Distribution of OpenTelemetry Collector, Splunk Observability Cloud (APM, RUM, Synthetics, Infrastructure Monitoring), Prometheus, Jaeger, Grafana.
+
+---
+
+### UC-13.5.1 · Trace Duration Anomaly and Slow Transaction Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** A deployment that adds 200ms to a critical checkout flow costs revenue every second it runs. Static latency thresholds generate noise during normal traffic variation and miss gradual regressions. By baselining p50/p95/p99 trace duration per service and operation, this detection identifies statistically significant latency regressions within minutes of a deployment — before enough users complain to reach support.
+- **App/TA:** Splunk Observability Cloud (APM), Splunk Distribution of OpenTelemetry Collector, Jaeger
+- **Data Sources:** `sourcetype=otel:traces` or APM span data, `index=traces`
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces"
+| eval duration_ms=duration_nano/1000000
+| bin _time span=15m
+| stats p50(duration_ms) as p50, p95(duration_ms) as p95, p99(duration_ms) as p99, count as span_count by _time, service_name, operation_name
+| eventstats avg(p99) as baseline_p99, stdev(p99) as std_p99 by service_name, operation_name
+| eval z_score=round((p99 - baseline_p99) / nullif(std_p99, 0), 2)
+| where z_score > 2 AND span_count > 50
+| table _time, service_name, operation_name, p50, p95, p99, baseline_p99, z_score, span_count
+| sort -z_score
+```
+- **Implementation:** Ingest OTel trace data via OTLP exporter to Splunk (HEC or Observability Cloud). Calculate duration percentiles per service and operation in 15-minute windows. Baseline using 7-day rolling statistics. Flag operations where p99 exceeds 2 standard deviations above the baseline with sufficient sample size (>50 spans). Correlate with deployment events (cat-12) to identify which release caused the regression. For Splunk APM users, the APM service map provides built-in latency comparison; this UC replicates the pattern for platform-only deployments. Track regressions over time to measure release quality trends.
+- **Visualization:** Line chart (p50/p95/p99 duration per operation over 24 hours), Table (operations with latency regressions), Heatmap (service × operation p99), Bar chart (top 10 slowest operations).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.2 · Trace Error Rate by Service and Operation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Error rate is the most immediate signal of service degradation. Tracking error spans (status_code=ERROR) by service, operation, and error type creates accountability: each team sees their service's error contribution. When the checkout service suddenly jumps from 0.1% to 5% errors on the `processPayment` operation, the payment team gets alerted immediately rather than waiting for downstream impact to cascade.
+- **App/TA:** Splunk Observability Cloud (APM), Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** `sourcetype=otel:traces`, `index=traces`
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces"
+| eval is_error=if(status_code=="ERROR" OR status_code==2, 1, 0)
+| bin _time span=5m
+| stats count as total_spans, sum(is_error) as error_spans by _time, service_name, operation_name
+| eval error_rate_pct=round(error_spans*100/total_spans, 2)
+| where error_rate_pct > 1 AND total_spans > 20
+| eventstats avg(error_rate_pct) as baseline_error by service_name, operation_name
+| eval error_spike=round(error_rate_pct / nullif(baseline_error, 0), 1)
+| where error_spike > 3 OR error_rate_pct > 5
+| table _time, service_name, operation_name, total_spans, error_spans, error_rate_pct, baseline_error, error_spike
+| sort -error_rate_pct
+```
+- **Implementation:** Ingest OTel trace data. Map status codes: OTel status `ERROR` (code=2) and HTTP status codes >=500 in span attributes indicate errors. Calculate error rate per service/operation in 5-minute windows. Alert when error rate exceeds 3x the baseline or crosses an absolute 5% threshold. Enrich with error messages from span events (exception.type, exception.message) to group errors by root cause. Build service ownership lookups to route alerts to the responsible team. Track error rate trends per service over 30 days to measure reliability improvements.
+- **Visualization:** Line chart (error rate per service over 24 hours), Table (services with elevated errors), Bar chart (top error types by volume), Single value (fleet-wide error rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.3 · Trace Completeness and Orphan Span Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Compliance
+- **Value:** Incomplete traces — missing parent spans, single-span traces from multi-service flows, or orphaned spans with no root — indicate broken context propagation, missing instrumentation, or sampling inconsistencies. These gaps make distributed debugging impossible exactly when it matters most. Measuring trace completeness quantifies instrumentation quality and identifies which services need propagation fixes.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Splunk Observability Cloud (APM)
+- **Data Sources:** `sourcetype=otel:traces`, `index=traces`
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces"
+| bin _time span=1h
+| stats dc(span_id) as span_count, dc(service_name) as service_count,
+    sum(if(parent_span_id="" OR isnull(parent_span_id), 1, 0)) as root_spans,
+    sum(if(span_count==1, 1, 0)) as single_span_traces
+    by _time, trace_id
+| eval completeness=case(
+    service_count==1 AND span_count==1, "single_span",
+    root_spans==0, "orphan_no_root",
+    root_spans>1, "multiple_roots",
+    1==1, "complete")
+| stats count as trace_count,
+    sum(if(completeness=="single_span",1,0)) as single_spans,
+    sum(if(completeness=="orphan_no_root",1,0)) as orphans,
+    sum(if(completeness=="multiple_roots",1,0)) as multi_root
+    by _time
+| eval completeness_pct=round((trace_count - single_spans - orphans - multi_root)*100/trace_count, 1)
+| table _time, trace_count, completeness_pct, single_spans, orphans, multi_root
+```
+- **Implementation:** Analyze trace structure by examining parent-child span relationships within each trace_id. Classify traces: "complete" (single root, proper parent chain), "single_span" (only one span — missing downstream instrumentation), "orphan_no_root" (no span has an empty parent_span_id — broken propagation), "multiple_roots" (more than one root span — context fragmentation). Track completeness percentage over time. Alert when completeness drops below 90%. Identify which services produce the most orphan spans by joining back to service_name. For tail-sampling deployments, validate that sampling decisions are consistent across services (UC-13.3.7 covers sampling rate; this UC covers the resulting trace quality).
+- **Visualization:** Line chart (completeness % over 7 days), Pie chart (trace classification breakdown), Table (services producing most orphan spans), Single value (current completeness %).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.4 · Cross-Service Dependency Map from Traces
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Performance
+- **Value:** Service-to-service dependencies are often undocumented, especially in microservice architectures where teams add new API calls without updating architecture diagrams. Auto-discovering the dependency graph from trace data reveals the actual topology — including unexpected edges that represent security risks (why is the frontend calling the billing database directly?) or change risks (this "isolated" service actually has 12 downstream dependents). New edges appearing after deployments are an immediate change management signal.
+- **App/TA:** Splunk Observability Cloud (APM), Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** `sourcetype=otel:traces`, `index=traces`
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces" isnotnull(parent_span_id) parent_span_id!=""
+| join type=left parent_span_id [search index=traces sourcetype="otel:traces"
+    | rename span_id as parent_span_id, service_name as parent_service
+    | fields parent_span_id, parent_service]
+| where isnotnull(parent_service) AND parent_service!=service_name
+| eval edge=parent_service." → ".service_name
+| bin _time span=1d
+| stats count as call_count, avg(duration_nano)/1000000 as avg_latency_ms, dc(trace_id) as trace_count by _time, parent_service, service_name, edge
+| eventstats earliest(_time) as first_seen by edge
+| eval is_new_edge=if(first_seen > relative_time(now(), "-7d"), "NEW", "known")
+| where is_new_edge="NEW" OR call_count > 100
+| sort is_new_edge, -call_count
+| table _time, edge, parent_service, service_name, call_count, avg_latency_ms, is_new_edge, first_seen
+```
+- **Implementation:** Extract parent-child service relationships from traces by joining each span's `parent_span_id` to its parent span's `service_name`. Filter cross-service edges (parent_service != service_name). Aggregate daily to build the dependency graph. Track `first_seen` per edge to detect new dependencies appearing after deployments. Alert on new edges (services communicating for the first time) as a change/security signal. For Splunk APM users, the Service Map provides this visualization natively; this UC replicates the detection for platform-only deployments. Export the edge list to a network graph visualization or integrate with Splunk ITSI service dependency trees.
+- **Visualization:** Force-directed graph (service dependency map), Table (new edges detected this week), Bar chart (top dependencies by call volume), Line chart (edge count trend — growing complexity indicator).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.5 · Log-to-Trace Correlation Coverage
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Logs without trace context are isolated events that can't be correlated to specific user requests. When only 30% of log events carry `trace_id` and `span_id`, debugging a failed request requires manual timestamp-based guesswork across services. Measuring log-trace correlation coverage per service quantifies instrumentation maturity and identifies which teams need to add OTel context propagation to their logging frameworks.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, any log framework with OTel integration
+- **Data Sources:** Application logs with optional `trace_id` and `span_id` fields
+- **SPL:**
+```spl
+index=app_logs
+| eval has_trace=if(isnotnull(trace_id) AND trace_id!="" AND trace_id!="0000000000000000", 1, 0)
+| eval has_span=if(isnotnull(span_id) AND span_id!="" AND span_id!="0000000000000000", 1, 0)
+| bin _time span=1d
+| stats count as total_logs, sum(has_trace) as with_trace, sum(has_span) as with_span by _time, service_name, sourcetype
+| eval trace_coverage_pct=round(with_trace*100/total_logs, 1)
+| eval span_coverage_pct=round(with_span*100/total_logs, 1)
+| table _time, service_name, sourcetype, total_logs, trace_coverage_pct, span_coverage_pct
+| sort trace_coverage_pct
+```
+- **Implementation:** Modern logging frameworks (Log4j2, Logback, Python logging, Serilog) support automatic injection of OTel trace context (`trace_id`, `span_id`, `trace_flags`) into log events via MDC/context propagation. The OTel SDK logging bridge also carries this context. Measure what percentage of log events per service contain valid trace IDs (not null, not zero-padded). Target: 80%+ for instrumented services. Services below 50% likely haven't configured their logging framework's OTel integration. Provide a weekly instrumentation scorecard by team. Exclude infrastructure logs (syslog, container runtime) from the calculation as they're not expected to carry trace context. Track improvement over time to measure observability maturity program progress.
+- **Visualization:** Bar chart (trace coverage % by service — sorted ascending), Line chart (fleet-wide coverage trend over 90 days), Table (services with lowest coverage), Single value (fleet average coverage %).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.6 · Trace Fanout and Depth Anomaly
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Fault
+- **Value:** Traces with unusually high span counts or deep nesting reveal N+1 query patterns, recursive service calls, and runaway microservice chains that consume disproportionate resources. A single API call generating 10,000 spans indicates a loop or unbounded fan-out that impacts both application performance and observability infrastructure cost. Detecting these "mega-traces" prevents both performance degradation and observability platform overload.
+- **App/TA:** Splunk Observability Cloud (APM), Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** `sourcetype=otel:traces`, `index=traces`
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces"
+| stats count as span_count, dc(service_name) as service_count, max(eval(len(split(parent_chain, ".")))) as max_depth, sum(duration_nano)/1000000 as total_duration_ms by trace_id
+| eventstats avg(span_count) as avg_spans, stdev(span_count) as std_spans
+| eval span_z_score=round((span_count - avg_spans) / nullif(std_spans, 0), 2)
+| eval anomaly_type=case(
+    span_count > 1000, "mega_trace",
+    span_z_score > 3, "high_fanout",
+    max_depth > 20, "deep_nesting",
+    1==1, null())
+| where isnotnull(anomaly_type)
+| sort -span_count
+| head 100
+| table trace_id, anomaly_type, span_count, service_count, max_depth, total_duration_ms, span_z_score
+```
+- **Implementation:** Aggregate span counts per trace_id to identify traces with unusually high fan-out. Traces exceeding 1,000 spans are "mega-traces" that likely indicate N+1 queries or unbounded pagination loops. Deep nesting (>20 levels) suggests recursive service calls. Calculate z-scores against the population to detect statistically anomalous traces. For each anomalous trace, identify the service and operation that generates the most child spans — this is the fan-out origin to investigate. Common root causes: ORM lazy loading in loops, recursive microservice calls without depth limits, batch jobs that create per-item spans. Alert when mega-traces exceed 5 per hour. Feed findings to development teams with specific trace IDs for investigation.
+- **Visualization:** Histogram (span count distribution with anomaly threshold), Table (anomalous traces with details), Bar chart (top services producing high-fanout traces), Single value (mega-traces in last hour).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.7 · Splunk APM Service Map Health (RED Metrics)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** Splunk APM's service map provides real-time Request rate, Error rate, and Duration (RED) metrics per service and endpoint. Ingesting these metrics into Splunk Enterprise enables correlation with infrastructure data, security events, and business metrics that live outside Observability Cloud — creating a unified view that neither platform provides alone. Degrading RED metrics in APM can trigger Splunk Enterprise workflows, populate ITSI service trees, or enrich ES risk scores.
+- **App/TA:** Splunk Observability Cloud (APM), Splunk Add-on for Splunk Observability Cloud
+- **Data Sources:** Splunk APM service metrics via API or OTel Collector relay, `sourcetype=signalfx:apm:metrics`
+- **SPL:**
+```spl
+index=observability sourcetype="signalfx:apm:metrics"
+| bin _time span=5m
+| stats avg(request_rate) as req_rate, avg(error_rate) as err_rate, avg(p99_duration_ms) as p99_ms by _time, service_name, environment
+| eventstats avg(err_rate) as baseline_err, avg(p99_ms) as baseline_p99 by service_name
+| eval err_spike=round(err_rate / nullif(baseline_err, 0), 1)
+| eval latency_spike=round(p99_ms / nullif(baseline_p99, 0), 1)
+| where err_spike > 3 OR latency_spike > 2 OR err_rate > 5
+| table _time, service_name, environment, req_rate, err_rate, err_spike, p99_ms, latency_spike
+| sort -err_spike
+```
+- **Implementation:** Export Splunk APM metrics to Splunk Enterprise via the OTel Collector (using the SignalFx exporter → Splunk HEC pipeline) or via the Observability Cloud API with a scripted input. Key metrics: `service.request.count` (rate), `service.request.duration.ns.p99` (latency), `service.error.count` (errors). Calculate RED metrics per service in 5-minute windows. Compare against rolling baselines to detect spikes. For ITSI integration, map APM services to ITSI service entities and feed RED metrics as KPIs. For ES integration, generate risk events when critical services show sustained error spikes. Track RED metrics trend over 30 days to measure service reliability improvement.
+- **Visualization:** Table (service health matrix — green/yellow/red by RED metric), Line chart (RED metrics per service over 24 hours), Gauge (error rate per critical service), Heatmap (service × time error rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.8 · Splunk APM Database Query Performance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Database spans in APM traces reveal which SQL queries contribute most to service latency. A single unoptimized query hiding behind 50ms average response time can drive p99 to 2 seconds. APM database query analysis identifies the specific queries and calling services responsible for database-driven latency, providing actionable evidence for query optimization and index tuning — bridging the gap between application and database teams.
+- **App/TA:** Splunk Observability Cloud (APM), Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** APM database span data, `sourcetype=otel:traces` (db.* attributes)
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces" span_kind="CLIENT" db_system=*
+| eval query_duration_ms=duration_nano/1000000
+| eval db_statement_short=substr(db_statement, 1, 200)
+| bin _time span=15m
+| stats avg(query_duration_ms) as avg_ms, p95(query_duration_ms) as p95_ms, p99(query_duration_ms) as p99_ms, count as query_count, sum(eval(if(status_code=="ERROR",1,0))) as errors by _time, service_name, db_system, db_name, db_statement_short
+| where p99_ms > 500 OR errors > 0
+| eval impact_score=round(query_count * p99_ms / 1000, 1)
+| sort -impact_score
+| table _time, service_name, db_system, db_name, db_statement_short, query_count, avg_ms, p95_ms, p99_ms, errors, impact_score
+```
+- **Implementation:** OTel auto-instrumentation captures database spans with semantic conventions: `db.system` (mysql, postgresql, redis), `db.name`, `db.statement` (sanitized query), and `db.operation` (SELECT, INSERT, etc.). Ingest these spans and analyze query performance per service. The `impact_score` (query_count × p99_ms) prioritizes the queries that contribute most to total service latency — a query running 10,000 times at 100ms p99 has higher impact than one running 10 times at 5,000ms. Alert when any query's p99 exceeds 500ms or when errors appear. Correlate with database monitoring (cat-07) to validate that database-side metrics confirm the latency seen in traces. Truncate `db.statement` for display while preserving enough for identification.
+- **Visualization:** Table (top queries by impact score), Line chart (query p99 trend per service), Bar chart (query count by database system), Scatter plot (query count vs p99 latency — bubble size = impact).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.9 · Splunk RUM Core Web Vitals Tracking
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Google's Core Web Vitals — Largest Contentful Paint (LCP), Interaction to Next Paint (INP), and Cumulative Layout Shift (CLS) — directly impact search ranking and user experience. Splunk RUM captures these metrics per page, browser, device type, and geographic location. Tracking CWV trends detects regressions after frontend deployments before they affect SEO ranking or user conversion rates. A 100ms LCP regression on the product page can reduce conversion by 1-2%.
+- **App/TA:** Splunk Observability Cloud (RUM), Splunk RUM agent
+- **Data Sources:** Splunk RUM telemetry, `sourcetype=signalfx:rum:metrics`
+- **SPL:**
+```spl
+index=observability sourcetype="signalfx:rum:metrics"
+| bin _time span=1h
+| stats avg(lcp_ms) as avg_lcp, p75(lcp_ms) as p75_lcp, avg(inp_ms) as avg_inp, p75(inp_ms) as p75_inp, avg(cls) as avg_cls, p75(cls) as p75_cls, count as page_views by _time, page_url, browser_name, device_type
+| eval lcp_rating=case(p75_lcp<=2500, "Good", p75_lcp<=4000, "Needs Improvement", 1==1, "Poor")
+| eval inp_rating=case(p75_inp<=200, "Good", p75_inp<=500, "Needs Improvement", 1==1, "Poor")
+| eval cls_rating=case(p75_cls<=0.1, "Good", p75_cls<=0.25, "Needs Improvement", 1==1, "Poor")
+| where lcp_rating!="Good" OR inp_rating!="Good" OR cls_rating!="Good"
+| sort -p75_lcp
+| table _time, page_url, browser_name, device_type, p75_lcp, lcp_rating, p75_inp, inp_rating, p75_cls, cls_rating, page_views
+```
+- **Implementation:** Deploy Splunk RUM agent on frontend pages. RUM automatically captures CWV metrics using the web-vitals library. Ingest RUM data into Splunk via the Observability Cloud API or OTel Collector relay. Google measures CWV at the 75th percentile: LCP ≤2.5s (good), INP ≤200ms (good), CLS ≤0.1 (good). Track p75 values per page URL, browser, and device type (mobile vs desktop — mobile often has worse LCP). Alert frontend teams when any high-traffic page drops from "Good" to "Needs Improvement." Compare CWV before and after deployments using deployment markers. Provide weekly CWV reports to product owners with page-level detail and trend direction.
+- **Visualization:** Scorecard (CWV status per top page — green/yellow/red), Line chart (LCP/INP/CLS p75 trend over 30 days), Table (pages with poor CWV), Bar chart (CWV by device type).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.10 · Splunk RUM JavaScript Error Rate by Page
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Frontend JavaScript errors — unhandled exceptions, failed API calls, resource loading failures — directly degrade user experience but are invisible to backend monitoring. RUM captures these errors with full stack traces, page URL, browser, and user session context. Tracking JS error rate by page detects regressions after deployments, identifies browser-specific bugs, and quantifies the user impact of frontend failures that backend health checks miss entirely.
+- **App/TA:** Splunk Observability Cloud (RUM), Splunk RUM agent
+- **Data Sources:** Splunk RUM error events, `sourcetype=signalfx:rum:errors`
+- **SPL:**
+```spl
+index=observability sourcetype="signalfx:rum:errors"
+| eval error_type=coalesce(exception_type, "UnknownError")
+| bin _time span=1h
+| stats count as error_count, dc(session_id) as affected_sessions, values(error_type) as error_types by _time, page_url, browser_name
+| join type=left page_url [search index=observability sourcetype="signalfx:rum:metrics"
+    | stats dc(session_id) as total_sessions by page_url]
+| eval error_session_pct=round(affected_sessions*100/nullif(total_sessions, 0), 1)
+| where error_count > 10 OR error_session_pct > 5
+| table _time, page_url, browser_name, error_count, affected_sessions, error_session_pct, error_types
+| sort -error_session_pct
+```
+- **Implementation:** Splunk RUM captures JavaScript errors including: uncaught exceptions, unhandled promise rejections, resource loading failures (img, script, CSS 404s), and fetch/XHR errors. Each error event includes stack trace, page URL, browser, OS, and session ID. Calculate the percentage of user sessions experiencing errors per page — this measures user impact more accurately than raw error count (one broken page viewed by 100 users = 100 errors but 100% session impact). Alert when error session percentage exceeds 5% for any page with >100 views. Compare error rates by browser to identify browser-specific regressions. Link RUM errors to backend traces via trace_id to identify full-stack root causes.
+- **Visualization:** Line chart (error session % per page over 7 days), Table (pages with highest error impact), Bar chart (errors by type), Pie chart (errors by browser).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.11 · Splunk Synthetic Monitoring Multi-Step Transaction SLA
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Beyond simple pass/fail synthetic checks (UC-13.3.10), multi-step browser transactions test complete user workflows — login, search, add-to-cart, checkout. Step-level timing trends reveal which step is degrading: if the login step takes 500ms longer in one geography, that points to a regional identity provider issue. Transaction SLA tracking quantifies end-user experience commitments and provides evidence for SLA breach discussions with internal service owners or external vendors.
+- **App/TA:** Splunk Observability Cloud (Synthetics), Splunk Synthetic Monitoring
+- **Data Sources:** Splunk Synthetic test results, `sourcetype=signalfx:synthetics:results`
+- **SPL:**
+```spl
+index=observability sourcetype="signalfx:synthetics:results" test_type="browser"
+| eval step_duration_ms=step_end_ms - step_start_ms
+| bin _time span=1h
+| stats avg(step_duration_ms) as avg_step_ms, p95(step_duration_ms) as p95_step_ms, sum(if(step_status=="FAIL",1,0)) as step_failures, count as step_runs by _time, test_name, step_name, location
+| eval step_success_pct=round((step_runs-step_failures)*100/step_runs, 1)
+| eval sla_met=if(step_success_pct >= 99.5 AND p95_step_ms < 3000, "Yes", "No")
+| stats avg(step_success_pct) as avg_success, avg(p95_step_ms) as avg_p95, min(step_success_pct) as worst_success by test_name, step_name, location
+| where avg_success < 99.5 OR avg_p95 > 3000
+| table test_name, step_name, location, avg_success, avg_p95, worst_success
+| sort avg_success
+```
+- **Implementation:** Configure Splunk Synthetic browser tests for critical user journeys (login flow, checkout, search, account management) running from multiple geographic locations every 5-15 minutes. Ingest results with per-step timing and status. Define SLA targets per transaction (e.g., 99.5% success, p95 < 3 seconds). Track step-level performance to identify which step in the journey degrades. Compare performance across locations to detect regional infrastructure issues. Alert when any transaction drops below SLA for 2 consecutive hours. Provide weekly SLA reports to service owners showing uptime, performance, and geographic variance. Correlate synthetic failures with infrastructure events (cat-01, cat-05) to distinguish application from infrastructure issues.
+- **Visualization:** Table (transaction SLA status by location — green/red), Line chart (step duration trend per test), Bar chart (success rate by geography), Heatmap (test × location performance).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.12 · Splunk Observability Cloud Detector Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Compliance
+- **Value:** Observability Cloud detectors (alerts) degrade silently: a detector may be permanently muted, have no recent data feeding its signal, fire so frequently it's ignored (alert fatigue), or have a condition that can never trigger due to metric name changes. Monitoring detector health ensures the alerting layer that protects production services is itself healthy — preventing the dangerous situation where teams believe they're covered by alerts that haven't actually fired or evaluated in months.
+- **App/TA:** Splunk Observability Cloud API, custom scripted input
+- **Data Sources:** Observability Cloud Detector API (`sourcetype=signalfx:detectors`), alert event history
+- **SPL:**
+```spl
+index=observability sourcetype="signalfx:detectors"
+| stats latest(is_muted) as muted, latest(last_triggered) as last_trigger, latest(last_updated) as last_update, count(eval(severity=="Critical")) as critical_fires, count(eval(severity=="Warning")) as warning_fires by detector_name, detector_id, creator
+| eval days_since_trigger=if(isnotnull(last_trigger), round((now()-last_trigger)/86400, 0), "Never")
+| eval days_since_update=round((now()-last_update)/86400, 0)
+| eval health=case(
+    muted=="true", "MUTED",
+    days_since_trigger=="Never" OR days_since_trigger > 90, "STALE - Never/Rarely Fires",
+    critical_fires > 100, "NOISY - Excessive Alerts",
+    days_since_update > 365, "ABANDONED - Not Updated",
+    1==1, "Healthy")
+| where health!="Healthy"
+| table detector_name, creator, health, muted, days_since_trigger, days_since_update, critical_fires
+| sort health
+```
+- **Implementation:** Deploy a scripted input that polls the Observability Cloud Detector API daily, extracting detector metadata (name, creator, mute status, last update), and alert event history (last triggered, firing frequency). Classify detector health: "MUTED" (permanently silenced — may be intentional or forgotten), "STALE" (never fired or hasn't fired in 90 days — may have no data or an impossible condition), "NOISY" (fires more than 100 times — creates alert fatigue), "ABANDONED" (not updated in 1 year — may reference deprecated metrics). Provide a quarterly detector hygiene report to platform teams. Alert when critical-severity detectors are muted for more than 7 days. Track detector count over time to measure observability sprawl.
+- **Visualization:** Pie chart (detector health distribution), Table (unhealthy detectors with details), Bar chart (detectors by health category), Single value (% of healthy detectors).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.13 · RED Metrics Dashboard Template (Rate, Errors, Duration)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** The RED method (Rate, Errors, Duration) is the standard SRE pattern for monitoring request-driven services. This template UC provides a reusable SPL pattern applicable to any HTTP/gRPC service instrumented with OTel — producing the three essential metrics that answer "is this service healthy right now?" Having a standardized RED pattern ensures every team monitors their services consistently, enabling fleet-wide comparison and prioritization.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, any HTTP/gRPC access log
+- **Data Sources:** `sourcetype=otel:traces` (spans), `sourcetype=access_combined` (HTTP logs), OTel metrics
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces" span_kind="SERVER"
+| eval duration_ms=duration_nano/1000000
+| eval is_error=if(status_code=="ERROR" OR http_status_code>=500, 1, 0)
+| bin _time span=5m
+| stats count as requests, sum(is_error) as errors, avg(duration_ms) as avg_duration, p50(duration_ms) as p50, p95(duration_ms) as p95, p99(duration_ms) as p99 by _time, service_name
+| eval error_rate_pct=round(errors*100/requests, 2)
+| eval req_per_sec=round(requests/300, 1)
+| table _time, service_name, req_per_sec, error_rate_pct, p50, p95, p99
+```
+- **Implementation:** Filter for SERVER spans (inbound requests to the service) from OTel trace data. Calculate three metrics per 5-minute window: Rate (requests per second), Errors (percentage of requests with error status), Duration (latency percentiles). This template works with any OTel-instrumented service. Alternatively, compute RED from HTTP access logs using `status>=500` for errors and response time fields for duration. Deploy as a saved search macro `red_metrics(service_name)` for reusability across dashboards. Each team clones the template for their services. Combine with deployment markers to immediately visualize RED impact of releases. Set standard thresholds: error rate >1% (warning), >5% (critical); p99 >2x baseline (warning).
+- **Visualization:** Three-panel row per service: Single value (request rate with sparkline), Gauge (error rate with green/yellow/red), Line chart (p50/p95/p99 duration). Repeatable per service.
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.14 · USE Method for Infrastructure (Utilization, Saturation, Errors)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** The USE method (Utilization, Saturation, Errors) is the standard SRE pattern for monitoring resource-driven systems (CPU, memory, disk, network). While individual infrastructure UCs exist across cat-01 and cat-05, this template consolidates all three signals per resource into a unified view that answers "is this resource the bottleneck?" Having the USE framework as a structured pattern ensures systematic coverage — teams often monitor utilization but miss saturation (the queue) and errors (the failures).
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector (hostmetrics receiver), Splunk Infrastructure Monitoring
+- **Data Sources:** OTel host metrics (`system.cpu.*`, `system.memory.*`, `system.disk.*`, `system.network.*`)
+- **SPL:**
+```spl
+| mstats avg(_value) as val WHERE index=infra_metrics metric_name IN (
+    "system.cpu.utilization",
+    "system.cpu.load_average.5m",
+    "system.memory.utilization",
+    "system.memory.usage",
+    "system.disk.utilization",
+    "system.disk.io_time",
+    "system.network.dropped",
+    "system.network.errors"
+  ) BY metric_name, host span=5m
+| eval resource=case(
+    match(metric_name, "cpu"), "CPU",
+    match(metric_name, "memory"), "Memory",
+    match(metric_name, "disk"), "Disk",
+    match(metric_name, "network"), "Network")
+| eval signal=case(
+    match(metric_name, "utilization"), "Utilization",
+    match(metric_name, "load_average|io_time|dropped"), "Saturation",
+    match(metric_name, "errors"), "Errors")
+| stats avg(val) as avg_val, max(val) as max_val by host, resource, signal
+| eval status=case(
+    signal=="Utilization" AND max_val > 0.9, "Critical",
+    signal=="Utilization" AND max_val > 0.7, "Warning",
+    signal=="Saturation" AND max_val > 0, "Warning",
+    signal=="Errors" AND max_val > 0, "Critical",
+    1==1, "OK")
+| where status!="OK"
+| table host, resource, signal, avg_val, max_val, status
+| sort status, resource
+```
+- **Implementation:** Deploy OTel Collector with the `hostmetrics` receiver on all infrastructure hosts. Map OTel host metrics to the USE framework: Utilization (% of resource capacity in use), Saturation (work queued or waiting — load average, disk I/O wait, network drops), Errors (hardware/software errors — disk errors, network errors). For each resource type, define USE metric mappings: CPU (utilization=cpu.utilization, saturation=load_average, errors=N/A), Memory (utilization=memory.utilization, saturation=swap usage, errors=ECC errors), Disk (utilization=disk.utilization, saturation=io_time, errors=disk errors), Network (utilization=bandwidth%, saturation=dropped packets, errors=errors). Alert when any resource shows high utilization (>90%) combined with saturation. This pattern complements per-host monitoring by providing a methodological framework for bottleneck identification.
+- **Visualization:** Matrix table (host × resource with USE status coloring), Gauge (utilization per resource), Bar chart (hosts with saturation), Single value (resources in critical state).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.15 · Golden Signals Composite Health per Service
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** Google SRE's four Golden Signals — Latency, Traffic, Errors, Saturation — provide a complete view of service health when combined into a composite score. Individual signal monitoring exists across various UCs, but a composite score enables service-level comparison and prioritization: when 20 services degrade simultaneously during an incident, the composite score instantly ranks which services are worst-affected. This is particularly valuable for non-ITSI deployments that lack ITSI's built-in service health scoring.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Splunk Observability Cloud
+- **Data Sources:** `sourcetype=otel:traces` (spans), OTel metrics, application logs
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces" span_kind="SERVER"
+| eval duration_ms=duration_nano/1000000
+| eval is_error=if(status_code=="ERROR", 1, 0)
+| bin _time span=5m
+| stats count as traffic, sum(is_error) as errors, p99(duration_ms) as latency_p99 by _time, service_name
+| eval error_rate=round(errors*100/traffic, 2)
+| join type=left service_name [
+    | mstats avg(_value) as saturation WHERE index=infra_metrics metric_name="system.cpu.utilization" BY service_name span=5m]
+| eval latency_score=case(latency_p99<200, 100, latency_p99<500, 80, latency_p99<1000, 60, latency_p99<2000, 40, 1==1, 20)
+| eval error_score=case(error_rate<0.1, 100, error_rate<1, 80, error_rate<5, 60, error_rate<10, 40, 1==1, 20)
+| eval traffic_score=if(traffic>0, 100, 0)
+| eval sat_score=case(saturation<0.5, 100, saturation<0.7, 80, saturation<0.85, 60, saturation<0.95, 40, 1==1, 20)
+| eval composite_health=round((latency_score*0.3 + error_score*0.3 + traffic_score*0.2 + sat_score*0.2), 0)
+| table _time, service_name, composite_health, latency_p99, error_rate, traffic, saturation
+| sort composite_health
+```
+- **Implementation:** Combine the four Golden Signals per service into a weighted composite score (0-100). Weights: Latency 30%, Errors 30%, Traffic 20% (presence/absence), Saturation 20%. Score each signal on a 0-100 scale based on configurable thresholds. The composite score enables instant service ranking during incidents. For services with ITSI coverage, this complements rather than replaces ITSI health scores — ITSI provides richer KPI modeling while this provides a lightweight alternative for services not yet onboarded to ITSI. Store service-level scores in a summary index for historical trending. Build a fleet-wide service health leaderboard sorted by composite score.
+- **Visualization:** Table (service leaderboard sorted by composite health — color coded), Gauge (composite health per critical service), Line chart (composite health trend per service over 7 days), Treemap (services sized by traffic, colored by health).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.16 · SLO Definition and Multi-Window Burn Rate Alerting
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** Simple error rate thresholds create two failure modes: too sensitive (alert on every transient error) or too lenient (miss sustained degradation). Google SRE's multi-window burn rate alerting solves this by measuring how fast you're consuming your error budget across multiple time windows. A fast burn (5min/1hr window) catches severe outages immediately; a slow burn (30min/6hr window) catches gradual degradation that compounds. This structured approach replaces ad-hoc threshold alerting with mathematically rigorous SLO-based alerting.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Splunk Observability Cloud
+- **Data Sources:** `sourcetype=otel:traces`, service metrics, `sourcetype=access_combined`
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces" span_kind="SERVER" service_name="$service$"
+| eval good=if(status_code!="ERROR" AND (isnull(http_status_code) OR http_status_code<500), 1, 0)
+| bin _time span=1m
+| stats count as total, sum(good) as good_count by _time
+| eval error_ratio=1-(good_count/total)
+| eval slo_target=0.999
+| eval budget_total=1-slo_target
+| streamstats sum(total) as window_total, sum(eval(total-good_count)) as window_errors window=5 by _time
+| eval burn_rate_5m=round((window_errors/window_total)/budget_total, 2)
+| streamstats sum(total) as window_total_1h, sum(eval(total-good_count)) as window_errors_1h window=60 by _time
+| eval burn_rate_1h=round((window_errors_1h/window_total_1h)/budget_total, 2)
+| eval fast_burn_alert=if(burn_rate_5m > 14.4 AND burn_rate_1h > 14.4, 1, 0)
+| eval slow_burn_alert=if(burn_rate_1h > 6 AND burn_rate_5m > 6, 1, 0)
+| where fast_burn_alert=1 OR slow_burn_alert=1
+| eval alert_type=case(fast_burn_alert=1, "FAST BURN", slow_burn_alert=1, "SLOW BURN")
+| table _time, alert_type, burn_rate_5m, burn_rate_1h, error_ratio, window_total
+```
+- **Implementation:** Define SLOs per service as availability targets (e.g., 99.9% = 0.1% error budget over 30 days). Calculate burn rate as (observed error rate / error budget rate). Google SRE recommends multi-window alerting: Fast burn (14.4x burn rate over 5min AND 1hr windows) catches severe incidents — at this rate, the entire monthly budget is consumed in 2 hours. Slow burn (6x burn rate over 30min AND 6hr windows) catches gradual degradation — budget consumed in 5 days. Store SLO definitions in a KV store lookup (service, slo_target, budget_period_days). Calculate remaining error budget percentage per service and display on an SLO dashboard. Pair with UC-13.5.17 for error budget policy enforcement when budget is exhausted.
+- **Visualization:** Gauge (error budget remaining % per service), Line chart (burn rate over 24 hours with threshold lines), Table (services with active burn rate alerts), Single value (services currently burning budget).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.17 · Error Budget Policy Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Availability
+- **Value:** An SLO without enforcement is just a dashboard. Error budget policies define what happens when a service exhausts its error budget: feature freeze, mandatory reliability work, postmortem requirement, or escalation to engineering leadership. Tracking error budget consumption per service per period and automatically flagging services that have exhausted their budget creates accountability — transforming SLOs from aspirational targets into governance mechanisms that balance feature velocity with reliability investment.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Splunk Observability Cloud
+- **Data Sources:** `sourcetype=otel:traces`, SLO definition lookup (KV store)
+- **SPL:**
+```spl
+index=traces sourcetype="otel:traces" span_kind="SERVER"
+| eval good=if(status_code!="ERROR" AND (isnull(http_status_code) OR http_status_code<500), 1, 0)
+| bin _time span=1d
+| stats count as total, sum(good) as good_count by _time, service_name
+| lookup slo_definitions service_name OUTPUT slo_target, budget_period_days, service_tier, owning_team
+| eval daily_error_rate=round((total-good_count)*100/total, 3)
+| eval allowed_error_pct=round((1-slo_target)*100, 3)
+| streamstats sum(total) as period_total, sum(good_count) as period_good window=30 by service_name
+| eval period_availability=round(period_good*100/period_total, 3)
+| eval budget_consumed_pct=round((100-period_availability)*100/(100-slo_target*100), 1)
+| eval policy_action=case(
+    budget_consumed_pct >= 100, "BUDGET EXHAUSTED - Feature Freeze",
+    budget_consumed_pct >= 80, "WARNING - Prioritize Reliability",
+    budget_consumed_pct >= 50, "CAUTION - Monitor Closely",
+    1==1, "OK - Budget Available")
+| where budget_consumed_pct >= 50
+| table service_name, owning_team, service_tier, slo_target, period_availability, budget_consumed_pct, policy_action
+| sort -budget_consumed_pct
+```
+- **Implementation:** Create a `slo_definitions` KV store lookup with columns: service_name, slo_target (e.g., 0.999), budget_period_days (typically 30), service_tier (critical/standard/best-effort), and owning_team. Calculate rolling 30-day availability per service from trace data. Compute error budget consumption as the ratio of actual errors to allowed errors. Define policy actions at thresholds: 50% consumed (caution — team should be aware), 80% consumed (warning — shift priorities to reliability), 100% consumed (feature freeze — only reliability and security work until budget replenishes). Generate weekly error budget reports for engineering leadership. Integrate with JIRA/ServiceNow to automatically create reliability work items when budget hits 80%. Track budget consumption trend to forecast when budget will be exhausted.
+- **Visualization:** Table (service error budget status with policy action), Gauge (budget remaining % per critical service), Line chart (budget consumption trend over 30 days), Bar chart (services by budget consumption — sorted descending).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.18 · Observability Data Volume and Cost Attribution
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Capacity
+- **Value:** Observability platforms charge by data volume (metrics data points, trace spans, log GB). Without attribution, a single team's misconfigured debug logging or high-cardinality metrics can spike the monthly bill by 40% while no one knows who caused it. Attributing observability data volume to services, teams, and environments enables FinOps governance — teams that generate the most telemetry bear the cost, creating incentive to instrument efficiently rather than indiscriminately.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Splunk License Manager
+- **Data Sources:** OTel Collector throughput metrics, Splunk license usage (`_internal`), `sourcetype=otel:traces`
+- **SPL:**
+```spl
+| mstats sum(_value) as val WHERE index=otel_metrics metric_name IN (
+    "otelcol_receiver_accepted_spans",
+    "otelcol_receiver_accepted_metric_points",
+    "otelcol_receiver_accepted_log_records"
+  ) BY metric_name, service_name span=1d
+| eval signal=case(match(metric_name,"spans"),"traces", match(metric_name,"metric"),"metrics", match(metric_name,"log"),"logs")
+| lookup service_ownership service_name OUTPUT owning_team, cost_center, environment
+| stats sum(val) as volume by owning_team, cost_center, signal
+| eval estimated_cost=case(
+    signal=="traces", round(volume * 0.000005, 2),
+    signal=="metrics", round(volume * 0.000001, 2),
+    signal=="logs", round(volume * 0.0000008, 2))
+| stats sum(volume) as total_volume, sum(estimated_cost) as total_cost by owning_team, cost_center
+| sort -total_cost
+| table owning_team, cost_center, total_volume, total_cost
+```
+- **Implementation:** Track OTel Collector throughput metrics attributed to `service_name` (extracted from span/metric/log resource attributes). Build a `service_ownership` lookup mapping services to teams and cost centers. Aggregate daily data volume by signal type (traces, metrics, logs) and team. Apply cost-per-unit estimates based on your observability platform pricing (Splunk Cloud, Observability Cloud, or self-hosted). Generate monthly chargeback or showback reports. Identify the top 10 services by volume for optimization review. Common volume reduction strategies: reduce trace sampling for low-risk services, aggregate metrics at the collector (use `metricstransform` processor), filter debug-level logs before export.
+- **Visualization:** Bar chart (cost by team), Pie chart (volume by signal type), Table (top services by volume), Line chart (total volume trend over 90 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.19 · Observability Cardinality Explosion Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Cost
+- **Value:** Metric cardinality — the number of unique time series — is the hidden cost driver of observability platforms. Adding a high-cardinality label like `user_id` or `request_id` to a metric can create millions of unique time series, overwhelming TSDB backends and causing query timeouts, memory exhaustion, and unexpected cost spikes. Detecting cardinality explosions before they impact platform stability prevents outages in the observability infrastructure itself.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Prometheus, Splunk Observability Cloud
+- **Data Sources:** OTel Collector metrics, TSDB cardinality endpoints, `sourcetype=otel:metrics`
+- **SPL:**
+```spl
+| mcatalog values(metric_name) WHERE index=otel_metrics by metric_name
+| map maxsearches=500 search="| mcatalog values(_dims) as dimensions WHERE index=otel_metrics metric_name=\"$metric_name$\" | eval metric_name=\"$metric_name$\" | eval cardinality=mvcount(dimensions)"
+| sort -cardinality
+| head 50
+| eventstats sum(cardinality) as total_cardinality
+| eval pct_of_total=round(cardinality*100/total_cardinality, 1)
+| where cardinality > 10000 OR pct_of_total > 5
+| table metric_name, cardinality, pct_of_total
+```
+- **Implementation:** Periodically audit metric cardinality by counting unique label combinations (time series) per metric name. Metrics with cardinality >10,000 are candidates for label reduction. Common offenders: HTTP metrics with `path` labels containing IDs (`/users/12345`), metrics with `pod_name` labels in auto-scaling environments, and custom metrics with unbounded label values. Use the OTel Collector's `metricstransform` processor to aggregate or drop high-cardinality labels before export. For Splunk Observability Cloud, monitor the `sf.org.numCustomMetrics` org metric. Alert when any single metric exceeds 10,000 time series or when total cardinality grows more than 20% week-over-week. Build a cardinality budget per team aligned with cost allocation.
+- **Visualization:** Bar chart (top 20 metrics by cardinality), Line chart (total cardinality trend over 30 days), Table (metrics exceeding threshold with label analysis), Single value (total active time series).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.20 · Instrumentation Coverage Audit
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** You can't debug what you can't see. Services without OTel instrumentation are "dark" — when they fail, you diagnose from the outside using downstream error messages and infrastructure metrics, adding 30-60 minutes to MTTR. Measuring instrumentation coverage per team (what percentage of their services emit traces, metrics, and logs with trace context) drives observability maturity programs with data rather than mandates. A coverage target of 90% for critical services creates measurable accountability.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, service registry
+- **Data Sources:** OTel Collector receiver metrics, service registry/CMDB, `sourcetype=otel:traces`
+- **SPL:**
+```spl
+| inputlookup service_registry where status="active"
+| fields service_name, owning_team, service_tier, expected_signals
+| join type=left service_name [
+    search index=traces sourcetype="otel:traces" earliest=-7d
+    | stats dc(trace_id) as trace_count, dc(operation_name) as operations by service_name
+    | eval has_traces="Yes"]
+| join type=left service_name [
+    | mstats count WHERE index=otel_metrics BY service_name span=7d
+    | where count > 0
+    | eval has_metrics="Yes"
+    | fields service_name, has_metrics]
+| fillnull has_traces has_metrics value="No"
+| eval coverage=case(
+    has_traces=="Yes" AND has_metrics=="Yes", "Full",
+    has_traces=="Yes" OR has_metrics=="Yes", "Partial",
+    1==1, "Dark")
+| stats count as total, sum(if(coverage=="Full",1,0)) as full, sum(if(coverage=="Partial",1,0)) as partial, sum(if(coverage=="Dark",1,0)) as dark by owning_team
+| eval coverage_pct=round(full*100/total, 1)
+| table owning_team, total, full, partial, dark, coverage_pct
+| sort coverage_pct
+```
+- **Implementation:** Maintain a `service_registry` lookup (from CMDB, Kubernetes service discovery, or manual inventory) listing all active services with their owning team, tier, and expected telemetry signals. Compare the registry against actual telemetry received in the last 7 days: services emitting traces are "instrumented for tracing," services emitting metrics are "instrumented for metrics." Classify each service as Full (both signals), Partial (one signal), or Dark (no telemetry). Calculate coverage percentage per team. Target: 90% full coverage for Tier-1 services, 70% for Tier-2. Generate weekly instrumentation scorecards for engineering leadership. Track coverage improvement over quarters to measure observability maturity program progress.
+- **Visualization:** Bar chart (coverage % by team), Table (dark services by team), Pie chart (fleet-wide coverage distribution), Line chart (coverage trend over quarters), Single value (fleet coverage %).
+- **CIM Models:** N/A
+
+---
+
+### UC-13.5.21 · Telemetry Signal Freshness and Staleness
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** A service that stops emitting metrics or traces could mean two very different things: the service is down (infrastructure problem requiring immediate response) or the instrumentation broke (observability gap requiring engineering fix). Monitoring signal freshness — how recently each service last emitted each signal type — distinguishes these cases. If infrastructure monitoring shows the service is running but traces stopped, the instrumentation broke. If both stop, the service is likely down. Without freshness monitoring, instrumentation failures go unnoticed until the next incident when debugging tools fail.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** `sourcetype=otel:traces`, OTel metrics, application logs
+- **SPL:**
+```spl
+| tstats latest(_time) as last_trace WHERE index=traces sourcetype="otel:traces" BY service_name
+| join type=left service_name [
+    | mstats latest(_time) as last_metric WHERE index=otel_metrics BY service_name]
+| join type=left service_name [
+    | tstats latest(_time) as last_log WHERE index=app_logs BY service_name]
+| eval trace_age_min=round((now()-last_trace)/60, 0)
+| eval metric_age_min=round((now()-last_metric)/60, 0)
+| eval log_age_min=round((now()-last_log)/60, 0)
+| eval trace_status=case(isnull(trace_age_min), "Never", trace_age_min>60, "STALE", trace_age_min>15, "Warning", 1==1, "Fresh")
+| eval metric_status=case(isnull(metric_age_min), "Never", metric_age_min>30, "STALE", metric_age_min>10, "Warning", 1==1, "Fresh")
+| eval log_status=case(isnull(log_age_min), "Never", log_age_min>30, "STALE", log_age_min>10, "Warning", 1==1, "Fresh")
+| where trace_status!="Fresh" OR metric_status!="Fresh" OR log_status!="Fresh"
+| table service_name, trace_status, trace_age_min, metric_status, metric_age_min, log_status, log_age_min
+| sort trace_status, metric_status
+```
+- **Implementation:** Track the latest timestamp per service for each signal type (traces, metrics, logs). Calculate the age of each signal in minutes. Define freshness thresholds: traces stale after 60 minutes (services typically generate spans continuously), metrics stale after 30 minutes (collection interval is usually 10-60 seconds), logs stale after 30 minutes. Alert when any service's signal goes stale. Cross-reference with infrastructure health: if the host/pod is running (CPU/memory metrics flowing via node-level collection) but application signals stopped, the instrumentation broke, not the service. Distinguish between services that should be continuously active versus batch/scheduled services that naturally have quiet periods. Maintain an expected-schedule lookup for batch services.
+- **Visualization:** Status matrix (service × signal type — green/yellow/red), Table (services with stale signals), Single value (services with all signals fresh), Line chart (stale service count trend over 7 days).
 - **CIM Models:** N/A

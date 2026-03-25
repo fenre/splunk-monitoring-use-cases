@@ -107,6 +107,11 @@ window.NON_TECHNICAL = {
         { id: "3.5.1", why: "Monitor traffic between microservices to see how they talk to each other." },
         { id: "3.5.2", why: "Check sidecar proxy health — when proxies fail, services can't communicate." },
         { id: "3.5.3", why: "Get warned before encryption certificates expire — expired certificates break service-to-service security." }
+      ]},
+      { name: "eBPF & kernel-level observability", description: "Deep kernel-level visibility into network flows, process activity, and service performance — without changing application code.", ucs: [
+        { id: "3.5.13", why: "We see every network connection between containers at the kernel level — catching unexpected communication that application monitoring misses." },
+        { id: "3.5.14", why: "We detect suspicious processes, file access, and privilege escalation inside containers before attackers can do damage." },
+        { id: "3.5.15", why: "We automatically measure service speed and errors without changing any code — instant visibility for legacy and third-party applications." }
       ]}
     ]
   },
@@ -569,6 +574,26 @@ window.NON_TECHNICAL = {
         { id: "13.4.13", why: "We train AI to read your log files and flag lines that look 'wrong' — catching problems no rule was written for." },
         { id: "13.4.14", why: "We turn server metrics into a picture and use image recognition AI to spot complex failure patterns across many metrics at once." },
         { id: "13.4.15", why: "We track the accuracy of all deployed ML models — so you know when a model needs retraining before its detections go stale." }
+      ]},
+      { name: "OpenTelemetry & observability pipelines", description: "The data collection infrastructure that feeds your monitoring. We make sure telemetry flows reliably from every service.", ucs: [
+        { id: "13.3.15", why: "We watch the data pipeline that carries your traces and metrics — if it backs up, you lose visibility right when you need it most." },
+        { id: "13.5.3", why: "We check that every service's traces are complete — broken traces mean you can't follow a request from start to finish." },
+        { id: "13.5.19", why: "We detect when a new metric label creates millions of data points overnight — catching cost explosions before your bill arrives." }
+      ]},
+      { name: "Distributed tracing & APM", description: "Follow every user request across all your services. We find slow transactions, errors, and broken connections.", ucs: [
+        { id: "13.5.1", why: "We catch when a service gets slower after a deployment — before enough users complain to reach support." },
+        { id: "13.5.2", why: "We track error rates by service and operation — so each team sees exactly where their failures are." },
+        { id: "13.5.8", why: "We find the slow database queries that make your services laggy — bridging the gap between app and database teams." }
+      ]},
+      { name: "Real user & synthetic monitoring", description: "How fast your website loads for real users and automated tests. We catch performance regressions before they hurt SEO and conversions.", ucs: [
+        { id: "13.5.9", why: "We track Google's Core Web Vitals for your pages — poor scores mean lower search rankings and frustrated users." },
+        { id: "13.5.10", why: "We detect JavaScript errors hitting your users — crashes and broken features that backend monitoring can't see." },
+        { id: "13.5.11", why: "We run automated multi-step tests of your critical user journeys from multiple locations around the world." }
+      ]},
+      { name: "SRE patterns & SLOs", description: "Site Reliability Engineering frameworks — error budgets, golden signals, and service level objectives that balance speed with reliability.", ucs: [
+        { id: "13.5.16", why: "We alert you when you're burning through your error budget too fast — before a minor issue becomes a breach of your reliability commitment." },
+        { id: "13.5.17", why: "We track error budget consumption per service — when it's exhausted, the team focuses on reliability instead of new features." },
+        { id: "13.5.15", why: "We combine latency, traffic, errors, and saturation into a single health score per service — instantly showing which services need attention." }
       ]}
     ]
   },

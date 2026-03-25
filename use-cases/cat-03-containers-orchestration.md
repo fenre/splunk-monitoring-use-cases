@@ -2284,3 +2284,163 @@ index=containers sourcetype="envoy:access"
 - **Visualization:** Time chart (429 rate by route), Table (routes with throttle events), Stacked bar (allowed vs rate-limited volume).
 - **CIM Models:** N/A
 
+---
+
+### UC-3.5.13 · eBPF Network Observability (Cilium Hubble)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Performance
+- **Value:** Traditional network monitoring in Kubernetes relies on service mesh sidecars or packet capture — both adding overhead and complexity. Cilium Hubble provides kernel-level L3/L4/L7 network visibility via eBPF without sidecar injection, capturing every network flow between pods, services, and external endpoints with near-zero performance impact. Ingesting Hubble flow logs into Splunk reveals unexpected service communication (security), DNS failures (availability), and packet drops (performance) that are invisible to application-level monitoring.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector (Hubble receiver), Cilium Hubble
+- **Data Sources:** `sourcetype=cilium:hubble:flows`, Hubble flow logs via OTLP or gRPC relay
+- **SPL:**
+```spl
+index=containers sourcetype="cilium:hubble:flows"
+| eval flow_direction=case(
+    traffic_direction=="INGRESS", "Inbound",
+    traffic_direction=="EGRESS", "Outbound",
+    1==1, "Unknown")
+| eval flow_status=case(
+    verdict=="FORWARDED", "Allowed",
+    verdict=="DROPPED", "Dropped",
+    verdict=="AUDIT", "Audited",
+    1==1, verdict)
+| bin _time span=5m
+| stats count as flows, sum(if(verdict=="DROPPED",1,0)) as dropped, dc(destination_identity) as unique_destinations by _time, source_namespace, source_pod, destination_namespace, flow_direction
+| eval drop_pct=round(dropped*100/flows, 2)
+| where dropped > 0 OR unique_destinations > 50
+| table _time, source_namespace, source_pod, destination_namespace, flow_direction, flows, dropped, drop_pct, unique_destinations
+| sort -dropped
+```
+- **Implementation:** Deploy Cilium as the Kubernetes CNI with Hubble enabled. Hubble captures eBPF-level network flows including source/destination pod, namespace, identity, IP, port, protocol, L7 protocol details (HTTP method/path, DNS query/response, Kafka topic), verdict (forwarded/dropped), and drop reason. Export Hubble flows to Splunk via the OTel Collector's Hubble receiver or by relaying Hubble's gRPC stream to a log pipeline. Key detections: dropped flows indicate network policy violations or misconfigurations; unexpected destination identities signal lateral movement or misconfigured services; DNS failures (NXDOMAIN, timeout) from Hubble's DNS-aware L7 parsing reveal resolution issues before they cascade. Correlate dropped flows with Cilium network policies to identify which policy blocked the traffic. Track flow volume per namespace to detect traffic anomalies.
+- **Visualization:** Sankey diagram (namespace-to-namespace traffic flow), Table (dropped flows with source/destination), Line chart (flow volume and drop rate over 24 hours), Bar chart (top drop reasons), Network graph (pod communication map).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-3.5.14 · eBPF Process-Level Security Observability (Tetragon)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Container runtime security traditionally relies on syscall interception (Falco/seccomp) or agent-based file integrity monitoring — both with performance overhead and blind spots. Tetragon provides kernel-level visibility into process execution, file access, network connections, and privilege escalation via eBPF tracing policies, with minimal overhead. Ingesting Tetragon events into Splunk enables correlation with application traces and infrastructure metrics — connecting "a process opened /etc/shadow" with "which user request triggered this" via trace context.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector, Tetragon (Isovalent/Cilium)
+- **Data Sources:** `sourcetype=tetragon:events`, Tetragon JSON event stream via FluentBit or OTel filelog receiver
+- **SPL:**
+```spl
+index=containers sourcetype="tetragon:events"
+| eval event_type=case(
+    process_exec!="", "process_exec",
+    process_file!="", "file_access",
+    process_connect!="", "network_connect",
+    process_kprobe!="", "kprobe",
+    1==1, "other")
+| eval severity=case(
+    match(binary, "/(nc|ncat|curl|wget|python|perl|ruby|bash|sh)$"), "High",
+    match(filepath, "/(etc/shadow|etc/passwd|.ssh/|.kube/)"), "Critical",
+    match(event_type, "kprobe") AND match(function_name, "sys_ptrace|sys_mount"), "Critical",
+    1==1, "Info")
+| where severity IN ("High", "Critical")
+| stats count as events, values(binary) as binaries, values(filepath) as files, values(k8s_pod) as pods by _time, k8s_namespace, event_type, severity
+| sort -severity, -events
+| table _time, k8s_namespace, pods, event_type, severity, binaries, files, events
+```
+- **Implementation:** Deploy Tetragon as a DaemonSet in Kubernetes. Define TracingPolicies to capture security-relevant events: process execution (detect shells, interpreters, network tools in production containers), file access (sensitive paths like /etc/shadow, SSH keys, Kubernetes secrets), network connections (unexpected outbound connections from application pods), and kprobe events (privilege escalation syscalls like ptrace, mount). Export Tetragon events via JSON log file or gRPC stream to the OTel Collector's filelog receiver, then forward to Splunk HEC. Classify events by severity based on the binary executed (shells and network tools in production = high risk) and file paths accessed (credentials and keys = critical). Correlate with Kubernetes context (pod, namespace, node, container image) for investigation. Integrate with Splunk ES as risk events on container/pod entities.
+- **Visualization:** Timeline (security events per namespace), Table (critical events with pod and binary details), Bar chart (events by type and severity), Single value (critical events in last hour).
+- **CIM Models:** Endpoint
+
+---
+
+### UC-3.5.15 · eBPF Auto-Instrumented Service Metrics (Beyla)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Traditional application instrumentation requires code changes (OTel SDK integration) or agent injection (Java agent, .NET profiler). eBPF auto-instrumentation tools like Grafana Beyla generate RED metrics (Request rate, Error rate, Duration) for HTTP and gRPC services by observing kernel-level syscalls — zero code changes, zero sidecar overhead, zero application awareness required. This provides instant observability for legacy services, third-party applications, and polyglot environments where manual instrumentation is impractical or too slow to roll out.
+- **App/TA:** Grafana Beyla (eBPF auto-instrumentation), Splunk Distribution of OpenTelemetry Collector
+- **Data Sources:** Beyla-generated OTel metrics and traces, `sourcetype=otel:metrics`, `sourcetype=otel:traces`
+- **SPL:**
+```spl
+| mstats avg(_value) as val WHERE index=otel_metrics metric_name IN (
+    "http.server.request.duration",
+    "http.server.request.body.size",
+    "rpc.server.duration"
+  ) AND instrumentation_source="beyla" BY metric_name, service_name, http_request_method, http_response_status_code span=5m
+| eval signal=case(
+    match(metric_name, "duration"), "duration_ms",
+    match(metric_name, "body.size"), "request_size",
+    match(metric_name, "rpc"), "rpc_duration_ms")
+| eval is_error=if(http_response_status_code>=500, 1, 0)
+| stats count as requests, sum(is_error) as errors, avg(val) as avg_duration by _time, service_name
+| eval error_rate_pct=round(errors*100/requests, 2)
+| eval req_per_sec=round(requests/300, 1)
+| table _time, service_name, req_per_sec, error_rate_pct, avg_duration
+| sort -error_rate_pct
+```
+- **Implementation:** Deploy Beyla as a DaemonSet or sidecar. Beyla uses eBPF to intercept HTTP/gRPC syscalls and generate OpenTelemetry-compatible metrics and traces without any application code changes. Configure Beyla to export via OTLP to the OTel Collector, which forwards to Splunk. Beyla generates standard OTel HTTP semantic conventions: `http.server.request.duration`, `http.server.request.body.size`, `http.request.method`, `http.response.status_code`. Tag Beyla-generated telemetry with `instrumentation_source=beyla` to distinguish from SDK-instrumented data. Use Beyla for immediate coverage of uninstrumented services while teams work on proper OTel SDK integration. Compare Beyla RED metrics with SDK-generated metrics for instrumented services to validate accuracy. Track which services rely on Beyla vs SDK instrumentation to measure manual instrumentation progress.
+- **Visualization:** Table (service RED metrics from Beyla), Line chart (request rate and error rate per service), Bar chart (services by instrumentation source — Beyla vs SDK), Gauge (error rate per service).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.16 · Kubernetes Event Correlation with Application Traces
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** When a Kubernetes OOMKill, pod eviction, or node pressure event coincides with an application error spike, the root cause is infrastructure — not application code. Without correlating K8s events with application traces, teams waste hours debugging application logic for failures caused by resource constraints. This correlation automatically links infrastructure events to their application impact, routing the incident to the right team (platform vs application) and reducing MTTR by eliminating misdiagnosis.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector (k8s_events receiver), Splunk Observability Cloud
+- **Data Sources:** `sourcetype=kube:events`, `sourcetype=otel:traces`, `index=containers`
+- **SPL:**
+```spl
+index=containers sourcetype="kube:events" (reason="OOMKilling" OR reason="Evicted" OR reason="FailedScheduling" OR reason="NodeNotReady" OR reason="BackOff")
+| eval k8s_event_severity=case(
+    reason=="OOMKilling", "Critical",
+    reason=="Evicted", "High",
+    reason=="NodeNotReady", "Critical",
+    1==1, "Medium")
+| rename involvedObject.name as pod_name, involvedObject.namespace as namespace
+| join type=left namespace [search index=traces sourcetype="otel:traces" earliest=-15m latest=+15m
+    | eval is_error=if(status_code=="ERROR", 1, 0)
+    | stats count as span_count, sum(is_error) as error_count, avg(eval(duration_nano/1000000)) as avg_duration_ms by k8s_namespace
+    | rename k8s_namespace as namespace]
+| eval app_impact=case(
+    error_count > 10, "Application Error Spike Detected",
+    avg_duration_ms > 2000, "Application Latency Spike Detected",
+    isnotnull(span_count), "Application Running — No Visible Impact",
+    1==1, "No Application Traces Available")
+| table _time, namespace, pod_name, reason, k8s_event_severity, app_impact, error_count, avg_duration_ms, message
+| sort -k8s_event_severity
+```
+- **Implementation:** Ingest Kubernetes events via the OTel Collector's `k8s_events` receiver or via Splunk Connect for Kubernetes. Focus on resource-related events: OOMKilling (memory limit exceeded), Evicted (node under pressure), FailedScheduling (no capacity), NodeNotReady (node failure), BackOff (crash loops). For each infrastructure event, query application traces in a ±15 minute window around the event timestamp, filtered by the affected namespace. Look for concurrent error spikes or latency increases. Classify the correlation: if app errors spike within 5 minutes of an OOMKill in the same namespace, the infrastructure event likely caused the app errors. Generate a correlated incident report that links the K8s event with the affected traces, enabling platform teams to see the application impact and application teams to see the infrastructure root cause. Feed into ITSI as correlated notable events.
+- **Visualization:** Timeline (K8s events overlaid with trace error rate), Table (correlated events with app impact), Bar chart (K8s events by reason), Line chart (trace error rate with event markers).
+- **CIM Models:** N/A
+
+---
+
+### UC-3.5.17 · Kubernetes Resource Quota and LimitRange Compliance
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Compliance
+- **Value:** Kubernetes resource quotas and LimitRanges prevent any single team from monopolizing cluster resources. When a namespace approaches its quota, new pod deployments fail silently — the deployment controller keeps retrying but pods never schedule. Monitoring quota utilization trending per namespace detects teams approaching limits before their deployments start failing, enabling proactive quota adjustment rather than reactive incident response at 2 AM when the next deployment fails.
+- **App/TA:** Splunk Distribution of OpenTelemetry Collector (k8sobjects receiver), Splunk Connect for Kubernetes
+- **Data Sources:** `sourcetype=kube:objects:resourcequotas`, `sourcetype=kube:events`
+- **SPL:**
+```spl
+index=containers sourcetype="kube:objects:resourcequotas"
+| spath
+| eval cpu_used_pct=round(status.used.cpu*100/status.hard.cpu, 1)
+| eval mem_used_pct=round(status.used.memory*100/status.hard.memory, 1)
+| eval pods_used_pct=round(status.used.pods*100/status.hard.pods, 1)
+| stats latest(cpu_used_pct) as cpu_pct, latest(mem_used_pct) as mem_pct, latest(pods_used_pct) as pods_pct by metadata.namespace, metadata.name
+| eval max_util=max(cpu_pct, mem_pct, pods_pct)
+| eval risk=case(
+    max_util >= 90, "Critical - Near Limit",
+    max_util >= 75, "Warning - Approaching Limit",
+    max_util >= 50, "Info - Moderate Usage",
+    1==1, "OK")
+| where risk!="OK"
+| table metadata.namespace, metadata.name, cpu_pct, mem_pct, pods_pct, max_util, risk
+| sort -max_util
+```
+- **Implementation:** Use the OTel Collector's `k8sobjects` receiver to collect ResourceQuota objects from the Kubernetes API. Each ResourceQuota contains `status.used` and `status.hard` for CPU, memory, pods, services, and other resources. Calculate utilization percentage for each resource type per namespace. Alert when any namespace exceeds 75% (warning) or 90% (critical) of any quota dimension. Correlate with FailedScheduling events (from UC-3.5.16) to confirm that quota exhaustion is causing pod scheduling failures. Track quota utilization trends over 30 days to forecast when namespaces will hit limits based on growth rate. Provide monthly capacity reports to platform teams with recommendations for quota adjustments. Also monitor LimitRange violations — pods that request resources outside the defined min/max range fail admission and generate events.
+- **Visualization:** Bar chart (quota utilization % by namespace), Table (namespaces approaching limits), Heatmap (namespace × resource type utilization), Line chart (quota utilization trend per namespace over 30 days).
+- **CIM Models:** N/A
+
