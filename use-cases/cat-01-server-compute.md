@@ -6,7 +6,7 @@
 
 ---
 
-### UC-1.1.1 · CPU Utilization Trending
+### UC-1.1.1 · CPU Utilization Trending (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
@@ -36,7 +36,7 @@ index=os sourcetype=cpu host=*
 
 ---
 
-### UC-1.1.2 · Memory Pressure Detection
+### UC-1.1.2 · Memory Pressure Detection (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -62,7 +62,7 @@ index=os sourcetype=vmstat host=*
 
 ---
 
-### UC-1.1.3 · Disk Capacity Forecasting
+### UC-1.1.3 · Disk Capacity Forecasting (Linux)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Capacity
@@ -94,7 +94,7 @@ index=os sourcetype=df host=myserver Filesystem="/dev/sda1"
 
 ---
 
-### UC-1.1.4 · Disk I/O Saturation
+### UC-1.1.4 · Disk I/O Saturation (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -150,7 +150,7 @@ index=os sourcetype=vmstat host=*
 
 ---
 
-### UC-1.1.6 · Process Crash Detection
+### UC-1.1.6 · Process Crash Detection (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -297,7 +297,7 @@ index=os sourcetype=syslog ("kernel panic" OR "Kernel panic" OR "BUG:" OR "Oops:
 
 ---
 
-### UC-1.1.12 · NTP Time Sync Drift
+### UC-1.1.12 · NTP Time Sync Drift (Linux)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
@@ -476,7 +476,7 @@ index=os sourcetype=syslog ("Remounting filesystem read-only" OR "EXT4-fs error"
 
 ---
 
-### UC-1.1.20 · Reboot Detection
+### UC-1.1.20 · Reboot Detection (Linux)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Fault
@@ -664,7 +664,7 @@ index=os sourcetype=custom:irq_stats
 
 ---
 
-### UC-1.1.29 · Context Switch Rate Anomaly Detection
+### UC-1.1.29 · Context Switch Rate Anomaly Detection (Linux)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly
@@ -1275,7 +1275,7 @@ index=os sourcetype=custom:arp host=*
 
 ---
 
-### UC-1.1.58 · Network Bond Failover Events
+### UC-1.1.58 · Network Bond Failover Events (Linux)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
@@ -1301,7 +1301,7 @@ index=os sourcetype=syslog "bonding:" ("slave" OR "primary") ("failed" OR "recov
 
 ---
 
-### UC-1.1.59 · Network Team Failover Detection
+### UC-1.1.59 · Network Team Failover Detection (Linux)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -1367,7 +1367,7 @@ index=os sourcetype=custom:netstat host=*
 
 ---
 
-### UC-1.1.62 · Network Bandwidth Utilization by Interface
+### UC-1.1.62 · Network Bandwidth Utilization by Interface (Linux)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -2827,7 +2827,7 @@ index=os sourcetype=irq_stats host=* cpu=*
 
 ---
 
-### UC-1.1.130 · TCP Connection State Distribution
+### UC-1.1.130 · TCP Connection State Distribution (Linux)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fault
@@ -2897,7 +2897,7 @@ index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
 
 ---
 
-### UC-1.2.1 · CPU Utilization Trending
+### UC-1.2.1 · CPU Utilization Trending (Windows)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Capacity
@@ -2923,7 +2923,7 @@ index=perfmon sourcetype="Perfmon:CPU" counter="% Processor Time" instance="_Tot
 
 ---
 
-### UC-1.2.2 · Memory Utilization & Paging
+### UC-1.2.2 · Memory Utilization & Paging (Windows)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -2949,7 +2949,7 @@ index=perfmon sourcetype="Perfmon:Memory" (counter="% Committed Bytes In Use" OR
 
 ---
 
-### UC-1.2.3 · Disk Space Monitoring
+### UC-1.2.3 · Disk Space Monitoring (Windows)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
@@ -3323,7 +3323,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-PrintService/Operational
 
 ---
 
-### UC-1.2.21 · Disk I/O Queue Length
+### UC-1.2.21 · Disk I/O Queue Length (Windows)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -3405,7 +3405,7 @@ index=perfmon sourcetype="Perfmon:Memory" counter="Pool Nonpaged Bytes"
 
 ---
 
-### UC-1.2.24 · Network Interface Utilization
+### UC-1.2.24 · Network Interface Utilization (Windows)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
@@ -4092,7 +4092,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4688
 
 ---
 
-### UC-1.2.52 · NIC Teaming / LBFO Failover
+### UC-1.2.52 · NIC Teaming / LBFO Failover (Windows)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
@@ -4316,7 +4316,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Deduplication*"
 
 ---
 
-### UC-1.2.62 · TCP Connection State Monitoring
+### UC-1.2.62 · TCP Connection State Monitoring (Windows)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
@@ -4516,7 +4516,7 @@ index=perfmon sourcetype="Perfmon:Paging_File" counter="% Usage" instance="_Tota
 
 ---
 
-### UC-1.2.70 · Context Switch Rate Anomalies
+### UC-1.2.70 · Context Switch Rate Anomalies (Windows)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
@@ -4891,7 +4891,7 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="Windows Search Se
 
 ---
 
-### UC-1.2.89 · System Uptime & Unexpected Restarts
+### UC-1.2.89 · System Uptime & Unexpected Restarts (Windows)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
@@ -5208,7 +5208,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSe
 
 ---
 
-### UC-1.2.104 · Disk Latency and I/O Performance
+### UC-1.2.104 · Disk Latency and I/O Performance (Windows)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
@@ -5515,7 +5515,7 @@ index=wineventlog EventCode IN (19, 20, 21)
 
 ---
 
-### UC-1.2.117 · NIC Teaming & Network Adapter Failures
+### UC-1.2.117 · NIC Teaming & Network Adapter Failures (Windows)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
