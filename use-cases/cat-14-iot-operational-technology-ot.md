@@ -427,8 +427,622 @@ index=cisco_network sourcetype="meraki:api"
 
 ---
 
+### UC-14.1.25 · AHU Supply Air Temperature Deviation
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Air Handling Unit supply air temperature drifting from setpoint indicates coil fouling, valve failures, or economizer faults — wasting energy and degrading occupant comfort. Catching deviations early prevents complaints and energy waste.
+- **App/TA:** BACnet gateway (e.g. Cimetrics BACstac, Contemporary Controls), Splunk Edge Hub, custom scripted input
+- **Data Sources:** `sourcetype=bms:bacnet`, `sourcetype=bms:hvac`
+- **SPL:**
+```spl
+index=building sourcetype="bms:hvac" object_type="AHU"
+| eval delta=abs(supply_air_temp - supply_air_setpoint)
+| bin _time span=15m
+| stats avg(delta) as avg_deviation, max(delta) as max_deviation, avg(supply_air_temp) as avg_supply, latest(supply_air_setpoint) as setpoint by ahu_name, _time
+| where avg_deviation > 2
+| table _time, ahu_name, setpoint, avg_supply, avg_deviation, max_deviation
+```
+- **Implementation:** Ingest AHU BACnet points via Edge Hub or BACnet gateway. Compare supply air temperature to setpoint. Alert on sustained deviation >2°F/1°C.
+- **Visualization:** Line chart (supply temp vs setpoint per AHU); deviation heatmap by AHU and time of day; single value (worst deviation).
+- **CIM Models:** N/A
 
-### 14.2 Industrial Control Systems (ICS/SCADA)
+---
+
+### UC-14.1.26 · VAV Box Damper Position Stuck Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Approximately 30% of VAV boxes operate with faults in typical buildings. A stuck damper actuator causes a zone to receive constant airflow regardless of demand — wasting 15-25% of HVAC energy per affected zone and creating hot/cold complaints.
+- **App/TA:** BACnet gateway, Splunk Edge Hub, BMS vendor API (Honeywell/Siemens/JCI)
+- **Data Sources:** `sourcetype=bms:bacnet`, `sourcetype=bms:hvac`
+- **SPL:**
+```spl
+index=building sourcetype="bms:hvac" object_type="VAV"
+| bin _time span=1h
+| stats stdev(damper_position_pct) as damper_variance, avg(damper_position_pct) as avg_position, avg(zone_temp) as avg_zone_temp, avg(zone_setpoint) as avg_setpoint by vav_id, zone_name, _time
+| where damper_variance < 2 AND abs(avg_zone_temp - avg_setpoint) > 2
+| table _time, vav_id, zone_name, avg_position, damper_variance, avg_zone_temp, avg_setpoint
+```
+- **Implementation:** Monitor damper position variance over 1-hour windows. If position barely changes while zone temp drifts from setpoint, flag as stuck actuator. Dispatch HVAC technician.
+- **Visualization:** Table of stuck VAV boxes; zone comfort heatmap; damper position timeline per VAV.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.27 · Chiller Plant COP Efficiency Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Chiller plants consume 30-50% of total building energy. Tracking Coefficient of Performance (COP) identifies degradation from condenser fouling, refrigerant loss, or suboptimal sequencing — enabling 15-30% cooling energy savings.
+- **App/TA:** BACnet gateway, Modbus TCP (for power meters), BMS vendor API
+- **Data Sources:** `sourcetype=bms:hvac`, `sourcetype=bms:energy`
+- **SPL:**
+```spl
+index=building sourcetype="bms:hvac" object_type="chiller"
+| bin _time span=30m
+| stats avg(cooling_output_kw) as avg_cooling, avg(power_input_kw) as avg_power, avg(chilled_water_supply_temp) as avg_chws, avg(condenser_water_return_temp) as avg_cwr by chiller_id, _time
+| eval cop=round(avg_cooling/avg_power, 2)
+| where avg_power > 10
+| eval efficiency_status=case(cop>=5, "Excellent", cop>=4, "Good", cop>=3, "Degraded", cop<3, "Poor")
+| table _time, chiller_id, cop, efficiency_status, avg_cooling, avg_power, avg_chws, avg_cwr
+```
+- **Implementation:** Collect chiller cooling output (tons or kW) and electrical input from BACnet or power meters. Calculate COP. Trend over time and compare to manufacturer baseline. Alert on sustained COP below threshold.
+- **Visualization:** COP trend line per chiller; efficiency gauge vs baseline; chiller comparison chart; kW/ton dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.28 · Cooling Tower Approach Temperature Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Approach temperature (difference between condenser water leaving the tower and outdoor wet bulb) reveals cooling tower effectiveness. Rising approach indicates fill media fouling, fan issues, or scale buildup — directly impacting chiller efficiency.
+- **App/TA:** BACnet gateway, outdoor weather station integration
+- **Data Sources:** `sourcetype=bms:hvac`, `sourcetype=weather:station`
+- **SPL:**
+```spl
+index=building sourcetype="bms:hvac" object_type="cooling_tower"
+| bin _time span=30m
+| stats avg(leaving_water_temp) as avg_lwt, avg(wet_bulb_temp) as avg_wb by tower_id, _time
+| eval approach=round(avg_lwt - avg_wb, 1)
+| where approach > 0
+| eval status=case(approach<=5, "Normal", approach<=8, "Watch", approach>8, "Degraded")
+| table _time, tower_id, approach, status, avg_lwt, avg_wb
+```
+- **Implementation:** Ingest cooling tower leaving water temperature and outdoor wet bulb from weather station or BMS. Calculate approach. Alert when approach exceeds design value by more than 3°F.
+- **Visualization:** Approach temperature trend per tower; status indicator; comparison to design baseline.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.29 · HVAC Setpoint Override Frequency and Duration
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Frequent manual setpoint overrides by occupants or operators indicate either comfort issues or poor control tuning. Tracking override patterns helps identify problem zones and quantifies energy waste from overrides that persist beyond work hours.
+- **App/TA:** BMS vendor API (Honeywell EBI, Siemens Desigo, Johnson Controls Metasys), BACnet gateway
+- **Data Sources:** `sourcetype=bms:hvac`, `sourcetype=bms:bacnet`
+- **SPL:**
+```spl
+index=building sourcetype="bms:hvac" event_type="setpoint_override"
+| eval override_duration_hrs=round(override_duration_min/60, 1)
+| bin _time span=1d
+| stats count as override_count, avg(override_duration_hrs) as avg_duration, sum(override_duration_hrs) as total_override_hrs, dc(zone_name) as zones_affected by building, _time
+| where override_count > 5
+| table _time, building, override_count, zones_affected, avg_duration, total_override_hrs
+```
+- **Implementation:** Capture BMS override events with zone, user, original setpoint, override value, and duration. Track daily override frequency. Alert on zones with excessive overrides.
+- **Visualization:** Override count heatmap by zone and time; daily override trending; top override zones table.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.30 · Economizer Free Cooling Hours Tracking
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Economizer mode uses outside air for free cooling when conditions permit, saving significant compressor energy. Tracking actual free cooling hours vs available hours reveals malfunctioning dampers, faulty enthalpy sensors, or misconfigured switchover points.
+- **App/TA:** BACnet gateway, BMS vendor API
+- **Data Sources:** `sourcetype=bms:hvac`, `sourcetype=weather:station`
+- **SPL:**
+```spl
+index=building sourcetype="bms:hvac" object_type="AHU"
+| eval is_economizer=if(economizer_mode="active", 1, 0)
+| eval could_economize=if(outside_air_temp < return_air_temp AND outside_air_temp < 65, 1, 0)
+| bin _time span=1d
+| stats sum(is_economizer) as economizer_hours, sum(could_economize) as available_hours by ahu_name, _time
+| eval utilization_pct=round(economizer_hours*100/available_hours, 1)
+| where available_hours > 2 AND utilization_pct < 50
+| table _time, ahu_name, economizer_hours, available_hours, utilization_pct
+```
+- **Implementation:** Track AHU economizer mode status alongside outdoor conditions. Calculate available vs actual free cooling hours. Alert when utilization drops below 50% of available hours.
+- **Visualization:** Free cooling utilization gauge per AHU; seasonal trend; missed opportunity cost estimate.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.31 · Building Energy Consumption Intensity (kWh/m²)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Energy Use Intensity (EUI) in kWh per square meter is the standard benchmark for building energy performance. Tracking EUI trending and comparing across buildings reveals efficiency opportunities and supports ENERGY STAR, LEED, and ESG reporting.
+- **App/TA:** Smart utility meters via Modbus TCP or pulse counting, BMS energy meters, scripted input from utility APIs
+- **Data Sources:** `sourcetype=bms:energy`, `sourcetype=bms:meter`
+- **SPL:**
+```spl
+index=building sourcetype="bms:energy" meter_type="electricity"
+| bin _time span=1d
+| stats sum(kwh_consumed) as daily_kwh by building_name, _time
+| lookup building_info.csv building_name OUTPUTNEW floor_area_sqm, building_type
+| eval eui=round(daily_kwh/floor_area_sqm, 2)
+| eval annual_eui_projected=eui*365
+| eval benchmark_status=case(annual_eui_projected<150, "Excellent", annual_eui_projected<250, "Good", annual_eui_projected<350, "Average", annual_eui_projected>=350, "Poor")
+| table _time, building_name, building_type, daily_kwh, floor_area_sqm, eui, annual_eui_projected, benchmark_status
+```
+- **Implementation:** Install smart energy meters on main electrical feeds. Ingest kWh readings via Modbus or pulse counter. Join with building floor area lookup. Calculate daily and projected annual EUI. Compare to industry benchmarks (ENERGY STAR, CIBSE).
+- **Visualization:** EUI trend per building; benchmark comparison bar chart; building ranking table; year-over-year comparison.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.32 · Sub-Meter Energy Distribution by System
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Sub-metering breaks total energy into HVAC, lighting, plug loads, and other systems. Knowing which system consumes the most energy directs efficiency investments where they'll have the biggest impact — typically HVAC at 40-60%.
+- **App/TA:** Smart sub-meters via Modbus TCP, BMS energy management module
+- **Data Sources:** `sourcetype=bms:energy`, `sourcetype=bms:meter`
+- **SPL:**
+```spl
+index=building sourcetype="bms:energy" meter_type="sub_meter"
+| bin _time span=1d
+| stats sum(kwh_consumed) as daily_kwh by building_name, system_type, _time
+| eventstats sum(daily_kwh) as total_kwh by building_name, _time
+| eval pct_of_total=round(daily_kwh*100/total_kwh, 1)
+| table _time, building_name, system_type, daily_kwh, pct_of_total
+| sort _time, building_name, -pct_of_total
+```
+- **Implementation:** Deploy sub-meters on HVAC, lighting, plug load, and elevator panels. Ingest readings. Calculate percentage distribution. Trend over time. Identify systems with growing share.
+- **Visualization:** Pie chart of energy by system; stacked area chart over time; system comparison across buildings.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.33 · After-Hours Energy Waste Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Buildings typically waste 20-30% of energy outside occupied hours from HVAC systems running on override, lights left on, or equipment not in unoccupied mode. Detecting after-hours energy above baseline enables quick wins with minimal investment.
+- **App/TA:** Smart utility meters via Modbus, BMS schedule integration
+- **Data Sources:** `sourcetype=bms:energy`, `sourcetype=bms:hvac`
+- **SPL:**
+```spl
+index=building sourcetype="bms:energy" meter_type="electricity"
+| eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
+| eval is_after_hours=if((hour<7 OR hour>19) OR dow>5, 1, 0)
+| bin _time span=1h
+| stats sum(kwh_consumed) as hourly_kwh by building_name, is_after_hours, _time
+| where is_after_hours=1 AND hourly_kwh > 0
+| eventstats perc25(hourly_kwh) as baseline_kwh by building_name
+| eval waste_kwh=if(hourly_kwh > baseline_kwh*1.5, hourly_kwh - baseline_kwh, 0)
+| where waste_kwh > 0
+| table _time, building_name, hourly_kwh, baseline_kwh, waste_kwh
+```
+- **Implementation:** Compare after-hours energy consumption to baseline (minimum observed usage). Flag hours where consumption exceeds 150% of baseline. Cross-reference with BMS schedules and override events to identify root cause.
+- **Visualization:** After-hours vs occupied hours comparison chart; waste energy trending; building ranking by waste percentage.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.34 · Peak Demand Shaving Effectiveness
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Utility demand charges based on peak 15-minute kW draw can represent 30-50% of a commercial building's electric bill. Monitoring peak demand and evaluating load-shedding effectiveness helps control costs and supports demand response programs.
+- **App/TA:** Smart utility meters, BMS demand limiting module
+- **Data Sources:** `sourcetype=bms:energy`, `sourcetype=bms:meter`
+- **SPL:**
+```spl
+index=building sourcetype="bms:energy" meter_type="electricity"
+| bin _time span=15m
+| stats avg(kw_demand) as demand_kw by building_name, _time
+| eventstats max(demand_kw) as peak_demand by building_name
+| eval pct_of_peak=round(demand_kw*100/peak_demand, 1)
+| eval month=strftime(_time, "%Y-%m")
+| stats max(demand_kw) as monthly_peak_kw, avg(demand_kw) as avg_demand_kw by building_name, month
+| eval load_factor=round(avg_demand_kw*100/monthly_peak_kw, 1)
+| table month, building_name, monthly_peak_kw, avg_demand_kw, load_factor
+```
+- **Implementation:** Monitor 15-minute demand intervals from utility meters. Track monthly peak demand. Calculate load factor (average/peak). Higher load factor means better demand management. Alert when approaching contract demand limit.
+- **Visualization:** Demand profile chart (15-min intervals); monthly peak trending; load factor gauge; demand limit threshold line.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.35 · Lighting Schedule Compliance and Override Tracking
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Lighting left on outside scheduled hours wastes 10-20% of lighting energy. Tracking schedule compliance and manual override patterns identifies zones where schedules need adjustment or occupancy sensors should be added.
+- **App/TA:** DALI/KNX gateway, BMS lighting control module, smart relay monitoring
+- **Data Sources:** `sourcetype=bms:lighting`, `sourcetype=bms:bacnet`
+- **SPL:**
+```spl
+index=building sourcetype="bms:lighting" event_type IN ("on", "off", "override")
+| eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
+| eval scheduled_off=if((hour>=21 OR hour<6) AND dow<=5, 1, if(dow>5, 1, 0))
+| where event_type="on" AND scheduled_off=1
+| stats count as after_hours_on, dc(zone) as zones_affected by building, floor
+| sort -after_hours_on
+| table building, floor, zones_affected, after_hours_on
+```
+- **Implementation:** Monitor lighting circuit status from BMS or DALI/KNX gateway. Compare on/off events to published schedule. Track overrides with timestamp and duration. Alert on sustained after-hours lighting without override justification.
+- **Visualization:** Schedule compliance percentage gauge; after-hours lighting heatmap by floor; override frequency chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.36 · Elevator Trip Count and Usage Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Elevator trip counts, floor-by-floor usage patterns, and duty cycles drive maintenance scheduling and modernization planning. High-traffic elevators need more frequent service. Usage data also informs tenant space planning and lobby redesign.
+- **App/TA:** Elevator controller API (KONE, Otis, Schindler, ThyssenKrupp), IoT gateway, custom scripted input
+- **Data Sources:** `sourcetype=bms:elevator`
+- **SPL:**
+```spl
+index=building sourcetype="bms:elevator"
+| bin _time span=1h
+| stats count as trips, sum(distance_traveled_m) as total_distance, avg(travel_time_sec) as avg_travel_time, dc(floor_stop) as floors_served by elevator_id, _time
+| eval trips_per_hour=trips
+| eventstats avg(trips_per_hour) as baseline_trips by elevator_id
+| eval utilization=round(trips_per_hour*100/baseline_trips, 1)
+| table _time, elevator_id, trips, floors_served, avg_travel_time, utilization
+```
+- **Implementation:** Integrate with elevator controller via vendor API or IoT gateway. Collect trip events with timestamp, origin floor, destination floor, and travel time. Aggregate into hourly/daily patterns.
+- **Visualization:** Trip count timeline per elevator; floor usage heatmap; peak hour analysis; elevator comparison chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.37 · Elevator Door Fault Frequency and Prediction
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault
+- **Value:** Door faults are the most common elevator malfunction and the leading cause of entrapments. Monitoring door close force, cycle time, and motor amperage detects deteriorating door systems 2-6 weeks before failure — preventing passenger entrapments and service calls.
+- **App/TA:** Elevator controller API, vibration/current sensors via IoT gateway
+- **Data Sources:** `sourcetype=bms:elevator`
+- **SPL:**
+```spl
+index=building sourcetype="bms:elevator" event_type="door_*"
+| eval is_fault=if(event_type="door_fault" OR door_close_time_ms > 5000 OR door_reversal=1, 1, 0)
+| bin _time span=1d
+| stats sum(is_fault) as daily_faults, count as total_door_cycles, avg(door_close_time_ms) as avg_close_time, sum(door_reversal) as reversals by elevator_id, _time
+| eval fault_rate_pct=round(daily_faults*100/total_door_cycles, 2)
+| where fault_rate_pct > 1 OR daily_faults > 5
+| table _time, elevator_id, daily_faults, total_door_cycles, fault_rate_pct, avg_close_time, reversals
+```
+- **Implementation:** Collect door cycle events including close force, cycle time, and reversal events. Trend door close time — increasing values indicate worn rollers, dirty tracks, or actuator degradation. Alert when fault rate exceeds 1% or close time exceeds 5 seconds.
+- **Visualization:** Door fault trend per elevator; close time degradation chart; reversal frequency; fault prediction timeline.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.38 · Elevator Wait Time and Service Quality
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Average wait time is the primary measure of elevator service quality visible to occupants. Industry target is under 30 seconds for office buildings. Excessive wait times indicate traffic imbalance, out-of-service cars, or poor dispatching algorithms.
+- **App/TA:** Elevator controller API, hall call registration sensors
+- **Data Sources:** `sourcetype=bms:elevator`
+- **SPL:**
+```spl
+index=building sourcetype="bms:elevator" event_type="hall_call"
+| eval wait_time_sec=(response_time - call_time)
+| bin _time span=1h
+| stats avg(wait_time_sec) as avg_wait, perc95(wait_time_sec) as p95_wait, count as total_calls by building, elevator_group, _time
+| eval sla_status=if(avg_wait<=30, "Meeting SLA", "SLA Breach")
+| where avg_wait > 30 OR p95_wait > 60
+| table _time, building, elevator_group, avg_wait, p95_wait, total_calls, sla_status
+```
+- **Implementation:** Capture hall call registration and car arrival timestamps from elevator controller. Calculate wait time per call. Aggregate into hourly metrics. Compare to industry SLA (30s average, 60s 95th percentile).
+- **Visualization:** Wait time gauge per elevator group; hourly pattern chart; SLA compliance timeline; floor-level analysis.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.39 · Water Consumption Trending and Anomaly Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** Undetected water leaks can waste thousands of liters daily and cause structural damage. Continuous flow monitoring detects leaks, running toilets, and irrigation faults within hours rather than the weeks it takes for a utility bill to reveal problems.
+- **App/TA:** Smart water meters (Modbus, pulse), IoT flow sensors, building management API
+- **Data Sources:** `sourcetype=bms:water`
+- **SPL:**
+```spl
+index=building sourcetype="bms:water" meter_type="main_feed"
+| bin _time span=1h
+| stats sum(liters) as hourly_liters by building_name, _time
+| eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
+| eval is_occupied=if(hour>=7 AND hour<=19 AND dow<=5, 1, 0)
+| where is_occupied=0 AND hourly_liters > 50
+| eventstats avg(hourly_liters) as baseline_unoccupied by building_name
+| eval anomaly_ratio=round(hourly_liters/baseline_unoccupied, 1)
+| where anomaly_ratio > 3
+| table _time, building_name, hourly_liters, baseline_unoccupied, anomaly_ratio
+```
+- **Implementation:** Install smart water meters on main feeds and key branches. Monitor flow during unoccupied hours — sustained flow indicates leaks or running fixtures. Alert when unoccupied consumption exceeds 3x baseline.
+- **Visualization:** Water consumption timeline; occupied vs unoccupied comparison; anomaly alert dashboard; leak detection map.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.40 · Domestic Hot Water Temperature Compliance (Legionella Prevention)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Legionella bacteria thrive in water between 20-45°C. Building codes require domestic hot water storage above 60°C and distribution above 50°C. Temperature drops below these thresholds create serious health risks and regulatory violations.
+- **App/TA:** BACnet gateway, temperature sensors via Modbus or IoT
+- **Data Sources:** `sourcetype=bms:water`, `sourcetype=bms:bacnet`
+- **SPL:**
+```spl
+index=building sourcetype="bms:water" system="domestic_hot_water"
+| bin _time span=15m
+| stats avg(temperature_c) as avg_temp, min(temperature_c) as min_temp by location, sensor_type, _time
+| eval compliance=case(
+    sensor_type="storage" AND min_temp>=60, "Compliant",
+    sensor_type="storage" AND min_temp<60, "NON-COMPLIANT",
+    sensor_type="return" AND min_temp>=50, "Compliant",
+    sensor_type="return" AND min_temp<50, "NON-COMPLIANT")
+| where compliance="NON-COMPLIANT"
+| table _time, location, sensor_type, avg_temp, min_temp, compliance
+```
+- **Implementation:** Monitor hot water storage tank and return line temperatures continuously. Alert immediately on any reading below compliance threshold. Log all temperature data for regulatory audit trail.
+- **Visualization:** Temperature compliance gauge per system; temperature timeline; non-compliance alert log; regulatory compliance report.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.41 · Cooling Tower Water Chemistry Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Cooling tower water chemistry (conductivity, pH, biocide levels) directly impacts heat transfer efficiency and equipment life. Scale buildup from poor chemistry increases chiller energy by 2-5% per mm of scale and accelerates corrosion.
+- **App/TA:** Water chemistry controller (Nalco, Chemtrol) via Modbus or API, IoT sensors
+- **Data Sources:** `sourcetype=bms:water`
+- **SPL:**
+```spl
+index=building sourcetype="bms:water" system="cooling_tower"
+| bin _time span=1h
+| stats avg(conductivity_us) as avg_conductivity, avg(ph) as avg_ph, avg(cycles_of_concentration) as avg_coc, latest(biocide_ppm) as biocide_level by tower_id, _time
+| eval chem_status=case(
+    avg_conductivity > 3000, "High Conductivity - Blowdown Needed",
+    avg_ph < 7.0 OR avg_ph > 9.0, "pH Out of Range",
+    biocide_level < 0.5, "Low Biocide",
+    avg_coc > 6, "High Concentration",
+    1=1, "Normal")
+| where chem_status!="Normal"
+| table _time, tower_id, chem_status, avg_conductivity, avg_ph, avg_coc, biocide_level
+```
+- **Implementation:** Integrate with water treatment controller via Modbus or API. Monitor conductivity, pH, cycles of concentration, and biocide levels. Alert on out-of-range values. Track chemical consumption trends.
+- **Visualization:** Chemistry parameter trend lines; status indicator per tower; chemical consumption dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.42 · Fire Alarm Panel Zone Health and Event Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Fire alarm panel trouble conditions (ground faults, open circuits, dirty detectors) must be resolved promptly to maintain life safety protection. Centralizing fire panel events enables multi-building oversight and faster trouble resolution.
+- **App/TA:** Fire alarm panel integration via syslog, serial gateway, or Notifier/Edwards/Simplex API
+- **Data Sources:** `sourcetype=bms:fire`
+- **SPL:**
+```spl
+index=building sourcetype="bms:fire" event_type IN ("trouble", "alarm", "supervisory")
+| bin _time span=1h
+| stats count as events, dc(zone) as zones_affected, values(event_type) as event_types, latest(description) as latest_event by panel_id, building, _time
+| eval severity=case(
+    mvfind(event_types, "alarm")>=0, "ALARM",
+    mvfind(event_types, "supervisory")>=0, "Supervisory",
+    mvfind(event_types, "trouble")>=0, "Trouble")
+| table _time, building, panel_id, severity, zones_affected, events, latest_event
+| sort -severity, -events
+```
+- **Implementation:** Connect fire alarm panels via syslog receiver or serial-to-IP converter. Normalize events into alarm, trouble, and supervisory categories. Alert on any alarm immediately. Track trouble conditions for resolution within code-required timeframes.
+- **Visualization:** Fire panel status dashboard; event timeline; trouble condition age tracking; multi-building overview map.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.43 · Sprinkler System Valve Tamper and Supervisory Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Closed or partially closed sprinkler valves are the number one reason sprinkler systems fail to operate during a fire. Valve tamper switches provide immediate notification when a valve position changes — NFPA 25 requires monitoring.
+- **App/TA:** Fire alarm panel integration (valve tamper switches connected to panel), syslog
+- **Data Sources:** `sourcetype=bms:fire`
+- **SPL:**
+```spl
+index=building sourcetype="bms:fire" event_type="supervisory" device_type IN ("valve_tamper", "waterflow", "low_pressure")
+| eval urgency=case(
+    device_type="valve_tamper" AND state="closed", "CRITICAL",
+    device_type="waterflow", "ALARM",
+    device_type="low_pressure", "HIGH",
+    1=1, "Medium")
+| stats count as events, latest(state) as current_state, latest(_time) as last_event by building, zone, device_type, device_id
+| where current_state IN ("closed", "active", "low")
+| table building, zone, device_type, device_id, current_state, urgency, last_event, events
+| sort urgency
+```
+- **Implementation:** Ensure all valve tamper switches, waterflow switches, and pressure switches report to fire panel. Forward panel events to Splunk. Alert immediately on valve tamper events. Track restoration time for compliance.
+- **Visualization:** Valve status map by building; tamper event timeline; open trouble list; NFPA 25 compliance dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.44 · Fire Pump Controller Status and Run Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Fire pumps must be ready to operate instantly during a fire. Controller monitoring tracks pump starts, run duration, phase voltage, and jockey pump cycling. Excessive jockey pump cycling often indicates system leaks that degrade firefighting readiness.
+- **App/TA:** Fire pump controller (via syslog or serial gateway), BMS integration
+- **Data Sources:** `sourcetype=bms:fire`
+- **SPL:**
+```spl
+index=building sourcetype="bms:fire" device_type="fire_pump"
+| bin _time span=1d
+| stats count(eval(event_type="pump_start")) as starts, sum(run_duration_min) as total_run_min, avg(phase_a_voltage) as avg_voltage, count(eval(pump_type="jockey" AND event_type="pump_start")) as jockey_starts by building, pump_id, _time
+| eval jockey_concern=if(jockey_starts > 20, "Excessive Cycling - Check for Leaks", "Normal")
+| table _time, building, pump_id, starts, total_run_min, avg_voltage, jockey_starts, jockey_concern
+```
+- **Implementation:** Monitor fire pump controller via syslog or serial gateway. Track all pump starts (test and demand), run duration, and electrical parameters. Flag excessive jockey pump cycling (>20 starts/day). Log for NFPA 25 weekly/monthly test compliance.
+- **Visualization:** Pump run history timeline; jockey pump cycling chart; weekly test compliance tracker; voltage quality gauge.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.45 · BACnet Controller Communication Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** BACnet controllers are the brains of building automation — each manages a zone, floor, or system. Communication loss means affected areas run in fallback mode with no remote visibility or control. Monitoring network health catches issues before occupants notice.
+- **App/TA:** BACnet network scanner, BMS supervisory controller, SNMP
+- **Data Sources:** `sourcetype=bms:bacnet`
+- **SPL:**
+```spl
+index=building sourcetype="bms:bacnet" event_type="device_status"
+| stats latest(status) as current_status, latest(_time) as last_seen, count(eval(status="offline")) as offline_events by device_id, device_name, network_id, location
+| eval hours_since_seen=round((now()-last_seen)/3600, 1)
+| eval health=case(
+    current_status="offline" OR hours_since_seen > 1, "OFFLINE",
+    offline_events > 3, "Unstable",
+    1=1, "Online")
+| where health!="Online"
+| table device_id, device_name, location, network_id, health, hours_since_seen, offline_events
+| sort health, -hours_since_seen
+```
+- **Implementation:** Periodically scan BACnet network for device presence using BACnet Who-Is/I-Am or poll device status from supervisory controller. Track response times and offline events. Alert on any controller going offline or showing unstable communication.
+- **Visualization:** Controller status map; network health dashboard; offline device list; communication stability trend.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.46 · BMS Alarm Flood Detection and Suppression
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault
+- **Value:** A single equipment failure (e.g., chiller trip) can generate hundreds of cascading BMS alarms across downstream systems — overwhelming operators and burying the root cause. Detecting alarm floods and identifying the source event reduces mean time to resolve.
+- **App/TA:** BMS alarm feed via syslog, BACnet alarm notifications, vendor API
+- **Data Sources:** `sourcetype=bms:bacnet`, `sourcetype=bms:hvac`
+- **SPL:**
+```spl
+index=building sourcetype="bms:*" event_type="alarm"
+| bin _time span=5m
+| stats count as alarm_count, dc(device_id) as devices_affected, dc(alarm_type) as alarm_types, earliest(alarm_description) as first_alarm, earliest(device_name) as first_device by building, _time
+| where alarm_count > 20
+| eval flood_status="ALARM FLOOD", probable_root_cause=first_device." - ".first_alarm
+| table _time, building, alarm_count, devices_affected, alarm_types, probable_root_cause
+```
+- **Implementation:** Aggregate all BMS alarms. Detect bursts exceeding 20 alarms in 5 minutes. Identify the earliest alarm as probable root cause. Suppress downstream alarms in operator dashboard. Track alarm flood frequency for system reliability improvement.
+- **Visualization:** Alarm volume timeline; flood event timeline; root cause table; alarm type distribution during floods.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.47 · Parking Occupancy Trending and Capacity Planning
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Real-time parking occupancy data optimizes space utilization, reduces circling time, and informs expansion or reduction decisions. Trending occupancy by day-of-week and time helps set pricing tiers and plan EV charging capacity.
+- **App/TA:** Parking guidance system API (SKIDATA, SWARCO, ParkAssist), gate controller, IoT occupancy sensors
+- **Data Sources:** `sourcetype=bms:parking`
+- **SPL:**
+```spl
+index=building sourcetype="bms:parking"
+| bin _time span=30m
+| stats latest(occupied_spaces) as occupied, latest(total_spaces) as total by parking_facility, level, _time
+| eval available=total-occupied, occupancy_pct=round(occupied*100/total, 1)
+| eval status=case(occupancy_pct>=95, "Full", occupancy_pct>=80, "Busy", occupancy_pct>=50, "Moderate", occupancy_pct<50, "Available")
+| table _time, parking_facility, level, occupied, available, total, occupancy_pct, status
+```
+- **Implementation:** Integrate with parking guidance system API or gate entry/exit counters. Track occupancy per level. Trend by time of day and day of week. Alert when approaching capacity.
+- **Visualization:** Occupancy gauge per level; daily pattern heatmap; available spaces single value; trend chart.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.48 · EV Charging Station Availability and Utilization
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** EV charging infrastructure is rapidly growing in commercial buildings. Monitoring station availability, session duration, and energy delivery helps right-size charging capacity, identify broken stations, and plan electrical load management.
+- **App/TA:** OCPP-compatible charging management system (ChargePoint, Blink, ABB), custom API input
+- **Data Sources:** `sourcetype=bms:ev_charging`
+- **SPL:**
+```spl
+index=building sourcetype="bms:ev_charging"
+| eval session_duration_hrs=round(session_duration_min/60, 1), energy_kwh=round(energy_delivered_wh/1000, 1)
+| bin _time span=1d
+| stats count as sessions, avg(session_duration_hrs) as avg_duration, sum(energy_kwh) as total_energy_kwh, dc(station_id) as active_stations, count(eval(status="faulted")) as faulted_count by facility, _time
+| lookup ev_station_inventory.csv facility OUTPUTNEW total_stations
+| eval utilization_pct=round(active_stations*100/total_stations, 1)
+| table _time, facility, sessions, avg_duration, total_energy_kwh, active_stations, total_stations, utilization_pct, faulted_count
+```
+- **Implementation:** Connect to charging management platform via OCPP or vendor API. Track session starts, energy delivered, and station faults. Monitor utilization rates. Alert on faulted stations. Feed energy data to demand management.
+- **Visualization:** Station availability map; energy delivery trend; utilization by time of day; faulted station alerts; session duration histogram.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.49 · Indoor Air Quality (IAQ) Index Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Post-pandemic, indoor air quality is a top tenant concern. CO2 concentration is a direct proxy for ventilation effectiveness and occupant density. PM2.5, VOCs, and CO2 together create a composite IAQ index that supports WELL Building and RESET Air certification.
+- **App/TA:** IAQ sensors (Airthings, Awair, Kaiterra) via API, BACnet IAQ points, Meraki MT
+- **Data Sources:** `sourcetype=bms:iaq`, `sourcetype=bms:bacnet`
+- **SPL:**
+```spl
+index=building sourcetype="bms:iaq"
+| bin _time span=15m
+| stats avg(co2_ppm) as avg_co2, avg(pm25_ugm3) as avg_pm25, avg(tvoc_ppb) as avg_tvoc, avg(temperature_c) as avg_temp, avg(humidity_pct) as avg_rh by zone, floor, building, _time
+| eval co2_score=case(avg_co2<600, 100, avg_co2<800, 80, avg_co2<1000, 60, avg_co2<1500, 40, avg_co2>=1500, 20)
+| eval pm25_score=case(avg_pm25<12, 100, avg_pm25<25, 80, avg_pm25<35, 60, avg_pm25<55, 40, avg_pm25>=55, 20)
+| eval iaq_index=round((co2_score*0.5 + pm25_score*0.3 + if(avg_tvoc<300, 100, 50)*0.2), 0)
+| eval iaq_status=case(iaq_index>=80, "Good", iaq_index>=60, "Moderate", iaq_index>=40, "Poor", iaq_index<40, "Unhealthy")
+| where iaq_index < 60
+| table _time, building, floor, zone, avg_co2, avg_pm25, avg_tvoc, iaq_index, iaq_status
+```
+- **Implementation:** Deploy IAQ sensors measuring CO2, PM2.5, TVOC, temperature, and humidity. Calculate composite IAQ index weighted by parameter importance. Alert on poor zones. Correlate with HVAC ventilation rates for root cause. Support WELL/RESET certification data logging.
+- **Visualization:** IAQ index gauge per zone; floor plan heatmap; CO2 trend with occupancy overlay; certification compliance dashboard.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.1.50 · Carbon Emissions Tracking from Building Operations (Scope 1+2)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** ESG reporting increasingly requires Scope 1 (on-site combustion) and Scope 2 (purchased electricity) carbon emissions tracking. Automating carbon calculations from utility meter data provides real-time emissions dashboards and supports Science Based Targets.
+- **App/TA:** Utility meters via Modbus, gas meters, BMS energy data, grid emissions factor lookup
+- **Data Sources:** `sourcetype=bms:energy`, `sourcetype=bms:meter`
+- **SPL:**
+```spl
+index=building sourcetype="bms:energy"
+| bin _time span=1d
+| stats sum(eval(if(meter_type="electricity", kwh_consumed, 0))) as electricity_kwh, sum(eval(if(meter_type="gas", therms_consumed, 0))) as gas_therms by building_name, _time
+| lookup grid_emissions_factors.csv region OUTPUTNEW kg_co2_per_kwh
+| eval scope2_kg=round(electricity_kwh * kg_co2_per_kwh, 1)
+| eval scope1_kg=round(gas_therms * 5.3, 1)
+| eval total_co2_kg=scope1_kg + scope2_kg
+| eval total_co2_tonnes=round(total_co2_kg/1000, 2)
+| table _time, building_name, electricity_kwh, gas_therms, scope1_kg, scope2_kg, total_co2_kg, total_co2_tonnes
+```
+- **Implementation:** Collect electricity (kWh) and gas (therms/m³) consumption from utility meters. Apply grid emissions factors (varying by region and time) for Scope 2. Apply standard combustion factors for Scope 1. Aggregate for ESG reporting. Track against reduction targets.
+- **Visualization:** Carbon emissions trend; Scope 1 vs 2 breakdown; building comparison; progress toward reduction target; annual emissions summary for ESG report.
+- **CIM Models:** N/A
 
 **Primary App/TA:** Splunk Edge Hub (OPC-UA, Modbus, MQTT protocols), Splunk OT Intelligence (Splunkbase #5180).
 

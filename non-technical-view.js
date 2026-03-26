@@ -649,10 +649,10 @@ window.NON_TECHNICAL = {
       "Track industrial protocol health and detect suspicious activity in your OT network."
     ],
     areas: [
-      { name: "Building management", description: "HVAC, elevators, environmental compliance, and IoT gateway health. We help you keep buildings comfortable and running.", ucs: [
-        { id: "14.1.1", why: "Monitor heating and cooling performance — system failures mean uncomfortable or unsafe conditions." },
-        { id: "14.1.5", why: "Track elevator and equipment health — breakdowns disrupt building operations." },
-        { id: "14.1.6", why: "Check environmental compliance against regulations — temperature, humidity, and air quality." }
+      { name: "Building management & smart buildings", description: "HVAC efficiency, energy management, elevators, fire safety, water systems, lighting, parking, and indoor air quality. We help you run comfortable, efficient, and sustainable buildings.", ucs: [
+        { id: "14.1.27", why: "We track chiller plant efficiency — chillers use 30-50% of building energy, so even small improvements save thousands." },
+        { id: "14.1.37", why: "We detect elevator door faults weeks before failure — preventing passenger entrapments and emergency calls." },
+        { id: "14.1.42", why: "We centralise fire alarm panel events across all buildings — so trouble conditions get resolved before they compromise safety." }
       ]},
       { name: "Industrial control systems", description: "SCADA, PLCs, and safety systems. We watch for anomalies, unauthorised access, and protocol violations.", ucs: [
         { id: "14.2.1", why: "Monitor PLC and RTU health — these controllers run your physical processes." },

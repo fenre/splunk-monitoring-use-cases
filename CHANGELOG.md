@@ -10,6 +10,14 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.8] - 2026-03-26
+
+### Building Management & Smart Buildings
+
+- **26 new building management use cases** — Comprehensive smart building monitoring covering HVAC deep monitoring (AHU supply air temperature, VAV damper stuck detection, chiller COP efficiency, cooling tower approach, economizer free cooling, setpoint override tracking), energy management (EUI benchmarking, sub-metering, after-hours waste detection, peak demand shaving), elevator analytics (trip counting, door fault prediction, wait time SLAs), fire and life safety (alarm panel monitoring, sprinkler valve tamper, fire pump status), water management (consumption anomalies, Legionella prevention, cooling tower chemistry), lighting schedule compliance, parking occupancy, EV charging utilization, indoor air quality index, BACnet controller health, BMS alarm flood detection, and carbon emissions tracking (Scope 1+2).
+
+---
+
 ## [3.7] - 2026-03-25
 
 ### Citrix Virtual Apps & Desktops and Citrix ADC/NetScaler Monitoring
