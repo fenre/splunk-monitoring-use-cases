@@ -10,6 +10,22 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.0] - 2026-03-24
+
+### Multi-Vendor Network Coverage Expansion
+
+- **Juniper Networks:** Added 4 Junos switching/routing UCs (5.1.56-5.1.59: chassis alarms, commit audit, RE failover, Virtual Chassis) and 3 SRX firewall UCs (5.2.41-5.2.43: IDP/IPS, Screen counters, cluster failover). Updated 34 generic router/switch UCs with Juniper EX/QFX/MX/SRX equipment models.
+- **Arista Networks:** Added 3 Arista-specific UCs (5.1.60-5.1.62: MLAG health, EOS agent monitoring, CloudVision telemetry alerts). Updated 34 generic UCs with Arista 7000-series equipment.
+- **HPE Aruba:** Added 2 Aruba CX switching UCs (5.1.63-5.1.64: VSF stack, VSX redundancy) and 5 wireless UCs (5.4.33-5.4.37: AP health, ClearPass RADIUS, WIDS/WIPS, Dynamic Segmentation, client experience). Updated 34 generic switch UCs and 9 wireless UCs with Aruba equipment.
+- **Fortinet expansion:** Added 3 FortiGate-specific UCs (5.2.44-5.2.46: Security Fabric health, SD-WAN SLA monitoring, Web Filter/App Control). Updated 18 firewall UCs with FortiGate/FortiManager equipment models.
+- **Cato Networks SASE:** Added 7 cloud-native SASE UCs (17.3.25-17.3.31: security events, WAN link health, threat prevention, cloud firewall audit, SD-WAN tunnels, SDP client monitoring, DLP/CASB events).
+- **Palo Alto Networks:** Updated 18 firewall UCs with full PA-series equipment models and Panorama.
+- **Multi-vendor equipment lists:** Updated 61 existing generic UCs across switching, firewall, wireless, VPN, and NAC sections to list equipment from Cisco, Juniper, Arista, HPE Aruba, Palo Alto, and Fortinet.
+- **NAC section:** Updated 9 NAC UCs (17.1.x) to include HPE Aruba ClearPass and Forescout CounterACT alongside Cisco ISE.
+- **VPN section:** Updated 8 VPN UCs (17.2.x) to include Palo Alto GlobalProtect, Fortinet SSL-VPN, and Juniper Dynamic VPN alongside Cisco ASA/AnyConnect.
+
+---
+
 ## [3.9] - 2026-03-26
 
 ### Cisco Cyber Vision OT Security

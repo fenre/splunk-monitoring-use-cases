@@ -177,25 +177,25 @@ window.NON_TECHNICAL = {
       "Monitor cloud-managed networks and measure how users experience the network."
     ],
     areas: [
-      { name: "Routers & switches", description: "Are your network devices healthy? We watch for link failures, routing problems, and hardware issues.", ucs: [
+      { name: "Routers & switches", description: "Are your network devices healthy? We watch Cisco, Juniper, Arista, and HPE Aruba switches and routers for link failures, routing problems, and hardware issues.", ucs: [
         { id: "5.1.1", why: "See when network links go up or down — the most fundamental network alert." },
-        { id: "5.1.4", why: "Track BGP peer state changes — this affects how traffic reaches the internet." },
-        { id: "5.1.11", why: "Get an alert when a power supply or cooling fan fails in a network device." }
+        { id: "5.1.56", why: "Monitor Juniper chassis alarms — power supply, fan, and temperature alerts." },
+        { id: "5.1.60", why: "Track Arista MLAG redundancy health — failures here can blackhole traffic." }
       ]},
-      { name: "Firewalls", description: "Your security perimeter. We track blocked traffic, policy changes, and threat events.", ucs: [
+      { name: "Firewalls", description: "Your security perimeter — Cisco, Palo Alto, Fortinet, Juniper, and more. We track blocked traffic, policy changes, and threat events.", ucs: [
         { id: "5.2.2", why: "Audit every firewall policy change so you know what was modified and by whom." },
-        { id: "5.2.3", why: "Surface threat detection events — the firewall caught something suspicious." },
-        { id: "5.2.10", why: "Track admin logins to firewalls — who logged in, from where, and when." }
+        { id: "5.2.41", why: "Monitor Juniper SRX intrusion prevention events — attacks detected and blocked." },
+        { id: "5.2.44", why: "Track Fortinet Security Fabric health — are all your FortiGates connected and managed?" }
       ]},
       { name: "Load balancers & ADCs", description: "The devices that spread traffic across your servers — F5 BIG-IP, Citrix ADC (NetScaler), and others. We watch pool health, availability, SSL certificates, HA failover, and GSLB across data centers.", ucs: [
         { id: "5.3.1", why: "Alert when a server drops out of the load balancer pool — less capacity for users." },
         { id: "5.3.13", why: "Know when a Citrix ADC virtual server goes down — all applications behind it become unreachable." },
         { id: "5.3.16", why: "Detect Citrix ADC failover events — the secondary took over, so something broke on the primary." }
       ]},
-      { name: "WiFi & wireless", description: "WiFi access points, rogue devices, and signal quality. We help you keep wireless reliable and secure.", ucs: [
-        { id: "5.4.4", why: "Detect unauthorised access points that could be used for eavesdropping." },
+      { name: "WiFi & wireless", description: "WiFi access points from Cisco Meraki, HPE Aruba, and others. We watch for rogue devices, signal quality, and coverage gaps.", ucs: [
         { id: "5.4.1", why: "Know immediately when a wireless access point goes offline." },
-        { id: "5.4.2", why: "Track client connection failures — frustrated users and potential issues." }
+        { id: "5.4.33", why: "Monitor Aruba AP radio status across the fleet — detect coverage holes before users complain." },
+        { id: "5.4.35", why: "Track Aruba wireless intrusion events — rogue APs, evil twin attacks, and RF threats." }
       ]},
       { name: "SD-WAN", description: "Software-defined WAN links connecting your branch offices. We watch tunnel health, application performance, security at the edge, and the management platform itself.", ucs: [
         { id: "5.5.1", why: "Monitor tunnel health — loss, latency, and jitter directly affect application experience." },
@@ -771,10 +771,10 @@ window.NON_TECHNICAL = {
         { id: "17.2.3", why: "Spot VPN logins from unusual countries or regions." },
         { id: "17.2.5", why: "Monitor VPN tunnel stability — frequent drops degrade the remote work experience." }
       ]},
-      { name: "Zero Trust & SASE", description: "Conditional access, device trust, and micro-segmentation. We help you verify every connection.", ucs: [
+      { name: "Zero Trust & SASE", description: "Conditional access, device trust, and micro-segmentation — including Zscaler, Palo Alto Prisma, and Cato Networks. We help you verify every connection.", ucs: [
         { id: "17.3.1", why: "Track conditional access enforcement — are the right policies being applied?" },
-        { id: "17.3.2", why: "Monitor device trust scores — low scores mean devices aren't meeting security requirements." },
-        { id: "17.3.3", why: "Audit micro-segmentation — is traffic properly restricted between network zones?" }
+        { id: "17.3.25", why: "Monitor Cato Networks cloud security events — IPS, anti-malware, and firewall all in one." },
+        { id: "17.3.29", why: "Track Cato SD-WAN tunnel health — when a tunnel drops, the entire site loses connectivity." }
       ]}
     ]
   },

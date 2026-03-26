@@ -12,7 +12,7 @@
 - **Monitoring type:** Fault
 - **Value:** Authentication success/failure trends reveal infrastructure issues (certificate problems, RADIUS outages) and security events.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** RADIUS/ISE authentication logs
 - **SPL:**
 ```spl
@@ -40,7 +40,7 @@ index=nac sourcetype="cisco:ise:auth"
 - **Monitoring type:** Compliance
 - **Value:** Non-compliant endpoints accessing the network pose security risks. Posture tracking ensures endpoint hygiene enforcement.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE posture assessment logs
 - **SPL:**
 ```spl
@@ -69,7 +69,7 @@ index=nac sourcetype="cisco:ise:posture"
 - **Monitoring type:** Configuration
 - **Value:** Dynamic VLAN assignments reflect authorization decisions. Anomalous placements may indicate policy misconfiguration or attacks.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE authorization logs (VLAN assignment)
 - **SPL:**
 ```spl
@@ -97,7 +97,7 @@ index=nac sourcetype="cisco:ise:auth"
 - **Monitoring type:** Performance
 - **Value:** Guest network monitoring ensures acceptable use and identifies capacity needs. Unusual patterns may indicate abuse.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE guest portal logs, RADIUS accounting
 - **SPL:**
 ```spl
@@ -125,7 +125,7 @@ index=nac sourcetype="cisco:ise:guest"
 - **Monitoring type:** Performance
 - **Value:** BYOD onboarding metrics inform mobile device management strategy and user experience optimization.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE BYOD portal logs, certificate provisioning
 - **SPL:**
 ```spl
@@ -153,7 +153,7 @@ index=nac sourcetype="cisco:ise:byod"
 - **Monitoring type:** Security
 - **Value:** MAB devices bypass 802.1X and rely on MAC address only. Monitoring for unauthorized MACs prevents rogue device access.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE MAB authentication logs
 - **SPL:**
 ```spl
@@ -182,7 +182,7 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB"
 - **Monitoring type:** Performance
 - **Value:** Accurate device profiling enables correct authorization policies. Misprofiled devices may get inappropriate access.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE profiler logs, re-profiling events
 - **SPL:**
 ```spl
@@ -211,7 +211,7 @@ index=nac sourcetype="cisco:ise:profiler"
 - **Monitoring type:** Security
 - **Value:** NAC policy changes affect network access for all devices. Unauthorized changes can create security gaps or disrupt access.
 - **App/TA:** Splunk_TA_cisco-ise
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE admin audit logs
 - **SPL:**
 ```spl
@@ -591,7 +591,7 @@ index=nac (sourcetype="nac:quarantine" OR sourcetype="cisco:ise:admin")
 - **Monitoring type:** Compliance
 - **Value:** Non-compliant endpoints (missing patches, disabled AV) on the network increase attack surface. ISE posture data enables enforcement visibility.
 - **App/TA:** `Splunk_TA_cisco-ise`
-- **Equipment Models:** Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance
+- **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** `sourcetype=cisco:ise:syslog`
 - **SPL:**
 ```spl
@@ -630,7 +630,7 @@ index=nac sourcetype="nac:quarantine"
 
 ### 17.2 VPN & Remote Access
 
-**Primary App/TA:** Cisco ASA/AnyConnect TA, Palo Alto GlobalProtect TA, vendor syslog.
+**Primary App/TA:** Cisco ASA/AnyConnect TA, Palo Alto GlobalProtect TA, Fortinet FortiGate Add-On (`TA-fortinet_fortigate`, Splunkbase 2846) for SSL-VPN, Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847) for SRX VPN, vendor syslog.
 
 ---
 
@@ -640,7 +640,7 @@ index=nac sourcetype="nac:quarantine"
 - **Monitoring type:** Security
 - **Value:** VPN capacity planning prevents remote workers from being locked out. Trending identifies peak usage and growth patterns.
 - **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN concentrator session logs
 - **SPL:**
 ```spl
@@ -669,7 +669,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Security
 - **Value:** Repeated VPN auth failures indicate credential attacks against the remote access perimeter, a primary attack vector.
 - **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN authentication logs
 - **SPL:**
 ```spl
@@ -699,7 +699,7 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 - **Monitoring type:** Security
 - **Value:** VPN connections from unexpected countries may indicate compromised credentials being used from attacker infrastructure.
 - **App/TA:** VPN TA + GeoIP lookup
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs with source IP
 - **SPL:**
 ```spl
@@ -729,7 +729,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Monitoring type:** Compliance
 - **Value:** Split-tunnel configurations affect security visibility. Ensuring compliance with tunnel policy maintains security posture.
 - **App/TA:** VPN TA
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session attributes (tunnel type, group policy)
 - **SPL:**
 ```spl
@@ -759,7 +759,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Availability
 - **Value:** Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.
 - **App/TA:** VPN TA
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs (connect/disconnect events)
 - **SPL:**
 ```spl
@@ -791,7 +791,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Security
 - **Value:** VPN access at unusual hours may indicate compromised credentials or unauthorized activity. Alerting supports investigation.
 - **App/TA:** VPN TA + user context
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs, HR data (department, role)
 - **SPL:**
 ```spl
@@ -823,7 +823,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Monitoring type:** Performance
 - **Value:** Per-user bandwidth tracking identifies heavy users, guides capacity planning, and detects potential data exfiltration.
 - **App/TA:** VPN TA, RADIUS accounting
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session accounting (bytes in/out)
 - **SPL:**
 ```spl
@@ -854,7 +854,7 @@ index=vpn sourcetype="cisco:asa"
 - **Monitoring type:** Security
 - **Value:** A single user with simultaneous VPN sessions from different locations strongly indicates credential compromise.
 - **App/TA:** VPN TA
-- **Equipment Models:** Cisco ASA 5506-X, ASA 5508-X, ASA 5516-X, ASA 5525-X, ASA 5545-X, ASA 5555-X, ASAv
+- **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs
 - **SPL:**
 ```spl
@@ -1263,7 +1263,7 @@ index=vpn sourcetype="vpn:session"
 
 ### 17.3 Zero Trust / SASE
 
-**Primary App/TA:** Zscaler TA, Netskope TA, Palo Alto Prisma Access TA.
+**Primary App/TA:** Zscaler TA, Netskope TA, Palo Alto Prisma Access TA, Cato Networks Events App (Splunkbase 8037).
 
 ---
 
@@ -1820,6 +1820,221 @@ index=identity sourcetype="azure:signin" earliest=-7d
   from datamodel=Authentication.Authentication
   where Authentication.action=failure
   by Authentication.user span=1h
+```
+
+---
+
+### UC-17.3.25 · Cato Security Event Monitoring (Cato Networks)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cato's cloud-native security stack generates IPS, anti-malware, and NGFW events from a single pass inspection of all WAN and internet traffic. Unlike on-premises firewalls, every branch and remote user traverses the same cloud inspection plane. Monitoring detection volume, severity distribution, and threat categories across sites and identities reveals coordinated campaigns, noisy rules, and coverage gaps before incidents escalate.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration) (syslog to TCP 1514) as an alternative to the app’s API pull.
+- **Equipment Models:** Cato Socket (physical edge), Cato vSocket (virtual edge), Cato SDP Client (ZTNA endpoint software) — no discrete on-premises firewall appliances; enforcement is cloud-delivered at Cato PoPs.
+- **Data Sources:** Cato Events API (security, connectivity, audit); `sourcetype=cato:events` or `sourcetype=cato:sase`
+- **SPL:**
+```spl
+index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
+| eval sub_type=lower(coalesce(event_sub_type, sub_type, ""))
+| eval threat_cat=coalesce(threat_category, rule_category, signature_category, "uncategorized")
+| eval sev=coalesce(severity, priority, risk_level, "info")
+| where match(sub_type,"ips|anti.?malware|malware|intrusion|ngfw|firewall|threat") OR match(lower(coalesce(action, disposition, "")),"block|prevent|deny|detect")
+| timechart span=1h count by sev
+```
+- **Implementation:** Install the Cato Networks Events App and map Cato JSON fields with `props.conf` / `FIELDALIAS` to stable names (`event_sub_type`, `threat_category`, `site_name`, `user`). Baseline events per hour per site; alert on 3σ spikes in blocked or critical-severity counts. Tag change windows to suppress expected noise after policy rollouts.
+- **Visualization:** Timechart (events/hour by severity), Pie or bar (threat category mix), Table (top signatures/rules), Single value (24h blocked vs prior day).
+- **CIM Models:** Intrusion_Detection, Malware
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.signature span=1h
+```
+
+---
+
+### UC-17.3.26 · Cato WAN Link Health and Quality (Cato Networks)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Availability
+- **Value:** Cato SD-WAN measures latency, jitter, and packet loss per Socket uplink (MPLS, broadband, LTE). When quality falls below policy thresholds, Cato steers flows to healthier paths automatically. Retaining link-quality telemetry in Splunk exposes chronic ISP issues, validates steering decisions, and supports capacity conversations with carriers using your own historical evidence.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
+- **Equipment Models:** Cato Socket, Cato vSocket (per-site uplinks); remote users via Cato SDP Client do not replace site link metrics but appear in separate client-quality events where exposed.
+- **Data Sources:** Cato connectivity / link-quality events; `sourcetype=cato:events` or `cato:sase`
+- **SPL:**
+```spl
+index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
+| eval site=coalesce(site_name, site_id, account_name)
+| eval link=coalesce(link_name, interface_name, wan_link, uplink_id, "unknown")
+| eval latency_ms=coalesce(rtt_ms, avg_rtt_ms, latency_ms)
+| eval loss_pct=coalesce(packet_loss_pct, packet_loss, loss_percent)
+| eval jitter_ms=coalesce(jitter_ms, jitter)
+| where isnotnull(latency_ms) OR isnotnull(loss_pct) OR isnotnull(jitter_ms)
+| timechart span=5m avg(latency_ms) as avg_rtt_ms avg(loss_pct) as avg_packet_loss_pct avg(jitter_ms) as avg_jitter_ms by site
+```
+- **Implementation:** Confirm which Cato event subtypes carry WAN metrics for your account (field names vary slightly by feed version). Build per-site SLO panels (for example loss below 1%, latency under a site-specific ms target). Alert when any uplink exceeds SLO for two consecutive 15-minute buckets or when jitter spikes correlate with application ticket volume.
+- **Visualization:** Line chart (latency / loss / jitter over time by site), Heatmap (site × hour quality score), Table (worst uplinks by p95 latency).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` avg(All_Traffic.bytes_in) as avg_in avg(All_Traffic.bytes_out) as avg_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src span=5m
+```
+
+---
+
+### UC-17.3.27 · Cato Threat Prevention Events (Cato Networks)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cato IPS blends machine learning and signatures inline on all traversing traffic. Because enforcement runs at Cato PoPs, IPS coverage is uniform for every site and remote user without shipping appliances to each location. Tracking blocked threats, source context, targeted services, and attack patterns supports incident triage, threat hunting, and validation that prevention is active everywhere.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
+- **Equipment Models:** Cato Socket, Cato vSocket, Cato SDP Client — threats are seen and acted on at the PoP; edge devices tunnel traffic into that inspection path.
+- **Data Sources:** Cato threat / IPS events; `sourcetype=cato:events` or `cato:sase`
+- **SPL:**
+```spl
+index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
+| eval blocked=if(match(lower(coalesce(action, disposition, verdict, "")),"(?i)block|prevent|deny|drop"),1,0)
+| eval threat=coalesce(threat_name, signature_name, rule_name, description, "unknown")
+| eval dst_service=coalesce(dst_port, service_name, app_name)
+| where blocked=1 AND match(lower(coalesce(event_sub_type, category, "")),"(?i)ips|intrusion|threat|exploit")
+| stats count values(threat) as threats values(dst_ip) as dst_ips by src_ip, site_name, dst_service
+| sort -count
+```
+- **Implementation:** Enrich `src_ip` with asset and identity lookups. Create notables for rare threats, cross-site recurrence of the same source, or blocks against critical server subnets. Tune out known vulnerability scanners only with documented exceptions. Correlate spikes with Cato configuration changes (UC-17.3.28).
+- **Visualization:** Table (top blocked flows), Bar chart (threats by site), Map (src_geo if present), Timeline (block burst detection).
+- **CIM Models:** Intrusion_Detection
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.src IDS_Attacks.dest IDS_Attacks.signature IDS_Attacks.action span=1h
+| where count >= 5
+```
+
+---
+
+### UC-17.3.28 · Cato Cloud Firewall Policy Audit (Cato Networks)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Cloud firewall policies are authored centrally in Cato Management and enforced at every PoP, so one misconfiguration has global blast radius. Auditing administrator actions, policy edits, and time-ordered changes lets you tie traffic anomalies to specific change records and demonstrate who approved risky rules.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037); Cato Events API audit stream
+- **Equipment Models:** Cato Management (cloud); Cato Socket, Cato vSocket, Cato SDP Client consume policies — no per-box CLI audit trail.
+- **Data Sources:** Cato administrative / audit events; `sourcetype=cato:events` or `cato:sase`
+- **SPL:**
+```spl
+index=sase sourcetype IN ("cato:events","cato:sase") earliest=-30d
+| eval evt=lower(coalesce(event_type, event_sub_type, ""))
+| where match(evt,"admin|audit|config|policy|rule|change|login") OR match(lower(coalesce(operation, action, "")),"(?i)create|update|delete|modify")
+| eval admin=coalesce(admin_name, admin_user, user_name, actor, "unknown")
+| eval policy=coalesce(policy_name, rule_name, object_name, "unknown")
+| stats count earliest(_time) as first_seen latest(_time) as last_seen values(operation) as ops by admin policy
+| sort -last_seen
+```
+- **Implementation:** Forward audit events to a restricted index with immutability or archival policy. Join `last_seen` to your ITSM change IDs when administrators paste ticket numbers into comments (or enforce ticket-required workflow in Cato). Alert on after-hours bulk rule deletes or new “allow any” style rules.
+- **Visualization:** Table (recent policy changes), Timeline (admin activity), Bar chart (changes by administrator).
+- **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1d
+```
+
+---
+
+### UC-17.3.29 · Cato SD-WAN Tunnel Health (Cato Networks)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Cato Sockets build IPsec/DTLS tunnels to the nearest PoP; when tunnels drop, the site loses cloud-delivered security, path selection, and centralized breakout. Measuring down events, duration, and time-to-recover supports SLA reporting and distinguishes transient blips from structural connectivity failures.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
+- **Equipment Models:** Cato Socket, Cato vSocket (site tunnel endpoints); Cato SDP Client uses separate session semantics — split dashboards accordingly.
+- **Data Sources:** Cato tunnel / site connectivity events; `sourcetype=cato:events` or `cato:sase`
+- **SPL:**
+```spl
+index=sase sourcetype IN ("cato:events","cato:sase") earliest=-7d
+| eval site=coalesce(site_name, site_id, socket_name, socket_serial)
+| eval tunnel_state=lower(coalesce(tunnel_state, tunnel_status, connection_state, link_state, ""))
+| where match(tunnel_state,"down|disconnected|failed|lost|inactive|degraded") OR match(lower(coalesce(event_sub_type, "")),"(?i)tunnel.*down|socket.*down|disconnect")
+| stats count earliest(_time) as first_event latest(_time) as last_event by site tunnel_state
+| eval window_sec=last_event-first_event
+| sort -count
+```
+- **Implementation:** Align `event_sub_type` / `tunnel_state` values with Cato’s feed documentation (labels differ between API and syslog forwarding). For MTTR, run a companion search pairing down events with subsequent up events per `site_id`. Page on any site with sustained tunnel-down beyond your RTO threshold.
+- **Visualization:** Single value (sites currently down), Timeline (tunnel state), Table (longest outages 7d), Line chart (daily down minutes per site).
+- **CIM Models:** Network_Traffic, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.Network_Sessions
+  by Network_Sessions.src_network span=1h
+```
+
+---
+
+### UC-17.3.30 · Cato SDP Client Connection Monitoring (Cato Networks)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** The Cato SDP client delivers ZTNA access for remote users. Connection, authentication, posture, and disconnect-reason events show who cannot reach applications and why — distinguishing client bugs, credential issues, MFA failures, and policy blocks without guessing from help-desk anecdotes.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037); Cato Events API (client / ZTNA-related event families)
+- **Equipment Models:** Cato SDP Client on laptops and mobile devices; enforcement still occurs through Cato cloud policy — correlate with Cato Socket sites for hybrid users when applicable.
+- **Data Sources:** Cato SDP / ZTNA / client session events; `sourcetype=cato:events` or `cato:sase`
+- **SPL:**
+```spl
+index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
+| eval u=lower(coalesce(user_name, username, user, email, ""))
+| eval auth_ok=if(match(lower(coalesce(auth_result, auth_status, "")),"(?i)success|allow|ok"),1,0)
+| eval reason=coalesce(failure_reason, disconnect_reason, error_message, deny_reason, "n/a")
+| where match(lower(coalesce(event_sub_type, client_event, "")),"(?i)sdp|ztna|client|vpn|session")
+| stats count sum(auth_ok) as successes values(reason) as reasons by u device_os app_version
+| eval failures=count-successes
+| sort -failures
+```
+- **Implementation:** Normalize `app_version` and alert when a specific version shows elevated failures (upgrade campaign). Build a lookup for “known bad” posture outcomes. Feed top `failure_reason` strings back to IT for knowledge-base articles. Respect privacy: restrict user fields to security roles.
+- **Visualization:** Bar chart (failures by reason), Table (users with repeated auth failures), Pie chart (posture pass vs fail), Line chart (daily active SDP users).
+- **CIM Models:** Authentication, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure OR Authentication.action=success
+  by Authentication.user Authentication.action span=1h
+```
+
+---
+
+### UC-17.3.31 · Cato DLP and CASB Event Analysis (Cato Networks)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Inline CASB and DLP inspect cloud application traffic for unsanctioned SaaS, sensitive data movement, and policy violations in one SASE pass. Aggregating these events highlights shadow IT growth, risky uploads, and repeat offenders before data leaves the organization’s control.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037); Cato SWG/CASB/DLP event categories via Events API
+- **Equipment Models:** Cato Socket, Cato vSocket, Cato SDP Client — all user and site traffic eligible for CASB/DLP inspection at the PoP.
+- **Data Sources:** Cato CASB / DLP / SaaS governance events; `sourcetype=cato:events` or `cato:sase`
+- **SPL:**
+```spl
+index=sase sourcetype IN ("cato:events","cato:sase") earliest=-7d
+| eval cat=lower(coalesce(event_sub_type, saas_category, ""))
+| eval app=coalesce(app_name, saas_app, destination_app, "unknown")
+| eval pol=coalesce(policy_name, dlp_policy, casb_policy, "unknown")
+| eval viol=coalesce(violation_type, data_classification, sensitive_type, "unspecified")
+| where match(cat,"dlp|casb|saas|shadow|upload|sanction|cloud")
+| stats count by app pol viol action
+| sort -count
+```
+- **Implementation:** Map Cato severity to your insider-risk tiers. Correlate DLP blocks with HR flags only through approved processes. Create executive rollups: top unsanctioned apps, volume by data class, and trend after policy updates. Integrate with ticketing for mandatory review of high-severity violations.
+- **Visualization:** Bar chart (violations by SaaS app), Stacked bar (action × classification), Table (top policies triggered), Line chart (shadow IT events / day).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.user All_Traffic.url span=1d
+| where count > 100
 ```
 
 ---
