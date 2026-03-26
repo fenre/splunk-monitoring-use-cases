@@ -931,10 +931,15 @@ window.NON_TECHNICAL = {
         { id: "22.7.1", why: "Dashboard your NIST CSF maturity across all five functions — Identify, Protect, Detect, Respond, Recover." },
         { id: "22.2.6", why: "Track risk analysis and security policy evidence — a requirement shared across NIS2, ISO 27001, and NIST." }
       ]},
-      { name: "Financial regulation", description: "DORA, MiFID II, and SOC 2 — resilience testing, transaction reporting, and trust service compliance.", ucs: [
-        { id: "22.3.1", why: "DORA ICT risk management dashboard — track digital resilience for financial services." },
+      { name: "DORA digital resilience", description: "EU Digital Operational Resilience Act for financial services — ICT risk management, incident reporting timelines, third-party provider oversight, backup testing, resilience testing, and management body governance evidence.", ucs: [
+        { id: "22.3.11", why: "Automatically classify incidents as major using DORA's seven criteria — triggering the 4-hour reporting deadline." },
+        { id: "22.3.14", why: "Monitor ICT provider SLA performance — ensuring third-party services meet contractual resilience targets." },
+        { id: "22.3.19", why: "Track management body ICT governance evidence — board briefings, training, and risk framework approval." }
+      ]},
+      { name: "Financial regulation", description: "MiFID II and SOC 2 — transaction reporting and trust service compliance for financial services.", ucs: [
         { id: "22.5.1", why: "Monitor MiFID II trade reporting completeness — missing reports mean regulatory fines." },
-        { id: "22.8.1", why: "Continuous monitoring of SOC 2 trust service criteria — evidence collection for auditors." }
+        { id: "22.8.1", why: "Continuous monitoring of SOC 2 trust service criteria — evidence collection for auditors." },
+        { id: "22.3.1", why: "ICT risk management dashboard — track residual risk across business entities." }
       ]},
       { name: "Compliance trending", description: "We chart posture scores, audit closure, control tests, incident response time, and policy violations over time so you see direction, not a single snapshot.", ucs: [
         { id: "22.9.1", why: "We track how overall compliance scores move across major frameworks quarter by quarter — so leadership sees whether posture is improving." },

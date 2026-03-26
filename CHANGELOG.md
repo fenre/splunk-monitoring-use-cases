@@ -22,6 +22,29 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.6] - 2026-03-26
+
+### DORA — Full Digital Operational Resilience Coverage
+
+- **15 new DORA use cases** (UC-22.3.6 through UC-22.3.20), expanding coverage from 5 to 20 dedicated UCs.
+- **Art. 9 — Protection & Prevention**: ICT change management and patch compliance (Art. 9(4)(e)), access control and authentication monitoring (Art. 9(4)(c)).
+- **Art. 10 — Detection**: ICT anomaly detection capability monitoring — proving detection infrastructure covers all critical functions.
+- **Art. 11 — Response & Recovery**: MTTD/MTTR/RTO tracking for DORA-regulated services against defined targets.
+- **Art. 12 — Backup**: backup completeness, restoration testing, and segregation validation for critical function systems.
+- **Art. 13 — Learning & Evolving**: post-incident review completion, root cause tracking, and improvement action implementation.
+- **Art. 14 — Communication**: crisis communication readiness — plan freshness, contact list currency, drill completion.
+- **Art. 18 — 7-Criteria Classification**: automated major ICT incident classification against all DORA criteria (clients affected, geographic spread, duration, data loss).
+- **Art. 19 — Three-Report Timeline**: tracking initial (4h), intermediate (72h), and final (1 month) report submission for major incidents.
+- **Art. 25 — Testing Program**: vulnerability assessment and penetration test tracking with finding remediation SLAs.
+- **Art. 26 — TLPT**: Threat-Led Penetration Testing lifecycle tracking including the three-year cycle requirement.
+- **Art. 28(3) — Register of Information**: validation of ICT provider register completeness against actual network traffic.
+- **Art. 28(8) — Exit Strategy**: exit plan readiness scoring for all critical/important function providers.
+- **Art. 30 — SLA Monitoring**: actual ICT provider performance vs contractual availability and response time targets.
+- **Art. 5 — Management Body Governance**: board ICT risk briefing, framework approval, training, and risk appetite evidence.
+- DORA now has the most comprehensive coverage of any regulation in the catalog with 20 dedicated UCs.
+
+---
+
 ## [4.5] - 2026-03-26
 
 ### GDPR — Comprehensive Article Coverage Expansion

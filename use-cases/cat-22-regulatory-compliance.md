@@ -1177,9 +1177,9 @@ index=backup sourcetype IN ("veeam:backup","commvault:job","rubrik:event","aws:b
 
 ### 22.3 DORA
 
-**Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
+**Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for Qualys (Splunkbase 2964), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Veeam (Splunkbase 7173), Splunk Synthetic Monitoring, Splunk Common Information Model Add-on (Splunkbase 1621).
 
-**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:change_request`, `snow:incident`), Tenable/Qualys vulnerability scans (`tenable:vuln`, `qualys:hostdetection`), AWS CloudTrail (`aws:cloudtrail`), Azure Activity (`mscs:azure:auditlog`), backup software logs (Veeam, Commvault, Rubrik, AWS Backup), CIM data models (Authentication, Network_Traffic, Vulnerabilities, Change), Splunk audit logs (`_audit`, `_internal`), DORA register lookups (`dora_critical_systems.csv`, `dora_ict_provider_register.csv`, `dora_testing_schedule.csv`, `dora_governance_evidence.csv`).
 
 ---
 
@@ -1323,6 +1323,493 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-24h
 - **Implementation:** (1) Ensure CloudTrail includes data-plane events for replication visibility; (2) for Azure, route Activity logs to Event Hub and confirm `mscs:azure:auditlog` parsing; (3) in ITSI, tag entities with `region` and bind KPIs representing DR readiness; (4) combine cloud evidence and ITSI health panels in a single DR compliance dashboard.
 - **Visualization:** Timeline of replication events, Geographic map (counts by region), ITSI service health single values by region.
 - **CIM Models:** Change (replication changes)
+
+---
+
+### UC-22.3.6 · DORA ICT Change Management and Patch Compliance (Art. 9(4)(e))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 9(4)(e) requires documented ICT change management policies that are risk-assessed and approved before deployment. This use case tracks change ticket compliance for ICT systems supporting critical functions — detecting unauthorized changes, changes without approval, and emergency changes without post-implementation review — providing evidence that protection and prevention controls are operational.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `index=itsm` `sourcetype="snow:change_request"`, `index=windows` `sourcetype="WinEventLog:System"`, CIM Change data model
+- **SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object All_Changes.command All_Changes.change_type _time span=1d
+| rename All_Changes.* as *
+| lookup dora_critical_systems.csv object AS object OUTPUT critical_function, business_service
+| where isnotnull(critical_function)
+| lookup change_ticket_lookup object AS object, _time OUTPUT ticket_number, approval_status, risk_assessment
+| eval unauthorized=if(isnull(ticket_number), 1, 0)
+| eval unapproved=if(isnotnull(ticket_number) AND approval_status!="approved", 1, 0)
+| stats count, sum(unauthorized) as unauthorized_changes, sum(unapproved) as unapproved_changes by object, critical_function, business_service
+| where unauthorized_changes > 0 OR unapproved_changes > 0
+| sort - unauthorized_changes
+| table object, critical_function, business_service, count, unauthorized_changes, unapproved_changes
+```
+- **Implementation:** (1) Create `dora_critical_systems.csv` mapping ICT assets to critical/important business functions; (2) correlate CIM Change events with ServiceNow change tickets; (3) alert on any change to critical systems without an approved ticket; (4) track emergency changes separately and verify post-implementation review within 5 business days; (5) report change compliance rate as DORA governance KPI.
+- **Visualization:** Table (unauthorized changes), Bar chart (changes by approval status), Single value (change compliance %), Timeline (changes to critical systems).
+- **CIM Models:** Change
+
+---
+
+### UC-22.3.7 · DORA ICT Anomaly Detection Capabilities (Art. 10)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 10 requires financial entities to have mechanisms to promptly detect anomalous activities including ICT network performance issues and ICT-related incidents. This use case monitors the health and coverage of detection capabilities themselves — ensuring that correlation searches are running, data sources are flowing, and detection coverage spans all critical ICT systems — proving that detection infrastructure meets DORA requirements.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `_audit` (correlation search execution), `_internal` (data ingestion), ES Content Management
+- **SPL:**
+```spl
+| rest /services/saved/searches splunk_server=local count=0
+| search disabled=0 is_scheduled=1 action.correlationsearch.enabled=1
+| eval last_run=strftime(strptime(next_scheduled_time,"%Y-%m-%dT%H:%M:%S"),"%Y-%m-%d %H:%M")
+| table title, cron_schedule, next_scheduled_time, action.correlationsearch.label
+| append [
+    search index=_internal sourcetype=splunkd group=per_index_thruput earliest=-4h
+    | stats latest(ev) as last_events by series
+    | where last_events=0
+    | eval title="DATA_GAP: ".series, status="NO_DATA_4H"
+    | table title, status
+]
+| sort title
+```
+- **Implementation:** (1) Verify all ES correlation searches for critical ICT functions are enabled and running; (2) monitor data source health — alert when indexes supporting critical detection go silent for >4 hours; (3) map detection coverage against DORA critical functions to identify blind spots; (4) report detection coverage percentage and data source health as DORA Art. 10 evidence.
+- **Visualization:** Table (detection coverage and data gaps), Single value (active correlation searches), Bar chart (data gaps by index), Gauge (detection coverage %).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.8 · DORA ICT Incident Response and Recovery Time Tracking (Art. 11)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 11 requires financial entities to put in place ICT response and recovery plans for critical functions, including estimated recovery times. This use case measures actual response and recovery times against defined RTO/RPO targets for DORA-regulated services, tracking mean-time-to-detect (MTTD), mean-time-to-respond (MTTR), and mean-time-to-recover (MTTRC) — the operational evidence that response and recovery capabilities are tested and effective.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841)
+- **Premium Apps:** Splunk Enterprise Security, Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `` `notable` `` macro (incident lifecycle), `index=itsi_summary` (service recovery KPIs)
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") status="Closed" earliest=-90d
+| eval detect_time=_time
+| eval respond_time=if(isnotnull(status_description) AND match(status_description,"(?i)acknowledged|triaged|investigating"), strptime(status_description,"%Y-%m-%d %H:%M:%S"), null())
+| eval close_time=if(status="Closed", now(), null())
+| eval mttd_h=round((detect_time - info_min_time)/3600, 2)
+| eval mttr_h=round((close_time - detect_time)/3600, 2)
+| lookup dora_critical_systems.csv dest AS dest OUTPUT critical_function, rto_hours, rpo_hours
+| eval rto_breach=if(isnotnull(rto_hours) AND mttr_h > rto_hours, 1, 0)
+| stats avg(mttd_h) as avg_mttd, avg(mttr_h) as avg_mttr, sum(rto_breach) as rto_breaches, count by critical_function
+| table critical_function, count, avg_mttd, avg_mttr, rto_breaches
+| sort - rto_breaches
+```
+- **Implementation:** (1) Define RTO/RPO per critical function in `dora_critical_systems.csv`; (2) instrument incident workflow to capture timestamps at detection, acknowledgement, containment, and resolution; (3) compare actual recovery times against defined targets; (4) alert on RTO breaches for critical functions; (5) report MTTD/MTTR trends quarterly for management body oversight.
+- **Visualization:** Bar chart (avg MTTR by function), Single value (avg MTTD), Table (RTO breaches), Line chart (MTTR trend over 90 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.9 · DORA Backup Completeness and Restoration Testing (Art. 12)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** IT Operations
+- **Regulations:** DORA
+- **Value:** Article 12 requires documented backup policies specifying scope and frequency based on criticality, with backup systems physically and logically segregated. Restoration procedures must be periodically tested. This use case tracks backup job success/failure for DORA-regulated systems, validates segregation requirements, and monitors restoration test completion — going beyond cloud DR replication (UC-22.3.5) to cover the full backup lifecycle.
+- **App/TA:** Splunk Add-on for Veeam (Splunkbase 7173), Splunk ITSI (Splunkbase 1841)
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `index=backup` (backup software logs), `dora_backup_schedule.csv` (expected backup frequency per system)
+- **SPL:**
+```spl
+index=backup sourcetype IN ("veeam:backup","commvault:job","rubrik:event","aws:backup") earliest=-7d
+| eval status=lower(coalesce(status, result, state))
+| eval success=if(match(status,"(?i)success|completed|ok"), 1, 0)
+| eval failed=if(match(status,"(?i)fail|error|warning"), 1, 0)
+| stats sum(success) as successes, sum(failed) as failures, latest(_time) as last_backup by job_name, target_system
+| lookup dora_critical_systems.csv system_name AS target_system OUTPUT critical_function, backup_frequency_hours
+| where isnotnull(critical_function)
+| eval hours_since_backup=round((now()-last_backup)/3600, 1)
+| eval backup_overdue=if(isnotnull(backup_frequency_hours) AND hours_since_backup > backup_frequency_hours, "OVERDUE", "OK")
+| eval backup_success_rate=round(100*successes/(successes+failures), 1)
+| where failures > 0 OR backup_overdue="OVERDUE" OR backup_success_rate < 95
+| sort - failures
+| table target_system, critical_function, successes, failures, backup_success_rate, hours_since_backup, backup_overdue
+```
+- **Implementation:** (1) Forward backup software logs via syslog or HEC; (2) define expected backup frequency per DORA-critical system in `dora_backup_schedule.csv`; (3) alert on failed backups for critical functions immediately; (4) track restoration test completion in a KV store — DORA requires periodic testing; (5) validate physical/logical segregation by confirming backup destinations differ from source infrastructure.
+- **Visualization:** Table (backup status per critical system), Single value (backup success rate %), Bar chart (failures by system), Timeline (backup history).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.10 · DORA Post-Incident Review and Learning (Art. 13)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 13 requires financial entities to have capabilities and staff to learn from ICT-related incidents, share lessons, and evolve their ICT risk management framework. This use case tracks whether major incidents result in completed post-incident reviews (PIRs), that root causes are documented, and that improvement actions are implemented — providing the "learning and evolving" evidence DORA specifically mandates.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `` `notable` `` macro, `index=itsm` (PIR/RCA records), `dora_pir_completion.csv` (KV store)
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") status="Closed" earliest=-180d
+| lookup dora_pir_completion.csv notable_id AS event_id OUTPUT pir_status, pir_date, root_cause, improvement_actions, actions_completed
+| eval pir_due=if(isnull(pir_status), "MISSING", pir_status)
+| eval actions_closed=if(isnotnull(actions_completed) AND actions_completed="yes", "DONE", "OPEN")
+| stats count by pir_due, actions_closed
+| append [
+    search `notable` urgency IN ("high","critical") status="Closed" earliest=-180d
+    | lookup dora_pir_completion.csv notable_id AS event_id OUTPUT pir_status, improvement_actions, actions_completed
+    | where pir_status!="completed" OR isnull(pir_status) OR actions_completed!="yes"
+    | table _time, rule_name, urgency, pir_status, improvement_actions, actions_completed
+    | sort - _time
+]
+```
+- **Implementation:** (1) Create `dora_pir_completion.csv` KV store linking ES notable IDs to PIR records; (2) require PIR completion within 30 days of incident closure; (3) track root cause categories for trend analysis; (4) monitor improvement action implementation status; (5) report on learning cycle completion rates to management body; (6) share anonymised lessons across business units as Art. 13 requires.
+- **Visualization:** Pie chart (PIR completion status), Table (incidents without PIR), Bar chart (root cause categories), Single value (PIR completion rate %), Timeline (PIR lifecycle).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.11 · DORA Major ICT Incident 7-Criteria Classification (Art. 18)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** DORA Article 18 and RTS 2024/1772 define seven classification criteria for determining whether an ICT incident is "major" — an incident meeting two or more criteria thresholds triggers mandatory reporting. This use case automates the classification assessment against all seven criteria, replacing manual spreadsheet-based classification and accelerating the 4-hour initial notification deadline.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841)
+- **Premium Apps:** Splunk Enterprise Security, Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `` `notable` `` macro, `index=itsi_summary`, CIM Authentication and Network_Traffic data models, `dora_service_client_mapping.csv`
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") status!="Closed" earliest=-48h
+| eval affected_systems=mvappend(src, dest)
+| mvexpand affected_systems
+| lookup dora_service_client_mapping.csv system_name AS affected_systems OUTPUT service_name, client_count, client_pct, countries_served, data_classification
+| stats dc(affected_systems) as systems_hit, max(client_count) as max_clients_affected, max(client_pct) as max_client_pct,
+        dc(countries_served) as geo_spread, values(data_classification) as data_types by rule_name, urgency
+| eval c1_clients=if(max_client_pct > 10 OR max_clients_affected > 500, 1, 0)
+| eval c2_geographic=if(geo_spread > 1, 1, 0)
+| eval c3_duration="ASSESS_MANUALLY"
+| eval c4_data_loss=if(match(mvjoin(data_types,","),"(?i)confidential|restricted|pii|financial"), 1, 0)
+| eval criteria_met=c1_clients + c2_geographic + c4_data_loss
+| eval classification=if(criteria_met >= 2, "MAJOR — mandatory reporting", "Significant or below — assess remaining criteria")
+| eval reporting_deadline=if(classification="MAJOR — mandatory reporting", "4h initial + 72h intermediate + 1mo final", "Monitor")
+| table rule_name, urgency, systems_hit, max_clients_affected, max_client_pct, geo_spread, data_types, criteria_met, classification, reporting_deadline
+| sort - criteria_met
+```
+- **Implementation:** (1) Build `dora_service_client_mapping.csv` mapping ICT systems to business services, client counts/percentages, geographic reach, and data classifications; (2) automate criteria 1 (clients), 2 (geographic), and 4 (data loss) — criteria 3 (duration), 5-7 require manual assessment initially; (3) alert immediately when criteria_met >= 2 — the 4-hour reporting clock starts; (4) integrate with SOAR for automated notification workflow; (5) document classification rationale for each incident.
+- **Visualization:** Table (incident classification results), Single value (major incidents requiring reporting), Bar chart (criteria met per incident), Traffic light (classification status).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.12 · DORA ICT Incident Intermediate and Final Report Tracking (Art. 19)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 19 mandates a three-report lifecycle for major ICT incidents: initial notification (4h), intermediate report (72h), and final report (1 month). UC-22.3.2 covers the initial classification, but this use case tracks the full reporting lifecycle — ensuring intermediate reports include quantified impact, preliminary root cause, and remediation status, and that final reports contain complete root cause analysis, corrective actions, and lessons learned.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `` `notable` `` macro, `dora_incident_reports.csv` (KV store tracking report submissions)
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") earliest=-60d
+| lookup dora_incident_reports.csv notable_id AS event_id OUTPUT dora_classification, initial_report_time, intermediate_report_time, final_report_time, initial_submitted, intermediate_submitted, final_submitted
+| where dora_classification="major"
+| eval hours_since_detection=round((now()-_time)/3600, 2)
+| eval initial_status=case(initial_submitted="yes","SUBMITTED", hours_since_detection<=4,"WITHIN_WINDOW", 1=1,"OVERDUE")
+| eval intermediate_status=case(intermediate_submitted="yes","SUBMITTED", hours_since_detection<=72,"WITHIN_WINDOW", 1=1,"OVERDUE")
+| eval final_status=case(final_submitted="yes","SUBMITTED", hours_since_detection<=(30*24),"WITHIN_WINDOW", 1=1,"OVERDUE")
+| where initial_status="OVERDUE" OR intermediate_status="OVERDUE" OR final_status="OVERDUE" OR intermediate_status="WITHIN_WINDOW" OR final_status="WITHIN_WINDOW"
+| table _time, rule_name, urgency, hours_since_detection, initial_status, intermediate_status, final_status, owner
+| sort - hours_since_detection
+```
+- **Implementation:** (1) Create `dora_incident_reports.csv` KV store linking classified major incidents to their three report submission timestamps; (2) alert at 3h for initial report, at 48h for intermediate report, and at 21 days for final report; (3) validate intermediate report contains quantified impact and preliminary root cause; (4) validate final report contains complete root cause, corrective actions, and medium/long-term plan; (5) submit to competent authority using mandated templates.
+- **Visualization:** Table (report status per major incident), Traffic lights (report deadlines), Single value (overdue reports), Timeline (reporting lifecycle).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.13 · DORA Register of Information for ICT Third-Party Arrangements (Art. 28(3))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 28(3) requires financial entities to maintain and update a register of information on all contractual arrangements with ICT third-party service providers, distinguishing those supporting critical or important functions. This use case validates register completeness by comparing actual ICT provider traffic against the register and detecting unregistered providers or stale entries.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Network_Traffic data model, DNS logs, `dora_ict_provider_register.csv`
+- **SPL:**
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes) as total_bytes dc(All_Traffic.src) as internal_sources
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.action="allowed" NOT All_Traffic.dest_category IN ("internal","internal_server")
+  by All_Traffic.dest
+| rename All_Traffic.* as *
+| iplocation dest
+| lookup dora_ict_provider_register.csv dest_domain AS dest OUTPUT provider_name, contract_id, criticality, exit_plan_status, last_review_date
+| eval in_register=if(isnotnull(provider_name), "REGISTERED", "NOT_IN_REGISTER")
+| eval review_overdue=if(isnotnull(last_review_date) AND (now()-strptime(last_review_date,"%Y-%m-%d"))/86400 > 365, "OVERDUE", "OK")
+| eval bytes_gb=round(total_bytes/1073741824, 2)
+| where (in_register="NOT_IN_REGISTER" AND bytes_gb > 0.1) OR review_overdue="OVERDUE"
+| sort - bytes_gb
+| table dest, Country, provider_name, in_register, bytes_gb, internal_sources, criticality, exit_plan_status, review_overdue
+```
+- **Implementation:** (1) Maintain `dora_ict_provider_register.csv` with all ICT third-party arrangements per Art. 28(3) requirements; (2) include contract IDs, criticality flags, exit plan status, and review dates; (3) compare actual network traffic destinations against registered providers; (4) flag unregistered high-volume destinations for procurement review; (5) submit register to competent authorities upon request; (6) review annually with management body approval.
+- **Visualization:** Table (unregistered providers), Single value (register coverage %), Bar chart (traffic to unregistered destinations), Pie chart (registered vs unregistered by volume).
+- **CIM Models:** Network_Traffic
+
+---
+
+### UC-22.3.14 · DORA ICT Third-Party SLA Performance Monitoring (Art. 30)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** IT Operations
+- **Regulations:** DORA
+- **Value:** Article 30 requires contractual arrangements to include precise quantitative and qualitative performance targets for services supporting critical functions. This use case monitors actual ICT provider performance against SLA targets — availability, response time, throughput — detecting SLA breaches that may indicate degraded operational resilience and trigger contractual remediation or exit procedures.
+- **App/TA:** Splunk ITSI (Splunkbase 1841), Splunk Synthetic Monitoring
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `index=itsi_summary` (service/KPI data for provider-dependent services), synthetic monitoring results, `dora_provider_slas.csv`
+- **SPL:**
+```spl
+index=itsi_summary is_service_in_maintenance=0 earliest=-30d
+| lookup dora_provider_slas.csv service_name OUTPUT provider_name, sla_availability_pct, sla_response_ms, contract_id, criticality
+| where isnotnull(provider_name)
+| stats avg(health_score) as avg_health, count(eval(severity_value>=4)) as critical_breaches, count as total_observations by service_name, provider_name, sla_availability_pct, criticality
+| eval actual_availability=round(100*(total_observations - critical_breaches)/total_observations, 2)
+| eval sla_met=if(actual_availability >= sla_availability_pct, "MET", "BREACHED")
+| where sla_met="BREACHED" OR avg_health < 80
+| sort actual_availability
+| table service_name, provider_name, criticality, sla_availability_pct, actual_availability, sla_met, critical_breaches, avg_health
+```
+- **Implementation:** (1) Map ITSI services to ICT providers and their SLA targets in `dora_provider_slas.csv`; (2) include availability, response time, and throughput SLAs; (3) alert on SLA breaches for critical function providers; (4) escalate repeated breaches for exit strategy activation; (5) report provider performance to management body quarterly.
+- **Visualization:** Table (provider SLA compliance), Gauge (availability per provider), Bar chart (SLA breaches by provider), Line chart (provider health trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.15 · DORA ICT Access Control and Authentication Monitoring (Art. 9(4)(c))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 9(4)(c) requires policies for digital identity management, access control limiting physical and logical access to ICT assets and data, and strong authentication mechanisms. This use case monitors authentication patterns across DORA-regulated ICT systems — detecting shared accounts, weak authentication, privilege escalation, and access from unauthorized locations — providing the access control evidence DORA mandates for protection and prevention.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Authentication data model, `index=auth`, `index=windows`, `index=azure`
+- **SPL:**
+```spl
+| tstats `summariesonly` count dc(Authentication.src) as src_count dc(Authentication.dest) as dest_count
+  from datamodel=Authentication.Authentication
+  where Authentication.action="success"
+  by Authentication.user Authentication.app span=1d
+| rename Authentication.* as *
+| lookup dora_critical_systems.csv system_name AS dest OUTPUT critical_function
+| where isnotnull(critical_function)
+| eval risk_signals=mvappend(
+    if(src_count > 5, "MULTI_LOCATION", null()),
+    if(match(lower(user),"(?i)shared|generic|test|admin[0-9]"), "SHARED_ACCOUNT", null()),
+    if(match(lower(app),"(?i)password|basic|ntlm") AND NOT match(lower(app),"(?i)mfa|2fa|cert|kerberos"), "WEAK_AUTH", null()))
+| where isnotnull(risk_signals)
+| table user, app, critical_function, count, src_count, dest_count, risk_signals
+| sort - count
+```
+- **Implementation:** (1) Ensure CIM Authentication data model is populated from domain controllers, IdPs, and cloud auth sources; (2) tag critical ICT systems in `dora_critical_systems.csv`; (3) alert on shared accounts accessing critical functions; (4) detect authentication without MFA for privileged operations; (5) report access control compliance to management body; (6) correlate with HR data for joiner/mover/leaver validation.
+- **Visualization:** Table (access control risks), Bar chart (risks by type), Single value (shared account usage), Heatmap (user × critical system access).
+- **CIM Models:** Authentication
+
+---
+
+### UC-22.3.16 · DORA Vulnerability Assessment and Penetration Test Tracking (Art. 25)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 25 requires vulnerability assessments, network security assessments, source code reviews, scenario-based tests, and penetration testing for all ICT systems supporting critical functions. This use case tracks test execution, coverage, and finding remediation — ensuring the full testing program required by DORA is executed on schedule and that identified vulnerabilities are remediated within defined SLAs.
+- **App/TA:** Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for Qualys (Splunkbase 2964)
+- **Data Sources:** `index=vulnerability` (scan results), `dora_testing_schedule.csv` (planned test calendar), `index=itsm` (remediation tickets)
+- **SPL:**
+```spl
+| inputlookup dora_testing_schedule.csv
+| eval planned_date=strptime(scheduled_date, "%Y-%m-%d")
+| eval days_until_due=round((planned_date - now())/86400, 0)
+| eval test_status=case(
+    completed="yes", "COMPLETED",
+    days_until_due < 0, "OVERDUE",
+    days_until_due <= 30, "DUE_SOON",
+    1=1, "SCHEDULED")
+| append [
+    search index=vulnerability sourcetype IN ("tenable:vuln","qualys:hostdetection") state="Active" earliest=-90d
+    | lookup dora_critical_systems.csv system_name AS host OUTPUT critical_function
+    | where isnotnull(critical_function)
+    | eval sla_days=case(severity="Critical",7, severity="High",30, severity="Medium",90, 1=1,180)
+    | eval age_days=round((now()-first_found)/86400,1)
+    | eval sla_breach=if(age_days > sla_days, 1, 0)
+    | stats sum(sla_breach) as overdue_vulns, count as total_vulns by critical_function
+    | eval test_type="Vulnerability_Remediation", test_status=if(overdue_vulns > 0, "REMEDIATION_OVERDUE", "ON_TRACK")
+    | table test_type, critical_function, total_vulns, overdue_vulns, test_status
+]
+| table test_type, critical_function, scheduled_date, test_status, total_vulns, overdue_vulns
+| sort test_status
+```
+- **Implementation:** (1) Create `dora_testing_schedule.csv` with all planned vulnerability assessments, pen tests, source code reviews, and scenario tests per Art. 25 requirements; (2) alert when tests are overdue; (3) track vulnerability remediation SLAs for DORA-critical systems; (4) report testing coverage and finding trends to management body; (5) for central securities depositories and central counterparties, ensure pre-deployment vulnerability assessments per Art. 25(2).
+- **Visualization:** Table (test schedule with status), Bar chart (overdue tests by type), Single value (testing coverage %), Pie chart (test status distribution).
+- **CIM Models:** Vulnerabilities
+
+---
+
+### UC-22.3.17 · DORA Threat-Led Penetration Testing (TLPT) Lifecycle (Art. 26)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 26 requires financial entities identified by competent authorities to conduct TLPT at least every three years, following TIBER-EU methodology with qualified external testers. This use case tracks the TLPT lifecycle — from threat intelligence scoping through red team execution to remediation of findings — ensuring the advanced testing programme that DORA mandates for systemically important entities is completed and acted upon.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Data Sources:** `dora_tlpt_register.csv` (TLPT engagement tracking), `index=itsm` (remediation tickets), ES Notable events (from purple team exercises)
+- **SPL:**
+```spl
+| inputlookup dora_tlpt_register.csv
+| eval last_tlpt_date=strptime(completion_date, "%Y-%m-%d")
+| eval months_since_tlpt=round((now()-last_tlpt_date)/(86400*30), 0)
+| eval next_due=if(months_since_tlpt >= 36, "OVERDUE", if(months_since_tlpt >= 30, "DUE_WITHIN_6_MONTHS", "ON_TRACK"))
+| eval findings_remediated=if(isnotnull(total_findings) AND isnotnull(findings_closed), round(100*findings_closed/total_findings,1), 0)
+| table scope, tester_organization, completion_date, months_since_tlpt, next_due, total_findings, findings_closed, findings_remediated, critical_findings_open
+| sort next_due
+```
+- **Implementation:** (1) Create `dora_tlpt_register.csv` with TLPT engagement records (scope, tester, completion date, finding counts); (2) track three-year cycle per Art. 26; (3) monitor finding remediation — critical findings should be remediated within 90 days; (4) validate tester qualifications per Art. 27; (5) coordinate pooled TLPT with entities sharing the same ICT provider where applicable; (6) report TLPT status to competent authority.
+- **Visualization:** Table (TLPT status), Single value (months since last TLPT), Gauge (finding remediation %), Bar chart (open findings by severity).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.18 · DORA ICT Third-Party Exit Strategy Readiness (Art. 28(8))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Risk, Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 28(8) requires exit strategies for all ICT arrangements supporting critical or important functions, with tested transition plans. This use case monitors exit strategy readiness by tracking whether exit plans exist, are tested, and have viable alternatives identified — combined with operational dependency metrics showing how deeply the entity relies on each provider, informing realistic transition timelines.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `dora_ict_provider_register.csv`, CIM Network_Traffic data model, cloud provider audit logs
+- **SPL:**
+```spl
+| inputlookup dora_ict_provider_register.csv WHERE criticality IN ("critical","important")
+| eval exit_plan_exists=if(isnotnull(exit_plan_status) AND exit_plan_status!="none", 1, 0)
+| eval exit_plan_tested=if(exit_plan_status="tested", 1, 0)
+| eval alternative_identified=if(isnotnull(alternative_provider), 1, 0)
+| eval last_test_date_epoch=if(isnotnull(exit_plan_test_date), strptime(exit_plan_test_date,"%Y-%m-%d"), null())
+| eval months_since_test=if(isnotnull(last_test_date_epoch), round((now()-last_test_date_epoch)/(86400*30),0), 999)
+| eval readiness=case(
+    exit_plan_tested=1 AND alternative_identified=1 AND months_since_test<=12, "READY",
+    exit_plan_exists=1 AND alternative_identified=1, "PARTIAL — test overdue",
+    exit_plan_exists=1, "PARTIAL — no alternative",
+    1=1, "NOT_READY — plan required")
+| stats count by readiness
+| append [
+    search | inputlookup dora_ict_provider_register.csv WHERE criticality IN ("critical","important")
+    | where exit_plan_status IN ("none","") OR isnull(exit_plan_status) OR isnull(alternative_provider)
+    | table provider_name, contract_id, criticality, exit_plan_status, alternative_provider
+    | sort criticality
+]
+```
+- **Implementation:** (1) Extend `dora_ict_provider_register.csv` with exit plan status, test dates, and alternative provider fields; (2) alert on critical function providers without exit plans; (3) require annual exit plan testing; (4) combine with concentration risk data (UC-22.3.4) — providers with high concentration AND no exit plan represent highest risk; (5) report exit strategy readiness to management body annually; (6) validate data return/portability capabilities per Art. 30 contractual requirements.
+- **Visualization:** Pie chart (exit readiness distribution), Table (providers without exit plans), Bar chart (readiness by criticality), Single value (% providers with tested exit plans).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.19 · DORA Management Body ICT Governance and Oversight (Art. 5)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 5 places ultimate accountability for ICT risk management on the management body, requiring members to maintain sufficient knowledge and skills, undergo training, and actively oversee the ICT risk framework. This use case aggregates governance evidence — board ICT risk briefings, framework approval dates, training completion, and risk acceptance decisions — into a compliance dashboard proving management body engagement.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Data Sources:** `dora_governance_evidence.csv` (KV store), `_audit` (scheduled report execution)
+- **SPL:**
+```spl
+| inputlookup dora_governance_evidence.csv
+| eval evidence_date=strptime(date, "%Y-%m-%d")
+| eval days_since=round((now()-evidence_date)/86400, 0)
+| eval status=case(
+    evidence_type="board_ict_risk_briefing" AND days_since > 90, "OVERDUE",
+    evidence_type="framework_approval" AND days_since > 365, "OVERDUE",
+    evidence_type="member_training" AND days_since > 365, "OVERDUE",
+    evidence_type="risk_appetite_review" AND days_since > 365, "OVERDUE",
+    evidence_type="provider_register_review" AND days_since > 365, "OVERDUE",
+    days_since > 270, "DUE_SOON",
+    1=1, "CURRENT")
+| sort - days_since
+| table evidence_type, description, responsible_person, date, days_since, status
+```
+- **Implementation:** (1) Create `dora_governance_evidence.csv` KV store with evidence types: board_ict_risk_briefing (quarterly), framework_approval (annual), member_training (annual), risk_appetite_review (annual), provider_register_review (annual), budget_allocation (annual); (2) populate manually or via board secretary integration; (3) alert when any evidence type is overdue; (4) generate quarterly governance report for competent authorities; (5) document management body decisions on ICT risk tolerance and budget.
+- **Visualization:** Table (governance evidence status), Traffic light indicators (current/due/overdue), Timeline (governance activities), Single value (overdue items).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.3.20 · DORA ICT Crisis Communication Readiness (Art. 14)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** DORA
+- **Value:** Article 14 requires financial entities to have communication plans for ICT-related incidents and vulnerabilities, including disclosure to clients and counterparts, and internal escalation. This use case tracks crisis communication readiness — ensuring communication plans are documented, tested, contact lists are current, and that during active incidents, stakeholder notifications are timely and documented.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `dora_comms_readiness.csv` (KV store), `` `notable` `` macro, `index=itsm` (communication records)
+- **SPL:**
+```spl
+| inputlookup dora_comms_readiness.csv
+| eval last_update=strptime(last_updated, "%Y-%m-%d")
+| eval days_since_update=round((now()-last_update)/86400, 0)
+| eval freshness=case(
+    days_since_update > 180, "STALE — update required",
+    days_since_update > 90, "REVIEW_DUE",
+    1=1, "CURRENT")
+| table component, description, owner, last_updated, days_since_update, freshness, last_drill_date
+| sort freshness
+```
+- **Implementation:** (1) Create `dora_comms_readiness.csv` with components: stakeholder_contact_list, client_notification_template, regulator_notification_template, internal_escalation_matrix, media_holding_statement, crisis_call_bridge_details; (2) update at least every 6 months; (3) track communication drill completion; (4) during active major incidents, verify that client and counterparty notifications are sent and documented; (5) validate contact list accuracy by comparing against HR/CRM data.
+- **Visualization:** Table (communication readiness status), Traffic lights (component freshness), Single value (stale components count), Timeline (drill history).
+- **CIM Models:** N/A
 
 ---
 
