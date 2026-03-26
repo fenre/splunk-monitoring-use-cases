@@ -248,3 +248,14 @@ build.py reads this file to generate CAT_META in data.js. CAT_GROUPS is defined 
   - UC-22.4.1 · CCPA Consumer Data Access and Deletion Request Tracking (high, CCPA)
   - UC-22.8.1 · SOC 2 Trust Services Criteria Continuous Control Monitoring (critical, SOC 2)
 
+## 23. Business Analytics & Executive Intelligence
+- **Icon:** chart
+- **Description:** Business-aligned analytics for non-technical stakeholders — customer experience, revenue & sales, marketing ROI, HR & people, supply chain, finance, customer support, executive KPIs, and ESG sustainability reporting.
+- **Quick Tip:** Use DB Connect to ingest CRM, ERP, and HRIS data alongside web logs and app telemetry for unified business intelligence in Splunk.
+- **Quick Start:**
+  - UC-23.1.1 · Website Conversion Funnel Analysis (high, Customer Experience & Digital Analytics)
+  - UC-23.2.1 · Sales Pipeline Velocity and Forecast Accuracy (critical, Revenue & Sales Operations)
+  - UC-23.2.3 · Customer Churn Prediction and Early Warning (critical, Revenue & Sales Operations)
+  - UC-23.8.1 · CEO/CFO Business Health Scorecard (critical, Executive Dashboards & Business KPIs)
+  - UC-23.9.1 · Carbon Footprint Tracking and Reduction Progress (high, ESG & Sustainability Reporting)
+
