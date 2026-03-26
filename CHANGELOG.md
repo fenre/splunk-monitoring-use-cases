@@ -10,6 +10,18 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.3] - 2026-03-26
+
+### My Environment Inventory
+
+- **Customer inventory tool** &mdash; New "My Inventory" button in the footer opens a full-screen modal where users can check off all equipment and software in their environment. On apply, the catalog filters to show only use cases relevant to the selected items (OR logic across all checked equipment).
+- **Organized checklist** &mdash; 80+ equipment items grouped into 15 logical categories (Servers & OS, Virtualization, Cloud & Containers, Networking, Databases, Security Tools, DevOps, Splunk Products, OT/IoT, and more) with collapsible sections, select-all per group, and a search filter.
+- **Persistent selections** &mdash; Inventory choices are automatically saved to localStorage and restored on page load.
+- **Export / Import** &mdash; Save your inventory as a JSON file for portability, or load a previously saved file to restore selections across browsers or machines.
+- **Filter integration** &mdash; Active inventory appears as a clearable filter tag alongside existing filters. Composes with all other filters (criticality, difficulty, pillar, regulation, etc.) via AND logic.
+
+---
+
 ## [4.2] - 2026-03-26
 
 ### Zero Trust / SASE Vendor Expansion
