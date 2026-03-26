@@ -2,9 +2,9 @@
 
 ### 22.1 GDPR
 
-**Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
+**Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Stream (Splunkbase 1809), Splunk Add-on for Microsoft SQL Server (Splunkbase 2648), Splunk Add-on for Oracle Database (Splunkbase 1910), Splunk DB Connect (Splunkbase 2686), Splunk Edge Processor (Splunk Cloud Platform), Splunk Common Information Model Add-on (Splunkbase 1621).
 
-**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities, Certificates, Change), database audit logs (`mssql:audit`, `oracle:audit`, `postgres:csv`), TLS/certificate metadata (Splunk Stream), consent management platform events (HEC), automated decision system audit logs (HEC), Splunk audit logs (`_audit`, `_internal`), GDPR register lookups (`gdpr_ropa_register.csv`, `gdpr_dpia_register.csv`, `gdpr_processor_register.csv`, `gdpr_lia_register.csv`).
 
 ---
 
@@ -168,6 +168,429 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Implementation:** (1) Accelerate `Network_Traffic` data model in Settings > Data Models; (2) create `eea_and_adequate_countries.csv` with `Country` values matching `iplocation` output (MaxMind) and your legal team's adequacy list (EEA + UK + other recognised adequacy decisions); (3) add a `transfer_basis` column (e.g. SCC, BCR, adequacy) for approved destinations; (4) tune with CDN/exception lookups by `dest`.
 - **Visualization:** Choropleth (top non-EEA destinations), Bar chart (bytes by country), Table (restricted transfers).
 - **CIM Models:** Network_Traffic
+
+---
+
+### UC-22.1.7 · GDPR Security of Processing — Encryption and Pseudonymisation Coverage (Art. 32)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 32 requires controllers and processors to implement measures ensuring confidentiality, integrity, availability and resilience of processing systems — explicitly calling out pseudonymisation and encryption. This use case continuously monitors encryption-at-rest status for databases holding personal data, TLS enforcement on processing systems, and pseudonymisation coverage — providing the technical evidence that Art. 32 controls are operational, not just documented.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809), Tenable Add-On for Splunk (Splunkbase 4060)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Certificates data model, `index=vulnerability` (crypto-related findings), `index=network` (TLS metadata), database audit logs
+- **SPL:**
+```spl
+| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, count
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.app IN ("http","ftp","telnet","smtp") NOT All_Traffic.app IN ("https","ftps","smtps","ssh")
+  by All_Traffic.dest All_Traffic.app
+| rename All_Traffic.* as *
+| lookup gdpr_personal_data_systems.csv dest OUTPUT system_name, data_category, contains_pii
+| where contains_pii="true"
+| sort - count
+| table dest, system_name, data_category, app, count
+```
+- **Implementation:** (1) Create `gdpr_personal_data_systems.csv` listing all systems processing personal data (from Art. 30 register); (2) detect unencrypted protocols (HTTP, FTP, Telnet) to those systems; (3) monitor TLS certificate health for personal data endpoints; (4) track pseudonymisation implementation via application audit logs; (5) alert on any unencrypted connection to PII-bearing systems.
+- **Visualization:** Table (PII systems with unencrypted connections), Pie chart (encrypted vs unencrypted traffic to PII systems), Bar chart (unencrypted protocols by system), Single value (% PII systems fully encrypted).
+- **CIM Models:** Network_Traffic, Certificates
+
+---
+
+### UC-22.1.8 · GDPR Records of Processing Activities Completeness (Art. 30)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 30 requires controllers to maintain documented records of processing activities including purposes, data categories, recipients, transfers, retention periods, and technical measures. This use case validates that the processing register (ROPA) is complete and current by cross-referencing it against observed data flows and systems, surfacing systems that process personal data but are not in the register — a gap regulators frequently cite during inspections.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Network_Traffic and Authentication data models, `gdpr_ropa_register.csv` (processing activities register), ES Asset Framework
+- **SPL:**
+```spl
+| tstats `summariesonly` dc(Authentication.user) as users, count
+  from datamodel=Authentication.Authentication
+  by Authentication.dest
+| rename Authentication.dest as dest
+| lookup gdpr_ropa_register.csv system_name AS dest OUTPUT processing_activity, data_category, legal_basis, retention_period, last_review_date
+| eval in_register=if(isnotnull(processing_activity), "Yes", "NOT_IN_ROPA")
+| eval review_overdue=if(isnotnull(last_review_date) AND (now()-strptime(last_review_date,"%Y-%m-%d"))/86400 > 365, "OVERDUE", "OK")
+| where in_register="NOT_IN_ROPA" OR review_overdue="OVERDUE"
+| sort - users
+| table dest, users, count, in_register, processing_activity, legal_basis, review_overdue
+```
+- **Implementation:** (1) Maintain `gdpr_ropa_register.csv` from your DPO's Article 30 register (exported from OneTrust, DataGrail, or manual spreadsheet); (2) compare active systems receiving authentication events against registered systems; (3) alert on systems with user activity not in the ROPA; (4) flag entries with reviews older than 12 months; (5) schedule quarterly for ROPA completeness auditing.
+- **Visualization:** Table (unregistered systems), Single value (ROPA coverage %), Bar chart (users by unregistered system), Timeline (review dates).
+- **CIM Models:** Authentication
+
+---
+
+### UC-22.1.9 · GDPR Data Protection by Design — Data Minimisation Validation (Art. 25)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 25 requires data protection by design and by default — meaning only personal data necessary for each purpose should be collected. This use case detects systems collecting more personal data fields than their declared purpose requires (over-collection), identifies databases storing data categories beyond their ROPA scope, and monitors for new data collection endpoints appearing without DPIA coverage — catching data minimisation violations before regulators do.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Edge Processor (Splunk Cloud Platform)
+- **Data Sources:** Application logs, API access logs, database audit logs, `gdpr_ropa_register.csv`
+- **SPL:**
+```spl
+(index=app OR index=web OR index=api) earliest=-7d
+| rex field=_raw "(?i)(?:email|e-mail)[\s=:\"]+(?<pii_email>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"
+| rex field=_raw "(?i)(?:phone|mobile|tel)[\s=:\"]+(?<pii_phone>[\+]?\d[\d\s\-\(\)]{7,})"
+| rex field=_raw "(?i)(?:dob|birth|born|birthday)[\s=:\"]+(?<pii_dob>\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4})"
+| rex field=_raw "(?i)(?:address|street|postcode|zip)[\s=:\"]+(?<pii_address>[^\",}{]{5,})"
+| eval pii_fields_found=mvappend(
+    if(isnotnull(pii_email),"email",null()),
+    if(isnotnull(pii_phone),"phone",null()),
+    if(isnotnull(pii_dob),"date_of_birth",null()),
+    if(isnotnull(pii_address),"address",null()))
+| where isnotnull(pii_fields_found)
+| stats dc(mvjoin(pii_fields_found,",")) as pii_type_count, values(pii_fields_found) as pii_types, count by sourcetype, host
+| lookup gdpr_ropa_register.csv system_name AS host OUTPUT data_category, processing_activity
+| eval excess_collection=if(pii_type_count > 2 AND isnull(processing_activity), "POSSIBLE_OVER_COLLECTION", "Review")
+| sort - pii_type_count
+| table host, sourcetype, pii_types, pii_type_count, processing_activity, data_category, excess_collection
+```
+- **Implementation:** (1) Run weekly against application and API logs; (2) tune PII detection regex patterns for your data formats; (3) compare detected PII field types against declared ROPA data categories per system; (4) escalate systems collecting PII categories not in their declared purpose; (5) integrate with Edge Processor for ingest-time PII masking on confirmed over-collection sources.
+- **Visualization:** Table (systems with excess PII collection), Bar chart (PII types by system), Heatmap (PII density across sourcetypes), Single value (systems flagged for review).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.10 · GDPR Privileged Access to Personal Data Stores (Art. 5(1)(f) / Art. 32)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Articles 5(1)(f) and 32 require integrity and confidentiality of personal data. Privileged access to databases and file stores containing personal data is the highest-risk vector for both accidental exposure and malicious exfiltration. This use case monitors DBA/admin access to personal data stores, detects bulk data exports, and identifies access outside approved change windows — providing the accountability evidence regulators expect.
+- **App/TA:** Splunk Add-on for Microsoft SQL Server (Splunkbase 2648), Splunk Add-on for Oracle Database (Splunkbase 1910), Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** Database audit logs (`sourcetype="mssql:audit"`, `sourcetype="oracle:audit"`, `sourcetype="postgres:csv"`), `index=dbaudit`
+- **SPL:**
+```spl
+index=dbaudit sourcetype IN ("mssql:audit","oracle:audit","postgres:csv","mysql:audit") earliest=-24h
+| eval user=coalesce(server_principal_name, os_username, user_name, db_user)
+| eval action=lower(coalesce(action_id, action_name, statement_type, command_tag))
+| eval is_bulk=if(match(action,"(?i)select.*into|bulk|export|dump|copy|backup") OR match(_raw,"(?i)rows_affected.*[5-9]\d{3}|rows_affected.*\d{5,}"), 1, 0)
+| eval after_hours=if(tonumber(strftime(_time,"%H"))<7 OR tonumber(strftime(_time,"%H"))>19, 1, 0)
+| lookup gdpr_personal_data_systems.csv dest AS database_name OUTPUT data_category, contains_pii
+| where contains_pii="true" AND (is_bulk=1 OR after_hours=1 OR match(action,"(?i)grant|alter|drop|truncate|delete"))
+| table _time, user, database_name, data_category, action, is_bulk, after_hours
+| sort - _time
+```
+- **Implementation:** (1) Enable database audit logging on all systems in the ROPA that contain personal data; (2) forward audit logs via Splunk DB Connect or syslog; (3) create `gdpr_personal_data_systems.csv` with database names, data categories, and PII flags; (4) alert on bulk exports, DDL changes, and after-hours access to personal data stores; (5) require change tickets for planned administrative operations and correlate against change window lookups.
+- **Visualization:** Table (privileged access events), Timeline (access patterns), Bar chart (actions by user), Single value (after-hours access count), Heatmap (user × hour).
+- **CIM Models:** Change, Authentication
+
+---
+
+### UC-22.1.11 · GDPR Right to Erasure Verification (Art. 17)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 17 gives data subjects the right to erasure ("right to be forgotten"). While UC-22.1.2 tracks the DSAR ticket lifecycle, this use case verifies that erasure was actually executed across all systems by searching for residual data subject identifiers after the erasure deadline — catching incomplete deletions before they become regulatory violations.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` (completed erasure requests), all indexed data (post-erasure verification scan)
+- **SPL:**
+```spl
+| inputlookup gdpr_completed_erasures.csv WHERE status="completed"
+| eval erasure_date=strptime(completion_date, "%Y-%m-%d")
+| eval days_since_erasure=round((now()-erasure_date)/86400, 0)
+| where days_since_erasure >= 7 AND days_since_erasure <= 90
+| map maxsearches=50 search="search index=* earliest=-90d \"$$subject_identifier$$\" | head 1 | eval subject_id=\"$$subject_identifier$$\", request_id=\"$$request_id$$\""
+| where isnotnull(subject_id)
+| table subject_id, request_id, index, sourcetype, host, _time
+```
+- **Implementation:** (1) Export completed erasure requests to `gdpr_completed_erasures.csv` with subject identifiers (hashed email, user ID, etc.) and completion dates; (2) run weekly to search for residual occurrences; (3) alert the DPO on any matches — these indicate incomplete erasure; (4) track remediation tickets for each residual finding; (5) exclude Splunk indexes with legitimate legal-hold retention from the scan and document the exception.
+- **Visualization:** Table (residual data findings), Single value (incomplete erasures), Bar chart (residual data by system), Timeline (findings over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.12 · GDPR Breach Scope and Affected Data Subject Quantification (Art. 33(3))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 33(3) requires breach notifications to include the categories and approximate number of affected data subjects. This use case automates breach scoping by correlating incident indicators (compromised hosts, accounts, or data stores) with the personal data register to estimate the number and categories of affected individuals — accelerating the breach assessment that must be completed within the 72-hour notification window.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `` `notable` `` macro, ES Asset Framework, `gdpr_ropa_register.csv`, CIM Authentication data model
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") status!="Closed" earliest=-7d
+| eval compromised_systems=mvappend(src, dest)
+| mvexpand compromised_systems
+| lookup gdpr_ropa_register.csv system_name AS compromised_systems OUTPUT data_category, processing_activity, estimated_data_subjects
+| where isnotnull(data_category)
+| stats sum(estimated_data_subjects) as total_affected_subjects, values(data_category) as data_categories, dc(compromised_systems) as systems_affected by rule_name, urgency
+| eval notification_required=if(total_affected_subjects > 0, "LIKELY — Art. 33 notification to DPA", "Assess further")
+| eval individual_notification=if(total_affected_subjects > 0 AND match(mvjoin(data_categories,","),"(?i)health|financial|special_category|biometric"), "LIKELY — Art. 34 notification to subjects", "Assess further")
+| table rule_name, urgency, systems_affected, total_affected_subjects, data_categories, notification_required, individual_notification
+```
+- **Implementation:** (1) Add `estimated_data_subjects` field to `gdpr_ropa_register.csv` (approximate count of records/individuals per system); (2) tag ES notables that represent personal data breaches with relevant compromised hosts; (3) auto-calculate affected scope within minutes of breach detection; (4) use output to pre-populate Art. 33 notification forms; (5) flag incidents involving special category data (Art. 9) for Art. 34 direct notification to affected individuals.
+- **Visualization:** Single value (estimated affected subjects), Table (breach scope by incident), Bar chart (data categories involved), Map (affected systems).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.13 · GDPR High-Risk Breach Communication to Data Subjects (Art. 34)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 34 requires controllers to communicate personal data breaches directly to affected data subjects "without undue delay" when the breach is likely to result in a high risk to their rights and freedoms. While Art. 33 covers DPA notification, Art. 34 addresses the often-overlooked obligation to notify individuals. This use case tracks whether high-risk breaches have triggered individual notification workflows and monitors their completion.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `` `notable` `` macro, `index=itsm` (notification workflow tickets), `gdpr_breach_notifications.csv` (KV store)
+- **SPL:**
+```spl
+`notable` urgency="critical" earliest=-30d
+| lookup gdpr_breach_notifications.csv notable_id AS event_id OUTPUT art33_notified, art34_required, art34_notified, art34_date, subjects_notified_count
+| eval art34_status=case(
+    art34_required="yes" AND art34_notified="yes", "COMPLETE",
+    art34_required="yes" AND isnull(art34_notified), "PENDING — notify subjects",
+    art34_required="no", "Not required",
+    isnull(art34_required), "ASSESS — determine if Art.34 applies",
+    1=1, "Unknown")
+| where art34_status IN ("PENDING — notify subjects", "ASSESS — determine if Art.34 applies")
+| table _time, rule_name, urgency, owner, art33_notified, art34_required, art34_status
+| sort - _time
+```
+- **Implementation:** (1) Create `gdpr_breach_notifications.csv` KV store linking notable IDs to notification status; (2) when a breach involves special category data, financial data, or affects >1000 subjects, default `art34_required` to "yes"; (3) alert the DPO on pending Art. 34 notifications; (4) track notification method (email, letter, public notice) and completion dates; (5) document Art. 34(3) exceptions (encrypted data, mitigation applied, disproportionate effort requiring public communication).
+- **Visualization:** Table (pending individual notifications), Single value (breaches requiring Art. 34 notification), Bar chart (notification status distribution), Timeline (notification lifecycle).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.14 · GDPR Data Protection Impact Assessment Coverage (Art. 35)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 35 requires a Data Protection Impact Assessment (DPIA) for processing likely to result in high risk — including systematic monitoring of public areas, large-scale processing of special categories, and automated decision-making with legal effects. This use case tracks DPIA completion against processing activities identified in the ROPA, flags high-risk processing without DPIA coverage, and monitors for new processing activities that may require a DPIA.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Data Sources:** `gdpr_ropa_register.csv`, `gdpr_dpia_register.csv` (DPIA records), ES Asset Framework
+- **SPL:**
+```spl
+| inputlookup gdpr_ropa_register.csv
+| eval high_risk=case(
+    match(lower(processing_activity),"(?i)profil|automat|scoring|systematic.monitor|biometric|genetic|health|ethnic|political|religious|trade.union|criminal"), "HIGH_RISK",
+    match(lower(data_category),"(?i)special_category|sensitive|health|biometric|genetic"), "HIGH_RISK",
+    match(lower(scale),"(?i)large"), "HIGH_RISK",
+    1=1, "Standard")
+| where high_risk="HIGH_RISK"
+| lookup gdpr_dpia_register.csv processing_activity OUTPUT dpia_status, dpia_date, dpia_reviewer, residual_risk
+| eval dpia_coverage=case(
+    dpia_status="completed", "COVERED",
+    dpia_status="in_progress", "IN_PROGRESS",
+    isnull(dpia_status), "MISSING — DPIA REQUIRED")
+| eval review_overdue=if(isnotnull(dpia_date) AND (now()-strptime(dpia_date,"%Y-%m-%d"))/86400 > 730, "REVIEW_DUE", "OK")
+| where dpia_coverage="MISSING — DPIA REQUIRED" OR review_overdue="REVIEW_DUE"
+| table processing_activity, system_name, data_category, high_risk, dpia_coverage, dpia_date, review_overdue
+| sort dpia_coverage
+```
+- **Implementation:** (1) Maintain `gdpr_dpia_register.csv` with DPIA records linked to ROPA processing activities; (2) auto-classify high-risk processing using Art. 35(3) criteria and DPA guidance lists; (3) alert the DPO on processing activities lacking DPIA coverage; (4) flag DPIAs not reviewed in >2 years; (5) when new systems appear in authentication logs without ROPA entries (UC-22.1.8), flag them for DPIA assessment.
+- **Visualization:** Table (DPIA coverage gaps), Pie chart (covered vs missing vs in-progress), Single value (missing DPIAs count), Bar chart (high-risk processing by category).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.15 · GDPR Third-Party Processor Compliance Monitoring (Art. 28)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 28 requires controllers to use only processors providing sufficient guarantees and to monitor their compliance. This use case tracks data flows to processors, monitors their security posture indicators, detects data transfers exceeding agreed scope, and flags processors with overdue security assessments — providing continuous evidence that processor oversight is active, not just contractual.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Network_Traffic data model, proxy/firewall logs, `gdpr_processor_register.csv`
+- **SPL:**
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as sources
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.action="allowed"
+  by All_Traffic.dest
+| rename All_Traffic.* as *
+| lookup gdpr_processor_register.csv dest_domain AS dest OUTPUT processor_name, dpa_signed, last_audit_date, approved_data_categories, sub_processors
+| where isnotnull(processor_name)
+| eval days_since_audit=if(isnotnull(last_audit_date), round((now()-strptime(last_audit_date,"%Y-%m-%d"))/86400,0), 9999)
+| eval audit_status=case(days_since_audit > 365, "OVERDUE", days_since_audit > 270, "DUE_SOON", 1=1, "CURRENT")
+| eval bytes_gb=round(bytes_out/1073741824, 2)
+| sort - bytes_gb
+| table dest, processor_name, dpa_signed, bytes_gb, sources, audit_status, days_since_audit, sub_processors
+```
+- **Implementation:** (1) Build `gdpr_processor_register.csv` from your Art. 28 processor inventory with destination domains/IPs, DPA status, and audit dates; (2) monitor actual data transfer volumes to each processor; (3) alert on processors with overdue audits or unsigned DPAs; (4) detect unexpected volume spikes indicating scope creep; (5) track sub-processor changes reported by primary processors.
+- **Visualization:** Table (processor compliance status), Bar chart (data transfer by processor), Single value (overdue audits count), Timeline (transfer volume trends).
+- **CIM Models:** Network_Traffic
+
+---
+
+### UC-22.1.16 · GDPR Consent Withdrawal Processing Enforcement (Art. 7(3))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 7(3) requires that withdrawal of consent be as easy as giving consent, and processing based on consent must stop after withdrawal. While UC-22.1.5 tracks the consent audit trail, this use case verifies that processing actually ceases after a data subject withdraws consent — detecting systems that continue sending marketing communications, tracking cookies, or processing data for purposes that relied on the withdrawn consent.
+- **App/TA:** Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), HTTP Event Collector (HEC)
+- **Data Sources:** `index=consent` (consent management platform events), `index=email` (marketing automation logs), `index=web` (tracking/analytics events), application audit logs
+- **SPL:**
+```spl
+| inputlookup gdpr_consent_withdrawals.csv WHERE withdrawal_date!=""
+| eval withdrawal_epoch=strptime(withdrawal_date, "%Y-%m-%d")
+| eval subject_hash=subject_identifier
+| join type=left subject_hash [
+    search (index=email OR index=marketing) earliest=-30d
+    | eval subject_hash=coalesce(recipient_hash, subscriber_id, user_hash)
+    | where isnotnull(subject_hash)
+    | stats count as post_withdrawal_events, latest(_time) as last_processing_time by subject_hash
+]
+| where isnotnull(post_withdrawal_events) AND last_processing_time > withdrawal_epoch
+| eval days_processing_after_withdrawal=round((last_processing_time - withdrawal_epoch)/86400, 1)
+| sort - days_processing_after_withdrawal
+| table subject_hash, withdrawal_date, consent_purpose, post_withdrawal_events, days_processing_after_withdrawal
+```
+- **Implementation:** (1) Export consent withdrawal events from your CMP (OneTrust, Cookiebot, custom) to `gdpr_consent_withdrawals.csv` with hashed subject identifiers and consent purposes; (2) search marketing automation and tracking systems for activity after withdrawal dates; (3) alert on any processing found after withdrawal; (4) escalate to marketing operations for immediate suppression; (5) document remediation for accountability evidence.
+- **Visualization:** Table (subjects with post-withdrawal processing), Single value (violations found), Bar chart (violations by consent purpose), Timeline (violation discovery).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.17 · GDPR Audit Log Integrity and Tamper Protection (Art. 5(2))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 5(2) requires controllers to demonstrate compliance (accountability principle). Audit logs are the primary evidence mechanism, but logs that can be tampered with have no evidentiary value. This use case monitors Splunk's internal audit trail for suspicious activities — index deletions, user-capability changes, search-time data manipulation, and modifications to retention settings — ensuring the integrity of the very evidence used to prove GDPR compliance.
+- **App/TA:** Splunk Enterprise / Splunk Cloud Platform (native audit capabilities)
+- **Data Sources:** `index=_audit` (Splunk audit logs), `index=_internal` (Splunk internal logs)
+- **SPL:**
+```spl
+index=_audit earliest=-24h
+| where match(action,"(?i)delete|edit_user|change_own_password|edit_roles|search")
+  AND (match(info,"(?i)index.*delete|frozen|retire|capabilities|admin")
+       OR match(action,"(?i)delete_index_data|edit_index"))
+| eval risk_signal=case(
+    match(action,"(?i)delete_index_data"), "INDEX_DATA_DELETION",
+    match(info,"(?i)capabilities.*admin|role.*admin"), "PRIVILEGE_ESCALATION",
+    match(info,"(?i)frozen|retire|retention"), "RETENTION_CHANGE",
+    1=1, "AUDIT_MODIFICATION")
+| stats count by user, action, risk_signal, info
+| sort - count
+| table _time, user, action, risk_signal, info, count
+```
+- **Implementation:** (1) Enable Splunk audit logging (enabled by default); (2) forward `_audit` events to a separate, restricted index with extended retention; (3) alert on index data deletions, retention setting changes, and admin privilege modifications; (4) restrict `_audit` index access to compliance/security teams only; (5) consider Splunk Cloud's immutable audit trail as the source of truth for regulatory evidence.
+- **Visualization:** Table (suspicious audit events), Timeline (audit modifications), Bar chart (events by risk signal), Single value (high-risk events today).
+- **CIM Models:** Change
+
+---
+
+### UC-22.1.18 · GDPR Automated Decision-Making and Profiling Transparency (Art. 22)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 22 gives data subjects the right not to be subject to decisions based solely on automated processing that produce legal or similarly significant effects. This use case monitors automated decision-making systems (credit scoring, fraud detection, HR screening, insurance pricing) for transparency — tracking decision volumes, override rates, and appeal/challenge requests to ensure human review is available and exercised.
+- **App/TA:** HTTP Event Collector (HEC — structured decision logs)
+- **Data Sources:** `index=decisions` (automated decision system audit logs via HEC), `index=itsm` (appeal/challenge tickets)
+- **SPL:**
+```spl
+index=decisions sourcetype="automated_decision" earliest=-30d
+| eval decision_type=coalesce(decision_type, model_name, system_name)
+| eval human_reviewed=if(match(lower(_raw),"(?i)manual.*review|human.*override|appeal.*granted|escalat"), 1, 0)
+| eval adverse=if(match(lower(outcome),"(?i)denied|rejected|declined|flagged|high.risk"), 1, 0)
+| stats count as total_decisions, sum(adverse) as adverse_decisions, sum(human_reviewed) as reviewed_by_human by decision_type
+| eval adverse_pct=round(100*adverse_decisions/total_decisions, 1)
+| eval human_review_pct=round(100*reviewed_by_human/total_decisions, 1)
+| eval compliance_risk=if(adverse_pct > 10 AND human_review_pct < 5, "HIGH — low human review of adverse decisions", "Monitor")
+| table decision_type, total_decisions, adverse_decisions, adverse_pct, reviewed_by_human, human_review_pct, compliance_risk
+```
+- **Implementation:** (1) Instrument automated decision systems to emit structured audit logs via HEC with decision type, outcome, data inputs used, and human review flags; (2) track Art. 22(3) challenge/appeal requests through ITSM; (3) alert when adverse decision rates are high but human review rates are low; (4) report on decision transparency for DPO annual review; (5) ensure data subjects are informed about automated decision-making per Art. 13(2)(f) and Art. 14(2)(g).
+- **Visualization:** Bar chart (decisions by type and outcome), Table (low human review systems), Single value (overall human review rate), Line chart (adverse decision trends).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.19 · GDPR Data Subject Rights Response SLA Dashboard (Art. 12)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Article 12 requires controllers to respond to data subject rights requests "without undue delay and in any event within one month," extendable by two months for complex requests with explanation to the data subject. While UC-22.1.2 focuses on DSARs specifically, this use case provides an executive dashboard across all rights (access, rectification, erasure, restriction, portability, objection) with SLA tracking, volume trends, and cost-per-request metrics — the compliance KPI view that DPOs and boards need.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` `sourcetype="snow:sc_req_item"` (all data subject rights requests)
+- **SPL:**
+```spl
+index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
+    (cat_item="*Subject*" OR short_description="*DSAR*" OR short_description="*data subject*" OR short_description="*erasure*" OR short_description="*rectification*" OR short_description="*portability*" OR short_description="*objection*" OR short_description="*restriction*")
+| eval right_type=case(
+    match(lower(short_description),"(?i)access|dsar|subject.access"), "Access (Art.15)",
+    match(lower(short_description),"(?i)erasure|forget|deletion"), "Erasure (Art.17)",
+    match(lower(short_description),"(?i)rectif"), "Rectification (Art.16)",
+    match(lower(short_description),"(?i)portab"), "Portability (Art.20)",
+    match(lower(short_description),"(?i)object"), "Objection (Art.21)",
+    match(lower(short_description),"(?i)restrict"), "Restriction (Art.18)",
+    1=1, "Other")
+| eval opened_epoch=strptime(opened_at,"%Y-%m-%d %H:%M:%S")
+| eval closed_epoch=if(isnotnull(closed_at), strptime(closed_at,"%Y-%m-%d %H:%M:%S"), null())
+| eval response_days=if(isnotnull(closed_epoch), round((closed_epoch-opened_epoch)/86400,1), round((now()-opened_epoch)/86400,1))
+| eval sla_status=case(
+    isnotnull(closed_epoch) AND response_days<=30, "Met",
+    isnotnull(closed_epoch) AND response_days<=90, "Extended (Art.12(3))",
+    isnotnull(closed_epoch) AND response_days>90, "BREACHED",
+    isnull(closed_epoch) AND response_days>25, "AT_RISK",
+    1=1, "In Progress")
+| stats count by right_type, sla_status
+| chart sum(count) by right_type, sla_status
+```
+- **Implementation:** (1) Standardise ServiceNow catalog items or incident categories for each GDPR right type; (2) train intake teams to classify correctly; (3) schedule daily; (4) alert on AT_RISK requests approaching 30-day deadline; (5) report monthly on volume trends, SLA compliance rates, and average response times by right type.
+- **Visualization:** Stacked bar chart (rights by SLA status), Single value (overall SLA compliance %), Table (at-risk requests), Line chart (monthly volume trend by right type), Pie chart (requests by right type).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.1.20 · GDPR Legitimate Interest Balancing Test Evidence (Art. 6(1)(f))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** GDPR
+- **Value:** Legitimate interest (Art. 6(1)(f)) is the most commonly misused legal basis — regulators have fined LinkedIn €310M and others hundreds of millions for relying on legitimate interest without proper balancing tests. This use case tracks which processing activities use legitimate interest as their legal basis, monitors whether balancing test documentation exists and is current, and detects processing scope creep beyond the original legitimate interest assessment — addressing the enforcement area that generates the highest fines in 2025-2026.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Data Sources:** `gdpr_ropa_register.csv`, `gdpr_lia_register.csv` (Legitimate Interest Assessments), CIM Network_Traffic data model
+- **SPL:**
+```spl
+| inputlookup gdpr_ropa_register.csv WHERE legal_basis="legitimate_interest"
+| lookup gdpr_lia_register.csv processing_activity OUTPUT lia_status, lia_date, lia_reviewer, lia_outcome, data_subject_objections
+| eval lia_coverage=case(
+    lia_status="completed" AND lia_outcome="justified", "JUSTIFIED",
+    lia_status="completed" AND lia_outcome="not_justified", "STOP_PROCESSING",
+    lia_status="in_progress", "IN_PROGRESS",
+    isnull(lia_status), "MISSING — LIA REQUIRED")
+| eval review_overdue=if(isnotnull(lia_date) AND (now()-strptime(lia_date,"%Y-%m-%d"))/86400 > 365, "REVIEW_DUE", "OK")
+| eval objection_rate=if(isnotnull(data_subject_objections) AND data_subject_objections > 10, "HIGH_OBJECTIONS — reassess", "Normal")
+| where lia_coverage IN ("MISSING — LIA REQUIRED", "STOP_PROCESSING") OR review_overdue="REVIEW_DUE" OR objection_rate="HIGH_OBJECTIONS — reassess"
+| table processing_activity, system_name, lia_coverage, lia_date, review_overdue, data_subject_objections, objection_rate
+| sort lia_coverage
+```
+- **Implementation:** (1) Tag ROPA entries using legitimate interest as legal basis; (2) maintain `gdpr_lia_register.csv` linking processing activities to Legitimate Interest Assessments; (3) alert on processing activities relying on legitimate interest without a completed LIA; (4) track data subject objections (Art. 21) per processing activity — high objection rates signal the balancing test may be failing; (5) flag LIAs not reviewed in >12 months; (6) stop processing immediately for any activity where LIA concludes "not justified."
+- **Visualization:** Table (LIA coverage gaps), Pie chart (LIA status distribution), Bar chart (objections by processing activity), Single value (missing LIAs count).
+- **CIM Models:** N/A
 
 ---
 

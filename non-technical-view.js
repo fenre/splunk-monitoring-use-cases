@@ -911,10 +911,15 @@ window.NON_TECHNICAL = {
       "Spot compliance gaps before regulators or auditors find them."
     ],
     areas: [
-      { name: "Privacy regulations", description: "GDPR and CCPA — tracking personal data, handling data requests, and monitoring for breaches.", ucs: [
-        { id: "22.1.1", why: "Detect personal data appearing in application logs where it shouldn't be — a GDPR risk." },
-        { id: "22.1.3", why: "Monitor breach notification timelines — GDPR requires notification within 72 hours." },
-        { id: "22.4.1", why: "Track CCPA consumer data requests — access and deletion requests must be handled on time." }
+      { name: "GDPR compliance", description: "EU General Data Protection Regulation — personal data detection, breach notification, data subject rights, processor oversight, DPIA tracking, consent enforcement, and audit log integrity across all key GDPR articles.", ucs: [
+        { id: "22.1.7", why: "Monitor encryption and pseudonymisation of systems processing personal data — Article 32 requires appropriate security measures." },
+        { id: "22.1.11", why: "Verify that personal data is actually deleted after an erasure request — catching incomplete right-to-be-forgotten execution." },
+        { id: "22.1.12", why: "Automatically estimate how many people are affected by a breach — required for the 72-hour notification to the data protection authority." }
+      ]},
+      { name: "CCPA privacy", description: "California Consumer Privacy Act — consumer data requests, opt-out tracking, and sale-of-data monitoring.", ucs: [
+        { id: "22.4.1", why: "Track CCPA consumer data requests — access and deletion requests must be handled on time." },
+        { id: "22.1.1", why: "Detect personal data appearing in application logs where it shouldn't be." },
+        { id: "22.1.4", why: "Monitor data retention policy enforcement — storage limitation applies across privacy regulations." }
       ]},
       { name: "NIS2 compliance", description: "EU NIS2 directive — incident reporting timelines, supply chain risk, encryption monitoring, MFA enforcement, training tracking, and board-level governance evidence across all ten Article 21 measures.", ucs: [
         { id: "22.2.1", why: "Track NIS2 incident detection and 24-hour early warning reporting obligations." },

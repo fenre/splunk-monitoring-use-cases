@@ -22,6 +22,29 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.5] - 2026-03-26
+
+### GDPR — Comprehensive Article Coverage Expansion
+
+- **14 new GDPR use cases** (UC-22.1.7 through UC-22.1.20), expanding coverage from 6 to 20 dedicated UCs.
+- **Art. 32 — Security of Processing**: encryption and pseudonymisation coverage monitoring for personal data systems.
+- **Art. 30 — Records of Processing Activities**: ROPA completeness validation against observed data flows.
+- **Art. 25 — Data Protection by Design**: data minimisation validation detecting over-collection of PII.
+- **Art. 5(1)(f) / Art. 32 — Integrity and Confidentiality**: privileged access monitoring for personal data stores (databases, file systems).
+- **Art. 17 — Right to Erasure Verification**: post-deletion scanning to catch incomplete "right to be forgotten" execution.
+- **Art. 33(3) — Breach Scope Quantification**: automated estimation of affected data subjects for 72h notification.
+- **Art. 34 — Communication to Data Subjects**: tracking of high-risk breach individual notification workflows.
+- **Art. 35 — DPIA Coverage**: monitoring that Data Protection Impact Assessments exist for high-risk processing.
+- **Art. 28 — Processor Compliance**: continuous monitoring of data flows to third-party processors.
+- **Art. 7(3) — Consent Withdrawal Enforcement**: verification that processing stops after consent is withdrawn.
+- **Art. 5(2) — Audit Log Integrity**: tamper detection for the evidence trail used to prove GDPR compliance.
+- **Art. 22 — Automated Decision-Making Transparency**: monitoring decision volumes, override rates, and appeal handling.
+- **Art. 12 — Data Subject Rights SLA Dashboard**: executive view across all rights with SLA tracking.
+- **Art. 6(1)(f) — Legitimate Interest Balancing**: LIA coverage and objection monitoring — the highest-fine enforcement area in 2025-2026.
+- Catalog crosses **5,000 use cases** milestone with this release.
+
+---
+
 ## [4.4] - 2026-03-26
 
 ### NIS2 Directive — Full Article 21 & Article 23 Coverage
