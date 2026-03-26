@@ -22,6 +22,28 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [5.0] - 2026-03-26
+
+### Business Analytics & Executive Intelligence — New Category 23
+
+Major release: **New category 23** with 38 use cases across 9 subcategories, bringing non-technical, business-aligned use cases into the catalog for the first time.
+
+- **23.1 Customer Experience & Digital Analytics** (6 UCs) — Conversion funnels, cart abandonment, page load revenue impact, NPS tracking, cross-channel attribution, mobile app crash rates.
+- **23.2 Revenue & Sales Operations** (5 UCs) — Pipeline velocity, revenue booking trends, churn prediction, renewal pipeline, pricing/discount effectiveness.
+- **23.3 Marketing Performance & Attribution** (4 UCs) — Campaign ROI by channel, lead-to-revenue funnel, email engagement, SEO/traffic source analysis.
+- **23.4 HR & People Analytics** (4 UCs) — Attrition analysis and flight risk, time-to-hire, diversity metrics, training compliance.
+- **23.5 Supply Chain & Operations** (4 UCs) — Order-to-cash cycle time, inventory stockout risk, supplier OTIF, delivery SLA compliance.
+- **23.6 Financial Operations & Procurement** (4 UCs) — AR aging/DSO, expense anomaly detection, budget vs actual variance, payment processing success.
+- **23.7 Customer Support & Service Excellence** (3 UCs) — Ticket volume/SLA, first-contact resolution, customer effort scoring.
+- **23.8 Executive Dashboards & Business KPIs** (3 UCs) — CEO/CFO scorecard, operational efficiency metrics, business risk heatmap.
+- **23.9 ESG & Sustainability Reporting** (5 UCs) — Carbon footprint, energy efficiency, waste diversion, water conservation, ESG disclosure readiness.
+
+These use cases are written for non-technical stakeholders (CFOs, CMOs, CHROs, COOs) and focus on business outcomes rather than technical mechanisms. All are implementable with Splunk using DB Connect, HEC, web access logs, and standard integrations.
+
+Catalog now at 5,054 use cases across 23 categories.
+
+---
+
 ## [4.6] - 2026-03-26
 
 ### DORA — Full Digital Operational Resilience Coverage

@@ -947,5 +947,59 @@ window.NON_TECHNICAL = {
         { id: "22.9.3", why: "We monitor pass rates by control domain — so weak domains get attention before an assessment finds them first." }
       ]}
     ]
+  },
+  "23": {
+    outcomes: [
+      "We turn your business data into actionable insights — revenue performance, customer behaviour, marketing effectiveness, and operational efficiency all in one place.",
+      "We help you see the numbers that matter to the boardroom, not just the server room — customer churn, pipeline health, hiring velocity, and supplier performance.",
+      "We detect business anomalies early — revenue shortfalls, expense fraud, stockouts, and SLA breaches — so you can act before they become crises."
+    ],
+    areas: [
+      { name: "Customer experience", description: "We track how customers interact with your website and apps — where they drop off, what makes them buy, and how satisfied they are.", ucs: [
+        { id: "23.1.1", why: "We show where customers abandon the purchase journey — so you fix the step that loses the most revenue." },
+        { id: "23.1.2", why: "We measure cart abandonment and its revenue impact — so you know how much money walks out the digital door." },
+        { id: "23.1.4", why: "We track customer satisfaction scores over time — so you spot drops before they become churn." }
+      ]},
+      { name: "Revenue & sales", description: "We monitor your sales pipeline, bookings, churn risk, and pricing — giving leadership a live view of revenue health instead of waiting for month-end reports.", ucs: [
+        { id: "23.2.1", why: "We track how fast deals move through the pipeline — so you know if you'll hit the quarterly target." },
+        { id: "23.2.2", why: "We show revenue bookings against plan in near-real-time — so mid-course corrections happen while there's still time." },
+        { id: "23.2.3", why: "We identify customers showing churn risk signals — so you can save accounts before they cancel." }
+      ]},
+      { name: "Marketing performance", description: "We connect marketing spend to revenue — showing which campaigns and channels actually deliver return on investment.", ucs: [
+        { id: "23.3.1", why: "We calculate ROI for each marketing channel — so you invest in what works and cut what doesn't." },
+        { id: "23.3.2", why: "We track the full lead-to-revenue funnel — so you see where leads leak and whether marketing delivers quality." },
+        { id: "23.3.3", why: "We consolidate email campaign performance — so you see which messages drive engagement and which drive unsubscribes." }
+      ]},
+      { name: "People & HR analytics", description: "We help HR leaders understand their workforce — attrition patterns, hiring speed, diversity progress, and training compliance.", ucs: [
+        { id: "23.4.1", why: "We analyse where people are leaving and why — so you can act before losing key talent." },
+        { id: "23.4.2", why: "We track how long it takes to fill positions — so you spot hiring bottlenecks before they hurt the business." },
+        { id: "23.4.4", why: "We monitor mandatory training completion — so you're audit-ready and your people are up to date." }
+      ]},
+      { name: "Supply chain & operations", description: "We track orders, inventory, suppliers, and deliveries — showing where your operations are smooth and where they're breaking down.", ucs: [
+        { id: "23.5.1", why: "We measure the order-to-cash cycle — so you see which stages are slow and where cash gets stuck." },
+        { id: "23.5.2", why: "We flag products about to run out of stock — so you avoid lost sales and unhappy customers." },
+        { id: "23.5.3", why: "We score supplier delivery performance — so you know which partners you can rely on." }
+      ]},
+      { name: "Finance & procurement", description: "We monitor cash collection, expenses, budgets, and payment processing — catching anomalies and variance before they become problems.", ucs: [
+        { id: "23.6.1", why: "We show outstanding receivables by age — so you collect cash before debts go bad." },
+        { id: "23.6.2", why: "We detect unusual expense patterns — so policy violations and potential fraud are caught early." },
+        { id: "23.6.4", why: "We monitor payment gateway success rates — because every declined payment is lost revenue." }
+      ]},
+      { name: "Customer support", description: "We measure support quality — resolution times, first-contact resolution, customer effort — so you deliver excellent service efficiently.", ucs: [
+        { id: "23.7.1", why: "We show ticket volume, backlog, and SLA compliance — so support leaders know where to focus." },
+        { id: "23.7.2", why: "We track first-contact resolution rates — because resolving issues without escalation saves money and makes customers happier." },
+        { id: "23.7.3", why: "We measure how much effort customers expend to get help — so you can simplify the hardest experiences." }
+      ]},
+      { name: "Executive dashboards", description: "We build the board-level view — 8-12 KPIs covering revenue, customers, people, and risk on a single page that's always current.", ucs: [
+        { id: "23.8.1", why: "A single scorecard with the metrics the CEO and CFO check every week — always live, never stale." },
+        { id: "23.8.2", why: "Operational efficiency metrics — revenue per employee, automation rate, cost per transaction — showing if you're getting more productive." },
+        { id: "23.8.3", why: "A consolidated risk heatmap across financial, operational, customer, people, and cyber domains — one view of all business risks." }
+      ]},
+      { name: "ESG & sustainability", description: "We track environmental, social, and governance metrics — carbon emissions, energy use, waste, water, and reporting readiness for mandatory disclosures.", ucs: [
+        { id: "23.9.1", why: "We track carbon emissions across Scope 1, 2, and 3 — so you measure progress toward net-zero commitments." },
+        { id: "23.9.2", why: "We monitor energy consumption per facility — so you find waste and prove efficiency improvements." },
+        { id: "23.9.5", why: "We check whether your ESG data is complete before reporting deadlines — so there are no last-minute scrambles." }
+      ]}
+    ]
   }
 };
