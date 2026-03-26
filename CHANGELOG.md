@@ -10,6 +10,14 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.9] - 2026-03-26
+
+### Cisco Cyber Vision OT Security
+
+- **25 new Cisco Cyber Vision use cases (14.9.1–14.9.25)** — Comprehensive OT/ICS security monitoring using Cisco Cyber Vision's Splunk Add-On (Splunkbase 5748) and syslog/CEF integration. Covers OT asset discovery and inventory tracking, new device detection alerts, vulnerability/CVE tracking with CVSS scoring, risk score monitoring, baseline deviation detection, Snort IDS threat detection with Talos rules, PLC program download/upload detection, controller firmware activation, forced variable detection, control action monitoring, controller mode changes (online/offline/force/CPU start-stop), new communication flow detection, protocol exception monitoring, authentication failure detection, admin connection tracking, port scan detection, weak encryption identification, SMB protocol activity in OT networks, network redundancy failover events, sensor health and resource monitoring, administration audit trail, IEC 62443 zone and conduit compliance, security posture dashboard, OT protocol usage analysis, and decode failure/malformed packet detection.
+
+---
+
 ## [3.8] - 2026-03-26
 
 ### Building Management & Smart Buildings

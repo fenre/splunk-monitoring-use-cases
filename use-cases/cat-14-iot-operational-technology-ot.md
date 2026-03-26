@@ -4662,3 +4662,563 @@ index=ot sourcetype IN ("edge_hub:anomaly","edge_hub:alert") earliest=-90d@d
 - **CIM Models:** Operational Telemetry (Maintenance / Security) as applicable; otherwise N/A
 
 ---
+
+
+### 14.9 Cisco Cyber Vision (OT Security)
+
+**Primary App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748), `Cisco Cyber Vision Splunk App`. Requires Cyber Vision Advantage license and v5.1.0+.
+
+**Data Sources:** API inputs (`cisco:cybervision:device`, `cisco:cybervision:event`, `cisco:cybervision:vulnerability`, `cisco:cybervision:flow`, `cisco:cybervision:activity`) and syslog (`cisco:cybervision:syslog` in CEF format).
+
+---
+
+### UC-14.9.1 · OT Asset Discovery and Inventory Tracking (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Inventory
+- **Value:** You cannot secure what you do not know exists. Cyber Vision passively discovers every device on your OT network via deep packet inspection of industrial protocols — PLCs, HMIs, drives, field devices — and builds an always-current inventory with vendor, model, firmware, serial number, and rack slot. This eliminates manual spreadsheets and provides the foundation for all other OT security use cases.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:device`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:device"
+| stats dc(device_id) as total_devices, dc(vendor) as vendors, values(vendor) as vendor_list by site_name
+| eval device_summary=total_devices." devices from ".vendors." vendors"
+| table site_name, total_devices, vendors, vendor_list, device_summary
+```
+- **Implementation:** Configure Cyber Vision Splunk Add-On with API token from Cyber Vision Center. Add "Devices" input with appropriate polling interval (e.g. 3600s). All discovered assets are automatically ingested. Use device data as the authoritative OT asset inventory for compliance and security programs.
+- **Visualization:** Asset count single value; vendor breakdown pie chart; device table with firmware versions; site comparison bar chart.
+- **CIM Models:** Asset Inventory
+
+---
+
+### UC-14.9.2 · New OT Device Detection Alert (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Any new device appearing on a baselined OT network is a potential threat — rogue devices, unauthorized laptops, or attacker implants. Cyber Vision detects new components automatically and generates `component_new` events. Immediate alerting enables rapid investigation before a threat can spread.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="new_component"
+| rex field=msg "New component detected on the network: IP (?<new_ip>[^,]+), MAC (?<new_mac>[^\s]+)"
+| table _time, new_ip, new_mac, SCVSensorId, SCVComponentId
+| sort -_time
+```
+- **Implementation:** Forward Cyber Vision syslog to Splunk (CEF format via TCP/TLS). Alert on any `component_new` event. Enrich with sensor location to identify physical site. Cross-reference against approved asset list. Investigate unauthorized devices within SLA.
+- **Visualization:** New device alert timeline; device location map by sensor; unauthorized device table.
+- **CIM Models:** Network Traffic, Change
+
+---
+
+### UC-14.9.3 · OT Asset Vulnerability Detection and CVE Tracking (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cyber Vision automatically matches discovered OT assets against known CVEs, generating `vuln_detect` events with CVE ID, CVSS score, and affected component. This eliminates manual vulnerability scanning in sensitive OT environments where active scanners can disrupt processes.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:vulnerability`, `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:vulnerability"
+| eval cvss_severity=case(cvss_score>=9.0, "Critical", cvss_score>=7.0, "High", cvss_score>=4.0, "Medium", cvss_score<4.0, "Low")
+| stats count as vuln_count, max(cvss_score) as max_cvss, values(cve_id) as cve_list by device_name, device_ip, vendor, model
+| where max_cvss >= 7.0
+| sort -max_cvss
+| table device_name, device_ip, vendor, model, vuln_count, max_cvss, cve_list
+```
+- **Implementation:** Enable "Vulnerabilities" input in the Splunk add-on. Cyber Vision's knowledge base is updated weekly with latest CVEs from Cisco Talos. Track vulnerability counts per asset. Prioritize remediation by CVSS severity and asset criticality. Track acknowledged vs unacknowledged vulnerabilities for compliance.
+- **Visualization:** Vulnerability count by severity pie chart; top 10 vulnerable assets table; CVE trend over time; CVSS distribution histogram.
+- **CIM Models:** Vulnerabilities
+
+---
+
+### UC-14.9.4 · OT Asset Risk Score Monitoring (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Cyber Vision calculates composite risk scores per device considering vulnerabilities, communication patterns, and security posture. Monitoring risk score changes over time shows whether your OT security posture is improving or degrading, and highlights which assets need immediate attention.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:device`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:device" risk_score=*
+| stats latest(risk_score) as current_risk, earliest(risk_score) as previous_risk by device_id, device_name, device_ip, site_name
+| eval risk_change=current_risk - previous_risk
+| eval risk_level=case(current_risk>=80, "Critical", current_risk>=60, "High", current_risk>=40, "Medium", current_risk<40, "Low")
+| eval trend=case(risk_change>10, "Worsening", risk_change<-10, "Improving", 1=1, "Stable")
+| where current_risk >= 60
+| sort -current_risk
+| table device_name, device_ip, site_name, current_risk, risk_level, risk_change, trend
+```
+- **Implementation:** Poll device data with risk scores. Track score changes over time. Alert on assets crossing risk thresholds. Use risk scores to prioritize patching and segmentation efforts. Report on overall risk posture trends for management.
+- **Visualization:** Risk distribution gauge; high-risk asset table; risk trend line per site; risk heatmap by asset group.
+- **CIM Models:** Asset Inventory
+
+---
+
+### UC-14.9.5 · Baseline Deviation Detection (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cyber Vision baselines capture normal network behavior — which devices talk to which, over what protocols, at what frequency. Deviations from baseline trigger `baseline_differences` events, detecting unauthorized communication changes, new data flows, or behavioral shifts that could indicate compromise or misconfiguration.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("baseline_differences", "baseline_difference_nack")
+| rex field=msg "Baseline '(?<baseline_name>[^']+)' got (?<diff_count>\d+) difference"
+| eval severity_label=case(severity="3", "Critical", severity="2", "High", severity="1", "Medium", severity="0", "Low")
+| stats count as total_deviations, sum(diff_count) as total_diffs, values(baseline_name) as baselines_affected by severity_label, _time
+| sort -severity_label
+| table _time, severity_label, baselines_affected, total_deviations, total_diffs
+```
+- **Implementation:** Create baselines in Cyber Vision for critical production zones. Enable baseline monitoring mode. Forward deviation events to Splunk. Alert on any Critical or High severity deviations. Investigate and either acknowledge (legitimate change) or escalate (potential threat). Track unresolved deviations.
+- **Visualization:** Deviation event timeline; baseline status dashboard; unresolved deviation count; severity distribution.
+- **CIM Models:** Change, Intrusion Detection
+
+---
+
+### UC-14.9.6 · Snort IDS Threat Detection on OT Networks (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cyber Vision embeds the Snort IDS engine with weekly Talos rule updates (including Shared Object rules) to detect known threats — malware, C2 traffic, exploit attempts — crossing into OT networks. This provides signature-based threat detection without deploying separate IDS appliances in sensitive OT environments.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="snort_event"
+| rename SCVSnortEventMsg as signature, SCVSnortEventSid as sid, SCVSnortEventSrcAddr as src_ip, SCVSnortEventDstAddr as dest_ip, SCVSnortEventSrcPort as src_port, SCVSnortEventDstPort as dest_port
+| eval severity_label=case(severity="3", "Critical", severity="2", "High", severity="1", "Medium", severity="0", "Low")
+| stats count as hits, values(signature) as signatures, dc(dest_ip) as targets by src_ip, severity_label
+| where severity_label IN ("Critical", "High")
+| sort -hits
+| table src_ip, severity_label, hits, targets, signatures
+```
+- **Implementation:** Enable Snort IDS on Cyber Vision sensors (requires 4GB RAM on sensor platform). Configure Talos subscription for weekly rule updates. Forward IDS events to Splunk via syslog. Correlate with IT security events in Splunk ES for unified threat detection. Alert SOC on Critical/High severity IDS hits targeting OT assets.
+- **Visualization:** IDS alert timeline; top source IPs table; signature hit frequency chart; OT target heatmap.
+- **CIM Models:** Intrusion Detection
+
+---
+
+### UC-14.9.7 · PLC Program Download/Upload Detection (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Unauthorized PLC program changes can alter physical processes with safety implications. Cyber Vision detects program download and upload events across industrial protocols (EtherNet/IP, S7, Modbus, Profinet) and generates Critical-severity `program_download` and `program_upload` events. Every program change must be verified against authorized change windows.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_program_downloaded", "flow_program_uploaded", "flow_program_download_started")
+| rename SCVFlowCmpaComponentId as source_id, SCVFlowCmpbComponentId as target_id
+| eval action=case(SCVEventtype="flow_program_downloaded", "Program Downloaded", SCVEventtype="flow_program_uploaded", "Program Uploaded", SCVEventtype="flow_program_download_started", "Download Initiated")
+| eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
+| eval outside_change_window=if((hour<6 OR hour>18) OR dow>5, "YES", "No")
+| table _time, action, cmp-a, cmp-b, source_id, target_id, outside_change_window, SCVSensorId
+| sort -_time
+```
+- **Implementation:** Alert on all program download/upload events. Cross-reference with change management system to validate authorized changes. Flag events outside approved maintenance windows. Require investigation and sign-off for every program change.
+- **Visualization:** Program change timeline; authorized vs unauthorized change chart; target PLC table; change window compliance gauge.
+- **CIM Models:** Change, Intrusion Detection
+
+---
+
+### UC-14.9.8 · Controller Firmware Activation Monitoring (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Firmware activation on a controller changes the software running the physical process. Unauthorized firmware changes are a key indicator of advanced OT attacks (e.g., Stuxnet-style). Cyber Vision detects `firmware_activation` events across supported industrial protocols and generates Critical-severity alerts.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="firmware_activation"
+| table _time, cmp-a, cmp-b, cmp-a-mac, cmp-b-mac, SCVSensorId, msg
+| sort -_time
+| join type=left cmp-b [| inputlookup ot_asset_inventory.csv | rename device_ip as cmp-b | fields cmp-b, device_name, zone, criticality]
+| table _time, cmp-a, cmp-b, device_name, zone, criticality, msg
+```
+- **Implementation:** Alert immediately on any firmware activation event. This is always high-priority. Cross-reference with approved change records. Investigate source of firmware (cmp-a) and target controller (cmp-b). Validate firmware version matches approved versions.
+- **Visualization:** Firmware activation event log; target controller details; change authorization correlation.
+- **CIM Models:** Change
+
+---
+
+### UC-14.9.9 · Forced Variable Detection in OT Processes (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Forcing a variable in a PLC overrides the normal program logic — the variable holds a fixed value regardless of what the control program calculates. While sometimes used legitimately during maintenance, forced variables left active in production can mask sensor readings and bypass safety logic. Cyber Vision detects `flow_forced_variable` events with variable name and value.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_forced_variable"
+| rename SCVFlowForcedVariableVarName as var_name, SCVFlowForcedVariableValue as forced_value
+| table _time, cmp-a, cmp-b, var_name, forced_value, SCVSensorId, msg
+| sort -_time
+```
+- **Implementation:** Alert on all forced variable events. Verify against active maintenance work orders. Track duration of forced variables — any that remain active longer than the maintenance window must be investigated. Maintain a running list of currently forced variables for shift handover awareness.
+- **Visualization:** Forced variable event log; active forces table; force duration tracker; variable name word cloud.
+- **CIM Models:** Change, Intrusion Detection
+
+---
+
+### UC-14.9.10 · Control Action Monitoring on Industrial Assets (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cyber Vision tracks `flow_control_action` events when a control system modifies process variables — setpoint changes, valve commands, motor start/stop. Monitoring these actions detects unauthorized process manipulation and provides an audit trail for root cause analysis of production incidents.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_control_action"
+| rename SCVFlowControlActionProcessName as process, SCVFlowControlActionVarName as variable, SCVFlowControlActionValue as new_value
+| bin _time span=1h
+| stats count as actions, dc(variable) as variables_changed, values(process) as processes by cmp-a, cmp-b, _time
+| where actions > 50
+| table _time, cmp-a, cmp-b, actions, variables_changed, processes
+| sort -actions
+```
+- **Implementation:** Baseline normal control action volume per source-target pair. Alert on spikes exceeding 2x baseline (mass parameter changes could indicate unauthorized batch modifications). Track who is making changes (source IP) and which controllers are targets. Correlate with operator shift schedules.
+- **Visualization:** Control action volume timeline; source-target relationship map; process change audit log.
+- **CIM Models:** Change
+
+---
+
+### UC-14.9.11 · Controller Mode Change Detection (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Cyber Vision detects when controllers are placed into online, offline, force, or run/stop modes — each a Critical-severity event. A controller taken offline stops controlling its physical process. An unauthorized mode change could halt production, disable safety systems, or prepare for a more destructive attack.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_online", "flow_offline", "flow_force_mode", "flow_start_cpu", "flow_stop_cpu", "flow_restart_cpu", "flow_reset_process", "flow_init")
+| eval action=case(
+    SCVEventtype="flow_online", "Online",
+    SCVEventtype="flow_offline", "Offline",
+    SCVEventtype="flow_force_mode", "Force Mode",
+    SCVEventtype="flow_start_cpu", "CPU Start",
+    SCVEventtype="flow_stop_cpu", "CPU Stop",
+    SCVEventtype="flow_restart_cpu", "CPU Restart",
+    SCVEventtype="flow_reset_process", "Process Reset",
+    SCVEventtype="flow_init", "Init")
+| table _time, action, cmp-a, cmp-b, SCVFlowProtocolEventDetected, SCVSensorId, msg
+| sort -_time
+```
+- **Implementation:** Alert immediately on any controller mode change. CPU Stop and Offline events are highest priority — they halt physical processes. Cross-reference with scheduled maintenance. Track frequency of mode changes per controller. Investigate any mode change from unexpected source IPs.
+- **Visualization:** Mode change timeline with color-coded severity; controller status dashboard; unauthorized source detection.
+- **CIM Models:** Change, Intrusion Detection
+
+---
+
+### UC-14.9.12 · New Communication Flow Detection (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** In a stable OT environment, the set of communication flows between devices should be predictable. Cyber Vision generates `communication_new` events when a previously unseen protocol flow appears between two components. New FTP, HTTP, or SSH flows in the control network may indicate lateral movement, data exfiltration, or unauthorized remote access tools.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_new"
+| rename SCVFlowCommunicationType as protocol
+| bin _time span=1d
+| stats count as new_flows, dc(protocol) as protocols, values(protocol) as protocol_list by _time
+| eval concern=if(new_flows > 10, "High — investigate burst of new flows", "Normal")
+| table _time, new_flows, protocols, protocol_list, concern
+```
+- **Implementation:** After initial learning period, alert on new communication flows. Prioritize IT protocols appearing in OT zones (FTP, SSH, HTTP, RDP, SMB). Correlate with baseline deviations. Investigate source and destination to determine if the flow is legitimate.
+- **Visualization:** New flow event timeline; protocol distribution chart; source-destination network graph.
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-14.9.13 · Protocol Exception Monitoring (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Protocol exceptions (`illegal-function`, `invalid-data-address`, malformed packets) detected by Cyber Vision's DPI indicate either misconfigured devices, faulty communication, or active exploitation attempts. An attacker probing Modbus function codes will trigger `illegal-function` exceptions. Repeated exceptions from a single source warrant investigation.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_exception"
+| rename SCVExceptionLabel as exception_type
+| stats count as exceptions, dc(exception_type) as exception_types, values(exception_type) as exception_list by cmp-a, cmp-b, SCVSensorId
+| where exceptions > 5
+| sort -exceptions
+| table cmp-a, cmp-b, exceptions, exception_types, exception_list, SCVSensorId
+```
+- **Implementation:** Baseline normal exception rates per flow. Alert on sudden spikes (>5 exceptions from single source in short window). Differentiate between known interoperability issues (constant low rate) and new attack patterns (sudden burst from unknown source). Feed into SOC correlation rules.
+- **Visualization:** Exception volume timeline; top exception source table; exception type distribution; attack pattern detection dashboard.
+- **CIM Models:** Intrusion Detection
+
+---
+
+### UC-14.9.14 · OT Device Authentication Failure Detection (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Cyber Vision detects `flow_login_failure` events including the number of failed authentication attempts and the protocol used. Brute-force login attempts against HMIs, engineering workstations, or web-enabled controllers indicate credential-based attacks that could lead to unauthorized process control.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_login_failure"
+| rename SCVFlowLoginFailureNumberOfAttempts as attempts, SCVFlowLoginFailureProtocol as protocol
+| stats sum(attempts) as total_failures, count as failure_events, values(protocol) as protocols by cmp-a, cmp-b
+| where total_failures >= 3
+| sort -total_failures
+| table cmp-a, cmp-b, total_failures, failure_events, protocols
+```
+- **Implementation:** Alert on repeated authentication failures, especially against critical OT assets (PLCs, RTUs, SIS controllers). Correlate source IP with known engineering workstations. Unknown sources attempting authentication are high priority. Feed into Splunk ES notable events.
+- **Visualization:** Failed auth timeline; top attack source table; target asset vulnerability assessment; brute force detection dashboard.
+- **CIM Models:** Authentication
+
+---
+
+### UC-14.9.15 · Admin Connection Detection to ICS Assets (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Cyber Vision detects administrative connections to industrial components — engineering sessions to PLCs, configuration access to field devices. The `admin_connection` event identifies who is connecting to which controller, enabling detection of unauthorized engineering access that could modify process logic.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="admin_connection"
+| eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
+| eval outside_hours=if((hour<7 OR hour>18) OR dow>5, "After Hours", "Business Hours")
+| stats count as connections by cmp-a, cmp-b, outside_hours
+| where outside_hours="After Hours" OR connections > 10
+| sort -connections
+| table cmp-a, cmp-b, connections, outside_hours
+```
+- **Implementation:** Baseline approved engineering workstation IPs. Alert on admin connections from unapproved sources or outside business hours. Track connection frequency per engineer. Correlate with change management tickets. High-priority: any admin connection from the IT network to OT controllers.
+- **Visualization:** Admin connection timeline; source-destination network map; after-hours connection alerts; approved vs unapproved source comparison.
+- **CIM Models:** Authentication, Network Traffic
+
+---
+
+### UC-14.9.16 · Port Scan Detection on OT Networks (Cisco Cyber Vision)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Port scanning is a reconnaissance technique used by attackers to map OT network topology and identify exploitable services. Cyber Vision detects `port_scan` events with scanner and target component identification. Port scans in OT networks are almost never legitimate and warrant immediate investigation.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="port_scan"
+| rename SCVPortScannerComponentId as scanner_id, SCVPortScanTargetComponentId as target_id, SCVPortScanDetailsProtocol as scan_protocol
+| table _time, cmp-a, cmp-b, scan_protocol, scanner_id, target_id, SCVSensorId
+| sort -_time
+```
+- **Implementation:** Alert immediately on any port scan event in the OT network. Identify scanner source — is it an authorized vulnerability scanner or unknown? Correlate with network baseline. Block scanning source at network boundary if unauthorized. Escalate to SOC and OT security team.
+- **Visualization:** Port scan alert log; scanner source identification; target analysis; network map overlay.
+- **CIM Models:** Intrusion Detection, Network Traffic
+
+---
+
+### UC-14.9.17 · Weak Encryption Detection in OT Communications (Cisco Cyber Vision)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Many OT protocols use weak or no encryption. Cyber Vision's `weak_encryption` events identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_weak_encryption"
+| rename SCVFlowProtocolEventDetected as encryption_detail
+| stats count as occurrences, dc(cmp-b) as affected_targets by cmp-a, encryption_detail
+| sort -occurrences
+| table cmp-a, encryption_detail, occurrences, affected_targets
+```
+- **Implementation:** Inventory all weak encryption findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.
+- **Visualization:** Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-14.9.18 · SMB Protocol Activity in OT Networks (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** SMB (Server Message Block) traffic in OT networks is frequently associated with ransomware propagation (WannaCry, NotPetya) and lateral movement. Cyber Vision detects `flow_smb` protocol events. Any SMB activity in pure control network segments is suspicious and may indicate an active threat.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_smb"
+| rename SCVFlowProtocolEventDetected as smb_detail
+| stats count as smb_events, dc(cmp-b) as targets by cmp-a, smb_detail
+| sort -smb_events
+| table cmp-a, smb_detail, smb_events, targets
+```
+- **Implementation:** Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with Snort IDS for known SMB exploit signatures. High priority for SOC investigation.
+- **Visualization:** SMB activity timeline; source-target map; alert correlation with IDS; legitimate vs suspicious classification.
+- **CIM Models:** Network Traffic, Intrusion Detection
+
+---
+
+### UC-14.9.19 · Network Redundancy and HA Failover Events (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Cyber Vision detects network redundancy failover events and router HA state changes across industrial protocols. Frequent failovers indicate network instability that could disrupt real-time control. Unexpected failovers may also indicate denial-of-service attacks or physical cable issues.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_network_redundancy", "flow_router_ha")
+| rename SCVFlowProtocolEventDetected as event_detail
+| bin _time span=1h
+| stats count as failover_events, values(event_detail) as details by cmp-a, cmp-b, _time
+| where failover_events > 2
+| table _time, cmp-a, cmp-b, failover_events, details
+```
+- **Implementation:** Baseline normal failover frequency (should be near zero in stable networks). Alert on any failover event. Multiple failovers in short succession (flapping) indicates a serious issue. Correlate with physical infrastructure monitoring (power, cables, switch health).
+- **Visualization:** Failover event timeline; network stability score; flapping device detection; HA state dashboard.
+- **CIM Models:** Network Traffic, Change
+
+---
+
+### UC-14.9.20 · Cyber Vision Sensor Health and Resource Monitoring (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Cyber Vision sensors embedded in switches and routers need monitoring themselves. `sensor_high_ressources` events fire when CPU, memory, or disk exceed 80% on a sensor. Degraded sensors may miss traffic, creating blind spots in OT visibility that attackers could exploit.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="sensor" SCVSensorAction="high ressources usage"
+| rename SCVSensorCpu as cpu_pct, SCVSensorMemory as mem_pct, SCVSensorDisk as disk_pct, SCVSensorName as sensor_name, SCVSensorIp as sensor_ip, SCVSensorVersion as version
+| table _time, sensor_name, sensor_ip, cpu_pct, mem_pct, disk_pct, version
+| sort -cpu_pct
+```
+- **Implementation:** Alert on any sensor resource event (already pre-filtered by Cyber Vision at 80% threshold). Track resource trends per sensor. High CPU may indicate excessive traffic (DDoS, broadcast storm). High disk may indicate log accumulation. Plan capacity upgrades or traffic optimization.
+- **Visualization:** Sensor health dashboard; CPU/memory/disk gauges per sensor; resource trend lines; sensor fleet status map.
+- **CIM Models:** Performance
+
+---
+
+### UC-14.9.21 · Cyber Vision Administration Audit Trail (Cisco Cyber Vision)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** All administrative actions in Cyber Vision — user logins, configuration changes, sensor management, database operations — are logged via syslog. Maintaining an audit trail of who did what and when supports regulatory compliance (IEC 62443, NERC CIP) and insider threat detection.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" cat="Cisco Cyber Vision Administration" OR cat="Cisco Cyber Vision Operations"
+| eval action=coalesce(SCVEventtype, "unknown")
+| stats count as events by suser, action, cat
+| sort -events
+| table suser, action, cat, events
+```
+- **Implementation:** Forward all Cyber Vision administration and operations events to Splunk. Build compliance reports showing all administrative actions. Alert on high-severity admin events (system reboot, database restore, sensor deletion). Track user login patterns for anomaly detection.
+- **Visualization:** Admin activity timeline; user action summary table; login pattern analysis; compliance audit report.
+- **CIM Models:** Authentication, Change
+
+---
+
+### UC-14.9.22 · IEC 62443 Zone and Conduit Compliance Monitoring (Cisco Cyber Vision)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance
+- **Value:** IEC 62443 requires industrial networks to be segmented into security zones connected by controlled conduits. Cyber Vision helps control engineers define these zones and automatically detects cross-zone traffic that violates conduit policies. Monitoring zone compliance ensures segmentation remains effective over time.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:flow`, `sourcetype=cisco:cybervision:activity`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:flow"
+| lookup ot_zone_mapping.csv device_ip OUTPUTNEW zone as src_zone
+| lookup ot_zone_mapping.csv device_ip as dest_ip OUTPUTNEW zone as dest_zone
+| where src_zone!=dest_zone
+| stats count as cross_zone_flows, dc(protocol) as protocols, values(protocol) as protocol_list by src_zone, dest_zone
+| lookup iec62443_conduit_policy.csv src_zone, dest_zone OUTPUTNEW allowed_protocols, conduit_status
+| eval violation=if(conduit_status!="approved", "VIOLATION", "Compliant")
+| where violation="VIOLATION"
+| table src_zone, dest_zone, cross_zone_flows, protocol_list, conduit_status, violation
+```
+- **Implementation:** Export Cyber Vision zone definitions (asset groups) to a lookup table. Define approved conduits with allowed protocols. Match actual cross-zone flows against policy. Alert on any unapproved cross-zone communication. Generate compliance reports for IEC 62443 audits.
+- **Visualization:** Zone topology map; conduit compliance matrix; violation count per zone pair; compliance trend over time.
+- **CIM Models:** Network Traffic, Change
+
+---
+
+### UC-14.9.23 · OT Event Severity Distribution and Security Posture Dashboard (Cisco Cyber Vision)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** A high-level view of all Cyber Vision security events by severity and category provides OT security posture at a glance. Trending event volumes over time shows whether security is improving (fewer Critical/High events) or degrading. Supports CISO reporting and board-level OT security metrics.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:event`, `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog"
+| eval severity_label=case(severity="3", "Critical", severity="2", "High", severity="1", "Medium", severity="0", "Low")
+| bin _time span=1d
+| stats count as events by severity_label, cat, _time
+| eventstats sum(events) as daily_total by _time
+| eval pct_of_total=round(events*100/daily_total, 1)
+| table _time, severity_label, cat, events, pct_of_total
+```
+- **Implementation:** Aggregate all Cyber Vision events by severity and category. Build executive dashboard showing daily event volumes, severity distribution, and trend lines. Track week-over-week and month-over-month changes. Alert on sudden spikes in Critical/High events.
+- **Visualization:** Severity distribution pie chart; daily event volume stacked bar chart; trend line overlay; category breakdown table.
+- **CIM Models:** N/A
+
+---
+
+### UC-14.9.24 · OT Protocol Usage Analysis and Inventory (Cisco Cyber Vision)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Inventory
+- **Value:** Cyber Vision identifies all industrial protocols in use across the OT network — Modbus, EtherNet/IP, Profinet, S7, BACnet, DNP3, IEC 104, OPC-UA, and dozens more. Understanding protocol distribution helps prioritize security investments, plan protocol-specific IDS rules, and identify legacy protocols that need migration.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:activity`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:activity"
+| stats dc(src_ip) as sources, dc(dest_ip) as destinations, sum(bytes) as total_bytes by protocol, site_name
+| eval total_mb=round(total_bytes/1048576, 1)
+| sort -sources
+| table site_name, protocol, sources, destinations, total_mb
+```
+- **Implementation:** Analyze activities data to build protocol inventory per site. Identify unexpected protocols (e.g., BACnet in a power substation, or Modbus in an enterprise zone). Compare protocol usage across sites for standardization. Feed into protocol-specific security policy development.
+- **Visualization:** Protocol distribution pie chart per site; protocol comparison across sites; unexpected protocol alert table; protocol trend over time.
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-14.9.25 · Decode Failure and Malformed Packet Detection (Cisco Cyber Vision)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cyber Vision generates `decode_failure` events when its DPI engine encounters packets it cannot properly parse — potentially indicating protocol fuzzing attacks, corrupted communications, or deliberately malformed exploit payloads targeting OT devices. Sustained decode failures from a single source may indicate active exploitation attempts.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
+- **SPL:**
+```spl
+index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="decode_failure"
+| bin _time span=1h
+| stats count as failures by SCVSensorId, _time
+| where failures > 10
+| table _time, SCVSensorId, failures
+| sort -failures
+```
+- **Implementation:** Baseline normal decode failure rates per sensor (some level is expected from legitimate protocol variations). Alert on sudden spikes exceeding 3x baseline from a single sensor, which may indicate a fuzzing or exploitation attempt. Correlate with IDS alerts from the same time window.
+- **Visualization:** Decode failure timeline per sensor; spike detection; correlation with IDS events; sensor health overlay.
+- **CIM Models:** Intrusion Detection
+
+---

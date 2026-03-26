@@ -683,6 +683,11 @@ window.NON_TECHNICAL = {
         { id: "14.8.1", why: "We track what share of your devices are reporting — drops warn you before you lose visibility on the plant floor." },
         { id: "14.8.2", why: "We trend bad or missing sensor readings — so data quality problems are fixed before dashboards and alarms go blind." },
         { id: "14.8.3", why: "We watch overall equipment effectiveness over time — to see whether maintenance and changeovers really improve output." }
+      ]},
+      { name: "Cisco Cyber Vision OT security", description: "We detect threats, rogue devices, and unauthorized changes in your industrial network — using Cisco Cyber Vision's deep packet inspection of OT protocols.", ucs: [
+        { id: "14.9.2", why: "We alert you when a new device appears on your industrial network — it could be a rogue device or an attacker's tool." },
+        { id: "14.9.7", why: "We detect when someone downloads new logic to a PLC — unauthorized program changes can alter physical processes with safety consequences." },
+        { id: "14.9.3", why: "We track known vulnerabilities on your OT assets — so you can prioritise patching before attackers exploit them." }
       ]}
     ]
   },
