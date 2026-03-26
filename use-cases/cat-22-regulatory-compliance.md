@@ -147,7 +147,7 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Highlights outbound traffic volumes to destinations outside the approved EEA/adequacy footprint so transfers can be gated by SCCs, BCRs, TIAs, or blocking controls.
-- **App/TA:** Splunk Common Information Model Add-on (Splunkbase 1621), Palo Alto Networks Add-on (Splunkbase 2757) or equivalent firewall TA populating Network_Traffic data model
+- **App/TA:** Splunk Common Information Model Add-on (Splunkbase 1621), `Splunk_TA_paloalto` (Splunkbase 2757), `TA-fortinet_fortigate`, `Splunk_TA_cisco-asa`, or equivalent firewall TA populating Network_Traffic data model
 - **Premium Apps:** Splunk Enterprise Security (optional, for asset/identity context)
 - **Data Sources:** CIM `Network_Traffic` data model (`All_Traffic.dest`, `All_Traffic.bytes_out`, `All_Traffic.action`) — backed by sourcetypes such as `sourcetype="pan:traffic"`, `sourcetype="cisco:asa"`, or `sourcetype="fortigate_traffic"`
 - **SPL:**

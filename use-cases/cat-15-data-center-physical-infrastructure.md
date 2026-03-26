@@ -1451,7 +1451,7 @@ index=cisco_network sourcetype="meraki:api" people_count=*
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Provides real-time and historical people counts per building, floor, and zone using data from Meraki APs and cameras. Supports compliance with fire safety capacity limits, energy management optimization (HVAC scheduling based on actual occupancy), and real estate planning. Trending data reveals patterns — which floors are overcrowded on Tuesdays, which buildings are underused on Fridays — enabling data-driven workplace strategy decisions.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces Firehose API
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Cisco Spaces Firehose API
 - **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Meraki MV Smart Cameras
 - **Data Sources:** Cisco Spaces Firehose API (COUNT events — device counts, camera people counts)
 - **SPL:**
@@ -1573,7 +1573,7 @@ index=cisco_spaces sourcetype="cisco:spaces:presence" eventType="DEVICE_ENTRY"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Combines room booking data with actual physical occupancy from Cisco Spaces and Webex device sensors to calculate true workspace utilization. Identifies "ghost bookings" — rooms reserved but never occupied — which waste available space and frustrate employees searching for rooms. Reveals which rooms are most/least popular, optimal room sizes for actual group sizes, and peak usage patterns. Directly supports real estate cost reduction by providing evidence-based recommendations for space consolidation, redesign, or expansion.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), `ta_cisco_webex_add_on_for_splunk` (GitHub), calendar integration
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase 8485), `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `ta_cisco_webex_add_on_for_splunk` (GitHub), calendar integration
 - **Equipment Models:** Cisco Meraki MR36, MR44, MR46, MR56, MR57, MR76, MR78, MR86, Webex Room Kit, Room Bar, Room Navigator, Webex Board
 - **Data Sources:** Cisco Spaces occupancy data, Webex device people count (RoomAnalytics), calendar/booking system data
 - **SPL:**
@@ -1620,7 +1620,7 @@ index=physical sourcetype="access_control"
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Capacity
 - **Value:** Understanding how people physically move through a building reveals traffic bottlenecks, dead zones, and inefficient layouts invisible to static occupancy sensors. Cisco Spaces path analytics tracks visitor movement between zones over time — showing that 80% of foot traffic funnels through one corridor, or that a key amenity is consistently bypassed because signage directs people the wrong way. This data drives floor plan optimization, signage placement, and emergency egress planning with evidence rather than guesswork.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), Cisco Spaces API
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (Catalyst), Cisco Spaces API
 - **Equipment Models:** Cisco Meraki MR series (Wi-Fi location), Cisco Catalyst 9100 series (Wi-Fi), Cisco Spaces IoT Services
 - **Data Sources:** `sourcetype=cisco:spaces:location`, `sourcetype=cisco:spaces:path_analytics`
 - **SPL:**
@@ -1649,7 +1649,7 @@ index=spaces sourcetype="cisco:spaces:location"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** For corporate campuses, retail environments, and visitor centers, understanding how people engage with specific zones — reception desks, demo areas, retail displays, cafeterias, wellness rooms — transforms facility management from guesswork to data-driven optimization. Cisco Spaces dwell time and repeat visit analytics quantify engagement intensity: a demo area where visitors average 30 seconds of dwell time needs redesign, while a breakout space with 45-minute average dwell validates the investment. Repeat visit patterns reveal which spaces become habit destinations vs one-time curiosities.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), Cisco Spaces API
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (Catalyst), Cisco Spaces API
 - **Equipment Models:** Cisco Meraki MR series, Cisco Catalyst 9100 series, Cisco Spaces IoT Services
 - **Data Sources:** `sourcetype=cisco:spaces:occupancy`, `sourcetype=cisco:spaces:dwell_time`
 - **SPL:**
@@ -1679,7 +1679,7 @@ index=spaces sourcetype="cisco:spaces:dwell_time"
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault, Performance
 - **Value:** Environmental sensor alerts (temperature excursion, humidity spike, poor air quality) are only half the story — the other half is whether the building management system (BMS) responded correctly. Correlating Cisco Spaces IoT sensor alerts with HVAC events, BMS actions, and occupancy patterns validates automated response effectiveness. When a temperature alert fires and the HVAC doesn't respond within 15 minutes, that's an automation failure. When air quality degrades only in occupied zones during peak hours, that's a ventilation capacity issue. This correlation turns isolated alerts into actionable facility intelligence.
-- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), BMS/BACnet integration, Cisco Spaces IoT Services
+- **App/TA:** `Spaces Add-On for Splunk` (Splunkbase #8485), `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), BMS/BACnet integration, Cisco Spaces IoT Services
 - **Equipment Models:** Cisco Spaces IoT sensors (temperature, humidity, air quality, CO2), Cisco Meraki MT sensors, BMS/HVAC systems
 - **Data Sources:** `sourcetype=cisco:spaces:iot_sensors`, `sourcetype=bacnet:events` or `sourcetype=bms:events`, `sourcetype=cisco:spaces:occupancy`
 - **SPL:**

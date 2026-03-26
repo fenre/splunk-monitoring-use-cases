@@ -11,7 +11,7 @@
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Authentication success/failure trends reveal infrastructure issues (certificate problems, RADIUS outages) and security events.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** RADIUS/ISE authentication logs
 - **SPL:**
@@ -39,7 +39,7 @@ index=nac sourcetype="cisco:ise:auth"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Non-compliant endpoints accessing the network pose security risks. Posture tracking ensures endpoint hygiene enforcement.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE posture assessment logs
 - **SPL:**
@@ -68,7 +68,7 @@ index=nac sourcetype="cisco:ise:posture"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
 - **Value:** Dynamic VLAN assignments reflect authorization decisions. Anomalous placements may indicate policy misconfiguration or attacks.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE authorization logs (VLAN assignment)
 - **SPL:**
@@ -96,7 +96,7 @@ index=nac sourcetype="cisco:ise:auth"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Guest network monitoring ensures acceptable use and identifies capacity needs. Unusual patterns may indicate abuse.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE guest portal logs, RADIUS accounting
 - **SPL:**
@@ -124,7 +124,7 @@ index=nac sourcetype="cisco:ise:guest"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** BYOD onboarding metrics inform mobile device management strategy and user experience optimization.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE BYOD portal logs, certificate provisioning
 - **SPL:**
@@ -152,7 +152,7 @@ index=nac sourcetype="cisco:ise:byod"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** MAB devices bypass 802.1X and rely on MAC address only. Monitoring for unauthorized MACs prevents rogue device access.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE MAB authentication logs
 - **SPL:**
@@ -181,7 +181,7 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Accurate device profiling enables correct authorization policies. Misprofiled devices may get inappropriate access.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE profiler logs, re-profiling events
 - **SPL:**
@@ -210,7 +210,7 @@ index=nac sourcetype="cisco:ise:profiler"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** NAC policy changes affect network access for all devices. Unauthorized changes can create security gaps or disrupt access.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
 - **Data Sources:** ISE admin audit logs
 - **SPL:**
@@ -238,7 +238,7 @@ index=nac sourcetype="cisco:ise:admin"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Availability
 - **Value:** Clients timing out during RADIUS authentication (common issue with Wi-Fi and wired NAC). Tracking timeouts helps identify supplicant misconfiguration, certificate issues, or network latency affecting authentication.
-- **App/TA:** Splunk_TA_cisco-ise, RADIUS TA, NAS syslog
+- **App/TA:** `Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA, NAS syslog
 - **Equipment Models:** Cisco ISE, Windows NPS, FreeRADIUS, Cisco/Aruba switches and WLCs
 - **Data Sources:** RADIUS server logs (FreeRADIUS, NPS, ISE), switch/WLC syslog (dot1x events)
 - **SPL:**
@@ -271,7 +271,7 @@ index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth" OR sourcetype
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Value:** Start/stop mismatches indicating dropped sessions or potential abuse. Accounting discrepancies can hide unauthorized access, session hijacking, or billing/audit gaps.
-- **App/TA:** RADIUS server logs, RADIUS accounting TA
+- **App/TA:** `Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, RADIUS accounting TA
 - **Equipment Models:** Cisco ISE, Windows NPS, FreeRADIUS
 - **Data Sources:** RADIUS accounting records (Acct-Status-Type Start/Stop/Interim-Update)
 - **SPL:**
@@ -336,7 +336,7 @@ index=nac sourcetype="cisco:ise:posture" earliest=-30d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog
 - **Equipment Models:** Cisco ISE, switch/WLC syslog
 - **Data Sources:** ISE authentication logs, profiling
 - **SPL:**
@@ -367,7 +367,7 @@ index=nac sourcetype="cisco:ise:auth" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Security
 - **Value:** Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants.
-- **App/TA:** Splunk_TA_cisco-ise, RADIUS TA
+- **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA
 - **Equipment Models:** Cisco ISE, switches, WLCs
 - **Data Sources:** `cisco:ise:auth`, `radius:auth`
 - **SPL:**
@@ -397,7 +397,7 @@ index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth") earliest=-7d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Flags excessive concurrent guest sessions, high bandwidth, or repeated sponsor abuse — beyond simple guest usage volume (UC-17.1.4).
-- **App/TA:** Splunk_TA_cisco-ise, firewall logs
+- **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, firewall logs
 - **Equipment Models:** Cisco ISE guest, WLC
 - **Data Sources:** `cisco:ise:guest`, NetFlow optional
 - **SPL:**
@@ -427,7 +427,7 @@ index=nac sourcetype="cisco:ise:guest" earliest=-24h
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Value:** Complements UC-17.1.10 by flagging duplicate session IDs or mismatched NAS-IP between Start/Interim/Stop for the same `Acct-Session-Id` — catching replication and proxy issues.
-- **App/TA:** RADIUS accounting TA
+- **App/TA:** `Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, RADIUS accounting TA
 - **Equipment Models:** Cisco ISE, NPS, FreeRADIUS
 - **Data Sources:** `sourcetype=radius:accounting`
 - **SPL:**
@@ -457,7 +457,7 @@ index=nac sourcetype="radius:accounting" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Complements UC-17.1.6 whitelist checks with **volume and velocity** anomalies (sudden MAB spikes per port or site) that may indicate MAC spoofing or policy gaps.
-- **App/TA:** Splunk_TA_cisco-ise
+- **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog
 - **Equipment Models:** Cisco ISE, access switches
 - **Data Sources:** `cisco:ise:auth` with MAB
 - **SPL:**
@@ -487,7 +487,7 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB" earliest=-7d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Measures how often quarantined endpoints reach compliant state (successful remediation vs repeat quarantine) — effectiveness of NAC remediation workflows.
-- **App/TA:** Splunk_TA_cisco-ise, `nac:quarantine`
+- **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog, `nac:quarantine`
 - **Equipment Models:** Cisco ISE, NAC vendors
 - **Data Sources:** Quarantine assign/release, posture re-check
 - **SPL:**
@@ -639,7 +639,7 @@ index=nac sourcetype="nac:quarantine"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** VPN capacity planning prevents remote workers from being locked out. Trending identifies peak usage and growth patterns.
-- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN concentrator session logs
 - **SPL:**
@@ -668,7 +668,7 @@ index=vpn sourcetype="cisco:asa"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Repeated VPN auth failures indicate credential attacks against the remote access perimeter, a primary attack vector.
-- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect)
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN authentication logs
 - **SPL:**
@@ -698,7 +698,7 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** VPN connections from unexpected countries may indicate compromised credentials being used from attacker infrastructure.
-- **App/TA:** VPN TA + GeoIP lookup
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`, GeoIP lookup
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs with source IP
 - **SPL:**
@@ -728,7 +728,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Split-tunnel configurations affect security visibility. Ensuring compliance with tunnel policy maintains security posture.
-- **App/TA:** VPN TA
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session attributes (tunnel type, group policy)
 - **SPL:**
@@ -758,7 +758,7 @@ index=vpn sourcetype="cisco:asa"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.
-- **App/TA:** VPN TA
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs (connect/disconnect events)
 - **SPL:**
@@ -790,7 +790,7 @@ index=vpn sourcetype="cisco:asa"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** VPN access at unusual hours may indicate compromised credentials or unauthorized activity. Alerting supports investigation.
-- **App/TA:** VPN TA + user context
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`, user context
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs, HR data (department, role)
 - **SPL:**
@@ -822,7 +822,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Per-user bandwidth tracking identifies heavy users, guides capacity planning, and detects potential data exfiltration.
-- **App/TA:** VPN TA, RADIUS accounting
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`, RADIUS accounting
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session accounting (bytes in/out)
 - **SPL:**
@@ -853,7 +853,7 @@ index=vpn sourcetype="cisco:asa"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** A single user with simultaneous VPN sessions from different locations strongly indicates credential compromise.
-- **App/TA:** VPN TA
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
 - **Data Sources:** VPN session logs
 - **SPL:**
@@ -882,7 +882,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Value:** Verifying split-tunnel vs. full-tunnel adherence per user/group policy. Full-tunnel ensures all traffic is inspected; split-tunnel may bypass security controls for internet-bound traffic.
-- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto (GlobalProtect), vendor VPN TA
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`
 - **Equipment Models:** Cisco ASA/AnyConnect, Palo Alto GlobalProtect, FortiGate SSL-VPN
 - **Data Sources:** VPN session logs (tunnel_type, assigned_policy, routing_mode)
 - **SPL:**
@@ -940,7 +940,7 @@ index=certs (sourcetype="cert:inventory" OR sourcetype="istio:cert" OR sourcetyp
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
 - **Value:** Flags sessions where observed routing or client flags indicate split tunnel when group policy mandates full tunnel — complements UC-17.2.4/17.2.9 with explicit **violation** logic.
-- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA/AnyConnect, GlobalProtect
 - **Data Sources:** VPN connect logs with `tunnel_type`, `split_include`, `default_gateway`
 - **SPL:**
@@ -970,7 +970,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="ses
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
 - **Value:** Tracks session count and CPU/memory against platform limits to avoid remote-access brownouts during peaks.
-- **App/TA:** Splunk_TA_cisco-asa, SNMP TA
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), SNMP TA
 - **Equipment Models:** ASA, FTD, Palo Alto GlobalProtect
 - **Data Sources:** SNMP OIDs, `cisco:asa` system events, vendor metrics API
 - **SPL:**
@@ -1015,7 +1015,7 @@ index=vpn sourcetype="cisco:asa" earliest=-4h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Detects logins from two distant countries faster than plausible travel — complements static geo allowlists (UC-17.2.3).
-- **App/TA:** VPN TA, GeoIP
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), GeoIP
 - **Equipment Models:** Cisco ASA, GlobalProtect
 - **Data Sources:** VPN session connect with `src`, `user`
 - **SPL:**
@@ -1047,7 +1047,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.
-- **App/TA:** Splunk_TA_cisco-asa, Palo Alto
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`
 - **Equipment Models:** ASA, Palo Alto IPsec
 - **Data Sources:** VPN/IKE syslog (`cisco:asa`, `pan:system`)
 - **SPL:**
@@ -1097,7 +1097,7 @@ index=windows sourcetype="WinEventLog:Microsoft-Windows-TerminalServices-Gateway
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Reports AnyConnect/GlobalProtect client versions against minimum supported builds.
-- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect)
 - **Equipment Models:** ASA, GP portal
 - **Data Sources:** VPN session logs with `client_version`
 - **SPL:**
@@ -1127,7 +1127,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="ses
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Counts IKE/IPsec up/down events per peer for unstable WAN or crypto issues.
-- **App/TA:** Splunk_TA_cisco-asa, Palo Alto
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Firewalls, routers
 - **Data Sources:** VPN syslog tunnel events
 - **SPL:**
@@ -1172,7 +1172,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
 - **Value:** Time-series bandwidth per headend and user cohort — complements UC-17.2.7 top talkers with **trend** and **gateway** dimension.
-- **App/TA:** Splunk_TA_cisco-asa, NetFlow
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, NetFlow
 - **Equipment Models:** ASA, routers
 - **Data Sources:** VPN accounting, NetFlow from VPN interface
 - **SPL:**
@@ -1200,7 +1200,7 @@ index=vpn sourcetype="cisco:asa" earliest=-7d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Availability
 - **Value:** Tracks server certificate expiry and chain errors on SSL VPN / GlobalProtect portals from TLS handshake logs.
-- **App/TA:** Splunk_TA_cisco-asa, Splunk_TA_paloalto
+- **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`
 - **Equipment Models:** ASA, Palo Alto
 - **Data Sources:** SSL/TLS syslog, management logs
 - **SPL:**
@@ -1627,7 +1627,7 @@ index=zt sourcetype="zscaler:zpa" earliest=-30d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Ratio of expected denies vs allows for critical segments — validates that “default deny” is actually enforced.
-- **App/TA:** NSX, Illumio, Cisco Secure Workload
+- **App/TA:** VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA
 - **Data Sources:** `microseg:policy`
 - **SPL:**
 ```spl
@@ -1657,7 +1657,7 @@ index=zt sourcetype="microseg:policy" earliest=-7d
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Fleet-level and cohort trend of device trust scores — extends point-in-time UC-17.3.2.
-- **App/TA:** Zscaler, Microsoft Entra, CrowdStrike ZTNA
+- **App/TA:** `Splunk_TA_zscaler`, `Splunk_TA_microsoft-cloudservices` (Entra ID), `TA-crowdstrike-falcon`
 - **Data Sources:** `zscaler:device_posture`, `zt:device_trust`
 - **SPL:**
 ```spl
@@ -1681,7 +1681,7 @@ index=zt sourcetype="zscaler:device_posture" earliest=-30d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Value:** Tracks step-up auth, re-auth, and session risk evaluation outcomes for policies requiring continuous verification.
-- **App/TA:** Microsoft Entra ID Protection, Okta, ZPA
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Entra ID Protection), `Splunk_TA_okta`, Zscaler ZPA TA
 - **Data Sources:** `sourcetype=azure:signin`, `okta:system`
 - **SPL:**
 ```spl
@@ -1728,7 +1728,7 @@ index=zt sourcetype="rbi:session" earliest=-30d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Detects attempts to reach direct IPs, misuse PAC files, or tunnel out of SWG inspection.
-- **App/TA:** Zscaler, Netskope
+- **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk
 - **Data Sources:** `zscaler:web`, endpoint proxy logs
 - **SPL:**
 ```spl
@@ -1755,7 +1755,7 @@ index=proxy sourcetype="zscaler:web" earliest=-24h
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** p95 latency per published application for user experience SLAs on ZTNA paths.
-- **App/TA:** Zscaler ZPA, Cloudflare Access
+- **App/TA:** `Splunk_TA_zscaler` (ZPA), Cloudflare Logpush integration
 - **Data Sources:** `zscaler:zpa` access logs with `latency_ms`
 - **SPL:**
 ```spl

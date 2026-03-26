@@ -795,8 +795,8 @@ index=webex sourcetype="webex:meetings"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Mailbox growth and quota usage help plan storage and avoid user lockouts. Trending supports capacity planning and proactive quota increases.
-- **App/TA:** Exchange Online / M365 reporting, mailbox stats API
-- **Equipment Models:** Cisco Unified Communications Manager (CUCM), Unity Connection, IP Phone 7800 series, IP Phone 8800 series
+- **App/TA:** `Splunk_TA_MS_O365`, Exchange Online / M365 reporting, mailbox stats API
+- **Equipment Models:** Microsoft Exchange Online, Microsoft 365
 - **Data Sources:** Mailbox size and quota metrics
 - **SPL:**
 ```spl
@@ -817,8 +817,8 @@ index=o365 sourcetype="exchange:mailbox_stats"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Unauthorized forwarding rules can exfiltrate mail; auto-replies may leak sensitive info. Auditing rule changes supports security and compliance.
-- **App/TA:** Splunk Add-on for Microsoft Cloud Services, Exchange audit
-- **Equipment Models:** Cisco Unified Communications Manager (CUCM), Unity Connection, IP Phone 7800 series, IP Phone 8800 series
+- **App/TA:** `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_MS_O365`, Exchange audit
+- **Equipment Models:** Microsoft Exchange Online, Microsoft 365
 - **Data Sources:** Exchange/M365 mailbox rule and forwarding audit logs
 - **SPL:**
 ```spl
@@ -838,8 +838,8 @@ index=o365 sourcetype="o365:audit"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Third-party app consent and OAuth grants can expose data. Auditing consent and permission changes reduces shadow IT and abuse risk.
-- **App/TA:** Entra ID / Azure AD audit logs, M365 audit
-- **Equipment Models:** Cisco Unified Communications Manager (CUCM), Unity Connection, IP Phone 7800 series, IP Phone 8800 series
+- **App/TA:** `Splunk_TA_microsoft-cloudservices` (Entra ID), `Splunk_TA_MS_O365`, M365 audit
+- **Equipment Models:** Microsoft Entra ID, Microsoft 365
 - **Data Sources:** App consent, OAuth grant, and permission change events
 - **SPL:**
 ```spl
@@ -881,8 +881,8 @@ index=ucm sourcetype="voicemail:metadata"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Spike in outbound volume or new recipient domains can indicate compromise or data exfiltration. Baseline comparison supports early detection.
-- **App/TA:** Exchange/M365 message trace, email gateway logs
-- **Equipment Models:** Cisco Unified Communications Manager (CUCM), Unity Connection, IP Phone 7800 series, IP Phone 8800 series
+- **App/TA:** `Splunk_TA_MS_O365`, Exchange/M365 message trace, email gateway logs
+- **Equipment Models:** Microsoft Exchange Online, Microsoft 365
 - **Data Sources:** Outbound message counts, recipient domains
 - **SPL:**
 ```spl
@@ -2156,7 +2156,7 @@ index=m365 sourcetype="m365:teams_cqd"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Performance
 - **Value:** Meeting rooms are expensive corporate assets. Rooms booked but never occupied (no-shows) and meetings that end well before the booked time waste capacity that other teams need. Quantifying no-show rates and early release patterns provides facilities and IT leadership with evidence to implement auto-release policies, shorten default booking durations, and right-size room inventory — directly improving room availability without adding physical space.
-- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), Cisco Spaces Add-On (Splunkbase #8485), calendar API integration
+- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), Cisco Spaces Add-On (Splunkbase #8485), `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), calendar API integration
 - **Equipment Models:** Cisco Webex Room Kit, Webex Board, Webex Desk Pro, Cisco Room Navigator, Cisco Meraki MV Smart Cameras
 - **Data Sources:** `sourcetype=webex:room_analytics` (RoomAnalytics PeoplePresence), `sourcetype=cisco:spaces:occupancy`, calendar booking data
 - **SPL:**
@@ -2186,7 +2186,7 @@ index=collaboration sourcetype="webex:room_analytics"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** A 20-person boardroom consistently used by 2-person meetings represents a massive space efficiency failure. Conversely, 4-person huddle rooms packed with 8 people violate fire codes and degrade meeting quality. RoomOS people count data matched against room capacity enables evidence-based space optimization — converting underutilized large rooms into multiple smaller spaces, or adding capacity where demand exceeds supply — decisions worth millions in real estate savings.
-- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), Cisco Spaces Add-On (Splunkbase #8485)
+- **App/TA:** `Cisco Webex Add-on` (Splunkbase #5781), Cisco Spaces Add-On (Splunkbase #8485), `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Equipment Models:** Cisco Webex Room Kit, Webex Board, Webex Room Kit Mini, Webex Desk Pro, Cisco Meraki MV Smart Cameras
 - **Data Sources:** `sourcetype=webex:room_analytics` (RoomAnalytics PeopleCount), `sourcetype=cisco:spaces:occupancy`
 - **SPL:**

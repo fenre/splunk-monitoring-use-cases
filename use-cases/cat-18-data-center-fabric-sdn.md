@@ -164,7 +164,7 @@ index=cisco_aci sourcetype="cisco:aci:system"
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
 - **Value:** Inter-switch latency within the fabric directly impacts east-west traffic between workloads. High latency causes application timeouts, database replication lag, and degraded user experience. Monitoring fabric latency identifies congestion, misrouted traffic, and capacity bottlenecks before they impact SLAs.
-- **App/TA:** Custom scripted input (ping, TWAMP, fabric analytics)
+- **App/TA:** Custom scripted input (ping, TWAMP, fabric analytics), `TA_cisco-ACI`, `arista:eos` via SC4S
 - **Equipment Models:** Nexus 9000, Nexus 9300/9500, Arista 7050/7280/7500
 - **Data Sources:** In-band Network Telemetry (INT), fabric analytics tools, ICMP probes between switches
 - **SPL:**
@@ -290,7 +290,7 @@ index=cisco_aci sourcetype="cisco:aci:bd_stats"
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
 - **Value:** Monitors advertised/ learned prefixes on L3Outs (BGP/OSPF) for flapping, withdrawal storms, and unexpected route loss.
-- **App/TA:** `TA_cisco-ACI`, APIC L3ExtInstP events
+- **App/TA:** `TA_cisco-ACI`, APIC L3ExtInstP events, `TA-cisco_ios` (external routers)
 - **Equipment Models:** Cisco ACI, external routers
 - **Data Sources:** APIC syslog, `cisco:aci:bgp` or route telemetry
 - **SPL:**
@@ -885,7 +885,7 @@ index=network sourcetype="evpn:route_summary"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Unified view of BGP EVPN tunnel state and VXLAN encapsulation errors per VNI — bridges overlay protocols (complements UC-18.3.4 and UC-18.3.9).
-- **App/TA:** NX-OS/EOS syslog, BGP telemetry
+- **App/TA:** `TA-cisco_ios` (NX-OS), `arista:eos` via SC4S, BGP telemetry
 - **Equipment Models:** Cisco Nexus, Arista
 - **Data Sources:** `evpn:bgp`, `vxlan:tunnel`
 - **SPL:**
@@ -990,7 +990,7 @@ index=network sourcetype="evpn:route_summary" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Packet loss and latency between VTEP peers — augments UC-18.3.9 state-only checks.
-- **App/TA:** `Splunk_TA_nix`, ICMP probes, SNMP
+- **App/TA:** `Splunk_TA_nix`, `TA-cisco_ios`, `arista:eos` via SC4S, ICMP probes, SNMP
 - **Equipment Models:** VXLAN-capable switches
 - **Data Sources:** `vtep:probe` or synthetic tests
 - **SPL:**
@@ -1011,7 +1011,7 @@ index=network sourcetype="vtep:probe" earliest=-24h
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
 - **Value:** CPU, memory, and forwarding table use on leaf switches — prevents control-plane overload and FIB exhaustion.
-- **App/TA:** SNMP modular input, NX-API
+- **App/TA:** SNMP modular input, NX-API, `TA-cisco_ios`, `arista:eos` via SC4S
 - **Equipment Models:** Cisco/Arista leafs
 - **Data Sources:** `snmp:cpu`, `snmp:mem`, `hw:forwarding`
 - **SPL:**

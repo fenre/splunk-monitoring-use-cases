@@ -875,7 +875,7 @@ index=infrastructure sourcetype="perf:summary" earliest=-400d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Host-level overcommit risk and VM-level downsize candidates — pairs with VM view (UC-20.2.5).
-- **App/TA:** VMware perf, Hyper-V
+- **App/TA:** `Splunk_TA_vmware`, `Splunk_TA_windows` (Hyper-V Perfmon)
 - **Data Sources:** `vmware:host:perf`
 - **SPL:**
 ```spl

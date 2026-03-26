@@ -10,6 +10,17 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.1] - 2026-03-26
+
+### Multi-Vendor TA Coverage & Archived App Display
+
+- **Complete multi-vendor TA coverage:** Every use case that lists multiple equipment vendors in its Equipment Models field now includes all relevant Technology Add-ons in its App/TA field. Previously, many multi-vendor UCs only listed a single vendor's TA (e.g. only `TA-cisco_ios` despite listing Juniper, Arista, and HPE Aruba equipment). Updated 35+ router/switch UCs (5.1.x) to include `Splunk_TA_juniper`, `arista:eos` via SC4S, and HPE Aruba CX syslog alongside Cisco TAs. Updated 18 firewall UCs (5.2.x) to include `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, and `Splunk_TA_juniper` (SRX). Updated NAC UCs (17.1.x) to include HPE Aruba ClearPass and Forescout CounterACT TAs. Updated VPN UCs (17.2.x) to include all four vendor TAs.
+- **Successor app display:** Use cases referencing archived Splunkbase apps (Splunk App for Unix and Linux, Splunk App for Windows Infrastructure, Palo Alto Networks App for Splunk) now showcase the recommended successor app (IT Essentials Work, Splunk App for Palo Alto Networks) as the primary display, with the archived app mentioned below as a predecessor.
+- **Equipment Models corrections:** Fixed UC-11.3.9, UC-11.3.10, UC-11.3.11, UC-11.3.13 which incorrectly listed Cisco voice equipment for Microsoft 365/Exchange use cases. Corrected to show Microsoft Exchange Online and M365 equipment with proper `Splunk_TA_MS_O365` and `Splunk_TA_microsoft-cloudservices` TAs.
+- **Additional TA additions:** Added `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) to Spaces/occupancy UCs (11.5.x, 15.3.x) that include Meraki MV cameras or MR access points in Equipment Models. Added vendor-specific TAs to multi-vendor UCs in cat-18 (Data Center Fabric), cat-20 (Cost & Capacity), and cat-22 (Regulatory Compliance).
+
+---
+
 ## [4.0] - 2026-03-24
 
 ### Multi-Vendor Network Coverage Expansion

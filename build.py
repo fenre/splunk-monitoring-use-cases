@@ -419,18 +419,15 @@ EQUIPMENT = [
 # Splunk Apps with pre-built dashboards (companion apps for TAs).
 # Matched by substring against the UC's App/TA field, same as equipment matching.
 SPLUNK_APPS = [
-    {"name": "Splunk App for Unix and Linux", "id": 273,
-     "url": "https://splunkbase.splunk.com/app/273",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/64464cc4-75ba-11ea-9476-06676674ba60.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/7d145c32-75ba-11ea-b2cd-06676674ba60.png"],
-     "tas": ["Splunk_TA_nix"], "archived": True,
-     "successor": {"name": "IT Essentials Work", "id": 5403, "url": "https://splunkbase.splunk.com/app/5403"},
-     "desc": "Pre-built dashboards for Unix/Linux performance, capacity and alerting"},
-    {"name": "Splunk App for Windows Infrastructure", "id": 1680,
-     "url": "https://splunkbase.splunk.com/app/1680",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/9d9652a4-7499-11e3-b0c8-005056ad5c72.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/b9eee34e-c197-11e3-85b1-06550dde6d3e.png"],
-     "tas": ["Splunk_TA_windows"], "archived": True,
-     "successor": {"name": "IT Essentials Work", "id": 5403, "url": "https://splunkbase.splunk.com/app/5403"},
-     "desc": "Pre-built dashboards for Windows server and desktop management, Active Directory"},
+    {"name": "IT Essentials Work", "id": 5403,
+     "url": "https://splunkbase.splunk.com/app/5403",
+     "screenshots": [],
+     "tas": ["Splunk_TA_nix", "Splunk_TA_windows"],
+     "desc": "Modern dashboards for server performance, capacity planning and alerting across Unix/Linux and Windows",
+     "predecessor": [
+         {"name": "Splunk App for Unix and Linux", "id": 273, "url": "https://splunkbase.splunk.com/app/273"},
+         {"name": "Splunk App for Windows Infrastructure", "id": 1680, "url": "https://splunkbase.splunk.com/app/1680"}
+     ]},
     {"name": "Microsoft Azure App for Splunk", "id": 4882,
      "url": "https://splunkbase.splunk.com/app/4882",
      "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/d55080b0-6d4d-11ec-baf2-ce06eb58cb63.jpeg", "https://cdn.splunkbase.splunk.com/media/public/screenshots/d7147ff0-6d4d-11ec-9e53-3e3d9b7eaa58.jpeg"],
@@ -461,12 +458,14 @@ SPLUNK_APPS = [
      "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/aa2b4e52-3252-11e5-84c5-02e61222c923.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/480c26fe-3254-11e5-a6ef-063854888a19.png"],
      "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
      "desc": "Threat visualizations and analytics for FortiGate firewall and UTM data"},
-    {"name": "Palo Alto Networks App for Splunk", "id": 491,
-     "url": "https://splunkbase.splunk.com/app/491",
+    {"name": "Splunk App for Palo Alto Networks", "id": 7505,
+     "url": "https://splunkbase.splunk.com/app/7505",
      "screenshots": [],
-     "tas": ["Splunk_TA_paloalto", "Palo Alto"], "archived": True,
-     "successor": {"name": "Splunk App for Palo Alto Networks", "id": 7505, "url": "https://splunkbase.splunk.com/app/7505"},
-     "desc": "Dashboards for Palo Alto firewall traffic, threat, and GlobalProtect data"},
+     "tas": ["Splunk_TA_paloalto", "Palo Alto"],
+     "desc": "Dashboards for Palo Alto firewall traffic, threat, and GlobalProtect data",
+     "predecessor": [
+         {"name": "Palo Alto Networks App for Splunk", "id": 491, "url": "https://splunkbase.splunk.com/app/491"}
+     ]},
     {"name": "Veeam App for Splunk", "id": 7312,
      "url": "https://splunkbase.splunk.com/app/7312",
      "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/033805d0-fe3c-11ee-a32e-be99bb517a22.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/0a08b346-fe3c-11ee-9b85-7afc4dbed252.png"],
@@ -1287,10 +1286,9 @@ def apps_for_ta_string(ta_str):
                     "url": app["url"],
                     "desc": app.get("desc", ""),
                     "screenshots": app.get("screenshots", []),
-                    "archived": app.get("archived", False),
                 }
-                if app.get("successor"):
-                    entry["successor"] = app["successor"]
+                if app.get("predecessor"):
+                    entry["predecessor"] = app["predecessor"]
                 matched.append(entry)
                 break
     return matched

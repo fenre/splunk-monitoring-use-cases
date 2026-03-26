@@ -46,7 +46,7 @@ index=network sourcetype="cisco:ios" "%LINEPROTO-5-UPDOWN" OR "%LINK-3-UPDOWN"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** CRC errors, drops indicate cabling, transceiver, or duplex issues.
-- **App/TA:** SNMP Modular Input, IF-MIB
+- **App/TA:** SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=snmp:interface`
 - **SPL:**
@@ -67,7 +67,7 @@ index=network sourcetype="snmp:interface"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
 - **Value:** Saturated links cause drops and congestion. Trending enables proactive upgrades.
-- **App/TA:** SNMP Modular Input
+- **App/TA:** SNMP Modular Input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** SNMP IF-MIB (ifHCInOctets, ifHCOutOctets, ifSpeed)
 - **SPL:**
@@ -96,7 +96,7 @@ index=network sourcetype="snmp:interface"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** BGP session drops cause routing convergence, potentially making networks unreachable.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -115,7 +115,7 @@ index=network sourcetype="cisco:ios" "%BGP-5-ADJCHANGE" OR "%BGP-3-NOTIFICATION"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
 - **Value:** OSPF neighbor loss triggers SPF recalculation, disrupting traffic.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -135,7 +135,7 @@ index=network sourcetype="cisco:ios" "%OSPF-5-ADJCHG"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability, Anomaly
 - **Value:** STP topology changes cause brief disruption and MAC flushing. Root bridge changes are critical.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -154,7 +154,7 @@ index=network sourcetype="cisco:ios" "%SPANTREE-5-TOPOTCHANGE" OR "%SPANTREE-2-R
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration, Compliance
 - **Value:** Unauthorized config changes are a top cause of outages. Essential for compliance.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -174,7 +174,7 @@ index=network sourcetype="cisco:ios" "%SYS-5-CONFIG_I"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
 - **Value:** CPU exhaustion causes packet drops, routing failures, management unresponsiveness.
-- **App/TA:** SNMP, CISCO-PROCESS-MIB
+- **App/TA:** SNMP, CISCO-PROCESS-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=snmp:cpu`
 - **SPL:**
@@ -193,7 +193,7 @@ index=network sourcetype="snmp:cpu"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability, Fault
 - **Value:** Unexpected reboots indicate hardware failure or unauthorized reload.
-- **App/TA:** SNMP, syslog
+- **App/TA:** SNMP, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** SNMP sysUpTime, `sourcetype=cisco:ios`
 - **SPL:**
@@ -212,7 +212,7 @@ index=network sourcetype="cisco:ios" "%SYS-5-RESTART" OR "%SYS-5-RELOAD"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration, Compliance
 - **Value:** VLAN changes affect segmentation. Unauthorized changes can bypass security controls.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -231,7 +231,7 @@ index=network sourcetype="cisco:ios" "%VLAN_MANAGER-6-VLAN_CREATE" OR "%VLAN_MAN
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** Hardware failures reduce redundancy. A second failure causes outage.
-- **App/TA:** `TA-cisco_ios`, SNMP CISCO-ENVMON-MIB
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP CISCO-ENVMON-MIB
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -250,7 +250,7 @@ index=network sourcetype="cisco:ios" "%FAN-3-FAN_FAILED" OR "%PLATFORM_ENV-1-PSU
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Anomaly, Security
 - **Value:** MAC flapping indicates loops, misconfigurations, or layer-2 attacks.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -270,7 +270,7 @@ index=network sourcetype="cisco:ios" "%SW_MATM-4-MACFLAP_NOTIF"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** ACL deny hits show blocked traffic. High volumes may indicate attacks or misconfigured apps.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -299,7 +299,7 @@ index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Failed SNMP auth indicates unauthorized polling or reconnaissance.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -318,7 +318,7 @@ index=network sourcetype="cisco:ios" "%SNMP-3-AUTHFAIL"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
 - **Value:** Temperature alerts catch cooling failures before they cause device outages.
-- **App/TA:** SNMP, CISCO-ENVMON-MIB
+- **App/TA:** SNMP, CISCO-ENVMON-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=snmp:environment`
 - **SPL:**
@@ -337,7 +337,7 @@ index=network sourcetype="snmp:environment"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly
 - **Value:** Unstable routes cause packet loss and reachability failures. Detecting flapping routes prevents cascading network outages across your infrastructure.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -358,7 +358,7 @@ index=network sourcetype="cisco:ios" "ROUTING" OR "RT_ENTRY" OR "%DUAL-5-NBRCHAN
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fault
 - **Value:** Duplex mismatches degrade link performance silently. They cause late collisions, CRC errors, and reduced throughput that are hard to diagnose.
-- **App/TA:** SNMP Modular Input, IF-MIB, `TA-cisco_ios`
+- **App/TA:** SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=snmp:interface`
 - **SPL:**
@@ -379,7 +379,7 @@ index=network sourcetype="cisco:ios" "%CDP-4-DUPLEX_MISMATCH"
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Availability, Configuration
 - **Value:** Unexpected neighbor changes indicate cabling modifications, device replacements, or unauthorized devices connecting to the network.
-- **App/TA:** SNMP Modular Input, CISCO-CDP-MIB, LLDP-MIB
+- **App/TA:** SNMP Modular Input, CISCO-CDP-MIB, LLDP-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=snmp:cdp`, `sourcetype=cisco:ios`
 - **SPL:**
@@ -401,7 +401,7 @@ index=network sourcetype="snmp:cdp"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity, Fault
 - **Value:** PoE budget exhaustion causes powered devices (IP phones, APs, cameras) to lose power. Proactive monitoring prevents unplanned device outages.
-- **App/TA:** SNMP Modular Input, POWER-ETHERNET-MIB
+- **App/TA:** SNMP Modular Input, POWER-ETHERNET-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=snmp:poe`
 - **SPL:**
@@ -422,7 +422,7 @@ index=network sourcetype="snmp:poe"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly, Availability
 - **Value:** EIGRP neighbor instability causes route recalculation, increased CPU load, and traffic blackholing during convergence.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -443,7 +443,7 @@ index=network sourcetype="cisco:ios" "%DUAL-5-NBRCHANGE"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Increasing CRC errors indicate failing cables, SFPs, or electromagnetic interference. Early detection prevents link failures.
-- **App/TA:** SNMP Modular Input, IF-MIB
+- **App/TA:** SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=snmp:interface`
 - **SPL:**
@@ -465,7 +465,7 @@ index=network sourcetype="snmp:interface"
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Availability
 - **Value:** Silence from a device means either it's healthy or its syslog forwarding broke. Detecting missing syslog sources ensures continuous visibility.
-- **App/TA:** Splunk core (metadata search)
+- **App/TA:** Splunk core (metadata search), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=syslog`
 - **SPL:**
@@ -486,7 +486,7 @@ index=network sourcetype="snmp:interface"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Gateway redundancy state changes impact all hosts on a subnet. Detecting unexpected failovers prevents prolonged outages.
-- **App/TA:** `TA-cisco_ios`, syslog
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** `sourcetype=cisco:ios`
 - **SPL:**
@@ -507,7 +507,7 @@ index=network sourcetype="cisco:ios" "%HSRP-5-STATECHANGE" OR "%VRRP-6-STATECHAN
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration, Compliance
 - **Value:** Last backup age tracking; stale backups risk config loss during failures.
-- **App/TA:** Custom (Oxidized/RANCID output, SolarWinds NCM equivalent)
+- **App/TA:** Custom (Oxidized/RANCID output, SolarWinds NCM equivalent), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** Backup system logs (timestamps of last successful backup per device)
 - **SPL:**
@@ -529,7 +529,7 @@ index=network sourcetype=config_backup OR sourcetype=oxidized OR sourcetype=ranc
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Configuration, Security
 - **Value:** Running config differs from baseline/golden config.
-- **App/TA:** Custom scripted input (diff output from RANCID/Oxidized vs golden)
+- **App/TA:** Custom scripted input (diff output from RANCID/Oxidized vs golden), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** Config diff output, Git commit logs from network config repo
 - **SPL:**
@@ -552,7 +552,7 @@ index=network sourcetype=config_drift OR sourcetype=git:commit
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Value:** Devices running unapproved or EOL firmware versions.
-- **App/TA:** Splunk_TA_cisco, SNMP TA (sysDescr)
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP TA (sysDescr)
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** SNMP sysDescr, show version output
 - **SPL:**
@@ -574,7 +574,7 @@ index=network sourcetype=snmp:sysinfo OR sourcetype=cisco:ios:version
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Fault
 - **Value:** CRC, runts, giants, input/output errors as rate over time.
-- **App/TA:** SNMP modular input
+- **App/TA:** SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB
 - **SPL:**
@@ -598,7 +598,7 @@ index=network sourcetype=snmp:interface
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Frequent topology changes indicating Layer 2 instability.
-- **App/TA:** SNMP modular input, syslog
+- **App/TA:** SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** BRIDGE-MIB (dot1dStpTopChanges), syslog STP events
 - **SPL:**
@@ -621,7 +621,7 @@ index=network (sourcetype=snmp:stp OR sourcetype="cisco:ios") ("dot1dStpTopChang
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** ARP table approaching hardware limits; can cause connectivity failures.
-- **App/TA:** SNMP modular input
+- **App/TA:** SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** ipNetToMediaTable entries count, show arp count
 - **SPL:**
@@ -645,7 +645,7 @@ index=network sourcetype=snmp:arp OR sourcetype=cisco:ios:arp
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** CAM table utilization on switches approaching hardware limits.
-- **App/TA:** SNMP modular input
+- **App/TA:** SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** dot1qTpFdbTable count, show mac address-table count
 - **SPL:**
@@ -669,7 +669,7 @@ index=network sourcetype=snmp:bridge OR sourcetype=cisco:ios:mac
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
 - **Value:** Traffic dropped per QoS class/queue on routers/switches.
-- **App/TA:** SNMP modular input (CISCO-CLASS-BASED-QOS-MIB)
+- **App/TA:** SNMP modular input (CISCO-CLASS-BASED-QOS-MIB), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** cbQosCMDropPkt, cbQosCMPrePolicyPkt
 - **SPL:**
@@ -694,7 +694,7 @@ index=network sourcetype=snmp:qos
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Devices approaching EOL/EOS dates.
-- **App/TA:** Lookup table with vendor EOL dates
+- **App/TA:** Lookup table with vendor EOL dates, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** Device inventory + EOL lookup
 - **SPL:**
@@ -717,7 +717,7 @@ index=network sourcetype=snmp:qos
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
 - **Value:** Half/full duplex mismatches causing performance degradation.
-- **App/TA:** SNMP modular input
+- **App/TA:** SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** IF-MIB (ifSpeed), EtherLike-MIB (dot3StatsDuplexStatus), syslog
 - **SPL:**
@@ -739,7 +739,7 @@ index=network (sourcetype=snmp:interface OR sourcetype="cisco:ios") ("duplex" OR
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Capacity
 - **Value:** Power over Ethernet budget approaching capacity per switch.
-- **App/TA:** SNMP modular input
+- **App/TA:** SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** POWER-ETHERNET-MIB (pethMainPseOperStatus, pethMainPseConsumptionPower, pethMainPsePower)
 - **SPL:**
@@ -761,7 +761,7 @@ index=network sourcetype=snmp:poe
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Security
 - **Value:** Unexpected topology changes in cabling/connections.
-- **App/TA:** SNMP modular input, syslog
+- **App/TA:** SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog
 - **Equipment Models:** Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360
 - **Data Sources:** LLDP-MIB (lldpRemTable), CISCO-CDP-MIB, syslog CDP/LLDP events
 - **SPL:**
@@ -1387,7 +1387,7 @@ index=network (sourcetype=syslog OR sourcetype=snmptrapd OR sourcetype="snmp:tra
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Identifies top blocked traffic sources — useful for rule tuning, detecting scanning, and misconfigured apps.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`, `sourcetype=cisco:firepower:syslog`
 - **SPL:**
@@ -1415,7 +1415,7 @@ index=firewall action="denied" OR action="drop"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration, Compliance
 - **Value:** Firewall rule changes can expose the network. Compliance must-have (PCI, SOX, HIPAA).
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:config`, firewall system/config logs
 - **SPL:**
@@ -1442,7 +1442,7 @@ index=firewall sourcetype="pan:config" cmd="set" OR cmd="edit" OR cmd="delete"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** IPS/IDS events indicate active attacks. Correlation with traffic context enables rapid response.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:threat`, `sourcetype=cisco:firepower:alert`
 - **SPL:**
@@ -1469,7 +1469,7 @@ index=firewall sourcetype="pan:threat" severity="critical" OR severity="high"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** VPN failures isolate remote sites or users. Proactive monitoring prevents "the VPN is down" calls.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall VPN/system logs
 - **SPL:**
@@ -1498,7 +1498,7 @@ index=firewall ("tunnel" OR "IPSec" OR "IKE") ("down" OR "failed" OR "establishe
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Allowed traffic to RDP/SMB/Telnet from untrusted zones indicates policy gaps.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall traffic logs
 - **SPL:**
@@ -1526,7 +1526,7 @@ index=firewall action="allowed" (dest_port=3389 OR dest_port=445 OR dest_port=23
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Anomaly
 - **Value:** Traffic to/from sanctioned or unexpected countries flags exfiltration, C2, or compromised hosts.
-- **App/TA:** Vendor-specific TA + GeoIP lookup
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), GeoIP lookup
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall traffic logs
 - **SPL:**
@@ -1555,7 +1555,7 @@ index=firewall action="allowed" direction="outbound"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Anomaly, Performance
 - **Value:** Sudden connection spikes indicate DDoS, scanning, or worm propagation.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall traffic logs
 - **SPL:**
@@ -1586,7 +1586,7 @@ index=firewall
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** SSL decryption failures mean traffic passes uninspected — could be legitimate cert pinning or SSL evasion.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall decryption logs
 - **SPL:**
@@ -1613,7 +1613,7 @@ index=firewall sourcetype="pan:decryption" action="ssl-error"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Shows what categories users are trying to access. Reveals policy effectiveness and shadow IT.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:url`
 - **SPL:**
@@ -1641,7 +1641,7 @@ index=firewall sourcetype="pan:url" action="block-url"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
 - **Value:** Firewall admin access is highly privileged. Audit trail is a compliance must-have.
-- **App/TA:** Vendor-specific firewall TA
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall system/auth logs
 - **SPL:**
@@ -1669,7 +1669,7 @@ index=firewall sourcetype="pan:system" ("login" OR "logout" OR "auth")
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
 - **Value:** Session table exhaustion blocks new connections. CPU saturation degrades throughput.
-- **App/TA:** Vendor-specific TA, SNMP
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), SNMP
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall system resource logs
 - **SPL:**
@@ -1696,7 +1696,7 @@ index=firewall ("session" AND "utilization") OR ("cpu" AND "dataplane")
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
 - **Value:** NAT exhaustion prevents outbound connections. Users lose internet access.
-- **App/TA:** Vendor-specific TA, syslog
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), syslog
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** Firewall NAT/system logs
 - **SPL:**
@@ -1723,7 +1723,7 @@ index=firewall ("NAT" OR "nat") ("exhausted" OR "allocation failed" OR "out of")
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Capacity
 - **Value:** When session tables fill, new connections are dropped. This causes service outages that are difficult to diagnose without firewall telemetry.
-- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, SNMP
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), SNMP
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:system`, `sourcetype=fgt_event`, SNMP
 - **SPL:**
@@ -1752,7 +1752,7 @@ index=network sourcetype="pan:system" "session table"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** HA failovers cause brief traffic disruption and can indicate underlying hardware or link failures. Tracking failover frequency detects instability.
-- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:system`, `sourcetype=fgt_event`
 - **SPL:**
@@ -1780,7 +1780,7 @@ index=firewall (sourcetype="pan:system" "HA state change") OR (sourcetype="fgt_e
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Detecting outbound connections to known C2 infrastructure identifies compromised internal hosts before data exfiltration occurs.
-- **App/TA:** `Splunk_TA_paloalto`, Threat intelligence feeds
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), Threat intelligence feeds
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:threat`, `sourcetype=pan:traffic`
 - **SPL:**
@@ -1809,7 +1809,7 @@ index=network sourcetype="pan:threat" category="command-and-control" OR category
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Decryption failures create blind spots in security inspection. Tracking failures by destination reveals certificate pinning, protocol mismatches, or policy gaps.
-- **App/TA:** `Splunk_TA_paloalto`
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:decryption`
 - **SPL:**
@@ -1837,7 +1837,7 @@ index=network sourcetype="pan:decryption" action="decrypt-error" OR action="no-d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Unused firewall rules increase attack surface and complexity. Identifying zero-hit rules enables rule base cleanup and reduces risk.
-- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:traffic`, `sourcetype=fgt_traffic`
 - **SPL:**
@@ -1866,7 +1866,7 @@ index=network sourcetype="pan:traffic"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Outdated threat signatures leave the firewall blind to new attacks. Monitoring signature versions ensures security posture is current.
-- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`
+- **App/TA:** `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX)
 - **Equipment Models:** Cisco Secure Firewall 3110/3120/3130/3140, Firepower 1010/1120/1140/1150, Firepower 2110/2120/2130/2140, FMC; Palo Alto PA-220/PA-440/PA-450/PA-460/PA-3200/PA-5200/PA-5400/PA-7000, Panorama; Fortinet FortiGate 40F/60F/80F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager; Juniper SRX300/SRX320/SRX340/SRX345/SRX550/SRX1500/SRX4100/SRX4200/SRX4600/SRX5400/SRX5600/SRX5800 (FMC)
 - **Data Sources:** `sourcetype=pan:system`, `sourcetype=fgt_event`
 - **SPL:**
