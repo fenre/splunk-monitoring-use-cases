@@ -2527,6 +2527,237 @@ index=firewall sourcetype IN ("fgt_utm","fortinet_fortios_utm")
 
 ---
 
+### UC-5.2.47 · Check Point ClusterXL Failover Events (Check Point)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** ClusterXL provides gateway high availability via active-standby or active-active clusters. Failover events — whether planned (manual switchover) or unplanned (process crash, NIC failure, sync timeout) — cause brief traffic interruption and may indicate underlying hardware or software instability. Monitoring failover frequency, duration, and trigger reason supports SLA reporting and proactive hardware replacement before repeated failovers degrade user experience.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (cluster/system logs), SNMP traps
+- **SPL:**
+```spl
+index=firewall sourcetype="cp_log" earliest=-30d
+| where match(lower(product),"(?i)cluster|clusterxl|ha") OR match(lower(logdesc),"(?i)failover|switchover|member.*down|sync.*fail")
+| eval gw=coalesce(orig, src, hostname)
+| stats count earliest(_time) as first latest(_time) as last values(logdesc) as events by gw
+| sort -count
+```
+- **Implementation:** Forward Check Point system/cluster logs via Log Exporter or Smart-1 Cloud. Extract ClusterXL state change messages (member down, sync lost, failover). Alert on any unplanned failover immediately. Track failover frequency per cluster — more than 2 in 7 days warrants investigation. Correlate with gateway CPU/memory UC-10.11.35 to find resource-triggered failovers. Page on-call for active-active cluster degradation to single member.
+- **Visualization:** Timeline (failover events), Table (clusters with recent failovers), Single value (failovers this week), Bar chart (failovers by reason).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.48 · Check Point Policy Install and Publish Tracking (Check Point)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration
+- **Value:** Policy install pushes new rulebase and object changes from the management server (SmartConsole/Smart-1 Cloud) to enforcement gateways. A failed install leaves old policy active; a successful install with errors may silently break specific rules. Tracking install timestamps, success/failure, and who published enables change management correlation and root-cause analysis when traffic patterns shift unexpectedly after a policy push.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (audit/admin logs), SmartConsole audit trail
+- **SPL:**
+```spl
+index=checkpoint sourcetype="cp_log" earliest=-30d
+| where match(lower(product),"(?i)smartconsole|smartcenter|management") AND match(lower(operation),"(?i)install|publish|verify")
+| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by administrator, target_gateway
+| sort -last
+```
+- **Implementation:** Forward management audit logs via Log Exporter. Track policy install duration (publish → install complete). Alert on install failures or partial installs (some gateways succeeded, others failed). Require ITSM ticket IDs in SmartConsole session descriptions for audit correlation. Report on policy change frequency by admin and gateway.
+- **Visualization:** Table (recent policy installs), Timeline (publish/install events), Bar chart (installs by admin), Single value (failed installs this week).
+- **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1d
+```
+
+---
+
+### UC-5.2.49 · Check Point SecureXL Acceleration Status (Check Point)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** SecureXL offloads connection handling from the firewall kernel to an acceleration layer, increasing throughput by 2–10×. When SecureXL cannot accelerate a connection (due to complex NAT, certain blade inspections, or resource limits), traffic falls back to the slow path (Firewall kernel or even Medium path). A rising percentage of non-accelerated connections signals policy complexity growth, blade misconfiguration, or capacity limits — reducing effective throughput well before CPU saturation appears.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (performance/system logs), `fwaccel` CLI output via scripted input
+- **SPL:**
+```spl
+index=firewall sourcetype="cp_log" earliest=-24h
+| where match(lower(product),"(?i)securexl|fwaccel") OR match(lower(logdesc),"(?i)accel|template|f2f|medium.path|pxl")
+| eval gw=coalesce(orig, src, hostname)
+| eval path=case(
+    match(lower(_raw),"(?i)accel|template"),"accelerated",
+    match(lower(_raw),"(?i)medium.path|pxl"),"medium_path",
+    match(lower(_raw),"(?i)f2f|slow|firewall.path"),"slow_path",
+    1=1,"unknown")
+| stats count by gw, path
+| eventstats sum(count) as total by gw
+| eval pct=round(100*count/total,1)
+| where path!="accelerated" AND pct>20
+```
+- **Implementation:** Use `fwaccel stat` and `fwaccel conns` via scripted input on the gateway (every 5 min) or parse SecureXL log messages from system events. Baseline accelerated vs slow-path ratio per gateway. Alert when slow-path percentage exceeds 30% sustained for 1 hour. Correlate with policy install events (UC-5.2.48) — new rules with unsupported features often shift traffic to slow path. Report on acceleration trends after blade enablement changes.
+- **Visualization:** Pie chart (accelerated vs medium vs slow path), Line chart (acceleration ratio over time), Table (gateways with low acceleration), Bar chart (slow-path reasons).
+- **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Performance.All_Performance
+  by All_Performance.dest span=1h
+```
+
+---
+
+### UC-5.2.50 · Check Point CoreXL CPU Distribution (Check Point)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** CoreXL distributes firewall inspection across multiple CPU cores (Firewall Worker instances). Uneven load distribution — where one core saturates while others idle — reduces effective throughput and causes packet drops on that core. This often happens when large flows or specific protocols always hash to the same core. Detecting core imbalance before it causes visible packet loss prevents elusive intermittent connectivity issues.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (performance logs), `fw ctl multik stat` via scripted input
+- **SPL:**
+```spl
+index=firewall sourcetype="cp_log" earliest=-4h
+| where match(lower(product),"(?i)corexl|multik|fw_worker")
+| eval gw=coalesce(orig, src, hostname)
+| eval core_id=coalesce(core_id, fw_instance, worker_id)
+| eval cpu_pct=coalesce(cpu_usage, cpu_pct, cpu_util)
+| stats avg(cpu_pct) as avg_cpu max(cpu_pct) as max_cpu by gw, core_id
+| eventstats avg(avg_cpu) as gw_avg by gw
+| eval imbalance=round(max_cpu - gw_avg, 1)
+| where imbalance > 30 OR max_cpu > 85
+| sort -imbalance
+```
+- **Implementation:** Use `fw ctl multik stat` via scripted input (interval 300s) to capture per-core connection counts and CPU. Parse core ID and utilization. Alert when any single core exceeds 85% while the gateway average is below 50% — classic imbalance. Correlate with `fwaccel` to identify non-accelerated heavy flows. Tune CoreXL instance count and affinity after analysis.
+- **Visualization:** Bar chart (CPU per core), Heatmap (core × time), Table (imbalanced gateways), Line chart (max core CPU trend).
+- **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Performance.All_Performance
+  by All_Performance.dest span=1h
+```
+
+---
+
+### UC-5.2.51 · Check Point Log Rate and Capacity (Check Point)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Check Point gateways forward logs to the management server or Log Server. When log rate exceeds the management capacity or network bandwidth, logs are queued, delayed, or dropped — creating blind spots in security monitoring. Tracking log rate per gateway and comparing to Log Server capacity prevents log loss before it impacts compliance and incident detection.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (system/management logs), log server statistics
+- **SPL:**
+```spl
+index=checkpoint sourcetype="cp_log" earliest=-24h
+| bin _time span=5m
+| stats count as events_5m by _time, orig
+| eventstats avg(events_5m) as baseline by orig
+| where events_5m > baseline*3 OR events_5m < baseline*0.2
+| eval anomaly=if(events_5m > baseline*3, "spike", "drop")
+| table _time, orig, events_5m, baseline, anomaly
+```
+- **Implementation:** Baseline event rate per gateway. Alert on sudden spikes (possible attack or debug logging left enabled) and drops (log forwarding failure or connectivity issue). Monitor Log Server disk and queue depth. Correlate log drops with gateway CPU and network congestion.
+- **Visualization:** Line chart (log rate per gateway), Single value (current aggregate rate), Table (anomalies), Bar chart (rate by gateway).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.2.52 · Check Point Anti-Spoofing Violations (Check Point)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Anti-spoofing validates that packets arriving on an interface have source IPs consistent with the interface's defined topology. Violations indicate either network misconfiguration (asymmetric routing, missing routes) or actual IP spoofing attacks. High violation rates from specific sources warrant immediate investigation as they may mask data exfiltration or DDoS reflection.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (firewall logs with anti-spoofing drops)
+- **SPL:**
+```spl
+index=firewall sourcetype="cp_log" earliest=-24h
+| where match(lower(action),"(?i)drop") AND match(lower(logdesc),"(?i)anti.?spoof|spoofing")
+| stats count by src, inzone, outzone, rule_name, orig
+| sort -count
+```
+- **Implementation:** Forward firewall drop logs including anti-spoofing events. Map `inzone` and `outzone` to topology to distinguish misconfiguration from attacks. Alert on new source IPs triggering anti-spoofing. Correlate with routing changes. Tune anti-spoofing topology definitions after legitimate asymmetric routing is identified.
+- **Visualization:** Table (spoofing violations by source), Bar chart (violations by interface/zone), Line chart (violation trend), Map (source geo if available).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.action="blocked"
+  by All_Traffic.src All_Traffic.dest span=1h
+```
+
+---
+
+### UC-5.2.53 · Check Point HTTPS Inspection Status and Bypass (Check Point)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** HTTPS inspection (SSL/TLS decryption) enables deep packet inspection of encrypted traffic. Connections that bypass inspection — due to certificate pinning, bypass rules, or resource limits — create visibility gaps. Monitoring bypass rates ensures that security coverage remains effective and identifies applications or categories that need policy updates.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (firewall/HTTPS inspection logs)
+- **SPL:**
+```spl
+index=firewall sourcetype="cp_log" earliest=-24h
+| where match(lower(product),"(?i)https.?inspection|ssl.?inspection") OR match(lower(logdesc),"(?i)bypass|inspect|decrypt")
+| eval inspected=if(match(lower(logdesc),"(?i)inspect|decrypt") AND NOT match(lower(logdesc),"(?i)bypass|skip|fail"),1,0)
+| stats count sum(inspected) as inspected_count by rule_name, category
+| eval bypass_pct=round(100*(count-inspected_count)/count,1)
+| where bypass_pct > 20
+| sort -bypass_pct
+```
+- **Implementation:** Enable HTTPS inspection logging (log bypassed and inspected connections). Baseline bypass rate per category. Alert when bypass percentage increases (new cert-pinned apps, resource limits). Report on inspection coverage for compliance (PCI DSS, SOX). Correlate with gateway CPU — high CPU can trigger automatic inspection bypass.
+- **Visualization:** Pie chart (inspected vs bypassed), Bar chart (bypass by category), Line chart (bypass rate trend), Table (top bypass rules).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.action span=1h
+```
+
+---
+
+### UC-5.2.54 · Check Point Gateway Connection Table Utilization (Check Point)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Each Check Point gateway has a finite concurrent connection table (configurable, typically 500K–25M depending on appliance). When utilization approaches the limit, new connections are dropped — causing application failures and user complaints. Unlike CPU, connection table exhaustion can happen suddenly during attacks or application bursts with little warning.
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (system/performance logs), `fw tab -t connections -s` via scripted input
+- **SPL:**
+```spl
+index=firewall sourcetype="cp_log" earliest=-4h
+| where match(lower(product),"(?i)firewall") AND (match(lower(logdesc),"(?i)connection.*table|conn.*limit|aggressive.aging") OR isnotnull(connections_count))
+| eval gw=coalesce(orig, src, hostname)
+| eval conn_count=coalesce(connections_count, concurrent_connections)
+| eval conn_limit=coalesce(connections_limit, table_limit)
+| eval util_pct=if(isnotnull(conn_limit) AND conn_limit>0, round(100*conn_count/conn_limit,1), null())
+| stats latest(conn_count) as conns latest(util_pct) as util_pct by gw
+| where util_pct > 70 OR match(lower(logdesc),"(?i)aggressive.aging")
+| sort -util_pct
+```
+- **Implementation:** Use `fw tab -t connections -s` via scripted input (every 60s) to capture current and maximum connection counts. Alternatively parse system log messages about connection limits and aggressive aging (automatic cleanup when table is near capacity). Alert at 75% utilization. Page at 90%. Correlate with NAT pool usage and DDoS indicators. Enable aggressive aging thresholds as a safety net but alert when triggered.
+- **Visualization:** Gauge (connection table utilization %), Line chart (connections over time), Single value (peak utilization today), Table (gateways approaching limit).
+- **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Performance.All_Performance
+  by All_Performance.dest span=1h
+```
+
+---
+
 
 ## 5.3 Load Balancers & ADCs
 

@@ -182,10 +182,10 @@ window.NON_TECHNICAL = {
         { id: "5.1.56", why: "Monitor Juniper chassis alarms — power supply, fan, and temperature alerts." },
         { id: "5.1.60", why: "Track Arista MLAG redundancy health — failures here can blackhole traffic." }
       ]},
-      { name: "Firewalls", description: "Your security perimeter — Cisco, Palo Alto, Fortinet, Juniper, and more. We track blocked traffic, policy changes, and threat events.", ucs: [
+      { name: "Firewalls", description: "Your security perimeter — Cisco, Palo Alto, Fortinet, Juniper, Check Point, and more. We track blocked traffic, policy changes, high availability, and threat events.", ucs: [
         { id: "5.2.2", why: "Audit every firewall policy change so you know what was modified and by whom." },
-        { id: "5.2.41", why: "Monitor Juniper SRX intrusion prevention events — attacks detected and blocked." },
-        { id: "5.2.44", why: "Track Fortinet Security Fabric health — are all your FortiGates connected and managed?" }
+        { id: "5.2.47", why: "We detect when paired firewalls fail over—planned or not—so repeated problems get fixed before users feel them." },
+        { id: "5.2.52", why: "We flag traffic that doesn’t match how your network is laid out—whether it’s a mistake or someone spoofing addresses." }
       ]},
       { name: "Load balancers & ADCs", description: "The devices that spread traffic across your servers — F5 BIG-IP, Citrix ADC (NetScaler), and others. We watch pool health, availability, SSL certificates, HA failover, and GSLB across data centers.", ucs: [
         { id: "5.3.1", why: "Alert when a server drops out of the load balancer pool — less capacity for users." },

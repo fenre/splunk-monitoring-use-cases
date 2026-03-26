@@ -22,6 +22,16 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.3] - 2026-03-26
+
+### Check Point Quantum Firewall & Security Expansion
+
+- **8 new Check Point firewall UCs in cat-05** (UC-5.2.47 through UC-5.2.54): ClusterXL failover, policy install/publish tracking, SecureXL acceleration status, CoreXL CPU distribution, log rate and capacity, anti-spoofing violations, HTTPS inspection status and bypass, gateway connection table utilization.
+- **10 new Check Point security UCs in cat-10** (UC-10.11.121 through UC-10.11.130): Zero Phishing detection, ThreatCloud IOC match rate, Quantum IoT Protect device discovery, Maestro Orchestrator health, CloudGuard Network security events, Threat Prevention policy layer effectiveness, admin session and login audit, DDoS Protector integration events, Infinity managed service events, HTTPS inspection certificate errors.
+- Check Point coverage now totals **33 dedicated UCs** across cat-05, cat-10, and cat-17 — on par with Palo Alto and Fortinet.
+
+---
+
 ## [4.2] - 2026-03-26
 
 ### Zero Trust / SASE Vendor Expansion
