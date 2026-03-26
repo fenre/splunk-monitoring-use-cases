@@ -173,9 +173,9 @@ index=web sourcetype="access_combined" earliest=-7d
 
 ### 22.2 NIS2
 
-**Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
+**Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Okta Identity Cloud (Splunkbase 6056), Splunk Add-on for Stream (Splunkbase 1809), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Add-on for Qualys (Splunkbase 2964), Splunk Add-on for Veeam (Splunkbase 7173), Splunk Add-on for GitHub (Splunkbase 5596), Splunk Add-on for Jira (Splunkbase 1438).
 
-**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), CIM data models (Authentication, Network_Traffic, Vulnerabilities), Splunk audit logs (`_audit`, `_internal`).
+**Data Sources:** ES Notable events (`` `notable` `` macro), ES Risk framework (`index=risk`), ITSI service health (`index=itsi_summary`), Windows Security Event Logs (`WinEventLog:Security`), ServiceNow ITSM records (`snow:sc_req_item`), Tenable vulnerability scans (`tenable:vuln`), AWS CloudTrail (`aws:cloudtrail`), Microsoft 365 DLP (`ms:o365:management`), Azure AD sign-ins (`ms:aad:signin`), Okta system logs (`OktaIM2:log`), CIM data models (Authentication, Network_Traffic, Vulnerabilities, Certificates, Risk), TLS/certificate metadata (Splunk Stream), backup software logs (Veeam, Commvault, Rubrik, AWS Backup), CI/CD pipeline events (GitHub Actions, GitLab CI, Jenkins), LMS training exports (CSV/HEC), PAM session logs (`cyberark:session`), Splunk audit logs (`_audit`, `_internal`).
 
 ---
 
@@ -305,6 +305,450 @@ index=windows sourcetype="WinEventLog:Security" EventCode IN (4624, 4625, 4672) 
 - **Implementation:** (1) Deploy Splunk Add-on for Windows (742) with Security log collection from domain controllers and member servers; (2) enable Group Policy auditing for logon events and special privileges; (3) tune out known service accounts via `lookup service_accounts.csv`; (4) send high-value rows (4625 spikes, 4672 after-hours) to SOAR/ITSM; (5) map to Authentication CIM for ES content.
 - **Visualization:** Time chart (failed logons 4625), Table (privileged logons 4672), Bar chart (after_hours vs business hours).
 - **CIM Models:** Authentication
+
+---
+
+### UC-22.2.6 · NIS2 Risk Analysis and Information System Security Policy Evidence (Art. 21(2)(a))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Risk, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(a) requires documented risk analysis and information security policies. This use case continuously validates that organisational risk posture is tracked, risk treatments are assigned owners, and security policy coverage aligns with critical asset inventory — producing auditable evidence that risk management is an operational process, not a one-time exercise.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `index=risk` `sourcetype="stash"` (risk_object, risk_object_type, risk_score, source), asset/identity lookups, `_audit` index
+- **SPL:**
+```spl
+index=risk sourcetype="stash" earliest=-30d@d
+| stats latest(risk_score) as current_risk, max(risk_score) as peak_risk, dc(source) as contributing_detections by risk_object, risk_object_type
+| lookup asset_lookup_by_str key AS risk_object OUTPUT category, priority, owner
+| fillnull value="UNASSIGNED" owner category
+| where owner="UNASSIGNED" OR current_risk > 50
+| sort - current_risk
+| table risk_object, risk_object_type, category, owner, current_risk, peak_risk, contributing_detections
+```
+- **Implementation:** (1) Populate ES asset and identity frameworks with NIS2-scoped systems; (2) ensure risk-generating correlation searches are active for all critical asset categories; (3) flag `UNASSIGNED` owners as governance gaps requiring remediation; (4) schedule weekly to generate evidence of continuous risk monitoring; (5) export as PDF for audit evidence pack.
+- **Visualization:** Table (risk objects without owners), Bar chart (risk by category), Single value (unassigned assets), Line chart (risk trend over 30 days).
+- **CIM Models:** Risk
+
+---
+
+### UC-22.2.7 · NIS2 72-Hour Incident Notification Readiness (Art. 23(2))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** After the 24-hour early warning (UC-22.2.1), Article 23(2) requires a more detailed incident notification within 72 hours containing initial severity assessment, impact analysis, and indicators of compromise. This use case tracks whether significant incidents have the required enrichment fields populated within the filing window, ensuring the 72-hour notification is substantive rather than a rehash of the early warning.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `` `notable` `` macro (urgency, severity, status, owner, status_description, _time, src, dest, signature)
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") earliest=-7d
+| eval hours_elapsed=round((now()-_time)/3600, 2)
+| eval has_ioc=if(isnotnull(src) AND isnotnull(dest) AND isnotnull(signature), 1, 0)
+| eval has_severity_assessment=if(isnotnull(status_description) AND len(status_description)>20, 1, 0)
+| eval filing_72h_breach=if(hours_elapsed>72 AND status!="Closed" AND (has_ioc=0 OR has_severity_assessment=0), 1, 0)
+| eval approaching_72h=if(hours_elapsed>=48 AND hours_elapsed<72 AND (has_ioc=0 OR has_severity_assessment=0), 1, 0)
+| where filing_72h_breach=1 OR approaching_72h=1
+| table _time, rule_name, urgency, status, owner, hours_elapsed, has_ioc, has_severity_assessment, filing_72h_breach, approaching_72h
+| sort - filing_72h_breach, - hours_elapsed
+```
+- **Implementation:** (1) Define mandatory enrichment fields for NIS2-classified incidents (IOCs, severity assessment narrative, impact scope); (2) alert at 48h for incidents missing required fields; (3) integrate with SOAR to auto-populate IOCs from investigation; (4) export completed notifications as structured reports matching CSIRT templates.
+- **Visualization:** Table (incidents approaching/breaching 72h), Single value (count missing IOCs), Timeline (enrichment progress).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.2.8 · NIS2 One-Month Final Incident Report Tracking (Art. 23(4))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 23(4) requires a comprehensive final report within one month of the incident notification, containing root cause analysis, detailed description, mitigation measures applied, and cross-border impact assessment. This use case tracks whether closed significant incidents have completed post-incident reviews within the mandated timeframe.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `` `notable` `` macro, `index=itsm` `sourcetype="snow:incident"` (PIR/RCA records)
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") status="Closed" earliest=-60d
+| eval days_since_close=round((now()-_time)/86400, 1)
+| eval final_report_due=if(days_since_close>=30, 1, 0)
+| eval final_report_approaching=if(days_since_close>=21 AND days_since_close<30, 1, 0)
+| lookup pir_completion_lookup notable_id AS event_id OUTPUT pir_status, pir_date, root_cause_documented
+| fillnull value="NOT_SUBMITTED" pir_status
+| where (final_report_due=1 AND pir_status!="Complete") OR final_report_approaching=1
+| table _time, rule_name, urgency, owner, days_since_close, pir_status, root_cause_documented, final_report_due
+| sort - final_report_due, - days_since_close
+```
+- **Implementation:** (1) Create `pir_completion_lookup` linking notable IDs to post-incident review (PIR) records from ServiceNow or Confluence; (2) alert at 21 days for incidents without started PIRs; (3) escalate at 30 days for overdue final reports; (4) require root cause analysis, timeline, mitigation actions, and cross-border assessment fields before marking PIR as complete.
+- **Visualization:** Table (overdue final reports), Single value (PIRs due this week), Bar chart (PIR status distribution), Timeline (incident-to-PIR lifecycle).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.2.9 · NIS2 Effectiveness Assessment of Cybersecurity Measures (Art. 21(2)(f))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Risk, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(f) requires policies and procedures to assess the effectiveness of cybersecurity risk-management measures. This use case creates a KPI dashboard tracking operational evidence across all NIS2 control areas — MFA coverage, patch SLA compliance, backup restore success, training completion, and detection efficacy — providing continuous proof that controls work rather than just exist.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Tenable Add-On for Splunk (Splunkbase 4060)
+- **Premium Apps:** Splunk Enterprise Security, Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `index=risk`, `index=vulnerability`, `index=itsi_summary`, `_audit`, `_internal`, CIM data models
+- **SPL:**
+```spl
+| makeresults
+| eval measure="MFA_Coverage"
+| append [
+    search index=_internal sourcetype=splunk_web_access earliest=-24h
+    | stats dc(user) as total_users dc(eval(if(match(_raw,"(?i)mfa|2fa|totp"),user,null()))) as mfa_users
+    | eval measure="MFA_Coverage", pct=round(100*mfa_users/total_users,1), target=95
+]
+| append [
+    search index=vulnerability sourcetype="tenable:vuln" state="Active" earliest=-30d
+    | eval sla_days=case(severity="Critical",7, severity="High",30, 1=1,90)
+    | eval age_days=round((now()-first_found)/86400,1)
+    | eval in_sla=if(age_days<=sla_days,1,0)
+    | stats avg(in_sla) as pct_raw
+    | eval measure="Patch_SLA_Compliance", pct=round(pct_raw*100,1), target=90
+]
+| append [
+    search index=itsi_summary is_service_in_maintenance=0 earliest=-7d
+    | stats avg(eval(if(health_score>=70,1,0))) as pct_raw by service_name
+    | stats avg(pct_raw) as pct_raw
+    | eval measure="Service_Availability", pct=round(pct_raw*100,1), target=99
+]
+| where isnotnull(pct)
+| eval status=if(pct>=target,"PASS","FAIL")
+| table measure, pct, target, status
+```
+- **Implementation:** (1) Define target KPIs for each NIS2 Article 21 measure area; (2) populate data sources (vulnerability scanner, identity provider MFA reports, ITSI services, training LMS exports); (3) schedule monthly for board/audit reporting; (4) add pen test and tabletop exercise results as manual KV store entries; (5) trend quarter-over-quarter to demonstrate improvement.
+- **Visualization:** KPI tiles (pass/fail per measure), Gauge charts (% vs target), Table (failing measures), Line chart (effectiveness trend).
+- **CIM Models:** Risk, Vulnerabilities
+
+---
+
+### UC-22.2.10 · NIS2 Cyber Hygiene and Training Compliance (Art. 21(2)(g))
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(g) requires basic cyber hygiene practices and cybersecurity training for all staff. This use case tracks training completion rates, identifies overdue personnel, and correlates training gaps with security incident involvement — proving that awareness is delivered, measured, and effective.
+- **App/TA:** Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), CSV lookup (LMS export)
+- **Data Sources:** `index=training` (LMS completion records via CSV/HEC), `index=email` `sourcetype="ms:o365:management"` (phishing simulation results), `` `notable` `` macro
+- **SPL:**
+```spl
+| inputlookup nis2_training_completion.csv
+| eval days_since_training=round((now()-strptime(completion_date,"%Y-%m-%d"))/86400, 0)
+| eval overdue=if(days_since_training > 365 OR isnull(completion_date), 1, 0)
+| stats count as total_staff, sum(overdue) as overdue_count, avg(days_since_training) as avg_days_since
+| eval compliance_pct=round(100*(total_staff-overdue_count)/total_staff, 1)
+| table total_staff, overdue_count, compliance_pct, avg_days_since
+```
+- **Implementation:** (1) Export LMS completion data to `nis2_training_completion.csv` via scheduled script or HEC; (2) include all NIS2-scope employees (not just IT); (3) alert when compliance drops below 90%; (4) correlate training-overdue users with notable events to demonstrate risk-based prioritisation; (5) track phishing simulation click rates as effectiveness evidence.
+- **Visualization:** Single value (compliance %), Bar chart (completion by department), Table (overdue staff), Line chart (compliance trend quarterly).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.2.11 · NIS2 Cryptography and Encryption Policy Monitoring (Art. 21(2)(h))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(h) requires policies and procedures for cryptography and encryption. This use case monitors TLS certificate health, identifies weak cipher usage, detects unencrypted protocols on NIS2-scoped networks, and tracks encryption-at-rest status — providing continuous evidence that cryptographic controls are operational and current.
+- **App/TA:** Splunk Add-on for Stream (Splunkbase 1809), Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Certificate data model, `index=network` (TLS metadata), `index=vulnerability` (crypto-related findings)
+- **SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Certificates.All_Certificates
+  where All_Certificates.ssl_end_time < relative_time(now(), "+30d")
+  by All_Certificates.ssl_subject_common_name All_Certificates.ssl_end_time All_Certificates.ssl_issuer_common_name
+| rename All_Certificates.* as *
+| eval days_until_expiry=round((ssl_end_time - now())/86400, 0)
+| eval status=case(days_until_expiry < 0, "EXPIRED", days_until_expiry < 14, "CRITICAL", days_until_expiry < 30, "WARNING")
+| sort days_until_expiry
+| table ssl_subject_common_name, ssl_issuer_common_name, days_until_expiry, status
+```
+- **Implementation:** (1) Ingest TLS handshake metadata from Splunk Stream or proxy logs; (2) monitor for deprecated protocols (TLS 1.0/1.1, SSLv3) and weak ciphers (RC4, DES, 3DES, export ciphers); (3) track certificate expiry for NIS2-scoped services; (4) correlate vulnerability scanner findings for crypto weaknesses; (5) report encryption-at-rest coverage for databases and file stores.
+- **Visualization:** Table (expiring/expired certificates), Pie chart (TLS version distribution), Bar chart (weak ciphers by host), Single value (% services using TLS 1.2+).
+- **CIM Models:** Certificates
+
+---
+
+### UC-22.2.12 · NIS2 Multi-Factor Authentication and Secure Communications (Art. 21(2)(j))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(j) requires MFA or continuous authentication, secured voice/video/text communications, and emergency communication systems. This use case monitors MFA enforcement across critical systems, detects authentication bypasses, and validates that administrative and emergency access channels are secured — providing evidence of the strongest authentication controls NIS2 mandates.
+- **App/TA:** Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Okta Identity Cloud (Splunkbase 6056)
+- **Data Sources:** `index=auth` (IdP authentication logs), `index=azure` `sourcetype="ms:aad:signin"` (Azure AD sign-ins), `index=okta` `sourcetype="OktaIM2:log"` (Okta system logs)
+- **SPL:**
+```spl
+index=auth OR index=azure OR index=okta earliest=-24h
+  sourcetype IN ("ms:aad:signin","OktaIM2:log","linux:auth","WinEventLog:Security")
+| eval user=coalesce(userPrincipalName, actor.alternateId, Account_Name, user)
+| eval mfa_used=case(
+    match(lower(_raw),"(?i)mfa|multifactor|two.?factor|2fa|totp|fido|webauthn|push.*approve"), 1,
+    match(lower(authenticationRequirement),"(?i)multi"), 1,
+    match(lower(factor),"(?i)push|totp|sms|call|webauthn"), 1,
+    1=1, 0)
+| eval is_admin=if(match(lower(user),"(?i)admin|svc-|service|root|system") OR match(lower(_raw),"(?i)privileged|admin.*role"), 1, 0)
+| stats count sum(mfa_used) as mfa_count by user, is_admin, sourcetype
+| eval mfa_pct=round(100*mfa_count/count, 1)
+| where (is_admin=1 AND mfa_pct < 100) OR (is_admin=0 AND mfa_pct < 80)
+| sort is_admin, mfa_pct
+| table user, is_admin, count, mfa_count, mfa_pct, sourcetype
+```
+- **Implementation:** (1) Ingest IdP authentication logs (Azure AD, Okta, or on-prem AD with ADFS); (2) require 100% MFA for administrative access and 80%+ for general users; (3) alert on admin authentications without MFA; (4) track break-glass account usage separately; (5) validate secure communications by checking Teams/Webex/Signal usage for emergency channels; (6) document emergency communication drill results in a KV store for audit evidence.
+- **Visualization:** Single value (MFA coverage %), Table (users without MFA), Bar chart (MFA by authentication type), Gauge (admin MFA compliance).
+- **CIM Models:** Authentication
+
+---
+
+### UC-22.2.13 · NIS2 Asset Management and Configuration Baseline (Art. 21(2)(i))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans)
+- **SPL:**
+```spl
+| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, sum(All_Traffic.bytes) as total_bytes
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src
+| rename All_Traffic.src as src
+| lookup asset_lookup_by_str key AS src OUTPUT category, priority, owner, nt_host
+| where isnull(category) OR category="unknown"
+| sort - total_bytes
+| head 100
+| table src, nt_host, category, owner, ports, total_bytes
+```
+- **Implementation:** (1) Populate ES asset framework from CMDB, vulnerability scanners, and network discovery tools; (2) schedule this search daily to find active IPs not in the asset inventory; (3) classify discovered assets by NIS2 criticality (essential service vs supporting); (4) alert on high-traffic unknown assets; (5) track asset inventory completeness as a NIS2 KPI in UC-22.2.9 effectiveness dashboard.
+- **Visualization:** Table (unknown active assets), Single value (% assets classified), Bar chart (assets by category), Map (asset locations if geo data available).
+- **CIM Models:** Network_Traffic
+
+---
+
+### UC-22.2.14 · NIS2 Human Resources Security — Joiner/Mover/Leaver Process (Art. 21(2)(i))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(i) requires human resources security controls including lifecycle-managed access. This use case detects accounts that remain active after employee departure, identifies access rights that persist after role changes, and monitors onboarding completeness — providing evidence that joiner/mover/leaver (JML) processes are enforced and auditable.
+- **App/TA:** Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `index=windows` `sourcetype="WinEventLog:Security"` (account disable/delete events), `index=itsm` (ServiceNow HR case records), HR system exports (CSV/HEC), `index=auth` (authentication after termination)
+- **SPL:**
+```spl
+| inputlookup terminated_employees.csv
+| eval term_date=strptime(termination_date, "%Y-%m-%d")
+| eval days_since_term=round((now()-term_date)/86400, 0)
+| join type=left user [
+    search index=auth OR index=windows OR index=azure earliest=-30d
+    | eval user=coalesce(Account_Name, userPrincipalName, user)
+    | stats latest(_time) as last_auth count as auth_count by user
+]
+| where isnotnull(last_auth) AND last_auth > term_date
+| eval days_active_after_term=round((last_auth - term_date)/86400, 0)
+| sort - days_active_after_term
+| table user, termination_date, days_since_term, days_active_after_term, auth_count
+```
+- **Implementation:** (1) Export HR termination data to `terminated_employees.csv` via scheduled integration or HEC; (2) run daily to detect orphaned accounts; (3) alert on any authentication activity after termination date; (4) escalate accounts active >3 days post-termination as potential compliance violations; (5) extend to movers by comparing current role vs granted access groups; (6) integrate with ServiceNow for automated deprovisioning ticket creation.
+- **Visualization:** Table (active terminated accounts), Single value (orphaned accounts count), Bar chart (days active after termination), Timeline (post-termination activity).
+- **CIM Models:** Authentication
+
+---
+
+### UC-22.2.15 · NIS2 Secure System Acquisition and Development Lifecycle (Art. 21(2)(e))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(e) extends beyond vulnerability management to require security in system acquisition, development, and maintenance lifecycles. This use case monitors CI/CD pipeline security gates, tracks code scanning results, and validates that change management processes include security review — demonstrating that security is embedded in the development lifecycle rather than bolted on after deployment.
+- **App/TA:** Splunk Add-on for GitHub (Splunkbase 5596), Splunk Add-on for Jira (Splunkbase 1438)
+- **Data Sources:** `index=devops` (CI/CD pipeline events from GitHub Actions, GitLab CI, Jenkins), `index=codescan` (SAST/SCA scan results), `index=itsm` (change management records)
+- **SPL:**
+```spl
+index=devops sourcetype IN ("github:webhook","gitlab:pipeline","jenkins:build") earliest=-30d
+| eval has_security_scan=if(match(lower(_raw),"(?i)sast|sca|snyk|sonar|trivy|semgrep|security.scan|code.scan"), 1, 0)
+| eval deployment=if(match(lower(_raw),"(?i)deploy|release|prod|production"), 1, 0)
+| stats count as total_builds, sum(has_security_scan) as scanned_builds, sum(deployment) as deployments by repository
+| eval scan_coverage=round(100*scanned_builds/total_builds, 1)
+| where scan_coverage < 80 OR (deployments > 0 AND scanned_builds = 0)
+| sort scan_coverage
+| table repository, total_builds, scanned_builds, scan_coverage, deployments
+```
+- **Implementation:** (1) Forward CI/CD pipeline events to Splunk via webhooks or HEC; (2) define minimum security gate requirements (SAST scan, dependency check, container image scan); (3) alert on deployments to production without security scan evidence; (4) track scan coverage percentage as a NIS2 KPI; (5) correlate with change management tickets to verify security review sign-off.
+- **Visualization:** Table (repos without scans), Bar chart (scan coverage by repo), Single value (overall scan coverage %), Line chart (coverage trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.2.16 · NIS2 Supply Chain Third-Party Risk Continuous Monitoring (Art. 21(2)(d))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs)
+- **SPL:**
+```spl
+| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as internal_sources
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.dest_category="supplier"
+  by All_Traffic.dest All_Traffic.app span=1d
+| rename All_Traffic.* as *
+| lookup supplier_risk_lookup dest OUTPUT supplier_name, risk_tier, last_assessment_date
+| eval days_since_assessment=round((now()-strptime(last_assessment_date,"%Y-%m-%d"))/86400, 0)
+| eval assessment_overdue=if(days_since_assessment > 365, 1, 0)
+| where bytes_out > 1073741824 OR assessment_overdue=1 OR internal_sources > 50
+| sort - bytes_out
+| table dest, supplier_name, risk_tier, bytes_out, internal_sources, days_since_assessment, assessment_overdue
+```
+- **Implementation:** (1) Tag supplier destination IPs/domains in ES asset framework with `category=supplier`; (2) maintain `supplier_risk_lookup` with vendor names, risk tiers, and last assessment dates; (3) alert on large data transfers to suppliers (potential exfiltration vector); (4) flag suppliers with overdue security assessments; (5) correlate supplier domains with threat intelligence feeds; (6) report on supply chain risk posture for board-level NIS2 compliance evidence.
+- **Visualization:** Table (supplier risk overview), Bar chart (data transfer by supplier), Single value (overdue assessments), Heatmap (supplier access patterns).
+- **CIM Models:** Network_Traffic
+
+---
+
+### UC-22.2.17 · NIS2 Backup Management and Disaster Recovery Verification (Art. 21(2)(c))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Compliance
+- **Splunk Pillar:** IT Operations
+- **Regulations:** EU NIS2
+- **Value:** While UC-22.2.4 monitors live service health during crises, Article 21(2)(c) specifically requires backup management and disaster recovery capabilities. This use case tracks backup job success/failure, validates restore test completion, and monitors RTO/RPO target adherence — providing the operational evidence that NIS2 auditors specifically ask for: "show me your last successful restore test."
+- **App/TA:** Splunk Add-on for Veeam (Splunkbase 7173), Splunk ITSI (Splunkbase 1841)
+- **Premium Apps:** Splunk IT Service Intelligence (ITSI)
+- **Data Sources:** `index=backup` (backup software logs — Veeam, Commvault, Rubrik, AWS Backup), `index=itsi_summary` (service recovery KPIs)
+- **SPL:**
+```spl
+index=backup sourcetype IN ("veeam:backup","commvault:job","rubrik:event","aws:backup") earliest=-7d
+| eval job_status=lower(coalesce(status, result, job_result, state))
+| eval success=if(match(job_status,"(?i)success|completed|ok"), 1, 0)
+| eval failed=if(match(job_status,"(?i)fail|error|warning|missed"), 1, 0)
+| stats sum(success) as successful, sum(failed) as failed, latest(_time) as last_backup by job_name, target_system
+| eval days_since_backup=round((now()-last_backup)/86400, 1)
+| eval backup_gap=if(days_since_backup > 1, "OVERDUE", "OK")
+| where failed > 0 OR backup_gap="OVERDUE"
+| sort - days_since_backup
+| table target_system, job_name, successful, failed, days_since_backup, backup_gap
+```
+- **Implementation:** (1) Forward backup software logs via syslog or HEC; (2) define RTO/RPO targets per NIS2-scoped service and validate against actual backup frequency; (3) alert on any failed backup for critical systems; (4) track restore test completion in a KV store (date, system, result, duration); (5) schedule monthly restore tests and report results; (6) include restore test evidence in Article 21(2)(f) effectiveness assessment (UC-22.2.9).
+- **Visualization:** Table (failed/overdue backups), Single value (backup success rate %), Bar chart (failures by system), Timeline (backup history).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.2.18 · NIS2 Network Security Monitoring and Anomaly Detection (Art. 21(2)(a))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 21(2)(a) requires information system security policies to be operational, not just documented. This use case provides continuous network security monitoring — detecting lateral movement, unauthorized network segments, protocol anomalies, and traffic patterns that deviate from baseline — serving as the core evidence that network security policies are enforced through technical controls.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** CIM Network_Traffic data model, firewall logs, IDS/IPS events, DNS logs
+- **SPL:**
+```spl
+| tstats `summariesonly` count sum(All_Traffic.bytes) as total_bytes dc(All_Traffic.dest_port) as dest_ports
+  from datamodel=Network_Traffic.All_Traffic
+  where NOT All_Traffic.dest_category IN ("internal_server","dns","ntp")
+  by All_Traffic.src All_Traffic.dest All_Traffic.action span=1h
+| rename All_Traffic.* as *
+| where dest_ports > 20 OR (action="blocked" AND count > 100) OR total_bytes > 10737418240
+| lookup asset_lookup_by_str key AS src OUTPUT category as src_category, priority as src_priority
+| eval risk_signal=case(
+    dest_ports > 50, "port_scan",
+    action="blocked" AND count > 500, "brute_force",
+    total_bytes > 10737418240, "data_exfiltration",
+    isnull(src_category), "unknown_asset",
+    1=1, "anomaly")
+| sort - count
+| table _time, src, dest, src_category, risk_signal, dest_ports, count, total_bytes, action
+```
+- **Implementation:** (1) Ensure CIM Network_Traffic data model is populated from firewall, proxy, and IDS sources; (2) define network segmentation zones and tag in asset framework; (3) alert on port scanning, brute force patterns, and large data transfers; (4) baseline normal traffic patterns and detect deviations; (5) integrate with ES Risk framework to aggregate network anomalies into risk scores for NIS2-scoped assets.
+- **Visualization:** Table (anomalies), Bar chart (risk signals by type), Map (traffic flows), Timeline (blocked connections), Sankey diagram (source to destination flows).
+- **CIM Models:** Network_Traffic, Intrusion_Detection
+
+---
+
+### UC-22.2.19 · NIS2 Cross-Border Incident Impact Assessment (Art. 23(3))
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security, Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 23(3) requires entities to determine whether significant incidents have cross-border impact and to notify CSIRTs in all affected Member States. This use case identifies whether incident-related traffic, compromised assets, or affected users span multiple countries — automating the cross-border impact assessment that NIS2 makes mandatory for multi-jurisdictional operations.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Premium Apps:** Splunk Enterprise Security
+- **Data Sources:** `` `notable` `` macro, CIM Network_Traffic, ES Asset Framework (with geo/country tags), Authentication CIM
+- **SPL:**
+```spl
+`notable` urgency IN ("high","critical") status!="Closed" earliest=-7d
+| eval incident_assets=mvappend(src, dest, src_ip, dest_ip)
+| mvexpand incident_assets
+| lookup asset_lookup_by_str key AS incident_assets OUTPUT country, business_unit, category
+| iplocation incident_assets
+| eval asset_country=coalesce(country, Country)
+| where isnotnull(asset_country)
+| stats dc(asset_country) as countries_affected, values(asset_country) as affected_countries, dc(incident_assets) as assets_involved by rule_name, urgency
+| where countries_affected > 1
+| eval cross_border_notification="REQUIRED — notify CSIRT in: " . mvjoin(affected_countries, ", ")
+| table rule_name, urgency, countries_affected, affected_countries, assets_involved, cross_border_notification
+```
+- **Implementation:** (1) Tag assets in ES asset framework with `country` field for all NIS2-scoped systems; (2) enrich IP-based assets with `iplocation`; (3) run against all high/critical notables to assess cross-border scope; (4) auto-generate notification lists for multi-CSIRT reporting; (5) integrate with legal/compliance workflow for mandatory parallel notifications; (6) document cross-border assessment in final report (UC-22.2.8).
+- **Visualization:** Table (cross-border incidents), Map (affected countries), Single value (incidents requiring multi-CSIRT notification), Bar chart (countries involved).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.2.20 · NIS2 Management Body Accountability and Governance Evidence (Art. 20)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Splunk Pillar:** Security
+- **Regulations:** EU NIS2
+- **Value:** Article 20 requires management bodies to approve and oversee cybersecurity risk-management measures, undergo training, and be personally accountable. This use case aggregates evidence of management engagement — board-level security report generation, policy approval timestamps, executive training completion, and risk acceptance decisions — into a single governance compliance dashboard.
+- **App/TA:** Splunk Enterprise Security (Splunkbase 263)
+- **Data Sources:** KV stores (manual governance records), `_audit` (scheduled report execution), `index=training` (executive training records)
+- **SPL:**
+```spl
+| inputlookup nis2_governance_evidence.csv
+| eval evidence_date=strptime(date, "%Y-%m-%d")
+| eval days_since=round((now()-evidence_date)/86400, 0)
+| eval status=case(
+    days_since > 365, "OVERDUE",
+    days_since > 270, "DUE_SOON",
+    1=1, "CURRENT")
+| sort - days_since
+| table evidence_type, description, responsible_person, date, days_since, status
+```
+- **Implementation:** (1) Create `nis2_governance_evidence.csv` KV store with evidence types: board_security_briefing, policy_approval, executive_training, risk_acceptance, audit_review, tabletop_exercise; (2) populate manually or via ServiceNow integration; (3) alert when any evidence type is overdue by >365 days; (4) generate quarterly governance report for board; (5) include training completion certificates for management body members.
+- **Visualization:** Table (governance evidence status), Traffic light indicators (current/due/overdue), Timeline (governance activities), Single value (overdue items).
+- **CIM Models:** N/A
 
 ---
 

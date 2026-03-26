@@ -22,6 +22,19 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.4] - 2026-03-26
+
+### NIS2 Directive — Full Article 21 & Article 23 Coverage
+
+- **15 new NIS2 use cases** (UC-22.2.6 through UC-22.2.20), expanding coverage from 5 to 20 dedicated UCs.
+- Now covers **all 10 Article 21(2) measures**: (a) risk analysis & security policies, (b) incident handling, (c) business continuity & backup/DR, (d) supply chain security, (e) secure development lifecycle, (f) effectiveness assessment, (g) cyber hygiene & training, (h) cryptography & encryption, (i) access control, asset management & HR security, (j) MFA & secure communications.
+- **Article 23 three-stage reporting** fully covered: 24h early warning (existing), 72h notification (new), one-month final report (new), cross-border impact assessment (new).
+- **Article 20 management accountability**: governance evidence dashboard for board-level training, policy approval, and risk acceptance tracking.
+- New use cases include: NIS2 effectiveness KPI dashboard, training compliance tracking, TLS/certificate health monitoring, JML process enforcement, CI/CD security gate coverage, supplier risk continuous monitoring, and backup/restore verification.
+- Updated 22.2 Primary App/TA to include Okta, Stream, CyberArk, Qualys, Veeam, GitHub, and Jira add-ons.
+
+---
+
 ## [4.3] - 2026-03-26
 
 ### Check Point Quantum Firewall & Security Expansion

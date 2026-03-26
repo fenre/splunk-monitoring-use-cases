@@ -916,10 +916,15 @@ window.NON_TECHNICAL = {
         { id: "22.1.3", why: "Monitor breach notification timelines — GDPR requires notification within 72 hours." },
         { id: "22.4.1", why: "Track CCPA consumer data requests — access and deletion requests must be handled on time." }
       ]},
-      { name: "Cybersecurity frameworks", description: "NIS2, ISO 27001, and NIST CSF — measuring your security posture against recognised standards.", ucs: [
+      { name: "NIS2 compliance", description: "EU NIS2 directive — incident reporting timelines, supply chain risk, encryption monitoring, MFA enforcement, training tracking, and board-level governance evidence across all ten Article 21 measures.", ucs: [
         { id: "22.2.1", why: "Track NIS2 incident detection and 24-hour early warning reporting obligations." },
+        { id: "22.2.9", why: "Dashboard the effectiveness of all cybersecurity measures — MFA, patching, backups, training — as Article 21(2)(f) requires." },
+        { id: "22.2.12", why: "Monitor multi-factor authentication enforcement and secure communications across critical systems." }
+      ]},
+      { name: "Cybersecurity frameworks", description: "ISO 27001 and NIST CSF — measuring your security posture against recognised standards.", ucs: [
         { id: "22.6.1", why: "Monitor how well your ISO 27001 security controls are working across the board." },
-        { id: "22.7.1", why: "Dashboard your NIST CSF maturity across all five functions — Identify, Protect, Detect, Respond, Recover." }
+        { id: "22.7.1", why: "Dashboard your NIST CSF maturity across all five functions — Identify, Protect, Detect, Respond, Recover." },
+        { id: "22.2.6", why: "Track risk analysis and security policy evidence — a requirement shared across NIS2, ISO 27001, and NIST." }
       ]},
       { name: "Financial regulation", description: "DORA, MiFID II, and SOC 2 — resilience testing, transaction reporting, and trust service compliance.", ucs: [
         { id: "22.3.1", why: "DORA ICT risk management dashboard — track digital resilience for financial services." },
