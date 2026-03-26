@@ -1263,7 +1263,7 @@ index=vpn sourcetype="vpn:session"
 
 ### 17.3 Zero Trust / SASE
 
-**Primary App/TA:** Zscaler TA, Netskope TA, Palo Alto Prisma Access TA, Cato Networks Events App (Splunkbase 8037).
+**Primary App/TA:** Zscaler TA (`Splunk_TA_zscaler`), Netskope Add-on for Splunk (Splunkbase 3808), Palo Alto Prisma Access TA (`Splunk_TA_paloalto`), Cato Networks Events App (Splunkbase 8037), Fortinet FortiGate Add-On (`TA-fortinet_fortigate`) for FortiSASE, Check Point App for Splunk (Splunkbase 4293), Broadcom Symantec WSS Add-on (Splunkbase 3856), Cloudflare App for Splunk (Splunkbase 4501).
 
 ---
 
@@ -1272,7 +1272,7 @@ index=vpn sourcetype="vpn:session"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** A spike in policy blocks for a single application after a policy publish suggests a rule-order or identity claim error. Gradual deny-rate growth across multiple apps indicates posture drift or certificate expiry across a device cohort. Both patterns require different response workflows.
-- **App/TA:** SASE TA, Entra ID
+- **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293), `Splunk_TA_microsoft-cloudservices` (Entra ID)
 - **Data Sources:** SASE/ZT policy decision logs
 - **SPL:**
 ```spl
@@ -1299,7 +1299,7 @@ index=zt sourcetype="zscaler:zpa"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Device trust scores drive access decisions in zero-trust architecture. Monitoring ensures devices maintain compliance.
-- **App/TA:** ZT platform TA
+- **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune), `TA-crowdstrike-falcon`
 - **Data Sources:** ZT device compliance/trust data
 - **SPL:**
 ```spl
@@ -1326,7 +1326,7 @@ index=zt sourcetype="zscaler:device_posture"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
 - **Value:** Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.
-- **App/TA:** SDN/ZT policy logs
+- **App/TA:** VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
 - **Data Sources:** Micro-segmentation policy logs (allow/deny events)
 - **SPL:**
 ```spl
@@ -1354,7 +1354,7 @@ index=zt sourcetype="microseg:policy"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Per-application access patterns in ZTNA reveal usage trends, security risks, and application performance issues.
-- **App/TA:** SASE TA
+- **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
 - **Data Sources:** ZTNA access logs (application, user, device, action)
 - **SPL:**
 ```spl
@@ -1381,7 +1381,7 @@ index=zt sourcetype="zscaler:zpa"
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
 - **Value:** Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.
-- **App/TA:** ZT platform TA
+- **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune)
 - **Data Sources:** ZT posture assessment data
 - **SPL:**
 ```spl
@@ -1407,7 +1407,7 @@ index=zt sourcetype="zt:posture"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
 - **Value:** Zero-trust policies require continuous validation. Drift from baseline configuration introduces security gaps.
-- **App/TA:** ZT platform audit logs
+- **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
 - **Data Sources:** ZT policy audit logs, configuration snapshots
 - **SPL:**
 ```spl
@@ -1435,7 +1435,7 @@ index=zt sourcetype="zt:admin_audit"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Expired device certificates break ZTNA and VPN access. Monitoring expiration and renewal success ensures continuous access and avoids outages.
-- **App/TA:** PKI/certificate inventory, ZTNA device logs
+- **App/TA:** PKI/certificate inventory, `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access)
 - **Data Sources:** Certificate validity, renewal requests, enrollment events
 - **SPL:**
 ```spl
@@ -1456,7 +1456,7 @@ index=zt sourcetype="device:cert"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** High denial rates may indicate policy misconfiguration or attacker probing. Trending supports tuning and security analysis.
-- **App/TA:** ZTNA/access proxy logs
+- **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
 - **Data Sources:** Access decision logs (allow/deny), user, app, reason
 - **SPL:**
 ```spl
@@ -1477,7 +1477,7 @@ index=zt sourcetype="zt:access"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** New or unexpected traffic between segments may indicate lateral movement or misconfiguration. Anomaly detection supports Zero Trust enforcement.
-- **App/TA:** Network flow logs, firewall/segment logs
+- **App/TA:** Network flow logs, VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
 - **Data Sources:** East-west traffic, segment IDs, flow counts
 - **SPL:**
 ```spl
@@ -1578,7 +1578,7 @@ index=dns sourcetype="umbrella:dns" earliest=-7d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** Monitors IPSec/GRE/SSL tunnels from branch to SASE PoPs — packet loss, latency, and down events.
-- **App/TA:** Zscaler, Prisma, vendor syslog
+- **App/TA:** `Splunk_TA_zscaler`, `Splunk_TA_paloalto` (Prisma Access), Cato Networks Events App (Splunkbase 8037), `TA-fortinet_fortigate` (FortiSASE), Netskope Add-on for Splunk (Splunkbase 3808)
 - **Data Sources:** `sourcetype=sase:tunnel`, SD-WAN to SASE
 - **SPL:**
 ```spl
@@ -1599,7 +1599,7 @@ index=sase sourcetype="sase:tunnel" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.
-- **App/TA:** Google IAP, Azure AD App Proxy, ZPA
+- **App/TA:** Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808)
 - **Data Sources:** `sourcetype=iap:access`, `zscaler:zpa`
 - **SPL:**
 ```spl
@@ -1708,7 +1708,7 @@ index=identity sourcetype="azure:signin" earliest=-7d
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Operational
 - **Value:** Measures adoption of remote browser isolation (RBI) sessions vs direct access — for licensing and risky-site coverage.
-- **App/TA:** Menlo, Zscaler RBI, Island
+- **App/TA:** Menlo Security syslog, `Splunk_TA_zscaler` (RBI), Island Enterprise Browser syslog, Broadcom Symantec WSS Add-on (Splunkbase 3856), Forcepoint ONE syslog
 - **Data Sources:** `sourcetype=rbi:session`
 - **SPL:**
 ```spl
@@ -2035,6 +2035,856 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-7d
   from datamodel=Network_Traffic.All_Traffic
   by All_Traffic.user All_Traffic.url span=1d
 | where count > 100
+```
+
+---
+
+### UC-17.3.32 · Netskope Cloud App Risk Assessment
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Netskope assigns Cloud Confidence Index (CCI) scores to SaaS applications. Tracking high-risk (low CCI) app usage reveals shadow IT and data exposure. Trending CCI across the organization supports SaaS governance and vendor risk management.
+- **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
+- **Equipment Models:** Netskope Security Cloud (cloud-delivered), Netskope Client (endpoint agent)
+- **Data Sources:** `sourcetype=netskope:events` or `netskope:application`
+- **SPL:**
+```spl
+index=casb sourcetype="netskope:events" earliest=-7d
+| where cci_score < 50
+| stats dc(user) as users, sum(numbytes) as bytes by app_name, cci_score, category
+| eval gb=round(bytes/1073741824,2)
+| sort -users
+```
+- **Implementation:** Configure the Netskope Add-on REST input for application events. Map `cci_score` (0–100) to risk tiers (0–30 critical, 31–50 high). Alert when new high-risk apps appear with >5 users. Report weekly on shadow IT growth and data volume to unsanctioned apps.
+- **Visualization:** Table (risky apps by users and data volume), Pie chart (CCI distribution), Bar chart (top unsanctioned apps), Line chart (shadow IT trend).
+- **CIM Models:** Network_Traffic, Web
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  by Web.url Web.user span=1d
+| where count > 10
+```
+
+---
+
+### UC-17.3.33 · Netskope DLP Policy Violations
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Netskope inline DLP inspects uploads, downloads, and cloud-to-cloud sharing for sensitive data (PII, PCI, PHI, IP). Tracking violations by policy, user, and destination app identifies repeat offenders, miscategorized data, and policy gaps before a breach.
+- **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
+- **Equipment Models:** Netskope Security Cloud, Netskope Client
+- **Data Sources:** `sourcetype=netskope:alert` (DLP alerts)
+- **SPL:**
+```spl
+index=casb sourcetype="netskope:alert" alert_type="DLP" earliest=-7d
+| stats count by dlp_profile, dlp_rule, user, app_name, action
+| sort -count
+```
+- **Implementation:** Configure the Netskope Add-on iterator input for alerts. Map `dlp_profile` names to data classification. Alert on block actions against critical data categories. Feed repeat offender reports to HR/compliance. Correlate with file hash for forensics.
+- **Visualization:** Bar chart (violations by DLP profile), Table (top users × apps), Stacked bar (actions: block/alert/allow), Line chart (violations/day trend).
+- **CIM Models:** Data_Loss_Prevention
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Data_Loss_Prevention
+  by DLP.user DLP.src span=1d
+| where count > 3
+```
+
+---
+
+### UC-17.3.34 · Netskope Threat Protection Events
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Netskope inspects web and cloud traffic for malware, phishing, and exploits inline. Threat events reveal attack vectors targeting users through sanctioned and unsanctioned cloud apps — a blind spot for traditional perimeter firewalls.
+- **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
+- **Equipment Models:** Netskope Security Cloud, Netskope Client
+- **Data Sources:** `sourcetype=netskope:alert` (malware/threat alerts)
+- **SPL:**
+```spl
+index=casb sourcetype="netskope:alert" alert_type IN ("Malware", "malsite", "Compromised Credential") earliest=-24h
+| stats count by alert_type, threat_name, user, app_name, action
+| sort -count
+```
+- **Implementation:** Configure threat alert iterator. Correlate `threat_name` with threat intel feeds. Alert on any malware block events. Escalate compromised credential alerts immediately. Report on threat type distribution for security posture assessment.
+- **Visualization:** Bar chart (threats by type), Table (affected users), Timeline (threat events), Pie chart (threat categories).
+- **CIM Models:** Malware, Intrusion_Detection
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Malware.Malware_Attacks
+  by Malware_Attacks.user Malware_Attacks.signature span=1h
+| where count > 0
+```
+
+---
+
+### UC-17.3.35 · Netskope SWG Web Category Blocking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** Tracks blocked web requests by URL category across the Netskope SWG — tunes real-time policy and validates acceptable-use enforcement for remote and office users alike.
+- **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
+- **Equipment Models:** Netskope Security Cloud, Netskope Client
+- **Data Sources:** `sourcetype=netskope:events` (web transactions)
+- **SPL:**
+```spl
+index=proxy sourcetype="netskope:events" earliest=-7d
+| where action="blocked"
+| stats count by category, user, policy_name
+| sort -count
+```
+- **Implementation:** Map Netskope URL categories to your acceptable-use policy. Alert when blocks spike for a category after a policy change. Report on top blocked categories weekly for policy review.
+- **Visualization:** Bar chart (blocks by category), Table (top blocked users), Line chart (daily blocks trend), Pie chart (category distribution).
+- **CIM Models:** Web, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.category span=1d
+```
+
+---
+
+### UC-17.3.36 · Netskope Private Access (NPA) Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.
+- **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
+- **Equipment Models:** Netskope Security Cloud, Netskope Publisher (on-prem connector), Netskope Client
+- **Data Sources:** `sourcetype=netskope:connection` or `netskope:network` (NPA connection events)
+- **SPL:**
+```spl
+index=casb sourcetype="netskope:connection" earliest=-24h
+| eval healthy=if(match(lower(status),"(?i)success|established|active") AND latency_ms<1000,1,0)
+| stats count sum(healthy) as ok by publisher_name, private_app
+| eval error_pct=round(100*(count-ok)/count,1)
+| where error_pct > 5
+| sort -error_pct
+```
+- **Implementation:** Map `publisher_name` to datacenter/region. Alert when any publisher shows >10% error rate or latency p95 exceeds 2s. Report on NPA adoption vs legacy VPN.
+- **Visualization:** Table (unhealthy publishers), Single value (publishers in error), Line chart (error rate trend), Bar chart (latency by app).
+- **CIM Models:** Network_Traffic, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.dest span=1h
+| where count > 0
+```
+
+---
+
+### UC-17.3.37 · Netskope CASB Inline Policy Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Netskope CASB enforces activity-level policies on sanctioned SaaS apps (block upload, read-only, quarantine). Monitoring enforcement actions validates that cloud governance policies are working and identifies gaps.
+- **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
+- **Equipment Models:** Netskope Security Cloud, Netskope Client
+- **Data Sources:** `sourcetype=netskope:events` (cloud app activity)
+- **SPL:**
+```spl
+index=casb sourcetype="netskope:events" earliest=-7d
+| where action IN ("block", "quarantine", "restrict", "coach")
+| stats count by app_name, activity, action, policy_name
+| sort -count
+```
+- **Implementation:** Map `activity` (upload, download, share, edit, delete) to your DLP/governance controls. Alert on new apps triggering policies. Report on enforcement effectiveness: block vs coach ratio.
+- **Visualization:** Stacked bar (actions by app), Table (policy triggers), Pie chart (activity types blocked), Line chart (enforcement trend).
+- **CIM Models:** Network_Traffic, Web
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.url Web.user span=1d
+```
+
+---
+
+### UC-17.3.38 · Netskope Admin Audit Trail
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Administrative changes to Netskope policies, steering configs, and tenant settings have global impact. Audit trail ensures accountability and change correlation.
+- **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
+- **Equipment Models:** Netskope Security Cloud (tenant admin)
+- **Data Sources:** `sourcetype=netskope:audit`
+- **SPL:**
+```spl
+index=casb sourcetype="netskope:audit" earliest=-30d
+| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by admin_user, object_type
+| sort -last
+```
+- **Implementation:** Alert on after-hours policy changes or bulk rule modifications. Correlate admin changes with enforcement anomalies in UC-17.3.37. Require change tickets for policy modifications.
+- **Visualization:** Table (recent changes), Timeline (admin activity), Bar chart (changes by admin).
+- **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1d
+```
+
+---
+
+### UC-17.3.39 · FortiSASE SWG Policy Violation Trends (Fortinet)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** FortiSASE cloud-delivered SWG enforces web filtering for remote and branch users through FortiGate NGFW policies in the cloud. Trending blocked categories and rules identifies policy drift and shadow IT.
+- **App/TA:** `TA-fortinet_fortigate` (FortiSASE logs use FortiGate syslog format)
+- **Equipment Models:** FortiSASE (cloud), FortiClient (endpoint agent), FortiGate (on-prem with SASE integration)
+- **Data Sources:** `sourcetype=fgt_utm` (FortiSASE web filter logs via syslog)
+- **SPL:**
+```spl
+index=proxy sourcetype="fgt_utm" subtype="webfilter" earliest=-7d
+| where action="blocked"
+| stats count by catdesc, user, policyname
+| sort -count
+```
+- **Implementation:** Forward FortiSASE logs via syslog to Splunk HF. The `TA-fortinet_fortigate` parses FortiSASE traffic identically to on-prem FortiGate. Alert when daily blocks exceed 2× 7-day baseline. Segment by FortiSASE PoP region for regional policy analysis.
+- **Visualization:** Bar chart (blocks by category), Table (top blocked users), Line chart (daily block trend), Pie chart (category distribution).
+- **CIM Models:** Web, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.category span=1d
+```
+
+---
+
+### UC-17.3.40 · FortiSASE ZTNA Application Access (Fortinet)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** FortiSASE ZTNA tags replace traditional VPN by granting per-application access based on device posture and identity. Monitoring ZTNA tag matches and application access patterns validates zero-trust enforcement.
+- **App/TA:** `TA-fortinet_fortigate` (FortiSASE ZTNA logs)
+- **Equipment Models:** FortiSASE (cloud), FortiClient (EMS-managed endpoint), FortiGate ZTNA proxy
+- **Data Sources:** `sourcetype=fgt_traffic` (FortiSASE ZTNA sessions)
+- **SPL:**
+```spl
+index=zt sourcetype="fgt_traffic" subtype="forward" earliest=-24h
+| where isnotnull(ztna_tag) OR isnotnull(ztna_rule)
+| stats count dc(user) as users by ztna_tag, dstip, action
+| sort -count
+```
+- **Implementation:** Map `ztna_tag` to EMS posture profiles. Alert when ZTNA deny rate exceeds baseline (posture drift or misconfigured tags). Report on ZTNA adoption vs legacy VPN connections.
+- **Visualization:** Table (ZTNA tag access), Bar chart (actions by tag), Line chart (ZTNA sessions trend), Single value (ZTNA vs VPN ratio).
+- **CIM Models:** Authentication, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.action All_Traffic.dest span=1h
+```
+
+---
+
+### UC-17.3.41 · FortiSASE Threat Detection Events (Fortinet)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** FortiSASE applies IPS, anti-malware, and sandboxing inline for all users. Threat events reveal attack vectors bypassing traditional perimeter security — critical for remote-first organizations.
+- **App/TA:** `TA-fortinet_fortigate` (FortiSASE IPS/AV logs)
+- **Equipment Models:** FortiSASE (cloud), FortiClient (endpoint), FortiSandbox Cloud
+- **Data Sources:** `sourcetype=fgt_utm` subtype IN (ips, virus, anomaly)
+- **SPL:**
+```spl
+index=ids sourcetype="fgt_utm" subtype IN ("ips","virus","anomaly") earliest=-24h
+| stats count by attack, severity, user, srcip, action
+| sort -count
+```
+- **Implementation:** Forward FortiSASE UTM logs. Map `attack` names to CVE and MITRE ATT&CK. Alert on critical-severity blocks. Correlate with FortiSandbox verdicts for zero-day detections.
+- **Visualization:** Bar chart (threats by severity), Table (top attacks), Timeline (detection events), Pie chart (action distribution).
+- **CIM Models:** Intrusion_Detection, Malware
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.signature IDS_Attacks.severity span=1h
+```
+
+---
+
+### UC-17.3.42 · FortiSASE Thin Edge Health (Fortinet)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** FortiSASE thin edges (FortiExtender, FortiGate in SASE mode) connect branches to the nearest FortiSASE PoP. Tunnel state, latency, and failover events determine branch connectivity and SLA compliance.
+- **App/TA:** `TA-fortinet_fortigate` (FortiSASE tunnel/system logs)
+- **Equipment Models:** FortiSASE (cloud PoPs), FortiExtender 200F/400F, FortiGate SD-WAN appliances in FortiSASE mode
+- **Data Sources:** `sourcetype=fgt_event` subtype IN (vpn, system)
+- **SPL:**
+```spl
+index=sase sourcetype="fgt_event" subtype IN ("vpn","system") earliest=-24h
+| eval down=if(match(lower(msg),"(?i)tunnel.*down|ipsec.*fail|phase[12].*fail"),1,0)
+| where down=1
+| stats count latest(_time) as last_event by tunnelid, remip, tunneltype
+| sort -count
+```
+- **Implementation:** Map `remip` to branch site via CMDB lookup. Alert on sustained tunnel-down (>15 min). Report on failover frequency and PoP selection patterns.
+- **Visualization:** Table (down tunnels), Map (branch sites), Line chart (tunnel availability %), Single value (sites currently down).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src span=1h
+```
+
+---
+
+### UC-17.3.43 · FortiSASE Admin Configuration Audit (Fortinet)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration, Compliance
+- **Value:** FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.
+- **App/TA:** `TA-fortinet_fortigate` (FortiSASE admin audit)
+- **Equipment Models:** FortiSASE (cloud management plane)
+- **Data Sources:** `sourcetype=fgt_event` subtype=system, logid related to admin/config
+- **SPL:**
+```spl
+index=sase sourcetype="fgt_event" subtype="system" earliest=-30d
+| where match(lower(msg),"(?i)config|policy|rule|admin.*login|object.*modified")
+| stats count earliest(_time) as first latest(_time) as last values(msg) as actions by user, ui
+| sort -last
+```
+- **Implementation:** Forward FortiSASE management audit events. Alert on after-hours changes or bulk policy modifications. Correlate with ITSM change tickets.
+- **Visualization:** Table (admin changes), Timeline (configuration events), Bar chart (changes by admin).
+- **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1d
+```
+
+---
+
+### UC-17.3.44 · Check Point Harmony SASE Threat Prevention (Check Point)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Check Point Harmony SASE applies ThreatCloud AI-powered prevention (IPS, anti-malware, anti-bot, threat emulation) to all user traffic via cloud enforcement points. Detection events reveal threats targeting users regardless of location.
+- **App/TA:** Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Endpoint (client), Smart-1 Cloud (management)
+- **Data Sources:** `sourcetype=cp_log` (Check Point Log Exporter), Smart-1 Cloud logs
+- **SPL:**
+```spl
+index=checkpoint sourcetype="cp_log" earliest=-24h
+| where match(lower(product),"(?i)ips|anti.?bot|anti.?malware|anti.?virus|threat.?emulation|threat.?extraction")
+| stats count by protection_name, severity, src, action
+| sort -count
+```
+- **Implementation:** Configure Check Point Log Exporter or Smart-1 Cloud syslog forwarding to Splunk. Map `protection_name` to ThreatCloud categories. Alert on critical-severity detections. Correlate with MITRE ATT&CK via Check Point attack IDs.
+- **Visualization:** Bar chart (detections by protection type), Table (top threats), Timeline (detection events), Pie chart (severity distribution).
+- **CIM Models:** Intrusion_Detection, Malware
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.signature IDS_Attacks.severity span=1h
+```
+
+---
+
+### UC-17.3.45 · Check Point Harmony SASE Internet Access Policy (Check Point)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** Harmony SASE Internet Access (formerly Perimeter 81) enforces URL filtering, application control, and content inspection. Tracking policy actions validates acceptable-use enforcement and identifies shadow IT.
+- **App/TA:** Check Point App for Splunk (Splunkbase 4293)
+- **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Connect Client
+- **Data Sources:** `sourcetype=cp_log` (URL filtering / application control logs)
+- **SPL:**
+```spl
+index=proxy sourcetype="cp_log" product="URL Filtering" earliest=-7d
+| where action="Block"
+| stats count by category, src_user_name, policy_name
+| sort -count
+```
+- **Implementation:** Forward Harmony SASE logs via Log Exporter. Map URL categories to your acceptable-use policy. Alert on category blocks spiking post-policy change. Report weekly on top blocked categories.
+- **Visualization:** Bar chart (blocks by category), Table (top users blocked), Line chart (block trend), Pie chart (category distribution).
+- **CIM Models:** Web, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.category span=1d
+```
+
+---
+
+### UC-17.3.46 · Check Point Harmony SASE Private Access (Check Point)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Harmony SASE Private Access (ZTNA) grants per-application access to private resources without VPN. Connector health, access decisions, and latency determine user experience for internal applications.
+- **App/TA:** Check Point App for Splunk (Splunkbase 4293)
+- **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Connect Client, Harmony SASE Connector (on-prem)
+- **Data Sources:** `sourcetype=cp_log` (VPN/access logs)
+- **SPL:**
+```spl
+index=zt sourcetype="cp_log" product="VPN" earliest=-24h
+| eval ok=if(match(lower(action),"(?i)accept|allow") AND isnotnull(rule_name),1,0)
+| stats count sum(ok) as successes by src_user_name, dst, rule_name
+| eval fail_pct=round(100*(count-successes)/count,1)
+| where fail_pct > 5
+| sort -fail_pct
+```
+- **Implementation:** Map `dst` to private application names via lookup. Alert when connector error rates exceed 10%. Report on ZTNA adoption vs traditional VPN.
+- **Visualization:** Table (applications with high failure), Single value (connectors in error), Line chart (access trend), Bar chart (failures by rule).
+- **CIM Models:** Authentication, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  where Authentication.action=failure
+  by Authentication.dest span=1h
+```
+
+---
+
+### UC-17.3.47 · Check Point Harmony SASE Admin Audit (Check Point)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Centralized SASE policy changes affect all connected users and sites. Audit logs enable compliance, change correlation, and accountability.
+- **App/TA:** Check Point App for Splunk (Splunkbase 4293)
+- **Equipment Models:** Check Point Harmony SASE management portal, Smart-1 Cloud
+- **Data Sources:** `sourcetype=cp_log` (audit/admin logs)
+- **SPL:**
+```spl
+index=checkpoint sourcetype="cp_log" product="SmartConsole" earliest=-30d
+| where match(lower(operation),"(?i)create|modify|delete|publish|install")
+| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by administrator, object_name
+| sort -last
+```
+- **Implementation:** Forward audit logs via Log Exporter or Smart-1 Cloud. Alert on after-hours changes or policy publishes without change ticket. Correlate access anomalies with recent policy changes.
+- **Visualization:** Table (recent changes), Timeline (admin activity), Bar chart (changes by admin).
+- **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Change.All_Changes
+  by All_Changes.user All_Changes.object span=1d
+```
+
+---
+
+### UC-17.3.48 · Check Point Harmony SASE DLP Events (Check Point)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** Harmony SASE inline DLP inspects uploads and downloads for sensitive data patterns (credit cards, SSNs, health records, source code). Detection events identify data exposure risks across cloud and private application access.
+- **App/TA:** Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Connect Client
+- **Data Sources:** `sourcetype=cp_log` (DLP blade logs)
+- **SPL:**
+```spl
+index=dlp sourcetype="cp_log" product="DLP" earliest=-7d
+| stats count by dlp_rule_name, data_type, src_user_name, action, dst
+| sort -count
+```
+- **Implementation:** Map `data_type` to your data classification scheme. Alert on any DLP blocks for PCI/PHI data. Report on repeat offenders. Correlate with CASB events if using Harmony Email & Collaboration.
+- **Visualization:** Bar chart (violations by rule), Table (top users), Stacked bar (actions), Line chart (violations/day).
+- **CIM Models:** Data_Loss_Prevention
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Data_Loss_Prevention
+  by DLP.user DLP.src span=1d
+```
+
+---
+
+### UC-17.3.49 · Akamai Guardicore Segmentation Policy Violations
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Akamai Guardicore enforces microsegmentation at the workload level across on-prem, cloud, and hybrid environments. Policy violation events (blocked lateral movement) validate that default-deny segmentation is enforced and detect attempted east-west attacks.
+- **App/TA:** Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
+- **Equipment Models:** Akamai Guardicore Centra (management), Guardicore Agents (workload), Guardicore Aggregators
+- **Data Sources:** Akamai Guardicore REST API or syslog via the Add-on
+- **SPL:**
+```spl
+index=microseg sourcetype="guardicore:network" earliest=-24h
+| where match(lower(action),"(?i)block|deny|drop|reject")
+| stats count by src_asset, dst_asset, dst_port, policy_name
+| sort -count
+```
+- **Implementation:** Install the Akamai Guardicore Add-on. Map `src_asset` and `dst_asset` to application labels from the Guardicore Reveal map. Alert on blocked flows to critical assets (databases, domain controllers). Report on deny-to-allow ratio per segmentation ring.
+- **Visualization:** Table (blocked flows), Heatmap (source × destination), Bar chart (blocks by policy), Sankey (traffic flow map).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.action="blocked"
+  by All_Traffic.src All_Traffic.dest span=1h
+```
+
+---
+
+### UC-17.3.50 · Akamai Guardicore Reveal Map Anomalies
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Guardicore's Reveal feature maps all process-level communication between workloads. New or unexpected connections that deviate from the learned application dependency map may indicate lateral movement, compromised workloads, or configuration drift.
+- **App/TA:** Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
+- **Equipment Models:** Akamai Guardicore Centra, Guardicore Agents
+- **Data Sources:** Akamai Guardicore flow/connection data
+- **SPL:**
+```spl
+index=microseg sourcetype="guardicore:network" earliest=-24h
+| eval flow_key=src_asset.":".tostring(src_port)."->".dst_asset.":".tostring(dst_port)
+| lookup known_flows.csv flow_key OUTPUT known
+| where isnull(known)
+| stats count by src_asset, dst_asset, dst_port, process_name
+| where count > 5
+| sort -count
+```
+- **Implementation:** Export the Guardicore application dependency map as a lookup. Run anomaly detection against new flows. Alert on never-before-seen process-port combinations to critical segments. Tune for deployment rollouts.
+- **Visualization:** Table (new flows), Network graph (dependencies), Bar chart (anomalies by segment), Timeline (first seen).
+- **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.dest_port span=1h
+| where count > 10
+```
+
+---
+
+### UC-17.3.51 · Akamai Guardicore Agent Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** Guardicore agents on workloads enforce segmentation policies. Offline or degraded agents leave workloads unprotected — effectively disabling zero trust enforcement on that asset.
+- **App/TA:** Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
+- **Equipment Models:** Akamai Guardicore Centra, Guardicore Agents (Linux/Windows/containers)
+- **Data Sources:** Guardicore agent status events
+- **SPL:**
+```spl
+index=microseg sourcetype="guardicore:agent" earliest=-4h
+| eval healthy=if(match(lower(status),"(?i)active|running|connected"),1,0)
+| stats latest(healthy) as current_status latest(_time) as last_seen by agent_id, hostname, os
+| where current_status=0 OR last_seen < relative_time(now(), "-2h")
+| sort last_seen
+```
+- **Implementation:** Alert when agents go offline for >30 minutes on critical assets. Report on agent coverage (% of assets with active agents). Track agent version compliance.
+- **Visualization:** Single value (offline agents), Table (unhealthy agents), Pie chart (agent status), Line chart (coverage trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.52 · Akamai Guardicore Incident Investigation
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** Guardicore generates security incidents when patterns of blocked connections, deception (honeypot) triggers, or policy violations suggest active threats. Incident-level correlation in Splunk supports rapid investigation with full process and network context.
+- **App/TA:** Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
+- **Equipment Models:** Akamai Guardicore Centra, Guardicore Agents, Guardicore Deception
+- **Data Sources:** Guardicore incident and deception events
+- **SPL:**
+```spl
+index=microseg sourcetype="guardicore:incident" earliest=-7d
+| stats count values(affected_assets) as assets values(attack_type) as types by incident_id, severity, status
+| sort -severity -count
+```
+- **Implementation:** Configure the Add-on to pull incident data via API. Correlate `affected_assets` with CMDB for impact assessment. Escalate critical-severity incidents immediately. Use deception triggers as high-fidelity IOCs — false positives are rare on decoys.
+- **Visualization:** Table (active incidents), Timeline (incident progression), Bar chart (by severity), Single value (open critical incidents).
+- **CIM Models:** Intrusion_Detection
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.src IDS_Attacks.dest span=1h
+```
+
+---
+
+### UC-17.3.53 · Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Value:** Broadcom Symantec Cloud SWG (formerly WSS) provides cloud-delivered web security with URL filtering, threat protection, and SSL inspection for all users. Tracking policy violations and threat blocks validates security posture.
+- **App/TA:** Symantec WSS Add-on for Splunk (Splunkbase 3856)
+- **Equipment Models:** Symantec Cloud SWG (cloud), Symantec Web Security Service Edge, Symantec Endpoint Agent
+- **Data Sources:** Symantec WSS access logs (API-based collection via the Add-on)
+- **SPL:**
+```spl
+index=proxy sourcetype="symantec:wss:accesslog" earliest=-7d
+| where sc_filter_result="DENIED"
+| stats count by cs_categories, cs_userdn, sc_filter_result
+| sort -count
+```
+- **Implementation:** Install the Symantec WSS Add-on and configure API-based data collection. Map `cs_categories` to your acceptable-use policy. Alert when denied requests spike for a user. Report on top blocked categories and threat detections.
+- **Visualization:** Bar chart (blocks by category), Table (top users blocked), Line chart (daily denied trend), Pie chart (category distribution).
+- **CIM Models:** Web, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.category span=1d
+```
+
+---
+
+### UC-17.3.54 · Broadcom Symantec CASB Shadow IT Detection (Broadcom)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Symantec CloudSOC CASB detects unsanctioned cloud application usage by analyzing web proxy and firewall logs. Shadow IT visibility identifies data exposure risks and supports SaaS governance.
+- **App/TA:** Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934)
+- **Equipment Models:** Symantec CloudSOC (cloud), Cloud SWG
+- **Data Sources:** Symantec CloudSOC or WSS cloud app logs
+- **SPL:**
+```spl
+index=proxy sourcetype="symantec:wss:accesslog" earliest=-30d
+| where cs_threat_risk_level="High" OR match(cs_categories,"(?i)unsanctioned|shadow")
+| stats dc(cs_userdn) as users sum(sc_bytes) as bytes by cs_host, cs_categories
+| eval gb=round(bytes/1073741824,2)
+| sort -users
+```
+- **Implementation:** Configure CloudSOC app discovery or filter WSS logs for unsanctioned category. Map cloud app names to your SaaS registry. Alert on new high-risk apps with >3 users. Report on shadow IT data volume.
+- **Visualization:** Table (unsanctioned apps), Bar chart (top apps by users), Pie chart (risk levels), Line chart (shadow IT trend).
+- **CIM Models:** Web, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  by Web.url Web.user span=1d
+| where count > 20
+```
+
+---
+
+### UC-17.3.55 · Broadcom Symantec Cloud SWG Threat Events (Broadcom)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Cloud SWG detects malware, phishing, and zero-day threats via URL reputation, content analysis, and sandboxing. Threat events in Splunk enable incident response and threat hunting.
+- **App/TA:** Symantec WSS Add-on for Splunk (Splunkbase 3856)
+- **Equipment Models:** Symantec Cloud SWG (cloud), Symantec Endpoint Agent
+- **Data Sources:** Symantec WSS access logs with threat fields
+- **SPL:**
+```spl
+index=proxy sourcetype="symantec:wss:accesslog" earliest=-24h
+| where sc_filter_result="DENIED" AND isnotnull(cs_threat_risk_level) AND cs_threat_risk_level IN ("High","Critical")
+| stats count by cs_threat, cs_categories, cs_userdn, cs_host
+| sort -count
+```
+- **Implementation:** Map `cs_threat` to threat categories. Alert on critical-severity threats. Correlate with endpoint detection for compromised hosts. Report on threat type distribution.
+- **Visualization:** Bar chart (threats by category), Table (affected users), Timeline (detections), Pie chart (threat types).
+- **CIM Models:** Malware, Web
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Malware.Malware_Attacks
+  by Malware_Attacks.user Malware_Attacks.url span=1h
+```
+
+---
+
+### UC-17.3.56 · Cloudflare Access (ZTNA) Policy Enforcement
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security
+- **Value:** Cloudflare Access replaces VPN with per-application zero-trust access policies based on identity, device posture, and network context. Tracking allow/block decisions validates that access policies are correctly enforced.
+- **App/TA:** Cloudflare App for Splunk (Splunkbase 4501)
+- **Equipment Models:** Cloudflare Zero Trust (cloud), Cloudflare WARP client (endpoint), Cloudflare Tunnel (connector)
+- **Data Sources:** Cloudflare Logpush (Access logs), `sourcetype=cloudflare:access`
+- **SPL:**
+```spl
+index=zt sourcetype="cloudflare:access" earliest=-7d
+| stats count by action, app_name, user_email, country
+| sort -count
+```
+- **Implementation:** Configure Cloudflare Logpush to push Access logs to Splunk via HEC or S3. Map `app_name` to internal application names. Alert when block rate spikes for specific applications. Report on access patterns by geography.
+- **Visualization:** Bar chart (access by app), Table (blocks by user), Pie chart (allow vs block), Line chart (access trend).
+- **CIM Models:** Authentication, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Authentication.Authentication
+  by Authentication.user Authentication.app span=1d
+```
+
+---
+
+### UC-17.3.57 · Cloudflare Gateway (SWG) DNS and HTTP Filtering
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Cloudflare Gateway provides DNS-layer and HTTP-layer filtering for all users. DNS blocks stop threats before connections are established; HTTP inspection enforces content and application policies.
+- **App/TA:** Cloudflare App for Splunk (Splunkbase 4501)
+- **Equipment Models:** Cloudflare Zero Trust (cloud), Cloudflare WARP client
+- **Data Sources:** Cloudflare Logpush (Gateway DNS/HTTP logs), `sourcetype=cloudflare:gateway`
+- **SPL:**
+```spl
+index=proxy sourcetype="cloudflare:gateway" earliest=-7d
+| where action IN ("block", "isolate")
+| stats count by policy_name, category, action, user_email
+| sort -count
+```
+- **Implementation:** Configure Logpush for Gateway logs. Map categories to your acceptable-use policy. Alert on DNS blocks for known-malicious categories. Report on filtering effectiveness and policy coverage.
+- **Visualization:** Bar chart (blocks by category), Table (top blocked domains), Line chart (daily blocks), Pie chart (DNS vs HTTP blocks).
+- **CIM Models:** Web, DNS, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.category span=1d
+```
+
+---
+
+### UC-17.3.58 · Cloudflare Tunnel Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Cloudflare Tunnels (formerly Argo Tunnels) connect private infrastructure to Cloudflare without opening inbound ports. Tunnel health determines whether users can reach private applications through Cloudflare Access.
+- **App/TA:** Cloudflare App for Splunk (Splunkbase 4501)
+- **Equipment Models:** Cloudflare Zero Trust (cloud), cloudflared daemon (connector)
+- **Data Sources:** Cloudflare Logpush (Tunnel logs), `sourcetype=cloudflare:tunnel`
+- **SPL:**
+```spl
+index=zt sourcetype="cloudflare:tunnel" earliest=-24h
+| eval healthy=if(match(lower(event_type),"(?i)connected|healthy|active"),1,0)
+| stats latest(healthy) as status latest(_time) as last_seen by tunnel_id, tunnel_name, connector_id
+| where status=0 OR last_seen < relative_time(now(), "-1h")
+| sort last_seen
+```
+- **Implementation:** Configure Logpush for Tunnel health events. Alert when tunnels disconnect for >10 minutes. Track connector version compliance. Report on tunnel availability SLA.
+- **Visualization:** Single value (tunnels down), Table (unhealthy tunnels), Line chart (tunnel availability %), Timeline (connect/disconnect events).
+- **CIM Models:** N/A
+
+---
+
+### UC-17.3.59 · Forcepoint ONE SSE Web Security Events (Forcepoint)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** Forcepoint ONE SSE delivers cloud-native SWG, CASB, and ZTNA from a unified platform. Web security events reveal policy violations, threat blocks, and shadow IT usage across all users.
+- **App/TA:** Forcepoint Insights SIEM App (Splunkbase 8053)
+- **Equipment Models:** Forcepoint ONE (cloud), Forcepoint ONE Smart Edge Agent (endpoint)
+- **Data Sources:** Forcepoint ONE SSE logs via Splunkbase app
+- **SPL:**
+```spl
+index=proxy sourcetype="forcepoint:one" earliest=-7d
+| where action IN ("block", "deny")
+| stats count by policy_name, category, user, action
+| sort -count
+```
+- **Implementation:** Install the Forcepoint Insights SIEM App and configure log ingestion. Map categories to your acceptable-use policy. Alert on high-risk category blocks. Report on enforcement effectiveness.
+- **Visualization:** Bar chart (blocks by category), Table (top users blocked), Line chart (block trend), Pie chart (policy distribution).
+- **CIM Models:** Web, Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.category span=1d
+```
+
+---
+
+### UC-17.3.60 · Forcepoint ONE ZTNA Private Access Health (Forcepoint)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Forcepoint ONE ZTNA provides agentless and agent-based private application access. Connector health and access decision monitoring ensures application reachability.
+- **App/TA:** Forcepoint Insights SIEM App (Splunkbase 8053)
+- **Equipment Models:** Forcepoint ONE (cloud), Forcepoint ONE Connector (on-prem), Smart Edge Agent
+- **Data Sources:** Forcepoint ONE ZTNA access/connector logs
+- **SPL:**
+```spl
+index=zt sourcetype="forcepoint:one" earliest=-24h
+| where match(lower(event_type),"(?i)ztna|private|connector")
+| eval ok=if(match(lower(status),"(?i)success|allow|connected"),1,0)
+| stats count sum(ok) as successes by connector_name, app_name
+| eval error_pct=round(100*(count-successes)/count,1)
+| where error_pct > 5
+| sort -error_pct
+```
+- **Implementation:** Map connector names to datacenter/region. Alert when connectors show >10% error rate. Report on ZTNA adoption metrics.
+- **Visualization:** Table (unhealthy connectors), Single value (connectors in error), Line chart (error rate trend), Bar chart (access by app).
+- **CIM Models:** Network_Traffic, Network_Sessions
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.dest span=1h
+```
+
+---
+
+### UC-17.3.61 · SonicWall Cloud SWG and SMA Access Events (SonicWall)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Security, Compliance
+- **Value:** SonicWall Cloud SWG and Secure Mobile Access (SMA) provide cloud-delivered web security and ZTNA for remote and branch users. Tracking blocked connections, authentication events, and policy actions validates secure access enforcement.
+- **App/TA:** SonicWall SMA 1000 TA (Splunkbase 6670), `dell:sonicwall:firewall` syslog
+- **Equipment Models:** SonicWall SMA 1000 series, SonicWall Cloud SWG, SonicWall NSa/NSsp (with SASE), SonicWall Cloud Edge
+- **Data Sources:** `sourcetype=dell:sonicwall:firewall` (syslog), SMA 1000 logs via TA
+- **SPL:**
+```spl
+index=proxy sourcetype="dell:sonicwall:firewall" earliest=-7d
+| where fw_action IN ("block","deny","drop")
+| stats count by cat, usr, fw_action, rule
+| sort -count
+```
+- **Implementation:** Forward SonicWall Cloud SWG/SMA logs via syslog or use the SMA 1000 TA. Map `cat` (web category) to acceptable-use policy. Alert on authentication failures from SMA. Report on policy enforcement effectiveness.
+- **Visualization:** Bar chart (blocks by category), Table (top blocked users), Line chart (daily block trend), Pie chart (action distribution).
+- **CIM Models:** Web, Network_Traffic, Authentication
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Web.Web
+  where Web.action="blocked"
+  by Web.category span=1d
+```
+
+---
+
+### UC-17.3.62 · Versa SASE Security and Access Events (Versa Networks)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security
+- **Value:** Versa SASE unifies SD-WAN, SWG, CASB, ZTNA, and FWaaS in a single platform. Security event analysis across these functions provides unified threat visibility and policy enforcement validation.
+- **App/TA:** Versa Networks Splunk App (via Versa Analytics syslog integration)
+- **Equipment Models:** Versa FlexVNF (branch CPE), Versa Director (management), Versa SASE Cloud Gateways
+- **Data Sources:** Versa Analytics logs (syslog key-value pairs: alarm, event, flow, firewall, threat logs)
+- **SPL:**
+```spl
+index=sase sourcetype="versa:sase" earliest=-24h
+| where match(lower(action),"(?i)block|deny|drop|alert")
+| stats count by log_type, rule_name, src_ip, action
+| sort -count
+```
+- **Implementation:** Configure Versa Analytics to stream logs to Splunk via UDP/TCP syslog in key-value format. Install the Versa Splunk App for pre-built reports. Map `rule_name` to policy intent. Alert on threat and firewall blocks. Report on SASE enforcement across sites.
+- **Visualization:** Bar chart (events by log type), Table (top blocked sources), Timeline (security events), Pie chart (action distribution).
+- **CIM Models:** Network_Traffic, Intrusion_Detection
+- **CIM SPL:**
+```spl
+| tstats `summariesonly` count
+  from datamodel=Network_Traffic.All_Traffic
+  where All_Traffic.action="blocked"
+  by All_Traffic.src span=1h
 ```
 
 ---

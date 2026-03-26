@@ -10,6 +10,25 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.2] - 2026-03-26
+
+### Zero Trust / SASE Vendor Expansion
+
+- **31 new zero-trust / SASE use cases** (UC-17.3.32 through UC-17.3.62) covering vendors missing from the catalog:
+  - **Netskope** (7 UCs): Cloud app risk (CCI scoring), DLP violations, threat protection, SWG category blocking, Private Access (NPA) health, CASB inline enforcement, admin audit trail.
+  - **Fortinet FortiSASE** (5 UCs): SWG policy violations, ZTNA tag-based access, threat detection (IPS/AV), thin edge tunnel health, admin configuration audit.
+  - **Check Point Harmony SASE** (5 UCs): ThreatCloud prevention, Internet Access policy, Private Access (ZTNA) health, admin audit, DLP events.
+  - **Akamai Guardicore** (4 UCs): Segmentation policy violations, Reveal map anomalies, agent health, incident investigation with deception triggers.
+  - **Broadcom / Symantec SSE** (3 UCs): Cloud SWG policy analysis, CASB shadow IT detection, SWG threat events.
+  - **Cloudflare Zero Trust** (3 UCs): Access (ZTNA) policy enforcement, Gateway DNS/HTTP filtering, Tunnel health.
+  - **Forcepoint ONE** (2 UCs): SSE web security events, ZTNA private access health.
+  - **SonicWall** (1 UC): Cloud SWG and SMA access events.
+  - **Versa Networks** (1 UC): Unified SASE security and access events.
+- **Existing vendor-neutral UCs updated:** 13 generic UCs (17.3.1–17.3.20) now list all relevant vendor TAs (Zscaler, Netskope, Prisma Access, FortiSASE, Check Point, Cloudflare, Akamai Guardicore, Broadcom Symantec, Forcepoint) where the use case concept applies across platforms.
+- **New Splunkbase app integrations:** Added Netskope App (6042), Check Point App (4293), Cloudflare App (4501), Akamai Guardicore Add-on (7426), Forcepoint Insights SIEM App (8053), Netskope Add-on (3808), Symantec WSS Add-on (3856), SonicWall SMA 1000 TA (6670) to build.py for automatic Splunkbase linking.
+
+---
+
 ## [4.1] - 2026-03-26
 
 ### Multi-Vendor TA Coverage & Archived App Display

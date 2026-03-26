@@ -1,0 +1,45 @@
+name: UC manifest
+
+on:
+  push:
+    paths:
+      - "use-cases/**/*.md"
+      - "scripts/parse_uc_catalog.py"
+      - "config/uc_to_log_family.json"
+      - ".github/workflows/uc-manifest.yml"
+  pull_request:
+    paths:
+      - "use-cases/**/*.md"
+      - "scripts/parse_uc_catalog.py"
+      - "config/uc_to_log_family.json"
+      - ".github/workflows/uc-manifest.yml"
+
+jobs:
+  generate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate manifest-all.json
+        run: python3 scripts/parse_uc_catalog.py --output /tmp/manifest-all.json --check
+
+      - name: Validate JSON and UC count
+        run: |
+          python3 - <<'PY'
+          import json
+          with open("/tmp/manifest-all.json", encoding="utf-8") as f:
+              d = json.load(f)
+          n = d.get("uc_count", 0)
+          assert n >= 4000, f"expected uc_count >= 4000, got {n}"
+          assert len(d.get("use_cases", [])) == n
+          print("ok: uc_count =", n)
+          PY
+
+      - name: HEC NDJSON generator (top 10)
+        run: |
+          python3 scripts/generate_manifest_samples.py --manifest eventgen_data/manifest-top10.json --output /tmp/top10.ndjson
+          test -s /tmp/top10.ndjson
