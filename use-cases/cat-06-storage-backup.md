@@ -529,6 +529,149 @@ index=storage sourcetype="storage:dedupe"
 
 ---
 
+#### 6.1 Cisco MDS SAN Fabric
+
+**Splunk Add-on:** Cisco DC Networking Application for Splunk (Splunkbase 7777), SNMP TA, MDS syslog (`cisco:mds`)
+
+### UC-6.1.27 · MDS Inter-Switch Link (ISL) Utilization
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** ISLs carry all inter-switch SAN traffic. Saturated ISLs cause frame queuing, slow drain propagation, and storage latency spikes. Proactive monitoring prevents cascading congestion before hosts see I/O timeouts.
+- **App/TA:** SNMP TA, `cisco:mds` syslog
+- **Equipment Models:** Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700, MDS 9706, MDS 9710
+- **Data Sources:** SNMP IF-MIB (ifHCInOctets/ifHCOutOctets on ISL ports), MDS syslog
+- **SPL:**
+```spl
+index=network sourcetype="snmp:if" host="mds*" port_type="ISL"
+| eval util_pct=round((ifHCInOctets_delta+ifHCOutOctets_delta)*8/speed/poll_interval*100,1)
+| timechart span=5m avg(util_pct) as avg_util by switch, port
+| where avg_util > 70
+```
+- **Implementation:** Poll ISL port counters via SNMP every 60 seconds. Tag ISL ports in a lookup. Alert at 70% sustained utilization (5-min average). Correlate with storage latency (UC-6.1.2) and FC port errors (UC-6.1.9).
+- **Visualization:** Line chart (ISL utilization over time), Heatmap (switch x ISL port), Single value (peak ISL utilization), Topology map.
+- **CIM Models:** Performance
+
+---
+
+### UC-6.1.28 · MDS Slow Drain Detection
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** Slow drain occurs when a target device (storage or host) cannot accept frames fast enough, exhausting buffer-to-buffer credits and stalling the entire FC path. A single slow-drain device can impact hundreds of hosts sharing the same ISL. Early detection via TxWait and B2B credit metrics is essential.
+- **App/TA:** `cisco:mds` syslog, SNMP TA, Cisco DC Networking Application (Splunkbase 7777)
+- **Equipment Models:** Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700 series
+- **Data Sources:** MDS syslog (PORT-MONITOR, SLOW-DRAIN events), SNMP counters (TxWait, B2B credit zeros)
+- **SPL:**
+```spl
+index=network sourcetype="cisco:mds" "SLOW_DRAIN" OR "PORT-5-IF_TXWAIT" OR "PORT-MONITOR"
+| rex "port (?<port>\S+).*txwait=(?<txwait>\d+)"
+| stats max(txwait) as max_txwait count by switch, port, _time
+| where max_txwait > 100
+| sort -max_txwait
+```
+- **Implementation:** Enable port-monitor policies on MDS switches with appropriate TxWait thresholds. Forward syslog to Splunk. Poll SNMP slow-drain counters. Alert immediately on sustained TxWait. Cross-reference with FLOGI database (UC-6.1.30) to identify the offending host or storage port.
+- **Visualization:** Table (ports with slow drain), Line chart (TxWait over time), Topology (affected path highlighting).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.29 · MDS Zone Configuration Compliance
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Change
+- **Value:** Zoning controls which initiators can communicate with which targets. Misconfigured zones create security risks (unauthorized access) and operational risks (accidental data access). Tracking zone changes and validating against a known-good baseline prevents drift.
+- **App/TA:** `cisco:mds` syslog, scripted input (MDS NX-API / CLI)
+- **Equipment Models:** Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700 series
+- **Data Sources:** MDS syslog (zone change events), NX-API CLI (`show zone`, `show zoneset active`)
+- **SPL:**
+```spl
+index=network sourcetype="cisco:mds" "ZONE" ("added" OR "removed" OR "activated" OR "changed")
+| stats count by switch, vsan_id, zone_name, action, user
+| append [| inputlookup mds_approved_zones | eval source="baseline"]
+| stats values(source) as sources by vsan_id, zone_name
+| where NOT match(sources,"baseline")
+| table vsan_id, zone_name, sources
+```
+- **Implementation:** Export zone configuration periodically via NX-API. Maintain a baseline lookup of approved zones per VSAN. Detect zone additions, removals, and activations via syslog. Alert on any zone change outside change windows.
+- **Visualization:** Table (zone changes), Timeline (change events), Diff view (current vs baseline).
+- **CIM Models:** Change
+
+---
+
+### UC-6.1.30 · MDS FLOGI Database Monitoring
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Inventory, Security
+- **Value:** The FLOGI (Fabric Login) database records every device that has logged into the SAN fabric. Monitoring FLOGI events detects rogue devices, unexpected host logins, and fabric login storms that indicate HBA or driver issues.
+- **App/TA:** `cisco:mds` syslog, scripted input (NX-API)
+- **Equipment Models:** Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700 series
+- **Data Sources:** MDS syslog (FLOGI/FDISC events), NX-API (`show flogi database`)
+- **SPL:**
+```spl
+index=network sourcetype="cisco:mds" "FLOGI" OR "FDISC"
+| stats count as login_count by switch, port, pwwn, nwwn
+| lookup mds_known_hosts pwwn OUTPUT host_name, authorized
+| where isnull(authorized) OR authorized!="yes"
+| table switch, port, pwwn, nwwn, host_name, authorized, login_count
+```
+- **Implementation:** Forward MDS syslog and periodically poll FLOGI database via NX-API. Maintain a lookup of known/authorized WWNs. Alert on unknown WWN logins. Track FLOGI count trends to detect login storms.
+- **Visualization:** Table (FLOGI entries with authorization status), Bar chart (logins per switch), Timeline (login events).
+- **CIM Models:** Authentication
+
+---
+
+### UC-6.1.31 · MDS VSAN Health and Isolation Events
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** VSANs provide logical SAN segmentation. VSAN isolation events (caused by ISL failures, misconfigured trunking, or merge failures) split the fabric and break host-to-storage paths. Detecting isolation within seconds is essential for maintaining storage availability.
+- **App/TA:** `cisco:mds` syslog, SNMP TA
+- **Equipment Models:** Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700 series
+- **Data Sources:** MDS syslog (VSAN state change, merge failure, isolation events), SNMP
+- **SPL:**
+```spl
+index=network sourcetype="cisco:mds" "VSAN" ("isolated" OR "merge" OR "segmented" OR "down")
+| stats count latest(_time) as last_event by switch, vsan_id, event_type
+| where event_type IN ("isolated","segmented","merge_failure")
+| table switch, vsan_id, event_type, count, last_event
+| sort -last_event
+```
+- **Implementation:** Forward MDS syslog with facility-level logging. Alert immediately on VSAN isolation or segmentation events. Correlate with ISL link status (UC-6.1.27) and zone changes (UC-6.1.29) to identify root cause.
+- **Visualization:** Status grid (VSAN health), Table (isolation events), Topology map (VSAN segmentation).
+- **CIM Models:** N/A
+
+---
+
+### UC-6.1.32 · MDS SAN Fabric Oversubscription Ratio
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity
+- **Value:** The ratio of total edge port bandwidth to ISL bandwidth determines oversubscription. High oversubscription ratios (>7:1 for production, >20:1 for backup) increase the risk of congestion. Tracking this metric supports capacity planning and fabric expansion decisions.
+- **App/TA:** SNMP TA, scripted input (NX-API)
+- **Equipment Models:** Cisco MDS 9132T, MDS 9148T, MDS 9396T, MDS 9700 series
+- **Data Sources:** SNMP IF-MIB (port speeds, port types), NX-API (`show interface brief`)
+- **SPL:**
+```spl
+index=network sourcetype="snmp:if" host="mds*"
+| stats sum(eval(if(port_type="F",speed,0))) as edge_bw sum(eval(if(port_type="E" OR port_type="TE",speed,0))) as isl_bw by switch
+| eval oversubscription=round(edge_bw/isl_bw,1)
+| where oversubscription > 7
+| table switch, edge_bw, isl_bw, oversubscription
+| sort -oversubscription
+```
+- **Implementation:** Poll interface inventory via SNMP or NX-API. Classify ports by type (F-port=edge, E/TE-port=ISL). Calculate oversubscription ratio per switch. Alert when ratio exceeds policy threshold. Report quarterly for capacity planning.
+- **Visualization:** Table (switch oversubscription), Gauge (ratio per switch), Trend chart (ratio over quarters).
+- **CIM Models:** N/A
+
+---
+
 ### 6.2 Object Storage
 
 **Primary App/TA:** Cloud provider TAs (`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`), MinIO webhook inputs, custom REST API inputs.

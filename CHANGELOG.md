@@ -44,6 +44,17 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
+## [5.1] - 2026-03-26
+
+### Cisco Data Center — Expanded Coverage
+
+- **Cisco Intersight (7 new UCs)** &mdash; UC-19.1.19 through UC-19.1.25: server alarm monitoring, firmware compliance, HCL compliance, power/thermal telemetry, audit logs, contract/warranty tracking, and UCS X-Series IFM health. Leverages the Cisco Intersight Add-on for Splunk (Splunkbase 7828).
+- **Cisco MDS SAN Fabric (6 new UCs)** &mdash; UC-6.1.27 through UC-6.1.32: ISL utilisation monitoring, slow drain detection, zone configuration compliance, FLOGI database monitoring, VSAN health/isolation events, and fabric oversubscription ratio. Expands MDS coverage from 1 UC to 7.
+- **Nexus Dashboard & NX-OS Fabric (8 new UCs)** &mdash; New section 18.4 with UC-18.4.1 through UC-18.4.8: Nexus Dashboard Insights anomaly monitoring, NDFC fabric compliance/drift, advisory and field notice alerts, NX-OS streaming telemetry health, VXLAN EVPN underlay BGP, CoPP drops, NDO cross-fabric consistency, and NDFC switch lifecycle tracking.
+- **New Splunk apps registered** &mdash; Cisco DC Networking Application (Splunkbase 7777) and Cisco Intersight Add-on (Splunkbase 7828) added to the app catalog. New Cisco sub-vendors: Intersight, Nexus/NDFC/MDS.
+
+---
+
 ## [4.6] - 2026-03-26
 
 ### DORA — Full Digital Operational Resilience Coverage

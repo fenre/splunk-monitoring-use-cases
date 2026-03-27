@@ -246,6 +246,11 @@ window.NON_TECHNICAL = {
         { id: "6.1.2", why: "Detect when storage is getting slow — this directly affects application performance." },
         { id: "6.1.4", why: "Get an immediate alert when a disk fails so it can be replaced." }
       ]},
+      { name: "SAN fabric (Cisco MDS)", description: "Fibre Channel switches connecting servers to storage. We watch for slow devices, link congestion, and unauthorised connections.", ucs: [
+        { id: "6.1.28", why: "Detect slow-drain devices before one sluggish port impacts hundreds of servers." },
+        { id: "6.1.27", why: "Track inter-switch link utilisation — congested links cause storage slowdowns." },
+        { id: "6.1.30", why: "Spot unknown devices logging into the SAN fabric — a security and stability concern." }
+      ]},
       { name: "Cloud & object storage", description: "Cloud buckets and object storage — including when something is accidentally left open to the world.", ucs: [
         { id: "6.2.3", why: "Alert when a cloud storage bucket is publicly accessible — a common data leak risk." },
         { id: "6.2.1", why: "Track how much data is stored in cloud buckets and how fast it's growing." },
@@ -799,6 +804,11 @@ window.NON_TECHNICAL = {
         { id: "18.3.4", why: "Monitor VXLAN tunnel health — broken tunnels mean VMs can't communicate across hosts." },
         { id: "18.3.3", why: "Track SDN controller health — it's the brain of your software-defined network." },
         { id: "18.3.5", why: "Watch EVPN routing events — MAC mobility and route changes can indicate problems." }
+      ]},
+      { name: "Nexus Dashboard & NX-OS fabric", description: "Cisco's management platform for data center switches. We monitor anomalies, compliance, and network health.", ucs: [
+        { id: "18.4.1", why: "See anomalies detected by Cisco's AI-driven network insights — problems found before users notice." },
+        { id: "18.4.2", why: "Know when switch configurations drift from the intended design — drift causes outages." },
+        { id: "18.4.5", why: "Monitor the routing backbone of your data center fabric — if it breaks, everything breaks." }
       ]}
     ]
   },
@@ -813,6 +823,11 @@ window.NON_TECHNICAL = {
         { id: "19.1.1", why: "Monitor blade and rack server health — catch hardware faults early." },
         { id: "19.1.2", why: "Track service profile compliance — misconfigured profiles can cause unexpected behaviour." },
         { id: "19.1.3", why: "Check firmware compliance across your UCS fleet — mixed versions cause interop issues." }
+      ]},
+      { name: "Cisco Intersight", description: "Cloud-based server management. We track alarms, firmware, warranties, and configuration changes across your entire compute fleet.", ucs: [
+        { id: "19.1.19", why: "See all server alarms in one place — faster response to hardware problems." },
+        { id: "19.1.20", why: "Know which servers have outdated firmware — a common cause of unexpected failures." },
+        { id: "19.1.24", why: "Get warned before support contracts expire — no coverage means slower repairs." }
       ]},
       { name: "Hyper-converged infrastructure", description: "Nutanix, vSAN, VxRail, and similar. We track cluster health, storage capacity, and node balance.", ucs: [
         { id: "19.2.1", why: "Watch overall cluster health — a degraded cluster puts workloads at risk." },

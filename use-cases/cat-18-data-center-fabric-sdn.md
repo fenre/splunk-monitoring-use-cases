@@ -1029,3 +1029,195 @@ index=snmp sourcetype="snmp:cpu" role="leaf" earliest=-1h
 
 ---
 
+### 18.4 Cisco Nexus Dashboard & NX-OS Fabric
+
+**Splunk Add-on:** Cisco DC Networking Application for Splunk (Splunkbase 7777), NX-OS syslog (`cisco:nexus`), gNMI/streaming telemetry via Telegraf, SNMP TA
+
+### UC-18.4.1 · Nexus Dashboard Insights Anomaly Monitoring
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Nexus Dashboard Insights (NDI) uses ML-driven baselining to detect anomalies across hardware, capacity, compliance, connectivity, and configuration. Forwarding these anomalies to Splunk enables correlation with application and security events that NDI cannot see, and provides long-term trending beyond NDI retention.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), NDI webhook / syslog export
+- **Equipment Models:** Nexus Dashboard, Nexus 9300, Nexus 9500, APIC (ACI mode)
+- **Data Sources:** NDI anomaly exports (webhook/syslog), `cisco:ndi:anomaly`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndi:anomaly" earliest=-24h
+| stats count by severity, category, anomaly_type, fabric_name
+| where severity IN ("critical","major")
+| sort -count
+```
+- **Implementation:** Configure NDI to export anomalies via webhook to a Splunk HEC endpoint, or forward syslog. Map severity and category fields. Alert on critical/major anomalies. Use NDI anomaly correlation data to distinguish root causes from symptoms.
+- **Visualization:** Table (anomalies by category), Bar chart (anomaly count by severity), Timeline (anomaly events), Single value (open criticals).
+- **CIM Models:** Alerts
+
+---
+
+### UC-18.4.2 · NDFC Fabric Compliance and Configuration Drift
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** NDFC enforces intended configuration via templates. Detecting drift between running config and intended config across the fabric prevents misconfigurations that cause outages, security gaps, or inconsistent policy enforcement.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), NDFC REST API scripted input
+- **Equipment Models:** Nexus Dashboard Fabric Controller, Nexus 9300, Nexus 9500, Nexus 3000
+- **Data Sources:** NDFC compliance reports (REST API), `cisco:ndfc:compliance`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndfc:compliance"
+| stats count by switch_name, compliance_status, drift_category
+| where compliance_status!="In-Sync"
+| table switch_name, compliance_status, drift_category, count
+| sort -count
+```
+- **Implementation:** Poll NDFC compliance status via REST API daily or after change windows. Alert on Out-of-Sync devices. Track drift trends over time to identify switches that repeatedly drift. Trigger auto-remediation workflows when safe.
+- **Visualization:** Table (non-compliant switches), Pie chart (compliant vs drifted), Trend chart (drift count over time).
+- **CIM Models:** Change
+
+---
+
+### UC-18.4.3 · Nexus Dashboard Advisory and Field Notice Alerts
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Risk
+- **Value:** Nexus Dashboard Insights identifies field notices, PSIRTs, and hardware advisories that affect switches in the fabric by matching device serial numbers and software versions. Forwarding these to Splunk provides a centralised risk view alongside other infrastructure advisories.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), NDI webhook
+- **Equipment Models:** Nexus Dashboard, all managed Nexus switches
+- **Data Sources:** NDI advisory exports, `cisco:ndi:advisory`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndi:advisory"
+| stats count by advisory_id, advisory_type, severity, affected_switch_count
+| where severity IN ("critical","high")
+| table advisory_id, advisory_type, severity, affected_switch_count
+| sort -severity
+```
+- **Implementation:** Export NDI advisories to Splunk via webhook or scheduled API poll. Correlate with asset inventory to calculate exposure percentage. Alert on critical PSIRTs or field notices affecting production fabrics.
+- **Visualization:** Table (active advisories), Single value (critical advisories), Bar chart (affected switches per advisory).
+- **CIM Models:** Alerts
+
+---
+
+### UC-18.4.4 · Nexus 9000 NX-OS Streaming Telemetry Health
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Performance
+- **Value:** Streaming telemetry (gNMI/gRPC) from Nexus 9000 provides sub-second interface, routing, and system metrics. Monitoring the telemetry pipeline itself ensures data collection gaps are detected before they blind monitoring dashboards.
+- **App/TA:** Telegraf (gNMI plugin), Splunk HEC, SNMP TA (fallback)
+- **Equipment Models:** Cisco Nexus 9300, Nexus 9500, Nexus 3000 (NX-OS 9.3+)
+- **Data Sources:** Telegraf internal metrics, gNMI subscription status
+- **SPL:**
+```spl
+index=telegraf sourcetype="telegraf:internal" measurement="internal_gather"
+| stats avg(gather_time_ns) as avg_gather_ns max(gather_time_ns) as max_gather_ns count as samples by host, input
+| where input="cisco_telemetry_gnmi"
+| eval avg_gather_ms=round(avg_gather_ns/1000000,1)
+| where avg_gather_ms > 5000 OR samples < expected_samples
+| table host, input, avg_gather_ms, max_gather_ns, samples
+```
+- **Implementation:** Deploy Telegraf with gNMI input plugin on collector hosts. Configure NX-OS sensor groups for interface, BGP, system, and environment paths. Monitor Telegraf internal metrics for collection health. Alert on stale data or excessive gather times.
+- **Visualization:** Table (collector health), Line chart (gather time), Single value (active subscriptions).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.4.5 · NX-OS VXLAN EVPN Fabric Underlay BGP Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** The VXLAN EVPN fabric relies on BGP for both underlay (iBGP/OSPF) and overlay (BGP EVPN address family) connectivity. BGP peer flaps or stuck sessions in the underlay break VTEP reachability and cause tenant network outages. Monitoring BGP state across all spines and leafs is foundational.
+- **App/TA:** NX-OS syslog (`cisco:nexus`), gNMI telemetry, SNMP TA
+- **Equipment Models:** Cisco Nexus 9300, Nexus 9500, Nexus 3000 (VXLAN EVPN fabrics)
+- **Data Sources:** NX-OS syslog (BGP-5, BGP-3 messages), gNMI BGP sensor path, SNMP BGP4-MIB
+- **SPL:**
+```spl
+index=network sourcetype="cisco:nexus" "BGP-5-ADJCHANGE" OR "BGP-3-NOTIFICATION"
+| rex "neighbor (?<peer_ip>\S+).*(?<state>Up|Down|Established|Idle)"
+| stats count latest(state) as current_state by host, peer_ip
+| where current_state!="Established"
+| table host, peer_ip, current_state, count
+| sort -count
+```
+- **Implementation:** Forward NX-OS syslog to Splunk (facility BGP). Optionally stream BGP state via gNMI for sub-second detection. Alert on any peer leaving Established state. Correlate with interface flaps (UC-18.3.14) and VTEP reachability (UC-18.3.9).
+- **Visualization:** Status grid (peer status matrix), Table (non-established peers), Timeline (flap events).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-18.4.6 · NX-OS Control Plane Policing (CoPP) Drops
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Availability
+- **Value:** CoPP protects the switch CPU from being overwhelmed by excessive control-plane traffic (ARP storms, BGP attacks, ICMP floods). Monitoring CoPP drop counters detects both legitimate overload and potential DoS attacks targeting the management or routing plane.
+- **App/TA:** NX-OS syslog (`cisco:nexus`), SNMP TA, gNMI telemetry
+- **Equipment Models:** Cisco Nexus 9300, Nexus 9500, Nexus 3000
+- **Data Sources:** NX-OS CoPP counters (`show policy-map interface control-plane`), syslog, gNMI
+- **SPL:**
+```spl
+index=network sourcetype="cisco:nexus:copp" OR (sourcetype="cisco:nexus" "COPP" "DROP")
+| stats sum(dropped_packets) as drops sum(conform_packets) as conforms by host, class_name
+| eval drop_pct=round(drops/(drops+conforms)*100,2)
+| where drops > 1000 OR drop_pct > 5
+| table host, class_name, drops, conforms, drop_pct
+| sort -drops
+```
+- **Implementation:** Poll CoPP counters via scripted input or gNMI every 60 seconds. Baseline normal drop rates per class. Alert on sustained drops exceeding baseline, particularly for BGP, OSPF, and management classes. Investigate as potential security events.
+- **Visualization:** Table (CoPP classes with drops), Bar chart (drops by class), Line chart (drop rate trending).
+- **CIM Models:** Intrusion Detection
+
+---
+
+### UC-18.4.7 · Nexus Dashboard Orchestrator Cross-Fabric Consistency
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Availability
+- **Value:** Nexus Dashboard Orchestrator (NDO, formerly MSO) manages policies across multiple ACI fabrics or NDFC-managed NX-OS fabrics. Configuration inconsistencies between sites cause asymmetric routing, broken inter-site connectivity, and policy enforcement gaps.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), NDO REST API scripted input
+- **Equipment Models:** Nexus Dashboard Orchestrator, multi-site ACI or NDFC fabrics
+- **Data Sources:** NDO audit logs, schema/template deployment status, `cisco:ndo:audit`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndo:audit" earliest=-24h
+| stats count by action, template_name, site_name, status, user
+| where status!="deployed" OR action IN ("failed","conflict")
+| table template_name, site_name, action, status, user, count
+| sort -count
+```
+- **Implementation:** Poll NDO deployment status via REST API. Detect schema deployment failures and pending diffs between sites. Alert on any site showing stale or failed deployment. Cross-reference with ACI multisite health (UC-18.1.17).
+- **Visualization:** Table (deployment status per site/template), Status grid (site consistency), Timeline (deployment events).
+- **CIM Models:** Change
+
+---
+
+### UC-18.4.8 · NDFC Switch Inventory and Lifecycle Status
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Inventory, Compliance
+- **Value:** Maintaining an accurate, up-to-date inventory of all switches managed by NDFC, including model, serial, software version, and end-of-life/end-of-support dates, supports procurement planning, compliance audits, and vulnerability management.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), NDFC REST API scripted input
+- **Equipment Models:** All NDFC-managed switches (Nexus 9300, 9500, 3000, 7000)
+- **Data Sources:** NDFC switch inventory API, `cisco:ndfc:inventory`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndfc:inventory"
+| stats latest(software_version) as sw_ver latest(serial_number) as serial latest(model) as model by switch_name, fabric_name
+| lookup cisco_eos_dates model OUTPUT eos_date, eol_date
+| eval days_to_eos=round((strptime(eos_date,"%Y-%m-%d")-now())/86400)
+| where days_to_eos < 365 OR isnull(days_to_eos)
+| table switch_name, fabric_name, model, serial, sw_ver, eos_date, days_to_eos
+| sort days_to_eos
+```
+- **Implementation:** Poll NDFC inventory weekly. Maintain a lookup of Cisco EoS/EoL dates. Alert at 12, 6, and 3 month thresholds. Generate quarterly lifecycle reports for procurement.
+- **Visualization:** Table (switches approaching EoS), Pie chart (lifecycle status distribution), Single value (switches past EoS).
+- **CIM Models:** N/A
+
+---
+

@@ -328,6 +328,168 @@ index=cisco_ucs sourcetype="cisco:ucs_central:domain" earliest=-24h
 - **Visualization:** Table (domain status), Single value (stale domains), Map (site).
 - **CIM Models:** N/A
 
+---
+
+#### 19.1 Cisco Intersight
+
+**Splunk Add-on:** Cisco Intersight Add-on for Splunk (Splunkbase 7828) — alarms, audit logs, inventory, metrics
+
+### UC-19.1.19 · Intersight Server Alarm Monitoring
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault, Availability
+- **Value:** Intersight centralises alarms across all managed UCS domains, IMM and classic. Monitoring alarm severity trends in Splunk enables faster triage and correlation with application-layer events that Intersight alone cannot see.
+- **App/TA:** `Cisco Intersight Add-on`
+- **Equipment Models:** Cisco UCS B200, C220, C240, C480, X210c, X410c, FI 6454, FI 6536
+- **Data Sources:** `cisco:intersight:alarms`
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:alarms" earliest=-24h
+| stats count by severity, affected_object_type, name
+| sort -count
+| where severity IN ("Critical","Warning")
+```
+- **Implementation:** Configure the Intersight Add-on with API key credentials. Schedule alarm collection every 5 minutes. Alert on critical alarms or sustained warning counts exceeding baseline.
+- **Visualization:** Table (alarms by severity), Bar chart (alarm count by object type), Single value (open criticals).
+- **CIM Models:** Alerts
+
+---
+
+### UC-19.1.20 · Intersight Firmware Compliance
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Intersight tracks firmware versions against policies for all managed endpoints. Surfacing non-compliant servers in Splunk alongside vulnerability data and change windows ensures patching cadence is maintained fleet-wide.
+- **App/TA:** `Cisco Intersight Add-on`
+- **Equipment Models:** Cisco UCS B-Series, C-Series, X-Series, FI 6300/6400/6500
+- **Data Sources:** `cisco:intersight:inventory`
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:inventory" object_type="firmware.RunningFirmware"
+| stats latest(version) as fw_version by server_name, component, model
+| lookup intersight_approved_firmware model OUTPUT approved_version
+| where fw_version!=approved_version
+| table server_name, model, component, fw_version, approved_version
+```
+- **Implementation:** Ingest inventory data from Intersight. Maintain a lookup of approved firmware per model. Report weekly on compliance percentage. Alert on critical components (CIMC, BIOS) running non-approved versions.
+- **Visualization:** Table (non-compliant servers), Pie chart (compliant vs non-compliant), Single value (% fleet compliant).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.1.21 · Intersight HCL Compliance Status
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Hardware Compatibility List compliance ensures OS, driver, and firmware combinations are Cisco-validated. Non-HCL configurations risk unpredictable failures and void support entitlements.
+- **App/TA:** `Cisco Intersight Add-on`
+- **Equipment Models:** Cisco UCS B-Series, C-Series, X-Series
+- **Data Sources:** `cisco:intersight:inventory` (HCL status fields)
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:inventory" object_type="cond.HclStatus"
+| stats latest(status) as hcl_status latest(reason) as reason by server_name, model
+| where hcl_status!="Validated"
+| table server_name, model, hcl_status, reason
+```
+- **Implementation:** Poll Intersight HCL status via the add-on. Alert when servers move out of Validated status. Correlate with planned OS or driver upgrades.
+- **Visualization:** Table (non-validated servers), Pie chart (HCL status distribution), Single value (% validated).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.1.22 · Intersight Server Power and Thermal Telemetry
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Power draw and thermal readings across the fleet feed capacity planning, detect cooling anomalies, and correlate with workload spikes. Trending helps predict rack-level power budget exhaustion.
+- **App/TA:** `Cisco Intersight Add-on`
+- **Equipment Models:** Cisco UCS B-Series, C-Series, X-Series
+- **Data Sources:** `cisco:intersight:metrics` (power, temperature)
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:metrics" metric_name IN ("power_draw_watts","inlet_temp_celsius","exhaust_temp_celsius")
+| timechart span=1h avg(metric_value) as avg_val by server_name, metric_name
+| where avg_val > case(metric_name="inlet_temp_celsius", 28, metric_name="exhaust_temp_celsius", 45, metric_name="power_draw_watts", 800)
+```
+- **Implementation:** Enable metric collection in the Intersight Add-on. Set thresholds per server model. Alert on thermal exceedances or power draw approaching PDU circuit limits.
+- **Visualization:** Line chart (power/thermal over time), Heatmap (server x temperature), Single value (peak power draw).
+- **CIM Models:** Performance
+
+---
+
+### UC-19.1.23 · Intersight Audit Log and Configuration Changes
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Audit, Change
+- **Value:** Tracks every admin action and policy modification in Intersight. Correlating these with incident timelines reveals whether infrastructure changes contributed to outages or security events.
+- **App/TA:** `Cisco Intersight Add-on`
+- **Equipment Models:** All Intersight-managed endpoints
+- **Data Sources:** `cisco:intersight:audit_logs`
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:audit_logs" earliest=-24h
+| where action IN ("Update","Delete","Create") AND object_type IN ("server.Profile","firmware.Policy","ntp.Policy","boot.PrecisionPolicy")
+| stats count by user_email, action, object_type, object_name
+| sort -count
+```
+- **Implementation:** Ingest audit logs every 5 minutes. Alert on high-impact changes (profile deployments, firmware policy changes) outside change windows. Feed into ES notable events for SOC visibility.
+- **Visualization:** Table (recent changes), Timeline (change events), Bar chart (changes by user).
+- **CIM Models:** Change
+
+---
+
+### UC-19.1.24 · Intersight Contract and Warranty Compliance
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Monitoring support contract and warranty expiration across the compute fleet prevents coverage gaps that delay RMA and increase risk during hardware failures.
+- **App/TA:** `Cisco Intersight Add-on`
+- **Equipment Models:** All Intersight-managed endpoints
+- **Data Sources:** `cisco:intersight:inventory` (contract status fields)
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:inventory" object_type="asset.DeviceContractInformation"
+| eval days_to_expiry=round((strptime(contract_end_date,"%Y-%m-%dT%H:%M:%S")-now())/86400)
+| where days_to_expiry < 90 OR contract_status!="Active"
+| table server_name, serial, contract_status, contract_end_date, days_to_expiry
+| sort days_to_expiry
+```
+- **Implementation:** Poll contract information weekly. Alert at 90, 60, and 30 day thresholds. Generate a monthly report for procurement.
+- **Visualization:** Table (expiring contracts), Single value (servers without active contract), Gauge (% fleet covered).
+- **CIM Models:** N/A
+
+---
+
+### UC-19.1.25 · UCS X-Series Intelligent Fabric Module Health
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** The X-Series Intelligent Fabric Modules (IFMs) replace traditional IOMs and provide Ethernet and management connectivity to every compute node in the chassis. IFM faults or link degradation can isolate entire chassis from the fabric.
+- **App/TA:** `Cisco Intersight Add-on`, `Splunk_TA_cisco-ucs`
+- **Equipment Models:** Cisco UCS X9508, X210c, X410c, IFM 9108-25G, IFM 9108-100G
+- **Data Sources:** `cisco:intersight:alarms`, `cisco:ucs:faults`
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:alarms" affected_object_type="equipment.IoCard" OR affected_object_type="equipment.Fex"
+| append [search index=cisco_ucs sourcetype="cisco:ucs:faults" dn="*iom*" OR dn="*iocard*"]
+| stats count by severity, affected_object_type, name, chassis_id
+| where severity IN ("Critical","Warning")
+| sort -severity, -count
+```
+- **Implementation:** Monitor IFM alarms via both Intersight and UCS Manager. Alert immediately on critical IFM faults. Correlate with FI port channel health (UC-19.1.5) for end-to-end fabric path analysis.
+- **Visualization:** Table (IFM alarms), Status grid (chassis x IFM slot), Timeline (fault events).
+- **CIM Models:** Alerts
+
+---
+
 #### 19.1 HCI Platforms (Nutanix)
 
 ### UC-19.1.7 · Nutanix Prism Central Alert Monitoring
