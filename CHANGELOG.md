@@ -44,6 +44,16 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
+## [5.2] - 2026-03-26
+
+### Citrix — uberAgent & Expanded Data Center Coverage
+
+- **uberAgent UXM integration (11 new UCs)** &mdash; UC-2.6.17 through UC-2.6.27: Experience Score monitoring, application unresponsiveness detection, application startup duration, browser performance per website, machine boot/shutdown analysis, per-application CPU/memory, crash reporting, Citrix Site delivery group capacity, NetScaler via uberAgent, per-application network performance, and endpoint security analytics (ESA) threat detection.
+- **Existing UCs updated** &mdash; UC-2.6.1 (logon) and UC-2.6.2 (ICA RTT) now recommend uberAgent as the preferred data source alongside the existing XenDesktop 7 template and OData API.
+- **New apps registered** &mdash; uberAgent UXM (Splunkbase 1448), Splunk Add-on for Citrix NetScaler (Splunkbase 2770). Citrix vendor expanded with CVAD, uberAgent, and NetScaler sub-models.
+
+---
+
 ## [5.1] - 2026-03-26
 
 ### Cisco Data Center — Expanded Coverage

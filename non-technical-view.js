@@ -83,6 +83,11 @@ window.NON_TECHNICAL = {
         { id: "2.6.1", why: "Break down slow Citrix logons into individual phases so you know exactly what is causing delays for users." },
         { id: "2.6.2", why: "Track the responsiveness users actually feel in their Citrix sessions — keystroke to screen response." },
         { id: "2.6.4", why: "Know when virtual desktop agents go unregistered and can no longer serve users — reducing available capacity." }
+      ]},
+      { name: "uberAgent digital experience", description: "Citrix uberAgent monitors the actual user experience — experience scores, application hangs, startup times, browser speed, boot duration, and endpoint security threats inside Citrix sessions.", ucs: [
+        { id: "2.6.17", why: "A single 0-to-10 score tells you whether users are having a good or bad experience right now." },
+        { id: "2.6.18", why: "Detect applications that freeze and show 'Not Responding' — invisible to most monitoring tools." },
+        { id: "2.6.27", why: "Spot security threats inside Citrix sessions that network tools cannot see." }
       ]}
     ]
   },

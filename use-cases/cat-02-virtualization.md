@@ -2186,9 +2186,9 @@ index=endpoint sourcetype="igel:ums:security" source_tag="UMS-Webapp" OR source_
 
 ## 2.6 Citrix Virtual Apps & Desktops
 
-**Primary App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`, `TA-XD7-VDA`), Splunk Add-on for Microsoft Windows, Splunk Add-on for Microsoft IIS (StoreFront), Citrix Monitor Service OData API scripted inputs
+**Primary App/TA:** uberAgent UXM for Splunk (Splunkbase 1448, searchhead app) + uberAgent indexer app (Splunkbase 2998), Template for Citrix XenDesktop 7 (`TA-XD7-Broker`, `TA-XD7-VDA`), Splunk Add-on for Microsoft Windows, Splunk Add-on for Microsoft IIS (StoreFront), Citrix Monitor Service OData API scripted inputs
 
-**Data Sources:** Citrix Broker Service event logs (indexes: `xd`, `xd_winevents`, `xd_alerts`), VDA performance counters (`xd_perfmon`), Citrix StoreFront IIS W3C logs, Citrix Monitor Service OData API (session/logon/machine data), Citrix Licensing logs, Citrix PVS streaming logs, Citrix Profile Management logs, Citrix FAS certificate events
+**Data Sources:** uberAgent endpoint telemetry via HEC (`uberAgent:*` sourcetypes — session, logon, application, machine, browser, Citrix site metrics), Citrix Broker Service event logs (indexes: `xd`, `xd_winevents`, `xd_alerts`), VDA performance counters (`xd_perfmon`), Citrix StoreFront IIS W3C logs, Citrix Monitor Service OData API (session/logon/machine data), Citrix Licensing logs, Citrix PVS streaming logs, Citrix Profile Management logs, Citrix FAS certificate events
 
 ---
 
@@ -2197,8 +2197,8 @@ index=endpoint sourcetype="igel:ums:security" source_tag="UMS-Webapp" OR source_
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance
 - **Value:** Slow Citrix logon times are the most common user complaint in CVAD environments. Logon duration is composed of multiple sequential phases — brokering, VM start, HDX connection, authentication, profile load, GPO processing, and script execution. Identifying which phase contributes to slow logons enables targeted remediation rather than broad troubleshooting. A 60-second logon target is typical; exceeding it degrades user satisfaction and productivity.
-- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-Broker`), Citrix Monitor Service OData API
-- **Data Sources:** `index=xd` `sourcetype="citrix:broker:events"` fields `logon_duration_ms`, `brokering_duration_ms`, `vm_start_duration_ms`, `hdx_connection_ms`, `authentication_ms`, `profile_load_ms`, `gpo_ms`, `logon_scripts_ms`, `user`, `delivery_group`
+- **App/TA:** uberAgent UXM (Splunkbase 1448) — recommended; or Template for Citrix XenDesktop 7 (`TA-XD7-Broker`), Citrix Monitor Service OData API
+- **Data Sources:** uberAgent: `sourcetype="uberAgent:Logon:LogonDetail"` (phase-level breakdown including GPO, profile, shell, scripts); or `index=xd` `sourcetype="citrix:broker:events"` fields `logon_duration_ms`, `brokering_duration_ms`, `vm_start_duration_ms`, `hdx_connection_ms`, `authentication_ms`, `profile_load_ms`, `gpo_ms`, `logon_scripts_ms`, `user`, `delivery_group`
 - **SPL:**
 ```spl
 index=xd sourcetype="citrix:broker:events" event_type="SessionLogon"
@@ -2211,7 +2211,7 @@ index=xd sourcetype="citrix:broker:events" event_type="SessionLogon"
 | where p95_logon > 60
 | table _time, delivery_group, logon_count, avg_logon, p95_logon, avg_broker, avg_vmstart, avg_hdx, avg_profile, avg_gpo
 ```
-- **Implementation:** Collect session logon events from the Citrix Broker Service event log on Delivery Controllers using the `TA-XD7-Broker` add-on, or poll the Monitor Service OData API endpoint `Sessions` for `LogOnDuration` breakdown. The OData API provides granular phase timing. Alert when p95 logon exceeds 60 seconds for any delivery group. Trend logon duration over weeks to detect gradual regression after GPO or profile changes. Segment by delivery group to isolate problem areas. Common root causes by phase: brokering (controller load), VM start (hypervisor contention), profile load (large profiles or slow file shares), GPO (excessive policies).
+- **Implementation:** **Preferred:** Deploy uberAgent UXM on VDAs — the Logon Duration dashboard provides automatic phase breakdown (userinit, shell, GPO, profile, scripts) with no OData polling required, and captures per-user detail. **Alternative:** Collect session logon events from the Citrix Broker Service event log on Delivery Controllers using the `TA-XD7-Broker` add-on, or poll the Monitor Service OData API endpoint `Sessions` for `LogOnDuration` breakdown. Alert when p95 logon exceeds 60 seconds for any delivery group. Trend logon duration over weeks to detect gradual regression after GPO or profile changes. Segment by delivery group to isolate problem areas. Common root causes by phase: brokering (controller load), VM start (hypervisor contention), profile load (large profiles or slow file shares), GPO (excessive policies).
 - **Visualization:** Stacked bar chart (logon phases), Line chart (logon duration trending), Table (slowest delivery groups).
 - **CIM Models:** N/A
 
@@ -2222,8 +2222,8 @@ index=xd sourcetype="citrix:broker:events" event_type="SessionLogon"
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** ICA Round Trip Time (RTT) is the primary measure of Citrix session responsiveness — the time from a user keystroke to the response appearing on screen. Citrix defines 0–150ms as optimal, 150–300ms as acceptable, and above 300ms as degraded. Poor ICA latency causes sluggish typing, delayed screen updates, and broken audio/video, directly impacting user productivity. Monitoring ICA RTT across the fleet detects network issues, overloaded session hosts, and endpoint problems.
-- **App/TA:** Template for Citrix XenDesktop 7 (`TA-XD7-VDA`), Citrix Monitor Service OData API
-- **Data Sources:** `index=xd_perfmon` `sourcetype="citrix:vda:perfmon"` fields `ica_rtt_ms`, `ica_latency_ms`, `ica_bandwidth_in`, `ica_bandwidth_out`, `session_id`, `user`, `vda_host`
+- **App/TA:** uberAgent UXM (Splunkbase 1448) — recommended; or Template for Citrix XenDesktop 7 (`TA-XD7-VDA`), Citrix Monitor Service OData API
+- **Data Sources:** uberAgent: `sourcetype="uberAgent:Session:SessionDetail"` (ICA RTT, ICA latency, bandwidth, protocol, session quality); or `index=xd_perfmon` `sourcetype="citrix:vda:perfmon"` fields `ica_rtt_ms`, `ica_latency_ms`, `ica_bandwidth_in`, `ica_bandwidth_out`, `session_id`, `user`, `vda_host`
 - **SPL:**
 ```spl
 index=xd_perfmon sourcetype="citrix:vda:perfmon" counter_name="ICA RTT"
@@ -2559,6 +2559,266 @@ index=xd sourcetype="citrix:cloudconnector"
 - **Implementation:** Deploy a Splunk Universal Forwarder on Cloud Connector hosts and monitor Windows Event Logs for Citrix Cloud Connector events. Also run the Cloud Health Check utility via scheduled PowerShell scripted input to validate connectivity to Citrix Cloud services. Track connectivity status (Connected, Disconnected), service health, and last successful cloud contact time. Alert when: any connector loses cloud connectivity for more than 15 minutes, all connectors in a resource location become disconnected (LHC mode imminent), or Cloud Connector services stop. Ensure at least 2 connectors per resource location for redundancy.
 - **Visualization:** Status grid (connector x resource location), Timeline (connectivity events), Single value (connected connectors count).
 - **CIM Models:** N/A
+
+---
+
+#### 2.6 uberAgent UXM — Digital Employee Experience
+
+**Splunk App:** uberAgent UXM (Splunkbase 1448, searchhead), uberAgent indexer app (Splunkbase 2998), uberAgent Helpdesk App (free). uberAgent is now a Citrix product and the recommended endpoint monitoring agent for CVAD environments. Deployed on VDAs and endpoints, it sends telemetry to Splunk via HEC or Universal Forwarder.
+
+### UC-2.6.17 · uberAgent Experience Score Monitoring
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** uberAgent's Experience Score is a composite 0–10 metric that summarises the end-user experience across multiple dimensions — session responsiveness, application performance, logon speed, and machine health. A single score per user per session makes it possible to answer "how is the Citrix experience right now?" without inspecting dozens of individual metrics. Score drops correlate directly with helpdesk call volume.
+- **App/TA:** uberAgent UXM (Splunkbase 1448)
+- **Equipment Models:** Windows VDAs, Citrix CVAD / DaaS
+- **Data Sources:** `sourcetype="uberAgent:Session:SessionDetail"` field `SessionExperienceScore`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Session:SessionDetail" earliest=-4h
+| bin _time span=15m
+| stats avg(SessionExperienceScore) as avg_score perc10(SessionExperienceScore) as p10_score dc(User) as users by _time
+| eval quality=case(avg_score>=8, "Excellent", avg_score>=6, "Good", avg_score>=4, "Fair", 1=1, "Poor")
+| table _time, avg_score, p10_score, users, quality
+```
+- **Implementation:** uberAgent calculates the Experience Score automatically on the endpoint and sends it with session telemetry. No additional configuration required beyond uberAgent deployment. Alert when the fleet-wide average drops below 6 or when p10 drops below 4 (bottom 10% of users having a bad experience). Segment by delivery group, location, or network to isolate root cause. The score is already available in the built-in uberAgent dashboards.
+- **Visualization:** Line chart (score over time), Gauge (fleet average), Heatmap (delivery group x hour), Table (worst-scoring users).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.18 · Application Unresponsiveness (UI Hangs) Detection
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Application hangs — where the UI becomes unresponsive and shows "Not Responding" — are a major source of user frustration in CVAD sessions. Unlike crashes, hangs don't generate Windows Error Reporting events and are invisible to most monitoring tools. uberAgent detects them in real-time by monitoring message pump responsiveness, capturing which application hung, for how long, and what the user was doing.
+- **App/TA:** uberAgent UXM (Splunkbase 1448)
+- **Equipment Models:** Windows VDAs, Windows endpoints
+- **Data Sources:** `sourcetype="uberAgent:Application:UIDelay"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Application:UIDelay" earliest=-24h
+| stats count as hang_count avg(UIDelayDurationMs) as avg_hang_ms max(UIDelayDurationMs) as max_hang_ms dc(User) as affected_users by AppName, AppVersion
+| where hang_count > 5
+| eval avg_hang_sec=round(avg_hang_ms/1000,1)
+| sort -hang_count
+| table AppName, AppVersion, hang_count, avg_hang_sec, affected_users
+```
+- **Implementation:** uberAgent detects UI unresponsiveness automatically. No special configuration required. Use the data to identify problematic applications, correlate hangs with VDA resource contention (CPU, memory), and prioritise application remediation. Alert when a single application generates more than 20 hangs per hour across the fleet.
+- **Visualization:** Bar chart (hangs by application), Line chart (hang frequency over time), Table (worst applications with user impact).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.19 · Application Startup Duration Tracking
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** How long applications take to become usable after launch directly impacts perceived performance. A user launching Outlook, SAP, or a browser expects it within seconds. uberAgent measures the time from process start to the application window being interactive, capturing real user-perceived startup times rather than just process creation. Slow startups indicate disk I/O contention, antivirus interference, or application configuration issues.
+- **App/TA:** uberAgent UXM (Splunkbase 1448)
+- **Equipment Models:** Windows VDAs, Windows endpoints
+- **Data Sources:** `sourcetype="uberAgent:Application:AppStartup"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Application:AppStartup" earliest=-24h
+| stats avg(StartupDurationMs) as avg_startup_ms perc95(StartupDurationMs) as p95_startup_ms count as launches dc(User) as users by AppName
+| eval avg_startup_sec=round(avg_startup_ms/1000,1), p95_startup_sec=round(p95_startup_ms/1000,1)
+| where p95_startup_sec > 10
+| sort -p95_startup_sec
+| table AppName, launches, users, avg_startup_sec, p95_startup_sec
+```
+- **Implementation:** uberAgent measures startup duration automatically for all applications. Baseline normal startup times per application. Alert when p95 startup exceeds thresholds (e.g., >10s for Outlook, >15s for SAP). Trend over time to detect regression after updates or image changes.
+- **Visualization:** Bar chart (p95 startup by app), Line chart (startup trending), Table (slowest applications).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.20 · Browser Performance per Web Application
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Many Citrix-delivered workloads are browser-based (SaaS applications, internal portals). uberAgent's browser extensions measure page load time, network latency, and rendering performance per website/URL. This reveals whether slow web application performance is due to the Citrix session, the network, or the web application itself — a critical distinction for troubleshooting.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) + browser extension (Chrome, Edge, Firefox)
+- **Equipment Models:** Windows VDAs with Chrome, Edge, or Firefox
+- **Data Sources:** `sourcetype="uberAgent:Browser:BrowserPerformanceTimer2"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Browser:BrowserPerformanceTimer2" earliest=-24h
+| stats avg(PageLoadTimeMs) as avg_load_ms perc95(PageLoadTimeMs) as p95_load_ms count as page_loads dc(User) as users by Host
+| eval avg_load_sec=round(avg_load_ms/1000,1), p95_load_sec=round(p95_load_ms/1000,1)
+| where p95_load_sec > 5
+| sort -p95_load_sec
+| table Host, page_loads, users, avg_load_sec, p95_load_sec
+```
+- **Implementation:** Deploy the uberAgent browser extension via Group Policy or Citrix Studio. The extension collects W3C Navigation Timing API data per page load. Alert when key internal web applications (intranet, CRM, EHR) exceed acceptable page load thresholds. Segment by Citrix delivery group vs physical endpoint to compare performance.
+- **Visualization:** Table (slowest websites), Line chart (page load trending), Bar chart (comparison by browser).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.21 · Machine Boot and Shutdown Duration Analysis
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** VDA boot time directly impacts how quickly machines become available after power-on events triggered by Citrix power management schedules. Slow boots delay session availability for early-morning users. uberAgent decomposes boot duration into phases (BIOS/firmware, kernel, drivers, services, boot processes) to identify bottlenecks — antivirus scans at boot, slow driver initialisation, or disk contention during mass power-on.
+- **App/TA:** uberAgent UXM (Splunkbase 1448)
+- **Equipment Models:** Windows VDAs (physical and virtual)
+- **Data Sources:** `sourcetype="uberAgent:Logon:BootDetail"`, `sourcetype="uberAgent:Logon:BootProcessDetail"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Logon:BootDetail" earliest=-7d
+| stats avg(BootDurationS) as avg_boot_sec perc95(BootDurationS) as p95_boot_sec count as boots by Host
+| where p95_boot_sec > 120
+| sort -p95_boot_sec
+| table Host, boots, avg_boot_sec, p95_boot_sec
+```
+- **Implementation:** uberAgent captures boot duration automatically on all endpoints. Correlate boot times with Citrix power management schedules (UC-2.6.6) to validate machines are ready when users arrive. Alert on VDAs with p95 boot time exceeding 2 minutes. Use boot process detail data to identify specific services or drivers causing delays.
+- **Visualization:** Bar chart (boot time by VDA), Stacked bar (boot phases), Line chart (boot time trending).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.22 · Per-Application CPU and Memory Consumption
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Identifying which applications consume the most CPU and memory on shared VDAs is essential for capacity planning and noisy-neighbour detection. A single user running an unoptimised macro or media-heavy application can degrade performance for all other sessions on the same VDA. uberAgent provides per-process, per-user resource consumption with application-level attribution.
+- **App/TA:** uberAgent UXM (Splunkbase 1448)
+- **Equipment Models:** Windows VDAs
+- **Data Sources:** `sourcetype="uberAgent:Process:ProcessDetail"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Process:ProcessDetail" earliest=-4h
+| stats avg(ProcCPUPercent) as avg_cpu avg(WorkingSetMB) as avg_ram_mb by AppName, User, Host
+| where avg_cpu > 25 OR avg_ram_mb > 500
+| sort -avg_cpu
+| table Host, User, AppName, avg_cpu, avg_ram_mb
+```
+- **Implementation:** uberAgent collects process-level resource metrics continuously. Identify top resource consumers per VDA and per user. Alert when a single user's process exceeds thresholds that impact co-hosted sessions. Feed into capacity planning: if average RAM per user session is 2 GB and VDAs have 64 GB, the safe session density is ~28 sessions.
+- **Visualization:** Table (top consumers), Bar chart (CPU by application), Heatmap (user x VDA).
+- **CIM Models:** Performance
+
+---
+
+### UC-2.6.23 · Application Crash and Error Reporting
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault
+- **Value:** Application crashes in Citrix sessions cause data loss, user frustration, and helpdesk calls. uberAgent captures Windows Error Reporting (WER) crash data including the faulting module, exception code, and application version, enabling crash trending and root-cause identification across the fleet. Crash rate spikes after application or image updates indicate problematic deployments.
+- **App/TA:** uberAgent UXM (Splunkbase 1448)
+- **Equipment Models:** Windows VDAs, Windows endpoints
+- **Data Sources:** `sourcetype="uberAgent:Application:AppCrash"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Application:AppCrash" earliest=-7d
+| stats count as crashes dc(User) as affected_users values(FaultingModuleName) as faulting_modules by AppName, AppVersion
+| sort -crashes
+| table AppName, AppVersion, crashes, affected_users, faulting_modules
+```
+- **Implementation:** uberAgent captures crash data automatically from WER. Trend crash rates per application version to detect regressions. Alert on crash rate spikes (>200% increase over 7-day baseline). Correlate faulting module names with known bugs and vendor advisories. Track crash resolution over time after patching.
+- **Visualization:** Bar chart (crashes by application), Line chart (crash rate trending), Table (faulting modules).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.24 · Citrix Site Delivery Group Capacity and Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Availability
+- **Value:** uberAgent's Citrix Site Monitoring queries the Broker Service directly to provide real-time visibility into delivery group capacity — total machines, registered machines, active sessions, load index, and machines in maintenance mode. When available capacity drops below a threshold, new user connections may fail or be delayed.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) with Citrix Site Monitoring enabled
+- **Equipment Models:** Citrix CVAD / DaaS site
+- **Data Sources:** `sourcetype="uberAgent:CitrixSite:DeliveryGroupDetail"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:CitrixSite:DeliveryGroupDetail"
+| stats latest(MachinesTotal) as total, latest(MachinesRegistered) as registered, latest(SessionsActive) as active, latest(MachinesInMaintenanceMode) as maint by DeliveryGroupName
+| eval available=registered-active-maint, avail_pct=round(available/total*100,1)
+| where avail_pct < 20 OR registered < total*0.8
+| table DeliveryGroupName, total, registered, maint, active, available, avail_pct
+| sort avail_pct
+```
+- **Implementation:** Enable uberAgent's Citrix Site Monitoring feature, which queries the Citrix Broker Service at configurable intervals. Alert when available capacity drops below 20% of total machines for any delivery group. Track session density trends for capacity planning. Correlate with VDA registration health (UC-2.6.4) for root cause.
+- **Visualization:** Table (delivery group capacity), Gauge (available capacity %), Bar chart (session counts by group).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.25 · Citrix NetScaler ADC Performance via uberAgent
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Availability
+- **Value:** uberAgent can monitor Citrix NetScaler (ADC) appliances via NITRO API without requiring a separate add-on on the ADC itself. This provides gateway session counts, SSL TPS, HTTP request rates, and system resource utilisation alongside endpoint and session data in the same Splunk index, enabling end-to-end correlation from ADC to VDA to application.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) with NetScaler Monitoring enabled
+- **Equipment Models:** Citrix NetScaler / ADC (VPX, MPX, SDX, CPX)
+- **Data Sources:** `sourcetype="uberAgent:CitrixADC:SystemDetail"`, `sourcetype="uberAgent:CitrixADC:VServerDetail"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:CitrixADC:SystemDetail"
+| stats latest(CPUUsagePct) as cpu latest(MemUsagePct) as mem latest(HttpRequestsPerSec) as http_rps latest(SSLTransactionsPerSec) as ssl_tps by ADCHost
+| where cpu > 70 OR mem > 80
+| table ADCHost, cpu, mem, http_rps, ssl_tps
+```
+- **Implementation:** Configure uberAgent's NetScaler monitoring with NITRO API credentials. This provides a unified data source — VDA performance, user sessions, and ADC health all in one index. Correlate ADC gateway session counts with VDA session capacity. Alert on ADC resource utilisation exceeding thresholds.
+- **Visualization:** Single value (CPU, memory), Line chart (SSL TPS over time), Table (ADC fleet health).
+- **CIM Models:** N/A
+
+---
+
+### UC-2.6.26 · Per-Application Network Performance
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** uberAgent measures network latency, data volume, and connection quality per application and per target host. This reveals which applications are generating the most network traffic, connecting to slow endpoints, or experiencing high latency — critical for optimising CVAD network policies and WAN bandwidth allocation.
+- **App/TA:** uberAgent UXM (Splunkbase 1448) with Per-Application Network Monitoring
+- **Equipment Models:** Windows VDAs, Windows endpoints
+- **Data Sources:** `sourcetype="uberAgent:Process:NetworkTargetPerformance"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:Process:NetworkTargetPerformance" earliest=-4h
+| stats avg(ConnectionLatencyMs) as avg_latency_ms sum(DataVolumeSentBytes) as bytes_sent sum(DataVolumeReceivedBytes) as bytes_rcvd dc(User) as users by AppName, NetworkTargetName
+| eval total_mb=round((bytes_sent+bytes_rcvd)/1048576,1)
+| where avg_latency_ms > 100 OR total_mb > 500
+| sort -total_mb
+| table AppName, NetworkTargetName, avg_latency_ms, total_mb, users
+```
+- **Implementation:** Enable uberAgent's per-application network monitoring feature. Identify bandwidth-heavy applications and high-latency network targets. Use to validate that HDX redirection policies are routing multimedia traffic efficiently. Detect applications bypassing proxy or connecting to unexpected external hosts.
+- **Visualization:** Table (top bandwidth consumers), Bar chart (latency by target), Sankey diagram (app to network target flow).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-2.6.27 · Endpoint Security Analytics (ESA) Threat Detection
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Security
+- **Value:** uberAgent ESA provides endpoint-level threat detection within Citrix sessions using Sigma rules, LOLBAS detection, process tampering monitoring, and file system activity analysis. In multi-user CVAD environments, a compromised session can laterally move to shared resources. ESA detects threats inside the session that network-based security tools cannot see.
+- **App/TA:** uberAgent ESA (included with uberAgent UXM, Splunkbase 1448)
+- **Equipment Models:** Windows VDAs, Windows endpoints
+- **Data Sources:** `sourcetype="uberAgent:ESA:ThreatDetection"`, `sourcetype="uberAgent:ESA:ProcessStartup"`
+- **SPL:**
+```spl
+index=uberagent sourcetype="uberAgent:ESA:ThreatDetection" earliest=-24h
+| stats count by RuleName, RuleSeverity, User, Host, ProcessName
+| where RuleSeverity IN ("critical","high")
+| sort -RuleSeverity, -count
+| table Host, User, ProcessName, RuleName, RuleSeverity, count
+```
+- **Implementation:** Enable uberAgent ESA with default Sigma rule pack. Customise rules for Citrix-specific threats (e.g., lateral movement via published apps, credential dumping in shared sessions). Forward ESA events to Splunk Enterprise Security as notable events. The MITRE ATT&CK integration maps detections to tactics and techniques for SOC workflows.
+- **Visualization:** Table (threat detections), Bar chart (by MITRE tactic), Timeline (detection events), Single value (critical alerts).
+- **CIM Models:** Intrusion Detection, Endpoint
 
 ---
 
