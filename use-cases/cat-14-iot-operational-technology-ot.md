@@ -4664,62 +4664,77 @@ index=ot sourcetype IN ("edge_hub:anomaly","edge_hub:alert") earliest=-90d@d
 ---
 
 
-### 14.9 Cisco Cyber Vision (OT Security)
+### 14.9 OT Network Security Monitoring (Cisco Cyber Vision / Nozomi Networks)
 
-**Primary App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748), `Cisco Cyber Vision Splunk App`. Requires Cyber Vision Advantage license and v5.1.0+.
+**Primary App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748), `Cisco Cyber Vision Splunk App` · `Nozomi Networks Universal Add-on` (Splunkbase 6905), `CCX Extensions for Nozomi Networks` (Splunkbase 6796).
 
-**Data Sources:** API inputs (`cisco:cybervision:device`, `cisco:cybervision:event`, `cisco:cybervision:vulnerability`, `cisco:cybervision:flow`, `cisco:cybervision:activity`) and syslog (`cisco:cybervision:syslog` in CEF format).
+**Data Sources:**
+- **Cisco Cyber Vision:** API inputs (`cisco:cybervision:device`, `cisco:cybervision:event`, `cisco:cybervision:vulnerability`, `cisco:cybervision:flow`, `cisco:cybervision:activity`) and syslog (`cisco:cybervision:syslog` in CEF format).
+- **Nozomi Networks:** API inputs (`nozomi:nn_asset`, `nozomi:node`, `nozomi:alert`, `nozomi:variable`, `nozomi:link`, `nozomi:link_events`, `nozomi:session`, `nozomi:health`, `nozomi:captured_urls`).
 
 ---
 
-### UC-14.9.1 · OT Asset Discovery and Inventory Tracking (Cisco Cyber Vision)
+### UC-14.9.1 · OT Asset Discovery and Inventory Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Inventory
-- **Value:** You cannot secure what you do not know exists. Cyber Vision passively discovers every device on your OT network via deep packet inspection of industrial protocols — PLCs, HMIs, drives, field devices — and builds an always-current inventory with vendor, model, firmware, serial number, and rack slot. This eliminates manual spreadsheets and provides the foundation for all other OT security use cases.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:device`
-- **SPL:**
+- **Value:** You cannot secure what you do not know exists. OT network security platforms (Cisco Cyber Vision, Nozomi Guardian) passively discover every device on your OT network via deep packet inspection of industrial protocols — PLCs, HMIs, drives, field devices — and builds an always-current inventory with vendor, model, firmware, serial number, and rack slot. This eliminates manual spreadsheets and provides the foundation for all other OT security use cases.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:device` · Nozomi: `sourcetype=nozomi:nn_asset`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:device"
 | stats dc(device_id) as total_devices, dc(vendor) as vendors, values(vendor) as vendor_list by site_name
 | eval device_summary=total_devices." devices from ".vendors." vendors"
 | table site_name, total_devices, vendors, vendor_list, device_summary
 ```
-- **Implementation:** Configure Cyber Vision Splunk Add-On with API token from Cyber Vision Center. Add "Devices" input with appropriate polling interval (e.g. 3600s). All discovered assets are automatically ingested. Use device data as the authoritative OT asset inventory for compliance and security programs.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:nn_asset"
+| stats dc(id) as total_devices, dc(vendor) as vendors, values(vendor) as vendor_list by zone
+| eval device_summary=total_devices." devices from ".vendors." vendors"
+| table zone, total_devices, vendors, vendor_list, device_summary
+```
+- **Implementation:** **Cyber Vision:** Configure Splunk Add-On with API token from Cyber Vision Center; add "Devices" input with polling interval (e.g. 3600s). **Nozomi:** Configure Universal Add-on with Guardian/Vantage API credentials; enable the `nn_asset` data input. Both platforms passively discover assets — use device data as the authoritative OT asset inventory for compliance and security programs.
 - **Visualization:** Asset count single value; vendor breakdown pie chart; device table with firmware versions; site comparison bar chart.
 - **CIM Models:** Asset Inventory
 
 ---
 
-### UC-14.9.2 · New OT Device Detection Alert (Cisco Cyber Vision)
+### UC-14.9.2 · New OT Device Detection Alert
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Fault
-- **Value:** Any new device appearing on a baselined OT network is a potential threat — rogue devices, unauthorized laptops, or attacker implants. Cyber Vision detects new components automatically and generates `component_new` events. Immediate alerting enables rapid investigation before a threat can spread.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** Any new device appearing on a baselined OT network is a potential threat — rogue devices, unauthorized laptops, or attacker implants. OT security platforms detect new components automatically and generate alerts. Immediate alerting enables rapid investigation before a threat can spread.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="ASSET-NEW")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="new_component"
 | rex field=msg "New component detected on the network: IP (?<new_ip>[^,]+), MAC (?<new_mac>[^\s]+)"
 | table _time, new_ip, new_mac, SCVSensorId, SCVComponentId
 | sort -_time
 ```
-- **Implementation:** Forward Cyber Vision syslog to Splunk (CEF format via TCP/TLS). Alert on any `component_new` event. Enrich with sensor location to identify physical site. Cross-reference against approved asset list. Investigate unauthorized devices within SLA.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="ASSET-NEW"
+| table _time, name, ip, mac_address, zone, risk
+| sort -_time
+```
+- **Implementation:** **Cyber Vision:** Forward syslog to Splunk (CEF format via TCP/TLS); alert on `component_new` events. **Nozomi:** Enable `alert` data input; filter on `type_id="ASSET-NEW"`. Both platforms detect new devices automatically. Enrich with sensor/zone location to identify physical site. Cross-reference against approved asset list. Investigate unauthorized devices within SLA.
 - **Visualization:** New device alert timeline; device location map by sensor; unauthorized device table.
 - **CIM Models:** Network Traffic, Change
 
 ---
 
-### UC-14.9.3 · OT Asset Vulnerability Detection and CVE Tracking (Cisco Cyber Vision)
+### UC-14.9.3 · OT Asset Vulnerability Detection and CVE Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Cyber Vision automatically matches discovered OT assets against known CVEs, generating `vuln_detect` events with CVE ID, CVSS score, and affected component. This eliminates manual vulnerability scanning in sensitive OT environments where active scanners can disrupt processes.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:vulnerability`, `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms automatically match discovered OT assets against known CVEs, generating vulnerability alerts with CVE ID, CVSS score, and affected component. This eliminates manual vulnerability scanning in sensitive OT environments where active scanners can disrupt processes.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:vulnerability` · Nozomi: `sourcetype=nozomi:alert` (type_id contains "CVE")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:vulnerability"
 | eval cvss_severity=case(cvss_score>=9.0, "Critical", cvss_score>=7.0, "High", cvss_score>=4.0, "Medium", cvss_score<4.0, "Low")
@@ -4728,20 +4743,29 @@ index=cyber_vision sourcetype="cisco:cybervision:vulnerability"
 | sort -max_cvss
 | table device_name, device_ip, vendor, model, vuln_count, max_cvss, cve_list
 ```
-- **Implementation:** Enable "Vulnerabilities" input in the Splunk add-on. Cyber Vision's knowledge base is updated weekly with latest CVEs from Cisco Talos. Track vulnerability counts per asset. Prioritize remediation by CVSS severity and asset criticality. Track acknowledged vs unacknowledged vulnerabilities for compliance.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="CVE-*"
+| eval cvss_severity=case(cvss>=9.0, "Critical", cvss>=7.0, "High", cvss>=4.0, "Medium", cvss<4.0, "Low")
+| stats count as vuln_count, max(cvss) as max_cvss, values(type_id) as cve_list by ip, name, zone
+| where max_cvss >= 7.0
+| sort -max_cvss
+| table name, ip, zone, vuln_count, max_cvss, cve_list
+```
+- **Implementation:** **Cyber Vision:** Enable "Vulnerabilities" input; knowledge base updated weekly via Cisco Talos. **Nozomi:** Enable `alert` input; Guardian matches assets against NVD automatically. Both platforms provide passive vulnerability assessment without active scanning. Track vulnerability counts per asset. Prioritize remediation by CVSS severity and asset criticality.
 - **Visualization:** Vulnerability count by severity pie chart; top 10 vulnerable assets table; CVE trend over time; CVSS distribution histogram.
 - **CIM Models:** Vulnerabilities
 
 ---
 
-### UC-14.9.4 · OT Asset Risk Score Monitoring (Cisco Cyber Vision)
+### UC-14.9.4 · OT Asset Risk Score Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Cyber Vision calculates composite risk scores per device considering vulnerabilities, communication patterns, and security posture. Monitoring risk score changes over time shows whether your OT security posture is improving or degrading, and highlights which assets need immediate attention.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:device`
-- **SPL:**
+- **Value:** OT security platforms calculate composite risk scores per device considering vulnerabilities, communication patterns, and security posture. Monitoring risk score changes over time shows whether your OT security posture is improving or degrading, and highlights which assets need immediate attention.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:device` · Nozomi: `sourcetype=nozomi:nn_asset`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:device" risk_score=*
 | stats latest(risk_score) as current_risk, earliest(risk_score) as previous_risk by device_id, device_name, device_ip, site_name
@@ -4752,20 +4776,29 @@ index=cyber_vision sourcetype="cisco:cybervision:device" risk_score=*
 | sort -current_risk
 | table device_name, device_ip, site_name, current_risk, risk_level, risk_change, trend
 ```
-- **Implementation:** Poll device data with risk scores. Track score changes over time. Alert on assets crossing risk thresholds. Use risk scores to prioritize patching and segmentation efforts. Report on overall risk posture trends for management.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:nn_asset" risk=*
+| stats latest(risk) as current_risk by id, name, ip, zone
+| eval risk_level=case(current_risk>=8, "Critical", current_risk>=6, "High", current_risk>=4, "Medium", current_risk<4, "Low")
+| where current_risk >= 6
+| sort -current_risk
+| table name, ip, zone, current_risk, risk_level
+```
+- **Implementation:** Both platforms calculate composite risk scores per device. Track score changes over time. Alert on assets crossing risk thresholds. Use risk scores to prioritize patching and segmentation efforts. Report on overall risk posture trends for management.
 - **Visualization:** Risk distribution gauge; high-risk asset table; risk trend line per site; risk heatmap by asset group.
 - **CIM Models:** Asset Inventory
 
 ---
 
-### UC-14.9.5 · Baseline Deviation Detection (Cisco Cyber Vision)
+### UC-14.9.5 · Baseline Deviation Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Cyber Vision baselines capture normal network behavior — which devices talk to which, over what protocols, at what frequency. Deviations from baseline trigger `baseline_differences` events, detecting unauthorized communication changes, new data flows, or behavioral shifts that could indicate compromise or misconfiguration.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms baseline normal network behavior — which devices talk to which, over what protocols, at what frequency. Deviations from baseline trigger alerts, detecting unauthorized communication changes, new data flows, or behavioral shifts that could indicate compromise or misconfiguration.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="ANOMALY")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("baseline_differences", "baseline_difference_nack")
 | rex field=msg "Baseline '(?<baseline_name>[^']+)' got (?<diff_count>\d+) difference"
@@ -4774,20 +4807,28 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("basel
 | sort -severity_label
 | table _time, severity_label, baselines_affected, total_deviations, total_diffs
 ```
-- **Implementation:** Create baselines in Cyber Vision for critical production zones. Enable baseline monitoring mode. Forward deviation events to Splunk. Alert on any Critical or High severity deviations. Investigate and either acknowledge (legitimate change) or escalate (potential threat). Track unresolved deviations.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="ANOMALY*"
+| eval severity_label=case(risk>=8, "Critical", risk>=6, "High", risk>=4, "Medium", risk<4, "Low")
+| stats count as total_deviations by severity_label, name, zone, _time
+| sort -severity_label
+| table _time, severity_label, name, zone, total_deviations
+```
+- **Implementation:** **Cyber Vision:** Create baselines for critical production zones; enable monitoring mode. **Nozomi:** Guardian automatically builds AI-powered behavioral baselines; anomaly alerts fire when deviations occur. Alert on any Critical or High severity deviations. Investigate and either acknowledge (legitimate change) or escalate (potential threat). Track unresolved deviations.
 - **Visualization:** Deviation event timeline; baseline status dashboard; unresolved deviation count; severity distribution.
 - **CIM Models:** Change, Intrusion Detection
 
 ---
 
-### UC-14.9.6 · Snort IDS Threat Detection on OT Networks (Cisco Cyber Vision)
+### UC-14.9.6 · Snort IDS Threat Detection on OT Networks
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Cyber Vision embeds the Snort IDS engine with weekly Talos rule updates (including Shared Object rules) to detect known threats — malware, C2 traffic, exploit attempts — crossing into OT networks. This provides signature-based threat detection without deploying separate IDS appliances in sensitive OT environments.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms include built-in IDS engines with threat intelligence updates to detect known threats — malware, C2 traffic, exploit attempts — crossing into OT networks. This provides signature-based threat detection without deploying separate IDS appliances in sensitive OT environments.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="SIGN")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="snort_event"
 | rename SCVSnortEventMsg as signature, SCVSnortEventSid as sid, SCVSnortEventSrcAddr as src_ip, SCVSnortEventDstAddr as dest_ip, SCVSnortEventSrcPort as src_port, SCVSnortEventDstPort as dest_port
@@ -4797,20 +4838,29 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="snort_eve
 | sort -hits
 | table src_ip, severity_label, hits, targets, signatures
 ```
-- **Implementation:** Enable Snort IDS on Cyber Vision sensors (requires 4GB RAM on sensor platform). Configure Talos subscription for weekly rule updates. Forward IDS events to Splunk via syslog. Correlate with IT security events in Splunk ES for unified threat detection. Alert SOC on Critical/High severity IDS hits targeting OT assets.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="SIGN*"
+| eval severity_label=case(risk>=8, "Critical", risk>=6, "High", risk>=4, "Medium", risk<4, "Low")
+| stats count as hits, values(name) as signatures, dc(dst_ip) as targets by src_ip, severity_label
+| where severity_label IN ("Critical", "High")
+| sort -hits
+| table src_ip, severity_label, hits, targets, signatures
+```
+- **Implementation:** **Cyber Vision:** Enable Snort IDS on sensors (4GB RAM required); configure Talos subscription for weekly rule updates. **Nozomi:** Guardian includes built-in threat intelligence with Nozomi Threat Intelligence updates. Both platforms provide signature-based IDS for OT. Forward events to Splunk. Correlate with IT security events in Splunk ES for unified threat detection. Alert SOC on Critical/High severity IDS hits targeting OT assets.
 - **Visualization:** IDS alert timeline; top source IPs table; signature hit frequency chart; OT target heatmap.
 - **CIM Models:** Intrusion Detection
 
 ---
 
-### UC-14.9.7 · PLC Program Download/Upload Detection (Cisco Cyber Vision)
+### UC-14.9.7 · PLC Program Download/Upload Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Unauthorized PLC program changes can alter physical processes with safety implications. Cyber Vision detects program download and upload events across industrial protocols (EtherNet/IP, S7, Modbus, Profinet) and generates Critical-severity `program_download` and `program_upload` events. Every program change must be verified against authorized change windows.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** Unauthorized PLC program changes can alter physical processes with safety implications. OT security platforms detect program download and upload events across industrial protocols (EtherNet/IP, S7, Modbus, Profinet) and generate Critical-severity alerts. Every program change must be verified against authorized change windows.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="PROTOCOL-ENGINEERING")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_program_downloaded", "flow_program_uploaded", "flow_program_download_started")
 | rename SCVFlowCmpaComponentId as source_id, SCVFlowCmpbComponentId as target_id
@@ -4820,20 +4870,28 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_
 | table _time, action, cmp-a, cmp-b, source_id, target_id, outside_change_window, SCVSensorId
 | sort -_time
 ```
-- **Implementation:** Alert on all program download/upload events. Cross-reference with change management system to validate authorized changes. Flag events outside approved maintenance windows. Require investigation and sign-off for every program change.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id IN ("PROTOCOL-ENGINEERING-WRITE", "PROTOCOL-ENGINEERING-DOWNLOAD", "PROTOCOL-ENGINEERING-UPLOAD")
+| eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
+| eval outside_change_window=if((hour<6 OR hour>18) OR dow>5, "YES", "No")
+| table _time, name, src_ip, dst_ip, type_id, zone, outside_change_window
+| sort -_time
+```
+- **Implementation:** Both platforms detect PLC program changes across industrial protocols. Alert on all program download/upload events. Cross-reference with change management system to validate authorized changes. Flag events outside approved maintenance windows. Require investigation and sign-off for every program change.
 - **Visualization:** Program change timeline; authorized vs unauthorized change chart; target PLC table; change window compliance gauge.
 - **CIM Models:** Change, Intrusion Detection
 
 ---
 
-### UC-14.9.8 · Controller Firmware Activation Monitoring (Cisco Cyber Vision)
+### UC-14.9.8 · Controller Firmware Activation Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Firmware activation on a controller changes the software running the physical process. Unauthorized firmware changes are a key indicator of advanced OT attacks (e.g., Stuxnet-style). Cyber Vision detects `firmware_activation` events across supported industrial protocols and generates Critical-severity alerts.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** Firmware activation on a controller changes the software running the physical process. Unauthorized firmware changes are a key indicator of advanced OT attacks (e.g., Stuxnet-style). OT security platforms detect firmware activation events across supported industrial protocols and generate Critical-severity alerts.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="PROTOCOL-ENGINEERING")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="firmware_activation"
 | table _time, cmp-a, cmp-b, cmp-a-mac, cmp-b-mac, SCVSensorId, msg
@@ -4841,40 +4899,52 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="firmware_
 | join type=left cmp-b [| inputlookup ot_asset_inventory.csv | rename device_ip as cmp-b | fields cmp-b, device_name, zone, criticality]
 | table _time, cmp-a, cmp-b, device_name, zone, criticality, msg
 ```
-- **Implementation:** Alert immediately on any firmware activation event. This is always high-priority. Cross-reference with approved change records. Investigate source of firmware (cmp-a) and target controller (cmp-b). Validate firmware version matches approved versions.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-ENGINEERING-FIRMWARE*"
+| table _time, name, src_ip, dst_ip, zone, risk
+| sort -_time
+```
+- **Implementation:** Both platforms detect firmware activation events on controllers. Alert immediately — this is always high-priority. Cross-reference with approved change records. Investigate source and target. Validate firmware version matches approved versions.
 - **Visualization:** Firmware activation event log; target controller details; change authorization correlation.
 - **CIM Models:** Change
 
 ---
 
-### UC-14.9.9 · Forced Variable Detection in OT Processes (Cisco Cyber Vision)
+### UC-14.9.9 · Forced Variable Detection in OT Processes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Forcing a variable in a PLC overrides the normal program logic — the variable holds a fixed value regardless of what the control program calculates. While sometimes used legitimately during maintenance, forced variables left active in production can mask sensor readings and bypass safety logic. Cyber Vision detects `flow_forced_variable` events with variable name and value.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** Forcing a variable in a PLC overrides the normal program logic — the variable holds a fixed value regardless of what the control program calculates. While sometimes used legitimately during maintenance, forced variables left active in production can mask sensor readings and bypass safety logic. OT security platforms detect forced variable events with variable name and value.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:variable`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_forced_variable"
 | rename SCVFlowForcedVariableVarName as var_name, SCVFlowForcedVariableValue as forced_value
 | table _time, cmp-a, cmp-b, var_name, forced_value, SCVSensorId, msg
 | sort -_time
 ```
-- **Implementation:** Alert on all forced variable events. Verify against active maintenance work orders. Track duration of forced variables — any that remain active longer than the maintenance window must be investigated. Maintain a running list of currently forced variables for shift handover awareness.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:variable" status="forced"
+| table _time, node_id, variable_name, value, zone
+| sort -_time
+```
+- **Implementation:** **Cyber Vision:** Detects `flow_forced_variable` events via syslog. **Nozomi:** Guardian tracks all process variables via the `nozomi:variable` sourcetype, including forced status. Alert on all forced variable events. Verify against active maintenance work orders. Track duration — any that remain active longer than the maintenance window must be investigated.
 - **Visualization:** Forced variable event log; active forces table; force duration tracker; variable name word cloud.
 - **CIM Models:** Change, Intrusion Detection
 
 ---
 
-### UC-14.9.10 · Control Action Monitoring on Industrial Assets (Cisco Cyber Vision)
+### UC-14.9.10 · Control Action Monitoring on Industrial Assets
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Cyber Vision tracks `flow_control_action` events when a control system modifies process variables — setpoint changes, valve commands, motor start/stop. Monitoring these actions detects unauthorized process manipulation and provides an audit trail for root cause analysis of production incidents.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms track control action events when a control system modifies process variables — setpoint changes, valve commands, motor start/stop. Monitoring these actions detects unauthorized process manipulation and provides an audit trail for root cause analysis of production incidents.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:variable`, `sourcetype=nozomi:link_events`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_control_action"
 | rename SCVFlowControlActionProcessName as process, SCVFlowControlActionVarName as variable, SCVFlowControlActionValue as new_value
@@ -4884,20 +4954,29 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_cont
 | table _time, cmp-a, cmp-b, actions, variables_changed, processes
 | sort -actions
 ```
-- **Implementation:** Baseline normal control action volume per source-target pair. Alert on spikes exceeding 2x baseline (mass parameter changes could indicate unauthorized batch modifications). Track who is making changes (source IP) and which controllers are targets. Correlate with operator shift schedules.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:variable"
+| bin _time span=1h
+| stats count as changes, dc(variable_name) as variables_changed by node_id, zone, _time
+| where changes > 50
+| table _time, node_id, zone, changes, variables_changed
+| sort -changes
+```
+- **Implementation:** Both platforms track process variable changes. Baseline normal control action volume per source-target pair. Alert on spikes exceeding 2x baseline (mass parameter changes could indicate unauthorized batch modifications). Track who is making changes and which controllers are targets. Correlate with operator shift schedules.
 - **Visualization:** Control action volume timeline; source-target relationship map; process change audit log.
 - **CIM Models:** Change
 
 ---
 
-### UC-14.9.11 · Controller Mode Change Detection (Cisco Cyber Vision)
+### UC-14.9.11 · Controller Mode Change Detection
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Cyber Vision detects when controllers are placed into online, offline, force, or run/stop modes — each a Critical-severity event. A controller taken offline stops controlling its physical process. An unauthorized mode change could halt production, disable safety systems, or prepare for a more destructive attack.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms detect when controllers are placed into online, offline, force, or run/stop modes — each a Critical-severity event. A controller taken offline stops controlling its physical process. An unauthorized mode change could halt production, disable safety systems, or prepare for a more destructive attack.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="PROTOCOL-ENGINEERING")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_online", "flow_offline", "flow_force_mode", "flow_start_cpu", "flow_stop_cpu", "flow_restart_cpu", "flow_reset_process", "flow_init")
 | eval action=case(
@@ -4912,20 +4991,26 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_
 | table _time, action, cmp-a, cmp-b, SCVFlowProtocolEventDetected, SCVSensorId, msg
 | sort -_time
 ```
-- **Implementation:** Alert immediately on any controller mode change. CPU Stop and Offline events are highest priority — they halt physical processes. Cross-reference with scheduled maintenance. Track frequency of mode changes per controller. Investigate any mode change from unexpected source IPs.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id IN ("PROTOCOL-ENGINEERING-MODE*", "PROTOCOL-ENGINEERING-RUN*", "PROTOCOL-ENGINEERING-STOP*")
+| table _time, name, src_ip, dst_ip, type_id, zone, risk
+| sort -_time
+```
+- **Implementation:** Both platforms detect controller mode changes across industrial protocols. Alert immediately — CPU Stop and Offline events are highest priority as they halt physical processes. Cross-reference with scheduled maintenance. Track frequency of mode changes per controller. Investigate any mode change from unexpected source IPs.
 - **Visualization:** Mode change timeline with color-coded severity; controller status dashboard; unauthorized source detection.
 - **CIM Models:** Change, Intrusion Detection
 
 ---
 
-### UC-14.9.12 · New Communication Flow Detection (Cisco Cyber Vision)
+### UC-14.9.12 · New Communication Flow Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** In a stable OT environment, the set of communication flows between devices should be predictable. Cyber Vision generates `communication_new` events when a previously unseen protocol flow appears between two components. New FTP, HTTP, or SSH flows in the control network may indicate lateral movement, data exfiltration, or unauthorized remote access tools.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** In a stable OT environment, the set of communication flows between devices should be predictable. OT security platforms generate alerts when a previously unseen protocol flow appears between two components. New FTP, HTTP, or SSH flows in the control network may indicate lateral movement, data exfiltration, or unauthorized remote access tools.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:link_events`, `sourcetype=nozomi:link`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_new"
 | rename SCVFlowCommunicationType as protocol
@@ -4934,20 +5019,28 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_new"
 | eval concern=if(new_flows > 10, "High — investigate burst of new flows", "Normal")
 | table _time, new_flows, protocols, protocol_list, concern
 ```
-- **Implementation:** After initial learning period, alert on new communication flows. Prioritize IT protocols appearing in OT zones (FTP, SSH, HTTP, RDP, SMB). Correlate with baseline deviations. Investigate source and destination to determine if the flow is legitimate.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:link_events" status="new"
+| bin _time span=1d
+| stats count as new_flows, dc(protocols) as protocol_count, values(protocols) as protocol_list by _time
+| eval concern=if(new_flows > 10, "High — investigate burst of new flows", "Normal")
+| table _time, new_flows, protocol_count, protocol_list, concern
+```
+- **Implementation:** Both platforms detect new communication flows after an initial learning period. Alert on new flows. Prioritize IT protocols appearing in OT zones (FTP, SSH, HTTP, RDP, SMB). Correlate with baseline deviations. Investigate source and destination to determine if the flow is legitimate.
 - **Visualization:** New flow event timeline; protocol distribution chart; source-destination network graph.
 - **CIM Models:** Network Traffic
 
 ---
 
-### UC-14.9.13 · Protocol Exception Monitoring (Cisco Cyber Vision)
+### UC-14.9.13 · Protocol Exception Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Protocol exceptions (`illegal-function`, `invalid-data-address`, malformed packets) detected by Cyber Vision's DPI indicate either misconfigured devices, faulty communication, or active exploitation attempts. An attacker probing Modbus function codes will trigger `illegal-function` exceptions. Repeated exceptions from a single source warrant investigation.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** Protocol exceptions (`illegal-function`, `invalid-data-address`, malformed packets) detected by OT DPI platforms indicate either misconfigured devices, faulty communication, or active exploitation attempts. An attacker probing Modbus function codes will trigger `illegal-function` exceptions. Repeated exceptions from a single source warrant investigation.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="PROTOCOL")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_exception"
 | rename SCVExceptionLabel as exception_type
@@ -4956,20 +5049,28 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_exce
 | sort -exceptions
 | table cmp-a, cmp-b, exceptions, exception_types, exception_list, SCVSensorId
 ```
-- **Implementation:** Baseline normal exception rates per flow. Alert on sudden spikes (>5 exceptions from single source in short window). Differentiate between known interoperability issues (constant low rate) and new attack patterns (sudden burst from unknown source). Feed into SOC correlation rules.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL*"
+| stats count as exceptions, dc(type_id) as exception_types, values(type_id) as exception_list by src_ip, dst_ip, zone
+| where exceptions > 5
+| sort -exceptions
+| table src_ip, dst_ip, exceptions, exception_types, exception_list, zone
+```
+- **Implementation:** Both platforms detect protocol-level exceptions via DPI. Baseline normal exception rates per flow. Alert on sudden spikes (>5 exceptions from single source in short window). Differentiate between known interoperability issues and new attack patterns. Feed into SOC correlation rules.
 - **Visualization:** Exception volume timeline; top exception source table; exception type distribution; attack pattern detection dashboard.
 - **CIM Models:** Intrusion Detection
 
 ---
 
-### UC-14.9.14 · OT Device Authentication Failure Detection (Cisco Cyber Vision)
+### UC-14.9.14 · OT Device Authentication Failure Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Cyber Vision detects `flow_login_failure` events including the number of failed authentication attempts and the protocol used. Brute-force login attempts against HMIs, engineering workstations, or web-enabled controllers indicate credential-based attacks that could lead to unauthorized process control.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms detect login failure events including the number of failed authentication attempts and the protocol used. Brute-force login attempts against HMIs, engineering workstations, or web-enabled controllers indicate credential-based attacks that could lead to unauthorized process control.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="AUTH")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_login_failure"
 | rename SCVFlowLoginFailureNumberOfAttempts as attempts, SCVFlowLoginFailureProtocol as protocol
@@ -4978,20 +5079,28 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_logi
 | sort -total_failures
 | table cmp-a, cmp-b, total_failures, failure_events, protocols
 ```
-- **Implementation:** Alert on repeated authentication failures, especially against critical OT assets (PLCs, RTUs, SIS controllers). Correlate source IP with known engineering workstations. Unknown sources attempting authentication are high priority. Feed into Splunk ES notable events.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="AUTH*"
+| stats count as total_failures by src_ip, dst_ip, zone
+| where total_failures >= 3
+| sort -total_failures
+| table src_ip, dst_ip, total_failures, zone
+```
+- **Implementation:** Both platforms detect authentication failures on OT devices. Alert on repeated failures, especially against critical OT assets (PLCs, RTUs, SIS controllers). Correlate source IP with known engineering workstations. Unknown sources attempting authentication are high priority. Feed into Splunk ES notable events.
 - **Visualization:** Failed auth timeline; top attack source table; target asset vulnerability assessment; brute force detection dashboard.
 - **CIM Models:** Authentication
 
 ---
 
-### UC-14.9.15 · Admin Connection Detection to ICS Assets (Cisco Cyber Vision)
+### UC-14.9.15 · Admin Connection Detection to ICS Assets
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Cyber Vision detects administrative connections to industrial components — engineering sessions to PLCs, configuration access to field devices. The `admin_connection` event identifies who is connecting to which controller, enabling detection of unauthorized engineering access that could modify process logic.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms detect administrative connections to industrial components — engineering sessions to PLCs, configuration access to field devices. These events identify who is connecting to which controller, enabling detection of unauthorized engineering access that could modify process logic.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session`, `sourcetype=nozomi:link`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="admin_connection"
 | eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
@@ -5001,40 +5110,56 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="admin_con
 | sort -connections
 | table cmp-a, cmp-b, connections, outside_hours
 ```
-- **Implementation:** Baseline approved engineering workstation IPs. Alert on admin connections from unapproved sources or outside business hours. Track connection frequency per engineer. Correlate with change management tickets. High-priority: any admin connection from the IT network to OT controllers.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:session" session_type="engineering"
+| eval hour=strftime(_time, "%H"), dow=strftime(_time, "%u")
+| eval outside_hours=if((hour<7 OR hour>18) OR dow>5, "After Hours", "Business Hours")
+| stats count as connections by src_ip, dst_ip, outside_hours, zone
+| where outside_hours="After Hours" OR connections > 10
+| sort -connections
+| table src_ip, dst_ip, connections, outside_hours, zone
+```
+- **Implementation:** Both platforms detect engineering/admin connections to industrial assets. Baseline approved engineering workstation IPs. Alert on connections from unapproved sources or outside business hours. Track connection frequency per engineer. Correlate with change management tickets.
 - **Visualization:** Admin connection timeline; source-destination network map; after-hours connection alerts; approved vs unapproved source comparison.
 - **CIM Models:** Authentication, Network Traffic
 
 ---
 
-### UC-14.9.16 · Port Scan Detection on OT Networks (Cisco Cyber Vision)
+### UC-14.9.16 · Port Scan Detection on OT Networks
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** Port scanning is a reconnaissance technique used by attackers to map OT network topology and identify exploitable services. Cyber Vision detects `port_scan` events with scanner and target component identification. Port scans in OT networks are almost never legitimate and warrant immediate investigation.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** Port scanning is a reconnaissance technique used by attackers to map OT network topology and identify exploitable services. OT security platforms detect port scan events with scanner and target component identification. Port scans in OT networks are almost never legitimate and warrant immediate investigation.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="SCAN")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="port_scan"
 | rename SCVPortScannerComponentId as scanner_id, SCVPortScanTargetComponentId as target_id, SCVPortScanDetailsProtocol as scan_protocol
 | table _time, cmp-a, cmp-b, scan_protocol, scanner_id, target_id, SCVSensorId
 | sort -_time
 ```
-- **Implementation:** Alert immediately on any port scan event in the OT network. Identify scanner source — is it an authorized vulnerability scanner or unknown? Correlate with network baseline. Block scanning source at network boundary if unauthorized. Escalate to SOC and OT security team.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="SCAN*"
+| table _time, name, src_ip, dst_ip, zone, risk
+| sort -_time
+```
+- **Implementation:** Both platforms detect port scanning in OT networks. Alert immediately on any port scan event. Identify scanner source — is it an authorized vulnerability scanner or unknown? Correlate with network baseline. Block scanning source at network boundary if unauthorized. Escalate to SOC and OT security team.
 - **Visualization:** Port scan alert log; scanner source identification; target analysis; network map overlay.
 - **CIM Models:** Intrusion Detection, Network Traffic
 
 ---
 
-### UC-14.9.17 · Weak Encryption Detection in OT Communications (Cisco Cyber Vision)
+### UC-14.9.17 · Weak Encryption Detection in OT Communications
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
-- **Value:** Many OT protocols use weak or no encryption. Cyber Vision's `weak_encryption` events identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** Many OT protocols use weak or no encryption. OT security platforms identify flows using deprecated TLS versions, weak ciphers, or unencrypted protocols where encryption should be used. This supports IEC 62443 compliance and prioritizes protocol hardening efforts.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id="PROTOCOL-CIPHER")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_weak_encryption"
 | rename SCVFlowProtocolEventDetected as encryption_detail
@@ -5042,20 +5167,27 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_weak
 | sort -occurrences
 | table cmp-a, encryption_detail, occurrences, affected_targets
 ```
-- **Implementation:** Inventory all weak encryption findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-CIPHER*"
+| stats count as occurrences, dc(dst_ip) as affected_targets by src_ip, name, zone
+| sort -occurrences
+| table src_ip, name, occurrences, affected_targets, zone
+```
+- **Implementation:** Both platforms detect weak encryption in OT communications. Inventory all findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.
 - **Visualization:** Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.
 - **CIM Models:** Network Traffic
 
 ---
 
-### UC-14.9.18 · SMB Protocol Activity in OT Networks (Cisco Cyber Vision)
+### UC-14.9.18 · SMB Protocol Activity in OT Networks
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** SMB (Server Message Block) traffic in OT networks is frequently associated with ransomware propagation (WannaCry, NotPetya) and lateral movement. Cyber Vision detects `flow_smb` protocol events. Any SMB activity in pure control network segments is suspicious and may indicate an active threat.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** SMB (Server Message Block) traffic in OT networks is frequently associated with ransomware propagation (WannaCry, NotPetya) and lateral movement. OT security platforms detect SMB protocol events. Any SMB activity in pure control network segments is suspicious and may indicate an active threat.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session` (protocol="smb")
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_smb"
 | rename SCVFlowProtocolEventDetected as smb_detail
@@ -5063,20 +5195,27 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="flow_smb"
 | sort -smb_events
 | table cmp-a, smb_detail, smb_events, targets
 ```
-- **Implementation:** Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with Snort IDS for known SMB exploit signatures. High priority for SOC investigation.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:session" protocols="smb"
+| stats count as smb_events, dc(dst_ip) as targets by src_ip, zone
+| sort -smb_events
+| table src_ip, smb_events, targets, zone
+```
+- **Implementation:** Both platforms detect SMB traffic via DPI. Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with IDS for known SMB exploit signatures. High priority for SOC investigation.
 - **Visualization:** SMB activity timeline; source-target map; alert correlation with IDS; legitimate vs suspicious classification.
 - **CIM Models:** Network Traffic, Intrusion Detection
 
 ---
 
-### UC-14.9.19 · Network Redundancy and HA Failover Events (Cisco Cyber Vision)
+### UC-14.9.19 · Network Redundancy and HA Failover Events
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
-- **Value:** Cyber Vision detects network redundancy failover events and router HA state changes across industrial protocols. Frequent failovers indicate network instability that could disrupt real-time control. Unexpected failovers may also indicate denial-of-service attacks or physical cable issues.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms detect network redundancy failover events and router HA state changes across industrial protocols. Frequent failovers indicate network instability that could disrupt real-time control. Unexpected failovers may also indicate denial-of-service attacks or physical cable issues.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:link_events`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_network_redundancy", "flow_router_ha")
 | rename SCVFlowProtocolEventDetected as event_detail
@@ -5085,40 +5224,55 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype IN ("flow_
 | where failover_events > 2
 | table _time, cmp-a, cmp-b, failover_events, details
 ```
-- **Implementation:** Baseline normal failover frequency (should be near zero in stable networks). Alert on any failover event. Multiple failovers in short succession (flapping) indicates a serious issue. Correlate with physical infrastructure monitoring (power, cables, switch health).
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:link_events" status IN ("up", "down", "flapping")
+| bin _time span=1h
+| stats count as failover_events by src_ip, dst_ip, status, zone, _time
+| where failover_events > 2
+| table _time, src_ip, dst_ip, status, failover_events, zone
+```
+- **Implementation:** Both platforms detect network redundancy and HA state changes. Baseline normal failover frequency (should be near zero in stable networks). Alert on any failover event. Multiple failovers in short succession (flapping) indicates a serious issue. Correlate with physical infrastructure monitoring.
 - **Visualization:** Failover event timeline; network stability score; flapping device detection; HA state dashboard.
 - **CIM Models:** Network Traffic, Change
 
 ---
 
-### UC-14.9.20 · Cyber Vision Sensor Health and Resource Monitoring (Cisco Cyber Vision)
+### UC-14.9.20 · Cyber Vision Sensor Health and Resource Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
-- **Value:** Cyber Vision sensors embedded in switches and routers need monitoring themselves. `sensor_high_ressources` events fire when CPU, memory, or disk exceed 80% on a sensor. Degraded sensors may miss traffic, creating blind spots in OT visibility that attackers could exploit.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security sensors and appliances need monitoring themselves — high CPU, memory, or disk usage events fire when resources exceed thresholds. Degraded sensors may miss traffic, creating blind spots in OT visibility.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:health`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="sensor" SCVSensorAction="high ressources usage"
 | rename SCVSensorCpu as cpu_pct, SCVSensorMemory as mem_pct, SCVSensorDisk as disk_pct, SCVSensorName as sensor_name, SCVSensorIp as sensor_ip, SCVSensorVersion as version
 | table _time, sensor_name, sensor_ip, cpu_pct, mem_pct, disk_pct, version
 | sort -cpu_pct
 ```
-- **Implementation:** Alert on any sensor resource event (already pre-filtered by Cyber Vision at 80% threshold). Track resource trends per sensor. High CPU may indicate excessive traffic (DDoS, broadcast storm). High disk may indicate log accumulation. Plan capacity upgrades or traffic optimization.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:health"
+| table _time, appliance_id, cpu_percent, memory_percent, disk_percent, version
+| where cpu_percent > 80 OR memory_percent > 80 OR disk_percent > 80
+| sort -cpu_percent
+```
+- **Implementation:** Both platforms expose sensor/appliance health metrics. **Cyber Vision:** Pre-filtered at 80% threshold via syslog. **Nozomi:** Guardian exposes health data via the `nozomi:health` sourcetype. Alert on high resource usage. Track trends per sensor. High CPU may indicate excessive traffic (DDoS, broadcast storm). Plan capacity upgrades or traffic optimization.
 - **Visualization:** Sensor health dashboard; CPU/memory/disk gauges per sensor; resource trend lines; sensor fleet status map.
 - **CIM Models:** Performance
 
 ---
 
-### UC-14.9.21 · Cyber Vision Administration Audit Trail (Cisco Cyber Vision)
+### UC-14.9.21 · Cyber Vision Administration Audit Trail
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
-- **Value:** All administrative actions in Cyber Vision — user logins, configuration changes, sensor management, database operations — are logged via syslog. Maintaining an audit trail of who did what and when supports regulatory compliance (IEC 62443, NERC CIP) and insider threat detection.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** All administrative actions in OT security platforms — user logins, configuration changes, sensor management, database operations — are logged. Maintaining an audit trail of who did what and when supports regulatory compliance (IEC 62443, NERC CIP) and insider threat detection.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:health`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" cat="Cisco Cyber Vision Administration" OR cat="Cisco Cyber Vision Operations"
 | eval action=coalesce(SCVEventtype, "unknown")
@@ -5126,20 +5280,27 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" cat="Cisco Cyber Vision
 | sort -events
 | table suser, action, cat, events
 ```
-- **Implementation:** Forward all Cyber Vision administration and operations events to Splunk. Build compliance reports showing all administrative actions. Alert on high-severity admin events (system reboot, database restore, sensor deletion). Track user login patterns for anomaly detection.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:health" log_type="audit"
+| stats count as events by user, action, appliance_id
+| sort -events
+| table user, action, appliance_id, events
+```
+- **Implementation:** Both platforms provide administrative audit trails. Forward all administration events to Splunk. Build compliance reports showing all administrative actions. Alert on high-severity admin events (system reboot, database restore, sensor deletion). Track user login patterns for anomaly detection.
 - **Visualization:** Admin activity timeline; user action summary table; login pattern analysis; compliance audit report.
 - **CIM Models:** Authentication, Change
 
 ---
 
-### UC-14.9.22 · IEC 62443 Zone and Conduit Compliance Monitoring (Cisco Cyber Vision)
+### UC-14.9.22 · IEC 62443 Zone and Conduit Compliance Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance
-- **Value:** IEC 62443 requires industrial networks to be segmented into security zones connected by controlled conduits. Cyber Vision helps control engineers define these zones and automatically detects cross-zone traffic that violates conduit policies. Monitoring zone compliance ensures segmentation remains effective over time.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:flow`, `sourcetype=cisco:cybervision:activity`
-- **SPL:**
+- **Value:** IEC 62443 requires industrial networks to be segmented into security zones connected by controlled conduits. OT security platforms help control engineers define these zones and automatically detect cross-zone traffic that violates conduit policies. Monitoring zone compliance ensures segmentation remains effective over time.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:flow`, `sourcetype=cisco:cybervision:activity` · Nozomi: `sourcetype=nozomi:link`, `sourcetype=nozomi:session`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:flow"
 | lookup ot_zone_mapping.csv device_ip OUTPUTNEW zone as src_zone
@@ -5151,20 +5312,28 @@ index=cyber_vision sourcetype="cisco:cybervision:flow"
 | where violation="VIOLATION"
 | table src_zone, dest_zone, cross_zone_flows, protocol_list, conduit_status, violation
 ```
-- **Implementation:** Export Cyber Vision zone definitions (asset groups) to a lookup table. Define approved conduits with allowed protocols. Match actual cross-zone flows against policy. Alert on any unapproved cross-zone communication. Generate compliance reports for IEC 62443 audits.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:link"
+| lookup iec62443_conduit_policy.csv src_zone, dst_zone OUTPUTNEW allowed_protocols, conduit_status
+| where conduit_status!="approved"
+| stats count as violations, values(protocols) as protocol_list by src_zone, dst_zone
+| table src_zone, dst_zone, violations, protocol_list
+```
+- **Implementation:** Both platforms support zone-based monitoring aligned with IEC 62443. Export zone definitions to a lookup table. Define approved conduits with allowed protocols. Match actual cross-zone flows against policy. Alert on any unapproved cross-zone communication. Generate compliance reports for audits.
 - **Visualization:** Zone topology map; conduit compliance matrix; violation count per zone pair; compliance trend over time.
 - **CIM Models:** Network Traffic, Change
 
 ---
 
-### UC-14.9.23 · OT Event Severity Distribution and Security Posture Dashboard (Cisco Cyber Vision)
+### UC-14.9.23 · OT Event Severity Distribution and Security Posture Dashboard
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
-- **Value:** A high-level view of all Cyber Vision security events by severity and category provides OT security posture at a glance. Trending event volumes over time shows whether security is improving (fewer Critical/High events) or degrading. Supports CISO reporting and board-level OT security metrics.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:event`, `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** A high-level view of all OT security events by severity and category provides security posture at a glance. Trending event volumes over time shows whether security is improving (fewer Critical/High events) or degrading. Supports CISO reporting and board-level OT security metrics.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:event`, `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog"
 | eval severity_label=case(severity="3", "Critical", severity="2", "High", severity="1", "Medium", severity="0", "Low")
@@ -5174,20 +5343,30 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog"
 | eval pct_of_total=round(events*100/daily_total, 1)
 | table _time, severity_label, cat, events, pct_of_total
 ```
-- **Implementation:** Aggregate all Cyber Vision events by severity and category. Build executive dashboard showing daily event volumes, severity distribution, and trend lines. Track week-over-week and month-over-month changes. Alert on sudden spikes in Critical/High events.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert"
+| eval severity_label=case(risk>=8, "Critical", risk>=6, "High", risk>=4, "Medium", risk<4, "Low")
+| bin _time span=1d
+| stats count as events by severity_label, type_id, _time
+| eventstats sum(events) as daily_total by _time
+| eval pct_of_total=round(events*100/daily_total, 1)
+| table _time, severity_label, type_id, events, pct_of_total
+```
+- **Implementation:** Both platforms provide event aggregation for security posture dashboards. Build executive dashboard showing daily event volumes, severity distribution, and trend lines. Track week-over-week and month-over-month changes. Alert on sudden spikes in Critical/High events.
 - **Visualization:** Severity distribution pie chart; daily event volume stacked bar chart; trend line overlay; category breakdown table.
 - **CIM Models:** N/A
 
 ---
 
-### UC-14.9.24 · OT Protocol Usage Analysis and Inventory (Cisco Cyber Vision)
+### UC-14.9.24 · OT Protocol Usage Analysis and Inventory
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Inventory
-- **Value:** Cyber Vision identifies all industrial protocols in use across the OT network — Modbus, EtherNet/IP, Profinet, S7, BACnet, DNP3, IEC 104, OPC-UA, and dozens more. Understanding protocol distribution helps prioritize security investments, plan protocol-specific IDS rules, and identify legacy protocols that need migration.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:activity`
-- **SPL:**
+- **Value:** OT security platforms identify all industrial protocols in use across the OT network — Modbus, EtherNet/IP, Profinet, S7, BACnet, DNP3, IEC 104, OPC-UA, and dozens more. Understanding protocol distribution helps prioritize security investments, plan protocol-specific IDS rules, and identify legacy protocols that need migration.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:activity` · Nozomi: `sourcetype=nozomi:link`, `sourcetype=nozomi:session`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:activity"
 | stats dc(src_ip) as sources, dc(dest_ip) as destinations, sum(bytes) as total_bytes by protocol, site_name
@@ -5195,20 +5374,27 @@ index=cyber_vision sourcetype="cisco:cybervision:activity"
 | sort -sources
 | table site_name, protocol, sources, destinations, total_mb
 ```
-- **Implementation:** Analyze activities data to build protocol inventory per site. Identify unexpected protocols (e.g., BACnet in a power substation, or Modbus in an enterprise zone). Compare protocol usage across sites for standardization. Feed into protocol-specific security policy development.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:link"
+| stats dc(src_ip) as sources, dc(dst_ip) as destinations, sum(bps_out) as total_bps by protocols, zone
+| sort -sources
+| table zone, protocols, sources, destinations, total_bps
+```
+- **Implementation:** Both platforms identify all industrial protocols in use via DPI. Analyze data to build protocol inventory per site/zone. Identify unexpected protocols (e.g., BACnet in a power substation, or Modbus in an enterprise zone). Compare protocol usage across sites for standardization. Feed into protocol-specific security policy development.
 - **Visualization:** Protocol distribution pie chart per site; protocol comparison across sites; unexpected protocol alert table; protocol trend over time.
 - **CIM Models:** Network Traffic
 
 ---
 
-### UC-14.9.25 · Decode Failure and Malformed Packet Detection (Cisco Cyber Vision)
+### UC-14.9.25 · Decode Failure and Malformed Packet Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Cyber Vision generates `decode_failure` events when its DPI engine encounters packets it cannot properly parse — potentially indicating protocol fuzzing attacks, corrupted communications, or deliberately malformed exploit payloads targeting OT devices. Sustained decode failures from a single source may indicate active exploitation attempts.
-- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748)
-- **Data Sources:** `sourcetype=cisco:cybervision:syslog`
-- **SPL:**
+- **Value:** OT security platforms generate decode failure events when their DPI engine encounters packets it cannot properly parse — potentially indicating protocol fuzzing attacks, corrupted communications, or deliberately malformed exploit payloads targeting OT devices. Sustained decode failures from a single source may indicate active exploitation attempts.
+- **App/TA:** `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)
+- **Data Sources:** `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert`
+- **SPL (Cisco Cyber Vision):**
 ```spl
 index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="decode_failure"
 | bin _time span=1h
@@ -5217,7 +5403,16 @@ index=cyber_vision sourcetype="cisco:cybervision:syslog" SCVEventtype="decode_fa
 | table _time, SCVSensorId, failures
 | sort -failures
 ```
-- **Implementation:** Baseline normal decode failure rates per sensor (some level is expected from legitimate protocol variations). Alert on sudden spikes exceeding 3x baseline from a single sensor, which may indicate a fuzzing or exploitation attempt. Correlate with IDS alerts from the same time window.
+- **SPL (Nozomi Networks):**
+```spl
+index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-DECODE*"
+| bin _time span=1h
+| stats count as failures by zone, _time
+| where failures > 10
+| table _time, zone, failures
+| sort -failures
+```
+- **Implementation:** Both platforms generate events when DPI encounters unparseable packets. Baseline normal decode failure rates per sensor/zone. Alert on sudden spikes exceeding 3x baseline, which may indicate a fuzzing or exploitation attempt. Correlate with IDS alerts from the same time window.
 - **Visualization:** Decode failure timeline per sensor; spike detection; correlation with IDS events; sensor health overlay.
 - **CIM Models:** Intrusion Detection
 

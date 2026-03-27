@@ -2127,6 +2127,67 @@ html.light-mode .filter-chip.fc-trend.active { background: rgba(230,126,34,0.10)
 .ov-subcat-name { flex: 1; font-weight: 500; }
 .ov-subcat-count { font-size: var(--text-sm); color: var(--splunk-text-secondary); }
 
+/* Subcategory intermediate view */
+.cat-header-top { display: flex; align-items: flex-start; gap: var(--space-4); }
+.cat-header-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--splunk-bg-elevated); border: 1px solid var(--splunk-border-subtle);
+  border-radius: 12px; color: var(--splunk-text-secondary); font-size: 22px;
+}
+.cat-header-icon .si { width: 24px; height: 24px; }
+.sc-view-desc { font-size: var(--text-sm); color: var(--splunk-text-secondary); line-height: 1.5; margin-top: var(--space-3); }
+.sc-view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-4); margin-top: var(--space-4); }
+.sc-view-card {
+  background: var(--splunk-bg-surface); border: 1px solid var(--splunk-border-subtle);
+  border-radius: var(--radius-lg); padding: var(--space-5);
+  cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+}
+.sc-view-card:hover { border-color: var(--splunk-green); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.sc-view-card-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
+.sc-view-card-id { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 600; color: var(--splunk-green); }
+.sc-view-card-name { flex: 1; font-size: var(--text-base); font-weight: 600; color: var(--splunk-text-primary); min-width: 0; }
+.sc-view-card-count {
+  font-size: var(--text-xs); color: var(--splunk-text-tertiary); background: var(--splunk-bg-base);
+  padding: 2px var(--space-2); border-radius: var(--radius-sm); flex-shrink: 0; white-space: nowrap;
+}
+.sc-view-card-crit { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.sc-crit-dot { font-size: var(--text-xs); font-weight: 500; display: flex; align-items: center; gap: 4px; }
+.sc-crit-dot::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.sc-crit-dot.critical::before { background: var(--splunk-critical); }
+.sc-crit-dot.high::before { background: var(--splunk-high); }
+.sc-crit-dot.medium::before { background: var(--splunk-medium); }
+.sc-crit-dot.low::before { background: var(--splunk-info); }
+.sc-crit-dot.critical { color: var(--splunk-critical); }
+.sc-crit-dot.high { color: var(--splunk-high); }
+.sc-crit-dot.medium { color: var(--splunk-medium); }
+.sc-crit-dot.low { color: var(--splunk-info); }
+.sc-view-card-ucs {
+  border-top: 1px solid var(--splunk-border-subtle); padding-top: var(--space-3);
+  display: flex; flex-direction: column; gap: var(--space-1);
+}
+.sc-view-uc-peek {
+  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--splunk-text-secondary);
+  cursor: pointer; transition: background 0.12s;
+}
+.sc-view-uc-peek:hover { background: var(--splunk-bg-elevated); color: var(--splunk-green); }
+.sc-view-uc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-view-more { font-size: var(--text-xs); color: var(--splunk-text-tertiary); padding: var(--space-1) var(--space-2); font-style: italic; }
+.sc-view-showall { text-align: center; margin-top: var(--space-6); margin-bottom: var(--space-6); }
+.sc-view-showall-btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  background: var(--splunk-bg-surface); border: 1px solid var(--splunk-border-default);
+  border-radius: var(--radius-lg); color: var(--splunk-text-primary);
+  font-size: var(--text-sm); font-weight: 500; font-family: inherit;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.sc-view-showall-btn .si { width: 16px; height: 16px; }
+.sc-view-showall-btn:hover { background: var(--splunk-green); border-color: var(--splunk-green); color: #fff; }
+
 .ov-cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-5); }
 .ov-cat-card {
   background: var(--splunk-bg-surface);
@@ -4062,6 +4123,7 @@ function filterByRegulation(reg) {
   currentRegulationFilter = reg;
   currentCat = null;
   currentSubcat = null;
+  catShowAllUCs = false;
   reRender();
   buildSidebar();
   updateCountLabel();
@@ -4346,7 +4408,10 @@ _updateInventoryBtnState();
 function reRender() {
   if (nonTechnicalView) return;
   if (currentSearch) renderSearchResults();
-  else if (currentCat !== null) renderCategory(currentCat);
+  else if (currentCat !== null) {
+    if (catShowAllUCs) renderCategory(currentCat);
+    else renderSubcategoryView(currentCat);
+  }
   else renderOverview();
 }
 
@@ -4451,8 +4516,11 @@ function restoreFromHash() {
   var catMatch = h.match(/^cat-(\d+)(?:\/(.+))?/);
   if (catMatch) {
     var catId = parseInt(catMatch[1], 10);
-    selectCat(catId);
-    if (catMatch[2]) scrollToSubcat(catMatch[2]);
+    if (catMatch[2]) {
+      goToSubcat(catId, catMatch[2]);
+    } else {
+      selectCat(catId);
+    }
     return;
   }
   if (['alluc','subcats','quickwins'].indexOf(h) !== -1) {
@@ -4639,6 +4707,7 @@ if (themeSwitchBtn) {
 
 // Build sidebar
 let currentSubcat = null;
+var catShowAllUCs = false;
 var expandedSidebarGroups = new Set();
 var sidebarManualToggle = false;
 
@@ -4744,16 +4813,32 @@ function toggleSidebarGroup(g) {
 }
 
 function scrollToSubcat(scId) {
+  if (!catShowAllUCs && currentCat !== null) {
+    goToSubcat(currentCat, scId);
+    return;
+  }
   currentSubcat = scId;
   buildSidebar();
   updateHash(true);
-  const el = document.getElementById('sc-' + scId.replace('.','_'));
+  const el = document.getElementById('sc-' + scId.replace(/\./g,'_'));
   if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 function goToSubcat(catId, scId) {
-  selectCat(catId);
-  scrollToSubcat(scId);
+  currentCat = catId;
+  currentSubcat = scId;
+  catShowAllUCs = true;
+  currentSearch = '';
+  ovHeroGroupFilter = null;
+  document.getElementById('search').value = '';
+  buildSidebar();
+  renderCategory(catId);
+  updateHash(false);
+  closeSidebarOnMobile();
+  setTimeout(function() {
+    var el = document.getElementById('sc-' + scId.replace(/\./g,'_'));
+    if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }, 50);
 }
 
 // Derive top quick-win starters per category from DATA
@@ -5234,6 +5319,85 @@ function clearTrendFilter() {
   reRender();
   buildSidebar();
   updateCountLabel();
+}
+
+// Render subcategory listing (intermediate view before showing all UCs)
+function renderSubcategoryView(catId) {
+  if (ucScrollObserver) { ucScrollObserver.disconnect(); ucScrollObserver = null; }
+  var cat = DATA.find(function(c) { return c.i === catId; });
+  if (!cat) return;
+
+  var catFiltered = getFilteredUCs().filter(function(e) { return e.cat.i === catId; });
+  var totalCount = cat.s.reduce(function(a, s) { return a + s.u.length; }, 0);
+  var meta = CAT_META[cat.i] || {icon:'', desc:''};
+
+  var bySubcat = {};
+  catFiltered.forEach(function(e) {
+    var key = e.sc.i;
+    if (!bySubcat[key]) bySubcat[key] = 0;
+    bySubcat[key]++;
+  });
+
+  var html = '<div class="cat-header glass">';
+  html += '<div class="cat-header-top">';
+  html += '<div class="cat-header-icon">' + (SI_PATHS[meta.icon] ? si(meta.icon) : (meta.icon || '')) + '</div>';
+  html += '<div><h2>' + cat.i + '. ' + escHtml(cat.n) + '</h2>';
+  html += '<div class="cat-meta"><span>' + cat.s.length + ' subcategories</span>';
+  html += '<span>' + catFiltered.length + ' / ' + totalCount + ' use cases</span></div></div></div>';
+  if (meta.desc) html += '<p class="sc-view-desc">' + escHtml(meta.desc) + '</p>';
+  html += '</div>';
+
+  html += filterStrip();
+  html += activeFilterTags();
+
+  html += '<div class="sc-view-grid">';
+  cat.s.forEach(function(sc) {
+    var scCount = bySubcat[sc.i] || 0;
+    var scTotal = sc.u.length;
+    var hasFilter = catFiltered.length !== totalCount;
+    var displayCount = hasFilter ? scCount : scTotal;
+    if (hasFilter && scCount === 0) return;
+
+    var critCounts = {critical:0, high:0, medium:0, low:0};
+    var entries = catFiltered.filter(function(e) { return e.sc.i === sc.i; });
+    entries.forEach(function(e) { if (critCounts[e.uc.c] !== undefined) critCounts[e.uc.c]++; });
+
+    html += '<article class="sc-view-card" onclick="goToSubcat(' + catId + ',\'' + String(sc.i).replace(/'/g, "\\'") + '\')">';
+    html += '<div class="sc-view-card-head">';
+    html += '<span class="sc-view-card-id">' + escHtml(sc.i) + '</span>';
+    html += '<h3 class="sc-view-card-name">' + escHtml(sc.n) + '</h3>';
+    html += '<span class="sc-view-card-count">' + displayCount + ' use cases</span>';
+    html += '</div>';
+
+    html += '<div class="sc-view-card-crit">';
+    if (critCounts.critical) html += '<span class="sc-crit-dot critical">' + critCounts.critical + ' Critical</span>';
+    if (critCounts.high) html += '<span class="sc-crit-dot high">' + critCounts.high + ' High</span>';
+    if (critCounts.medium) html += '<span class="sc-crit-dot medium">' + critCounts.medium + ' Medium</span>';
+    if (critCounts.low) html += '<span class="sc-crit-dot low">' + critCounts.low + ' Low</span>';
+    html += '</div>';
+
+    var topUCs = entries.slice(0, 3);
+    if (topUCs.length) {
+      html += '<div class="sc-view-card-ucs">';
+      topUCs.forEach(function(e) {
+        html += '<div class="sc-view-uc-peek" onclick="event.stopPropagation(); openUC(\'' + e.uc.i + '\')">';
+        html += '<span class="uc-crit-dot ' + e.uc.c + '"></span>';
+        html += '<span class="sc-view-uc-name">' + escHtml(e.uc.n) + '</span></div>';
+      });
+      if (entries.length > 3) html += '<div class="sc-view-more">+' + (entries.length - 3) + ' more</div>';
+      html += '</div>';
+    }
+
+    html += '</article>';
+  });
+  html += '</div>';
+
+  html += '<div class="sc-view-showall">';
+  html += '<button type="button" class="sc-view-showall-btn" onclick="showAllCategoryUCs(' + catId + ')">';
+  html += si('list') + ' Show all ' + catFiltered.length + ' use cases</button></div>';
+
+  document.getElementById('main').innerHTML = html;
+  updateHash(true);
 }
 
 // Render category
@@ -5826,6 +5990,7 @@ function copySPL(btn) {
 function goHome() {
   currentCat = null;
   currentSubcat = null;
+  catShowAllUCs = false;
   currentSearch = '';
   currentFilter = 'all';
   currentDiffFilter = 'all';
@@ -5865,6 +6030,7 @@ function goHome() {
 function selectCat(id) {
   currentCat = id;
   currentSubcat = null;
+  catShowAllUCs = false;
   currentSearch = '';
   currentMtypeFilter = 'all';
   ovHeroGroupFilter = null;
@@ -5876,8 +6042,21 @@ function selectCat(id) {
     else renderNonTechnicalCategory(id);
   } else {
     if (id === null) renderOverview();
-    else renderCategory(id);
+    else renderSubcategoryView(id);
   }
+  updateHash(false);
+  closeSidebarOnMobile();
+}
+
+function showAllCategoryUCs(catId) {
+  currentCat = catId;
+  currentSubcat = null;
+  catShowAllUCs = true;
+  currentSearch = '';
+  ovHeroGroupFilter = null;
+  document.getElementById('search').value = '';
+  buildSidebar();
+  renderCategory(catId);
   updateHash(false);
   closeSidebarOnMobile();
 }
