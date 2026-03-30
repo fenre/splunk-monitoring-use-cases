@@ -227,6 +227,11 @@ window.NON_TECHNICAL = {
         { id: "5.9.18", why: "Get alerted when an internet outage is detected that affects your services." },
         { id: "5.9.25", why: "Monitor remote worker connectivity health — is the network causing their issues?" }
       ]},
+      { name: "Streaming telemetry (gNMI)", description: "Modern, high-resolution data streaming from network devices — replacing slow SNMP polling with real-time counters, optic health, and routing updates every few seconds.", ucs: [
+        { id: "5.11.1", why: "Stream interface traffic every 30 seconds instead of every 5 minutes — catch congestion that SNMP misses." },
+        { id: "5.11.5", why: "Watch optical transceiver health — dimming lasers and rising temperatures warn you before a link fails." },
+        { id: "5.11.3", why: "Get instant notification when a BGP peer drops — seconds instead of minutes via syslog." }
+      ]},
       { name: "Carrier signaling", description: "The protocols that power mobile networks and voice calls. We watch for failures that affect subscribers.", ucs: [
         { id: "5.10.1", why: "Track signaling health — failures here mean subscribers can't authenticate or use data." },
         { id: "5.10.4", why: "Monitor voice trunk success rates — failed calls mean lost revenue and unhappy customers." },

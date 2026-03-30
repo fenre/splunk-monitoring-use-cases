@@ -6988,6 +6988,257 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 
 ---
 
+## 5.11 gNMI / gRPC Streaming Telemetry
+
+**Primary App/TA:** Telegraf with `inputs.gnmi` plugin → Splunk HEC (`splunkmetric` format), Arista CloudVision Telemetry Extension, Nokia gNMIc collector. No native Splunkbase gNMI add-on exists; Telegraf is the documented collector pattern (see [Splunk Lantern: Monitoring Cisco network devices using gRPC](https://lantern.splunk.com/Platform_Data_Management/Unlock_Insights/Monitoring_Cisco_network_devices_using_gRPC)).
+
+**Data Sources:** Metrics index via HEC (`sourcetype=telegraf:gnmi`, `sourcetype=telegraf:cisco_telemetry_mdt`). gNMI subscriptions use OpenConfig YANG or vendor-native YANG paths. Three subscription modes: `SAMPLE` (periodic), `ON_CHANGE` (event-driven), `TARGET_DEFINED` (device decides).
+
+**Supported Platforms:** Cisco IOS XR 6.5.1+ / NX-OS 9.3+ / IOS XE 16.12+, Arista EOS 4.22.1F+, Juniper Junos 22.2R1+, Nokia SR OS / SR Linux.
+
+---
+
+### UC-5.11.1 · Interface Utilization via gNMI Streaming Counters
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** SNMP polls interface counters every 5 minutes at best — microbursts and sub-minute congestion are invisible. gNMI SAMPLE subscriptions stream `/interfaces/interface/state/counters` at 10-30 second intervals, giving you near-real-time ingress/egress byte and packet rates. This catches congestion events that SNMP misses and enables capacity planning based on true peak utilization rather than averaged-out polling data.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500, Catalyst 9300/9500; Arista 7050X3/7060X/7260X3/7280R3/7500R3; Juniper QFX5120/QFX5220, MX204/MX304/MX480; Nokia SR Linux
+- **Data Sources:** gNMI path: `/interfaces/interface/state/counters` (OpenConfig), Telegraf metric: `openconfig_interfaces`
+- **SPL:**
+```spl
+| mstats rate_avg("openconfig_interfaces.in_octets") AS in_bps, rate_avg("openconfig_interfaces.out_octets") AS out_bps WHERE index=gnmi_metrics BY host, name span=1m
+| eval in_mbps=round(in_bps*8/1000000, 1), out_mbps=round(out_bps*8/1000000, 1)
+| where in_mbps > 800 OR out_mbps > 800
+| table _time, host, name, in_mbps, out_mbps
+| sort -in_mbps
+```
+- **Implementation:** Deploy Telegraf on a dedicated collector. Configure `inputs.gnmi` with device addresses (port 57400 for IOS XR, 6030 for Arista EOS, 32767 for Junos). Subscribe to `/interfaces/interface/state/counters` at `sample_interval = "30s"`. Output to Splunk HEC using `splunkmetric` format into a metrics index. Use `mstats` with `rate_avg()` to compute per-second rates from cumulative counters.
+- **Visualization:** Line chart (Mbps in/out per interface), Heatmap (utilization % across fabric), Single value (peak utilization).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.2 · Interface Error and Discard Streaming
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** CRC errors, input errors, and output discards often precede link failure or indicate a bad transceiver, duplex mismatch, or MTU issue. Streaming these counters at 30-second intervals via gNMI catches error bursts that 5-minute SNMP polls average away. A sudden spike in `in_fcs_errors` on a 100G spine link demands immediate investigation — it could be a failing optic about to take down a leaf.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500, Catalyst 9300/9500; Arista 7050X3/7060X/7260X3/7280R3; Juniper QFX5120/QFX5220, MX204/MX304; Nokia SR Linux
+- **Data Sources:** gNMI path: `/interfaces/interface/state/counters` (in-errors, out-errors, in-discards, out-discards, in-fcs-errors), Telegraf metric: `openconfig_interfaces`
+- **SPL:**
+```spl
+| mstats rate_avg("openconfig_interfaces.in_errors") AS err_rate, rate_avg("openconfig_interfaces.in_fcs_errors") AS fcs_rate, rate_avg("openconfig_interfaces.out_discards") AS discard_rate WHERE index=gnmi_metrics BY host, name span=1m
+| where err_rate > 0 OR fcs_rate > 0 OR discard_rate > 10
+| table _time, host, name, err_rate, fcs_rate, discard_rate
+| sort -fcs_rate
+```
+- **Implementation:** Subscribe to `/interfaces/interface/state/counters` at 30s sample intervals. Use `rate_avg()` to convert cumulative counters to per-second rates. Alert on any non-zero FCS error rate (indicates physical-layer problems). Alert on discard rates exceeding baseline (indicates congestion or QoS policy drops). Correlate with optic health (UC-5.11.5) for root cause.
+- **Visualization:** Line chart (error rates over time), Table (interfaces with active errors), Heatmap (errors across fabric).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.3 · BGP Peer State Change Detection via ON_CHANGE
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Syslog-based BGP monitoring depends on log forwarding latency and parsing reliability. gNMI ON_CHANGE subscriptions to BGP neighbor state deliver sub-second notification when a peer leaves Established — faster than syslog and with structured data. For VXLAN EVPN fabrics where BGP is both underlay and overlay, a single peer drop can black-hole tenant traffic within seconds.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500 (NX-OS 9.3+), IOS XR (ASR/NCS); Arista 7050X3/7060X/7260X3/7280R3; Juniper MX204/MX304/MX480, QFX5120/QFX5220; Nokia SR Linux
+- **Data Sources:** gNMI path: `/network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/state` (ON_CHANGE), Telegraf metric: `openconfig_bgp`
+- **SPL:**
+```spl
+| mstats latest("openconfig_bgp.session_state") AS state WHERE index=gnmi_metrics BY host, neighbor_address span=1m
+| where state != 6
+| eval state_label=case(state=1, "Idle", state=2, "Connect", state=3, "Active", state=4, "OpenSent", state=5, "OpenConfirm", state=6, "Established", 1=1, "Unknown")
+| table _time, host, neighbor_address, state_label
+| sort -_time
+```
+- **Implementation:** Subscribe to `/network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/state` using `subscription_mode = "on_change"`. BGP session state is represented as integer (1=Idle through 6=Established). Alert on any state != 6 (Established). For Cisco IOS XR, use native YANG path `Cisco-IOS-XR-ipv4-bgp-oper:bgp/instances/instance`. Correlate with interface flaps (UC-5.11.1) and optical health (UC-5.11.5) for root cause.
+- **Visualization:** Status grid (BGP peer matrix — green=Established, red=down), Timeline (state change events), Table (non-established peers).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.4 · System CPU and Memory Utilization Streaming
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Network device control planes running hot indicate routing churn, excessive logging, or a control-plane DoS. gNMI streaming at 30-second intervals catches transient CPU spikes that 5-minute SNMP polls miss entirely. A Nexus spine hitting 90% CPU during a BGP convergence event could start dropping BFD keepalives, cascading into a fabric-wide outage.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500, IOS XR (ASR/NCS), IOS XE (Catalyst 9000); Arista 7050X3/7060X/7260X3/7280R3; Juniper MX/QFX/EX; Nokia SR Linux
+- **Data Sources:** gNMI path: `/system/cpus/cpu/state` (OpenConfig), Cisco native: `Cisco-IOS-XR-wdsysmon-fd-oper:system-monitoring/cpu-utilization`; Telegraf metric: `openconfig_system`
+- **SPL:**
+```spl
+| mstats avg("openconfig_system.cpu_total_instant") AS cpu_pct WHERE index=gnmi_metrics BY host span=1m
+| where cpu_pct > 80
+| table _time, host, cpu_pct
+| sort -cpu_pct
+```
+- **Implementation:** Subscribe to `/system/cpus/cpu/state` at 30s intervals. For Cisco IOS XR, use native YANG `system-monitoring/cpu-utilization/total-cpu-one-minute`. Alert at 80% sustained for 5 minutes. Correlate with BGP update storms (UC-5.11.8) and interface flaps. Track per-process CPU if platform supports `/system/processes/process/state`.
+- **Visualization:** Gauge (current CPU per device), Line chart (CPU trend), Table (devices above threshold).
+- **CIM Models:** Performance
+
+---
+
+### UC-5.11.5 · Optical Transceiver Health Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** Optical transceivers fail gradually — Tx power drops, Rx power drifts, temperature climbs. By the time an interface goes down, the damage (packet loss, CRC errors, application impact) is already done. gNMI streaming of `/components/component` optic data at 60-second intervals enables predictive failure alerting: catch a dimming laser or overheating module hours before it causes an outage.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500, Catalyst 9300/9500; Arista 7050X3/7060X/7260X3/7280R3; Juniper QFX5120/QFX5220, MX204/MX304; Nokia SR Linux
+- **Data Sources:** gNMI path: `/components/component/transceiver/state` (output-power, input-power, laser-bias-current, temperature); Telegraf metric: `openconfig_platform`
+- **SPL:**
+```spl
+| mstats latest("openconfig_platform.output_power_instant") AS tx_dbm, latest("openconfig_platform.input_power_instant") AS rx_dbm, latest("openconfig_platform.laser_bias_current_instant") AS bias_ma, latest("openconfig_platform.temperature_instant") AS temp_c WHERE index=gnmi_metrics BY host, name span=5m
+| where rx_dbm < -25 OR tx_dbm < -8 OR temp_c > 75
+| eval concern=case(rx_dbm < -28, "CRITICAL: Rx near failure", rx_dbm < -25, "WARNING: Rx degrading", tx_dbm < -8, "WARNING: Tx low output", temp_c > 85, "CRITICAL: Overheating", temp_c > 75, "WARNING: High temp", 1=1, "Check")
+| table _time, host, name, tx_dbm, rx_dbm, bias_ma, temp_c, concern
+| sort -temp_c
+```
+- **Implementation:** Subscribe to `/components/component/transceiver/state` at 60s intervals. Optic thresholds vary by type — SFP+ typically alarms at Rx < -14 dBm, QSFP28 at Rx < -21 dBm. Set warning at 3 dB above vendor alarm threshold. Track trends to predict failure: a steady decline of 0.5 dBm/week indicates a dying laser. Cross-reference with interface errors (UC-5.11.2) to correlate optic degradation with CRC/FCS errors.
+- **Visualization:** Table (optics near threshold), Line chart (Rx/Tx power trend over weeks), Heatmap (temperature across all ports), Gauge (worst-case margin).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.6 · QoS Queue Depth and Drop Streaming
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** SNMP-polled QoS counters miss microbursts entirely — a 100ms queue overflow causes packet loss that a 5-minute poll never sees. gNMI SAMPLE subscriptions to `/qos/interfaces/interface/output/queues/queue/state` at 10-second intervals capture queue depth and transmit/drop counters at a granularity that reveals microburst patterns, misclassified traffic, and under-provisioned queues.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500 (NX-OS 9.3+); Arista 7050X3/7060X/7260X3/7280R3; Juniper QFX5120/QFX5220, MX204/MX304; Nokia SR Linux
+- **Data Sources:** gNMI path: `/qos/interfaces/interface/output/queues/queue/state` (transmit-pkts, dropped-pkts); Telegraf metric: `openconfig_qos`
+- **SPL:**
+```spl
+| mstats rate_avg("openconfig_qos.dropped_pkts") AS drops_per_sec, rate_avg("openconfig_qos.transmit_pkts") AS tx_per_sec WHERE index=gnmi_metrics BY host, interface_id, queue_name span=1m
+| eval drop_pct=if(tx_per_sec>0, round(drops_per_sec*100/(drops_per_sec+tx_per_sec), 2), 0)
+| where drops_per_sec > 0
+| table _time, host, interface_id, queue_name, drops_per_sec, tx_per_sec, drop_pct
+| sort -drop_pct
+```
+- **Implementation:** Subscribe to QoS queue state at 10-30s intervals. Focus on high-priority queues (voice, video, control-plane) where any drops indicate a problem. For best-effort queues, baseline normal drop rates and alert on 2x deviation. Correlate drops with interface utilization (UC-5.11.1) to distinguish congestion drops from policy drops. Use `drop_pct` to identify queues with systematic under-provisioning.
+- **Visualization:** Bar chart (drops by queue class), Line chart (drop rate over time per queue), Table (queues with active drops), Heatmap (drop severity across fabric).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.7 · LLDP Topology Change Detection
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Change, Inventory
+- **Value:** In a properly cabled data center, the LLDP neighbor table should not change unless someone moves a cable, adds a device, or swaps a switch. gNMI ON_CHANGE subscriptions to `/lldp/interfaces/interface/neighbors` provide instant notification of topology drift — a new neighbor appearing on a spine port, a missing neighbor on a leaf uplink, or an unauthorized device connected to a reserved port.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500, Catalyst 9300/9500; Arista 7050X3/7060X/7260X3/7280R3; Juniper QFX/EX/MX; Nokia SR Linux
+- **Data Sources:** gNMI path: `/lldp/interfaces/interface/neighbors/neighbor/state` (ON_CHANGE); Telegraf metric: `openconfig_lldp`
+- **SPL:**
+```spl
+| mstats latest("openconfig_lldp.neighbor_system_name") AS neighbor WHERE index=gnmi_metrics BY host, name span=5m
+| streamstats current=f last(neighbor) AS prev_neighbor by host, name
+| where neighbor != prev_neighbor AND isnotnull(prev_neighbor)
+| table _time, host, name, prev_neighbor, neighbor
+| eval change_type=if(isnotnull(neighbor) AND isnull(prev_neighbor), "NEW", if(isnull(neighbor) AND isnotnull(prev_neighbor), "REMOVED", "CHANGED"))
+```
+- **Implementation:** Subscribe to `/lldp/interfaces/interface/neighbors` using ON_CHANGE mode. Build a baseline LLDP topology table as a lookup (host, interface, expected_neighbor). Alert on any deviation from baseline. In data centers, unexpected LLDP changes often indicate cabling errors during maintenance. In campus networks, new neighbors on access ports may indicate unauthorized switches.
+- **Visualization:** Network topology map (overlay LLDP changes), Table (recent topology changes), Status grid (ports with unexpected neighbors).
+- **CIM Models:** Change
+
+---
+
+### UC-5.11.8 · BGP Prefix Count and Route Churn Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** A sudden jump in received BGP prefixes could indicate a route leak, hijack, or misconfigured peer advertising a full table into a leaf switch. Conversely, a prefix count drop means routes are being withdrawn — potentially black-holing traffic. Streaming prefix counts via gNMI at 30-second intervals detects these events far faster than waiting for syslog or SNMP traps.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500, IOS XR (ASR/NCS); Arista 7050X3/7060X/7260X3/7280R3; Juniper MX204/MX304/MX480; Nokia SR Linux
+- **Data Sources:** gNMI path: `/network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/state` (prefixes/received, prefixes/installed); Telegraf metric: `openconfig_bgp`
+- **SPL:**
+```spl
+| mstats latest("openconfig_bgp.prefixes_received") AS prefixes WHERE index=gnmi_metrics BY host, neighbor_address, afi_safi_name span=5m
+| streamstats current=f last(prefixes) AS prev_prefixes by host, neighbor_address, afi_safi_name
+| eval delta=prefixes - prev_prefixes, pct_change=if(prev_prefixes>0, round(delta*100/prev_prefixes, 1), 0)
+| where abs(pct_change) > 10 OR abs(delta) > 1000
+| table _time, host, neighbor_address, afi_safi_name, prev_prefixes, prefixes, delta, pct_change
+| sort -abs(delta)
+```
+- **Implementation:** Subscribe to BGP AFI-SAFI state at 30s intervals. Baseline normal prefix counts per peer. Alert on >10% change in a 5-minute window or absolute change >1000 prefixes. A full BGP table leak (800k+ IPv4 prefixes) into a leaf with 64k TCAM will crash forwarding — detect it before the FIB overflows. Correlate with CPU spikes (UC-5.11.4) during convergence events.
+- **Visualization:** Line chart (prefix count per peer over time), Table (peers with recent churn), Single value (total fabric prefix count), Alert list (abnormal changes).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.9 · Hardware Component Health (Fan, PSU, Temperature)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Fault
+- **Value:** Environmental monitoring via SNMP Entity-MIB polling is slow and often unreliable. gNMI streaming of `/components/component/state` provides real-time temperature, fan speed, and power supply status. A failing fan in a top-of-rack switch triggers thermal throttling within minutes — early detection prevents performance degradation and emergency hardware swaps during business hours.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500, Catalyst 9300/9500; Arista 7050X3/7060X/7260X3/7280R3; Juniper QFX/EX/MX; Nokia SR Linux
+- **Data Sources:** gNMI path: `/components/component/state` (temperature, type=FAN/POWER_SUPPLY/SENSOR); Telegraf metric: `openconfig_platform`
+- **SPL:**
+```spl
+| mstats latest("openconfig_platform.temperature_instant") AS temp_c WHERE index=gnmi_metrics BY host, name span=5m
+| where temp_c > 65
+| eval severity=case(temp_c > 85, "CRITICAL", temp_c > 75, "HIGH", temp_c > 65, "WARNING")
+| table _time, host, name, temp_c, severity
+| sort -temp_c
+```
+- **Implementation:** Subscribe to `/components/component/state` at 60s intervals. Filter for component types FAN, POWER_SUPPLY, and SENSOR. Set thresholds per component type: chassis inlet >40°C warning, ASIC >85°C critical, fan speed <2000 RPM warning. Alert on PSU state changes (redundancy loss). Track temperature trends to detect environmental issues (HVAC failure, hot aisle containment breach).
+- **Visualization:** Gauge (temperature per component), Status grid (fan/PSU status across fabric), Line chart (temperature trend), Table (components above threshold).
+- **CIM Models:** Performance
+
+---
+
+### UC-5.11.10 · Telegraf gNMI Collector Pipeline Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** If your Telegraf collector goes down or loses connectivity to a target device, all gNMI telemetry for that device stops silently — dashboards freeze at last-known-good values and alerts never fire. Monitoring the Telegraf pipeline itself (gather time, buffer usage, write failures, active connections) is essential to trust the data flowing through it.
+- **App/TA:** Telegraf internal metrics → Splunk HEC
+- **Equipment Models:** Telegraf collector instances (any platform)
+- **Data Sources:** Telegraf `internal` metrics (`internal_gather`, `internal_write`, `internal_memstats`); `sourcetype=telegraf:internal`
+- **SPL:**
+```spl
+| mstats avg("internal_gather.gather_time_ns") AS gather_ns, latest("internal_gather.metrics_gathered") AS gathered WHERE index=gnmi_metrics BY host, input span=5m
+| eval gather_ms=round(gather_ns/1000000, 1)
+| where gather_ms > 5000 OR gathered=0
+| table _time, host, input, gather_ms, gathered
+| sort -gather_ms
+```
+- **Implementation:** Enable Telegraf `internal` input plugin to emit self-monitoring metrics every 60 seconds. Monitor `gather_time_ns` (should be <5s for healthy connections), `metrics_gathered` (should be >0), and `buffer_size` (should not grow unbounded). Alert when a specific device's gather count drops to zero (connection lost). Track `write_errors` to detect HEC ingestion issues. Deploy multiple Telegraf instances with overlapping targets for redundancy.
+- **Visualization:** Table (collector health matrix), Line chart (gather time per device), Single value (total active subscriptions), Alert list (stale collectors).
+- **CIM Models:** N/A
+
+---
+
+### UC-5.11.11 · ACL Hit Counter Analysis via Streaming Telemetry
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Compliance
+- **Value:** ACL rules that never match traffic are dead weight that slows TCAM lookups and obscures security intent. Conversely, deny rules with climbing hit counts reveal active attack patterns. Streaming ACL counters via gNMI at 30-second intervals provides the data needed for security policy effectiveness analysis and ACL cleanup — tasks that are nearly impossible with periodic SNMP polling.
+- **App/TA:** Telegraf (`inputs.gnmi` plugin) → Splunk HEC
+- **Equipment Models:** Cisco Nexus 9300/9500 (NX-OS 9.3+), IOS XR; Arista 7050X3/7060X/7260X3/7280R3; Juniper MX/QFX
+- **Data Sources:** gNMI path: `/acl/acl-sets/acl-set/acl-entries/acl-entry/state` (matched-packets, matched-octets); Telegraf metric: `openconfig_acl`
+- **SPL:**
+```spl
+| mstats rate_avg("openconfig_acl.matched_packets") AS hits_per_sec WHERE index=gnmi_metrics BY host, acl_name, sequence_id, description span=5m
+| where hits_per_sec > 0
+| eval daily_hits=round(hits_per_sec * 86400, 0)
+| table host, acl_name, sequence_id, description, hits_per_sec, daily_hits
+| sort -hits_per_sec
+```
+- **Implementation:** Subscribe to `/acl/acl-sets/acl-set/acl-entries/acl-entry/state` at 30s intervals. Identify deny rules with increasing hit counts — these represent blocked attack traffic. Identify permit rules with zero hits over 30 days — candidates for cleanup. Cross-reference with firewall logs and IDS alerts for security correlation. Generate monthly ACL effectiveness reports for compliance.
+- **Visualization:** Table (ACL rules sorted by hit rate), Bar chart (top 10 deny rules by hits), Stacked chart (permit vs deny hits over time), List (zero-hit rules for cleanup).
+- **CIM Models:** Network Traffic
+
+---
+
 ### 5.12 Telecommunications & CDR Analytics
 
 **Primary App/TA:** SBC/softswitch CDR feeds, IMS core TAs, `Cisco CDR` / `asterisk:cdr`, Splunk App for Stream (`stream:sip`).
