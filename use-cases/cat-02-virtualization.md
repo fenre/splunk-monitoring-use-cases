@@ -2574,16 +2574,17 @@ index=xd sourcetype="citrix:cloudconnector"
 - **Value:** uberAgent's Experience Score is a composite 0–10 metric that summarises the end-user experience across multiple dimensions — session responsiveness, application performance, logon speed, and machine health. A single score per user per session makes it possible to answer "how is the Citrix experience right now?" without inspecting dozens of individual metrics. Score drops correlate directly with helpdesk call volume.
 - **App/TA:** uberAgent UXM (Splunkbase 1448)
 - **Equipment Models:** Windows VDAs, Citrix CVAD / DaaS
-- **Data Sources:** `sourcetype="uberAgent:Session:SessionDetail"` field `SessionExperienceScore`
+- **Data Sources:** `index=score_uberagent_uxm` — Experience Scores are calculated by saved searches on the search head and stored in a dedicated Splunk index.
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:Session:SessionDetail" earliest=-4h
-| bin _time span=15m
-| stats avg(SessionExperienceScore) as avg_score perc10(SessionExperienceScore) as p10_score dc(User) as users by _time
-| eval quality=case(avg_score>=8, "Excellent", avg_score>=6, "Good", avg_score>=4, "Fair", 1=1, "Poor")
-| table _time, avg_score, p10_score, users, quality
+index=score_uberagent_uxm earliest=-4h
+| search ScoreType="overall"
+| bin _time span=30m
+| stats avg(Score) as avg_score perc10(Score) as p10_score dc(Host) as hosts by _time
+| eval quality=case(avg_score>=7, "Good", avg_score>=4, "Medium", 1=1, "Bad")
+| table _time, avg_score, p10_score, hosts, quality
 ```
-- **Implementation:** uberAgent calculates the Experience Score automatically on the endpoint and sends it with session telemetry. No additional configuration required beyond uberAgent deployment. Alert when the fleet-wide average drops below 6 or when p10 drops below 4 (bottom 10% of users having a bad experience). Segment by delivery group, location, or network to isolate root cause. The score is already available in the built-in uberAgent dashboards.
+- **Implementation:** uberAgent UXM calculates Experience Scores via saved searches that run every 30 minutes on the search head, evaluating machine, session, and application health. Scores are stored in the `score_uberagent_uxm` index. No additional agent configuration is required beyond uberAgent deployment. Alert when the fleet-wide average drops below 4 (bad) or when p10 drops below 4. The score dashboard is the default entry point of the uberAgent UXM Splunk app. Score thresholds can be customised via lookup files (`score_machine_configuration.csv`, `score_session_configuration.csv`, `score_application_configuration.csv`).
 - **Visualization:** Line chart (score over time), Gauge (fleet average), Heatmap (delivery group x hour), Table (worst-scoring users).
 - **CIM Models:** N/A
 
@@ -2621,11 +2622,11 @@ index=uberagent sourcetype="uberAgent:Application:UIDelay" earliest=-24h
 - **Value:** How long applications take to become usable after launch directly impacts perceived performance. A user launching Outlook, SAP, or a browser expects it within seconds. uberAgent measures the time from process start to the application window being interactive, capturing real user-perceived startup times rather than just process creation. Slow startups indicate disk I/O contention, antivirus interference, or application configuration issues.
 - **App/TA:** uberAgent UXM (Splunkbase 1448)
 - **Equipment Models:** Windows VDAs, Windows endpoints
-- **Data Sources:** `sourcetype="uberAgent:Application:AppStartup"`
+- **Data Sources:** `sourcetype="uberAgent:Process:ProcessStartup"`
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:Application:AppStartup" earliest=-24h
-| stats avg(StartupDurationMs) as avg_startup_ms perc95(StartupDurationMs) as p95_startup_ms count as launches dc(User) as users by AppName
+index=uberagent sourcetype="uberAgent:Process:ProcessStartup" earliest=-24h
+| stats avg(StartupTimeMs) as avg_startup_ms perc95(StartupTimeMs) as p95_startup_ms count as launches dc(User) as users by AppName
 | eval avg_startup_sec=round(avg_startup_ms/1000,1), p95_startup_sec=round(p95_startup_ms/1000,1)
 | where p95_startup_sec > 10
 | sort -p95_startup_sec
@@ -2645,11 +2646,11 @@ index=uberagent sourcetype="uberAgent:Application:AppStartup" earliest=-24h
 - **Value:** Many Citrix-delivered workloads are browser-based (SaaS applications, internal portals). uberAgent's browser extensions measure page load time, network latency, and rendering performance per website/URL. This reveals whether slow web application performance is due to the Citrix session, the network, or the web application itself — a critical distinction for troubleshooting.
 - **App/TA:** uberAgent UXM (Splunkbase 1448) + browser extension (Chrome, Edge, Firefox)
 - **Equipment Models:** Windows VDAs with Chrome, Edge, or Firefox
-- **Data Sources:** `sourcetype="uberAgent:Browser:BrowserPerformanceTimer2"`
+- **Data Sources:** `sourcetype="uberAgent:Application:BrowserWebRequests2"`
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:Browser:BrowserPerformanceTimer2" earliest=-24h
-| stats avg(PageLoadTimeMs) as avg_load_ms perc95(PageLoadTimeMs) as p95_load_ms count as page_loads dc(User) as users by Host
+index=uberagent sourcetype="uberAgent:Application:BrowserWebRequests2" earliest=-24h
+| stats avg(PageLoadTotalDurationMs) as avg_load_ms perc95(PageLoadTotalDurationMs) as p95_load_ms count as page_loads dc(User) as users by Host
 | eval avg_load_sec=round(avg_load_ms/1000,1), p95_load_sec=round(p95_load_ms/1000,1)
 | where p95_load_sec > 5
 | sort -p95_load_sec
@@ -2669,11 +2670,12 @@ index=uberagent sourcetype="uberAgent:Browser:BrowserPerformanceTimer2" earliest
 - **Value:** VDA boot time directly impacts how quickly machines become available after power-on events triggered by Citrix power management schedules. Slow boots delay session availability for early-morning users. uberAgent decomposes boot duration into phases (BIOS/firmware, kernel, drivers, services, boot processes) to identify bottlenecks — antivirus scans at boot, slow driver initialisation, or disk contention during mass power-on.
 - **App/TA:** uberAgent UXM (Splunkbase 1448)
 - **Equipment Models:** Windows VDAs (physical and virtual)
-- **Data Sources:** `sourcetype="uberAgent:Logon:BootDetail"`, `sourcetype="uberAgent:Logon:BootProcessDetail"`
+- **Data Sources:** `sourcetype="uberAgent:OnOffTransition:BootDetail2"`, `sourcetype="uberAgent:OnOffTransition:BootProcessDetail"`
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:Logon:BootDetail" earliest=-7d
-| stats avg(BootDurationS) as avg_boot_sec perc95(BootDurationS) as p95_boot_sec count as boots by Host
+index=uberagent sourcetype="uberAgent:OnOffTransition:BootDetail2" earliest=-7d
+| stats avg(TotalBootTimeMs) as avg_boot_ms perc95(TotalBootTimeMs) as p95_boot_ms count as boots by Host
+| eval avg_boot_sec=round(avg_boot_ms/1000,1), p95_boot_sec=round(p95_boot_ms/1000,1)
 | where p95_boot_sec > 120
 | sort -p95_boot_sec
 | table Host, boots, avg_boot_sec, p95_boot_sec
@@ -2715,15 +2717,15 @@ index=uberagent sourcetype="uberAgent:Process:ProcessDetail" earliest=-4h
 - **Value:** Application crashes in Citrix sessions cause data loss, user frustration, and helpdesk calls. uberAgent captures Windows Error Reporting (WER) crash data including the faulting module, exception code, and application version, enabling crash trending and root-cause identification across the fleet. Crash rate spikes after application or image updates indicate problematic deployments.
 - **App/TA:** uberAgent UXM (Splunkbase 1448)
 - **Equipment Models:** Windows VDAs, Windows endpoints
-- **Data Sources:** `sourcetype="uberAgent:Application:AppCrash"`
+- **Data Sources:** `sourcetype="uberAgent:Application:Errors"`
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:Application:AppCrash" earliest=-7d
-| stats count as crashes dc(User) as affected_users values(FaultingModuleName) as faulting_modules by AppName, AppVersion
+index=uberagent sourcetype="uberAgent:Application:Errors" earliest=-7d
+| stats count as crashes dc(User) as affected_users values(ExceptionCode) as exception_codes by AppName, AppVersion
 | sort -crashes
-| table AppName, AppVersion, crashes, affected_users, faulting_modules
+| table AppName, AppVersion, crashes, affected_users, exception_codes
 ```
-- **Implementation:** uberAgent captures crash data automatically from WER. Trend crash rates per application version to detect regressions. Alert on crash rate spikes (>200% increase over 7-day baseline). Correlate faulting module names with known bugs and vendor advisories. Track crash resolution over time after patching.
+- **Implementation:** uberAgent captures crash data automatically from WER. Trend crash rates per application version to detect regressions. Alert on crash rate spikes (>200% increase over 7-day baseline). Correlate exception codes with known bugs and vendor advisories. Track crash resolution over time after patching.
 - **Visualization:** Bar chart (crashes by application), Line chart (crash rate trending), Table (faulting modules).
 - **CIM Models:** N/A
 
@@ -2737,10 +2739,10 @@ index=uberagent sourcetype="uberAgent:Application:AppCrash" earliest=-7d
 - **Value:** uberAgent's Citrix Site Monitoring queries the Broker Service directly to provide real-time visibility into delivery group capacity — total machines, registered machines, active sessions, load index, and machines in maintenance mode. When available capacity drops below a threshold, new user connections may fail or be delayed.
 - **App/TA:** uberAgent UXM (Splunkbase 1448) with Citrix Site Monitoring enabled
 - **Equipment Models:** Citrix CVAD / DaaS site
-- **Data Sources:** `sourcetype="uberAgent:CitrixSite:DeliveryGroupDetail"`
+- **Data Sources:** `sourcetype="uberAgent:Citrix:DesktopGroups"`
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:CitrixSite:DeliveryGroupDetail"
+index=uberagent sourcetype="uberAgent:Citrix:DesktopGroups"
 | stats latest(MachinesTotal) as total, latest(MachinesRegistered) as registered, latest(SessionsActive) as active, latest(MachinesInMaintenanceMode) as maint by DeliveryGroupName
 | eval available=registered-active-maint, avail_pct=round(available/total*100,1)
 | where avail_pct < 20 OR registered < total*0.8
@@ -2761,10 +2763,10 @@ index=uberagent sourcetype="uberAgent:CitrixSite:DeliveryGroupDetail"
 - **Value:** uberAgent can monitor Citrix NetScaler (ADC) appliances via NITRO API without requiring a separate add-on on the ADC itself. This provides gateway session counts, SSL TPS, HTTP request rates, and system resource utilisation alongside endpoint and session data in the same Splunk index, enabling end-to-end correlation from ADC to VDA to application.
 - **App/TA:** uberAgent UXM (Splunkbase 1448) with NetScaler Monitoring enabled
 - **Equipment Models:** Citrix NetScaler / ADC (VPX, MPX, SDX, CPX)
-- **Data Sources:** `sourcetype="uberAgent:CitrixADC:SystemDetail"`, `sourcetype="uberAgent:CitrixADC:VServerDetail"`
+- **Data Sources:** `sourcetype="uberAgent:CitrixADC:AppliancePerformance"`, `sourcetype="uberAgent:CitrixADC:vServer"`
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:CitrixADC:SystemDetail"
+index=uberagent sourcetype="uberAgent:CitrixADC:AppliancePerformance"
 | stats latest(CPUUsagePct) as cpu latest(MemUsagePct) as mem latest(HttpRequestsPerSec) as http_rps latest(SSLTransactionsPerSec) as ssl_tps by ADCHost
 | where cpu > 70 OR mem > 80
 | table ADCHost, cpu, mem, http_rps, ssl_tps
@@ -2787,7 +2789,7 @@ index=uberagent sourcetype="uberAgent:CitrixADC:SystemDetail"
 - **SPL:**
 ```spl
 index=uberagent sourcetype="uberAgent:Process:NetworkTargetPerformance" earliest=-4h
-| stats avg(ConnectionLatencyMs) as avg_latency_ms sum(DataVolumeSentBytes) as bytes_sent sum(DataVolumeReceivedBytes) as bytes_rcvd dc(User) as users by AppName, NetworkTargetName
+| stats avg(ConnectDurationMs) as avg_latency_ms sum(DataVolumeSentBytes) as bytes_sent sum(DataVolumeReceivedBytes) as bytes_rcvd dc(User) as users by AppName, NetworkTargetName
 | eval total_mb=round((bytes_sent+bytes_rcvd)/1048576,1)
 | where avg_latency_ms > 100 OR total_mb > 500
 | sort -total_mb
@@ -2807,10 +2809,10 @@ index=uberagent sourcetype="uberAgent:Process:NetworkTargetPerformance" earliest
 - **Value:** uberAgent ESA provides endpoint-level threat detection within Citrix sessions using Sigma rules, LOLBAS detection, process tampering monitoring, and file system activity analysis. In multi-user CVAD environments, a compromised session can laterally move to shared resources. ESA detects threats inside the session that network-based security tools cannot see.
 - **App/TA:** uberAgent ESA (included with uberAgent UXM, Splunkbase 1448)
 - **Equipment Models:** Windows VDAs, Windows endpoints
-- **Data Sources:** `sourcetype="uberAgent:ESA:ThreatDetection"`, `sourcetype="uberAgent:ESA:ProcessStartup"`
+- **Data Sources:** `sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging"`, `sourcetype="uberAgent:Process:ProcessStartup"`
 - **SPL:**
 ```spl
-index=uberagent sourcetype="uberAgent:ESA:ThreatDetection" earliest=-24h
+index=uberagent sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging" earliest=-24h
 | stats count by RuleName, RuleSeverity, User, Host, ProcessName
 | where RuleSeverity IN ("critical","high")
 | sort -RuleSeverity, -count

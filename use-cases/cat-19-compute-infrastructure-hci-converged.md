@@ -364,10 +364,10 @@ index=cisco_intersight sourcetype="cisco:intersight:alarms" earliest=-24h
 - **Value:** Intersight tracks firmware versions against policies for all managed endpoints. Surfacing non-compliant servers in Splunk alongside vulnerability data and change windows ensures patching cadence is maintained fleet-wide.
 - **App/TA:** `Cisco Intersight Add-on`
 - **Equipment Models:** Cisco UCS B-Series, C-Series, X-Series, FI 6300/6400/6500
-- **Data Sources:** `cisco:intersight:inventory`
+- **Data Sources:** `cisco:intersight:compute`
 - **SPL:**
 ```spl
-index=cisco_intersight sourcetype="cisco:intersight:inventory" object_type="firmware.RunningFirmware"
+index=cisco_intersight sourcetype="cisco:intersight:compute" object_type="firmware.RunningFirmware"
 | stats latest(version) as fw_version by server_name, component, model
 | lookup intersight_approved_firmware model OUTPUT approved_version
 | where fw_version!=approved_version
@@ -387,10 +387,10 @@ index=cisco_intersight sourcetype="cisco:intersight:inventory" object_type="firm
 - **Value:** Hardware Compatibility List compliance ensures OS, driver, and firmware combinations are Cisco-validated. Non-HCL configurations risk unpredictable failures and void support entitlements.
 - **App/TA:** `Cisco Intersight Add-on`
 - **Equipment Models:** Cisco UCS B-Series, C-Series, X-Series
-- **Data Sources:** `cisco:intersight:inventory` (HCL status fields)
+- **Data Sources:** `cisco:intersight:compute` (HCL status fields)
 - **SPL:**
 ```spl
-index=cisco_intersight sourcetype="cisco:intersight:inventory" object_type="cond.HclStatus"
+index=cisco_intersight sourcetype="cisco:intersight:compute" object_type="cond.HclStatus"
 | stats latest(status) as hcl_status latest(reason) as reason by server_name, model
 | where hcl_status!="Validated"
 | table server_name, model, hcl_status, reason
@@ -430,10 +430,10 @@ index=cisco_intersight sourcetype="cisco:intersight:metrics" metric_name IN ("po
 - **Value:** Tracks every admin action and policy modification in Intersight. Correlating these with incident timelines reveals whether infrastructure changes contributed to outages or security events.
 - **App/TA:** `Cisco Intersight Add-on`
 - **Equipment Models:** All Intersight-managed endpoints
-- **Data Sources:** `cisco:intersight:audit_logs`
+- **Data Sources:** `cisco:intersight:auditRecords`
 - **SPL:**
 ```spl
-index=cisco_intersight sourcetype="cisco:intersight:audit_logs" earliest=-24h
+index=cisco_intersight sourcetype="cisco:intersight:auditRecords" earliest=-24h
 | where action IN ("Update","Delete","Create") AND object_type IN ("server.Profile","firmware.Policy","ntp.Policy","boot.PrecisionPolicy")
 | stats count by user_email, action, object_type, object_name
 | sort -count
@@ -452,10 +452,10 @@ index=cisco_intersight sourcetype="cisco:intersight:audit_logs" earliest=-24h
 - **Value:** Monitoring support contract and warranty expiration across the compute fleet prevents coverage gaps that delay RMA and increase risk during hardware failures.
 - **App/TA:** `Cisco Intersight Add-on`
 - **Equipment Models:** All Intersight-managed endpoints
-- **Data Sources:** `cisco:intersight:inventory` (contract status fields)
+- **Data Sources:** `cisco:intersight:contracts`
 - **SPL:**
 ```spl
-index=cisco_intersight sourcetype="cisco:intersight:inventory" object_type="asset.DeviceContractInformation"
+index=cisco_intersight sourcetype="cisco:intersight:contracts"
 | eval days_to_expiry=round((strptime(contract_end_date,"%Y-%m-%dT%H:%M:%S")-now())/86400)
 | where days_to_expiry < 90 OR contract_status!="Active"
 | table server_name, serial, contract_status, contract_end_date, days_to_expiry

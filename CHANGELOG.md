@@ -10,6 +10,18 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [5.6] - 2026-03-26
+
+### Audit Fixes — Verified Sourcetypes, Fields, and SPL
+
+- **7 uberAgent sourcetype corrections** &mdash; `AppStartup` → `Process:ProcessStartup`, `AppCrash` → `Application:Errors`, `Logon:BootDetail` → `OnOffTransition:BootDetail2`, `Browser:BrowserPerformanceTimer2` → `Application:BrowserWebRequests2`, `CitrixSite:DeliveryGroupDetail` → `Citrix:DesktopGroups`, `CitrixADC:SystemDetail` → `CitrixADC:AppliancePerformance`, `ESA:ThreatDetection` → `uberAgentESA:ActivityMonitoring:ProcessTagging`. All verified against official Citrix uberAgent 7.4 documentation.
+- **6 uberAgent field name corrections** &mdash; `StartupDurationMs` → `StartupTimeMs`, `PageLoadTimeMs` → `PageLoadTotalDurationMs`, `BootDurationS` → `TotalBootTimeMs`, `FaultingModuleName` → `ExceptionCode`, `ConnectionLatencyMs` → `ConnectDurationMs`, `VServerDetail` → `vServer`.
+- **UC-2.6.17 Experience Score rewritten** &mdash; Corrected from querying `SessionDetail` (which does not contain experience scores) to querying the `score_uberagent_uxm` index, which is where uberAgent's saved searches store calculated scores.
+- **3 Intersight sourcetype corrections** &mdash; `cisco:intersight:inventory` → `cisco:intersight:compute` (firmware/HCL), `cisco:intersight:audit_logs` → `cisco:intersight:auditRecords`, `cisco:intersight:inventory` → `cisco:intersight:contracts`. All verified against the Cisco Intersight Add-on for Splunk v3.0 User Guide.
+- **6 Nexus Dashboard sourcetypes qualified** &mdash; Added caveat note that `cisco:nexusdashboard:*`, `cisco:ndfc:*`, `cisco:ndo:*` sourcetypes are representative examples and should be verified against the installed add-on's `props.conf`, as no public sourcetype reference exists.
+
+---
+
 ## [5.5] - 2026-03-26
 
 ### UI — Subcategory Navigation & Source Catalog Updates

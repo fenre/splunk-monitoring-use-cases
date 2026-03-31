@@ -1031,6 +1031,8 @@ index=snmp sourcetype="snmp:cpu" role="leaf" earliest=-1h
 
 ### 18.4 Cisco Nexus Dashboard & NX-OS Fabric
 
+> **Note:** Nexus Dashboard, NDFC, and NDO sourcetypes vary by add-on version and deployment method. The sourcetypes shown below (e.g. `cisco:nexusdashboard:*`, `cisco:ndfc:*`, `cisco:ndo:*`) are representative examples — verify against your installed Cisco DC Networking add-on's `props.conf`.
+
 **Splunk Add-on:** Cisco DC Networking Application for Splunk (Splunkbase 7777), NX-OS syslog (`cisco:nexus`), gNMI/streaming telemetry via Telegraf, SNMP TA
 
 ### UC-18.4.1 · Nexus Dashboard Insights Anomaly Monitoring
