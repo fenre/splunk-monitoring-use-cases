@@ -10,6 +10,39 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [5.5] - 2026-03-26
+
+### UI — Subcategory Navigation & Source Catalog Updates
+
+- **Subcategory landing page** &mdash; Clicking a category on the front page now shows an intermediate view of its subcategories as cards (with description, UC count, and criticality breakdown) instead of jumping straight to all use cases. A "Show all N use cases" button restores the previous full-list behaviour.
+- **Hash routing** &mdash; `#cat-N` now opens the subcategory view; `#cat-N/X.Y` opens the full list scrolled to a specific subcategory.
+- **Source catalog expanded** &mdash; Added OpenConfig gNMI specification, Telegraf gNMI plugin, Cisco Nexus gNMI white paper, Nokia gNMIc, Nozomi Networks Guardian docs, and Nozomi Universal Add-on (6905) + CCX Extensions (6796) to the Sources popup.
+
+---
+
+## [5.4] - 2026-03-26
+
+### gNMI / gRPC Streaming Telemetry — New Section 5.11
+
+- **11 new use cases** (UC-5.11.1 through UC-5.11.11) for model-driven streaming telemetry via gNMI/gRPC.
+- **Multi-vendor** &mdash; Cisco IOS XR/NX-OS/IOS XE, Arista EOS, Juniper Junos, Nokia SR Linux all supported with OpenConfig YANG paths.
+- **Telegraf → Splunk HEC pipeline** &mdash; All UCs use the documented Telegraf `inputs.gnmi` plugin with `splunkmetric` output to Splunk metrics indexes. SPL uses `mstats` and `rate_avg()`.
+- **Use cases cover**: interface utilization at sub-minute granularity (5.11.1), interface error/discard streaming (5.11.2), BGP peer state ON_CHANGE detection (5.11.3), system CPU/memory (5.11.4), optical transceiver health with predictive failure alerting (5.11.5), QoS queue depth and microburst detection (5.11.6), LLDP topology change detection (5.11.7), BGP prefix churn and route leak detection (5.11.8), hardware environment monitoring (5.11.9), Telegraf collector pipeline health (5.11.10), and ACL hit counter analysis (5.11.11).
+
+---
+
+## [5.3] - 2026-03-26
+
+### Nozomi Networks — Multi-Vendor OT Security
+
+- **25 existing Cisco Cyber Vision UCs merged** to support both Cisco Cyber Vision and Nozomi Networks Guardian/Vantage as alternative data sources.
+- **Section 14.9 renamed** from "Cisco Cyber Vision (OT Security)" to "OT Network Security Monitoring (Cisco Cyber Vision / Nozomi Networks)".
+- **Dual SPL examples** &mdash; every UC now has both a Cisco Cyber Vision SPL block and a Nozomi Networks alternative SPL block with correct sourcetypes (`nozomi:nn_asset`, `nozomi:alert`, `nozomi:variable`, `nozomi:link`, `nozomi:session`, `nozomi:health`).
+- **New Splunk apps registered** &mdash; Nozomi Networks Universal Add-on (Splunkbase 6905), CCX Extensions for Nozomi Networks (Splunkbase 6796), with archived Nozomi Networks Sensor Add-on (5316) as predecessor.
+- **Value descriptions neutralized** &mdash; vendor-specific language replaced with vendor-agnostic descriptions throughout all 25 UCs.
+
+---
+
 ## [4.3] - 2026-03-26
 
 ### My Environment Inventory
