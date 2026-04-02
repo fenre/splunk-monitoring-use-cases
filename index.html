@@ -3854,12 +3854,42 @@ function _updateSizingTray() {
       var parts = [];
       if (count > 0) parts.push(count + ' use case' + (count !== 1 ? 's' : ''));
       if (invCount > 0) parts.push(invCount + ' equipment');
-      countEl.textContent = parts.join(' + ') + ' selected';
+      var dsaSources = buildDSASources();
+      var hasDsaSources = dsaSources.size > 0;
+      var ucsMapped = 0, ucsUnmapped = 0;
+      var ucMap = window.DSA_UC_MAP || {};
+      selectedUCIds.forEach(function(ucId) {
+        if (ucMap[ucId] && ucMap[ucId].length) ucsMapped++; else ucsUnmapped++;
+      });
+      var summary = parts.join(' + ') + ' selected';
+      if (hasDsaSources) {
+        summary += ' \u2014 ' + dsaSources.size + ' data source' + (dsaSources.size !== 1 ? 's' : '') + ' for sizing';
+      }
+      countEl.innerHTML = summary;
+      if (!hasDsaSources && count > 0 && invCount === 0) {
+        countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
+          + 'These use cases don\u2019t have data sources mapped yet. Add equipment via '
+          + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
+          + ' to include data sources, or open the <a href="tools/data-sizing/index.html" target="_blank" style="color:var(--cisco-blue);text-decoration:underline">Data Sizing Tool</a>'
+          + ' to select industrial data sources directly.</span>';
+      } else if (ucsUnmapped > 0 && hasDsaSources) {
+        countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
+          + ucsUnmapped + ' of ' + count + ' selected use case' + (count !== 1 ? 's' : '') + ' don\u2019t have data sources mapped. '
+          + 'Their data volume can be estimated by adding relevant equipment in '
+          + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
+          + '.</span>';
+      }
     } else {
       countEl.textContent = 'Select use cases or inventory to estimate data sizing';
     }
   }
-  if (estimateBtn) estimateBtn.disabled = !hasSelection;
+  if (estimateBtn) {
+    var dsaCheck = buildDSASources();
+    estimateBtn.disabled = dsaCheck.size === 0;
+    estimateBtn.title = dsaCheck.size === 0
+      ? 'No data sources mapped to your selections. Add equipment via My Equipment to enable sizing.'
+      : 'Open Data Sizing Assessment with ' + dsaCheck.size + ' data sources';
+  }
   if (clearBtn) clearBtn.style.display = hasSelection ? '' : 'none';
 }
 
@@ -3887,8 +3917,17 @@ function launchDSAEstimate() {
   if (inventorySelections.length > 0) {
     params.push('equipment=' + inventorySelections.join(','));
   }
-  if (params.length === 0) {
-    alert('Select equipment from your inventory or use cases to estimate data sizing.');
+  if (dsaSources.size === 0) {
+    var msg = 'No data sources could be mapped from your current selections.\n\n';
+    if (selectedUCIds.size > 0 && inventorySelections.length === 0) {
+      msg += 'The selected use cases don\u2019t have specific data sources linked. '
+        + 'To get a data volume estimate:\n\n'
+        + '1. Click "My Equipment" and select the equipment in your environment\n'
+        + '2. Or open the Data Sizing Tool directly to browse all ' + '206+ data sources';
+    } else {
+      msg += 'Add equipment via "My Equipment" or select use cases that have data sources mapped.';
+    }
+    alert(msg);
     return;
   }
   var url = 'tools/data-sizing/index.html?' + params.join('&');
