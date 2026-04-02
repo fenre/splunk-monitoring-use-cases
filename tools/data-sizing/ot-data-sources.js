@@ -92,7 +92,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 2000, high: 5000 },
     eps_per_endpoint: { low: 0.5, typical: 5, high: 30 },
     default_endpoints: 1,
-    notes: "EPS is per sensor/deployment. Asset inventory scans produce burst traffic."
+    notes: "EPS is per sensor/deployment. Asset inventory scans produce burst traffic.",
+    related_uc_ids: ["14.9.1","14.9.3","14.9.5","14.9.20","14.9.21"]
   },
   {
     id: "sec_ids_nozomi",
@@ -108,7 +109,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 2000, high: 5000 },
     eps_per_endpoint: { low: 0.5, typical: 5, high: 25 },
     default_endpoints: 1,
-    notes: "Similar profile to Claroty. Flow metadata exports can add significant volume."
+    notes: "Similar profile to Claroty. Flow metadata exports can add significant volume.",
+    related_uc_ids: ["14.9.1","14.9.3","14.9.5","14.9.8","14.9.20"]
   },
   {
     id: "sec_ids_dragos",
@@ -124,7 +126,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 2500, high: 6000 },
     eps_per_endpoint: { low: 0.5, typical: 5, high: 20 },
     default_endpoints: 1,
-    notes: "Threat intelligence feeds add context-rich events. Size varies by deployment."
+    notes: "Threat intelligence feeds add context-rich events. Size varies by deployment.",
+    related_uc_ids: ["14.9.1","14.9.3","14.9.5","14.9.20","14.9.22"]
   },
   {
     id: "sec_ids_cybervision",
@@ -193,7 +196,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 1000, typical: 2000, high: 5000 },
     eps_per_endpoint: { low: 0.3, typical: 1, high: 3 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per scanner. Bulk import after scans can spike EPS significantly."
+    notes: "DSA ref: ~150 MB/day per scanner. Bulk import after scans can spike EPS significantly.",
+    related_uc_ids: ["10.6.1","10.6.2","10.6.3","10.6.4","10.6.5"]
   },
   {
     id: "dsa_sec_ips_ids",
@@ -209,7 +213,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 3, high: 50 },
     default_endpoints: 2,
-    notes: "DSA ref: ~150 MB/day per sensor. High-volume networks with many alerts can generate much more."
+    notes: "DSA ref: ~150 MB/day per sensor. High-volume networks with many alerts can generate much more.",
+    related_uc_ids: ["10.2.1","10.2.2","10.2.3","10.2.4","10.2.5"]
   },
   {
     id: "dsa_sec_threat_intel",
@@ -225,7 +230,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 0.1, typical: 0.6, high: 5 },
     default_endpoints: 3,
-    notes: "DSA ref: ~50 MB/day per feed. Bulk imports of indicator lists produce short bursts."
+    notes: "DSA ref: ~50 MB/day per feed. Bulk imports of indicator lists produce short bursts.",
+    related_uc_ids: ["10.7.45","10.7.46","10.7.47","10.7.48","10.7.49"]
   },
   {
     id: "dsa_sec_malware_sandbox",
@@ -241,7 +247,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 1500, typical: 3000, high: 8000 },
     eps_per_endpoint: { low: 0.1, typical: 0.6, high: 3 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per sandbox. Analysis reports with full behavioral data are large events."
+    notes: "DSA ref: ~150 MB/day per sandbox. Analysis reports with full behavioral data are large events.",
+    related_uc_ids: ["10.7.277","10.3.1","10.3.2","10.3.3","10.3.4"]
   },
   {
     id: "dsa_sec_waf",
@@ -257,7 +264,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 1, typical: 4, high: 50 },
     default_endpoints: 2,
-    notes: "DSA ref: ~250 MB/day per device. Full HTTP request logging can push to high volumes."
+    notes: "DSA ref: ~250 MB/day per device. Full HTTP request logging can push to high volumes.",
+    related_uc_ids: ["10.5.1","10.5.2","10.5.3","10.5.4","10.5.5"]
   },
   {
     id: "dsa_sec_dlp",
@@ -273,7 +281,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 0.2, typical: 0.6, high: 5 },
     default_endpoints: 1,
-    notes: "DSA ref: ~50 MB/day per system. Volume depends on policy scope and inspection depth."
+    notes: "DSA ref: ~50 MB/day per system. Volume depends on policy scope and inspection depth.",
+    related_uc_ids: ["10.7.1","10.7.2","10.7.3","10.12.1","10.12.2"]
   },
   {
     id: "dsa_sec_ndr",
@@ -289,7 +298,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 800, typical: 1500, high: 4000 },
     eps_per_endpoint: { low: 0.5, typical: 1.2, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per appliance. Alert-only modes are lighter; full metadata is heavier."
+    notes: "DSA ref: ~150 MB/day per appliance. Alert-only modes are lighter; full metadata is heavier.",
+    related_uc_ids: ["10.2.1","10.2.2","10.2.3","5.7.1","5.7.2"]
   },
   {
     id: "dsa_sec_uba",
@@ -305,7 +315,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 800, typical: 1500, high: 3000 },
     eps_per_endpoint: { low: 0.5, typical: 1.2, high: 5 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per system. Volume scales with monitored user population."
+    notes: "DSA ref: ~150 MB/day per system. Volume scales with monitored user population.",
+    related_uc_ids: ["10.15.1","10.15.2","10.15.3","10.15.4","10.15.5"]
   },
   {
     id: "dsa_sec_pen_test",
@@ -321,7 +332,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1500, high: 5000 },
     eps_per_endpoint: { low: 0.1, typical: 1, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per system. Intermittent — high volume during scans, quiet otherwise."
+    notes: "DSA ref: ~150 MB/day per system. Intermittent — high volume during scans, quiet otherwise.",
+    related_uc_ids: ["10.6.1","10.6.2","10.10.1","10.10.2","10.10.3"]
   },
   {
     id: "dsa_sec_soar",
@@ -337,7 +349,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 1000 },
     eps_per_endpoint: { low: 0.01, typical: 0.05, high: 0.5 },
     default_endpoints: 5,
-    notes: "DSA ref: ~1 MB/day per list. Periodic batch updates; SOAR playbook logs add moderate volume."
+    notes: "DSA ref: ~1 MB/day per list. Periodic batch updates; SOAR playbook logs add moderate volume.",
+    related_uc_ids: ["10.7.1","10.7.2","10.7.3","10.7.4","10.7.5"]
   },
   {
     id: "dsa_sec_asset_identity",
@@ -353,7 +366,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 2000 },
     eps_per_endpoint: { low: 0.05, typical: 0.3, high: 2 },
     default_endpoints: 1,
-    notes: "DSA ref: ~25 MB/day per source. Periodic batch imports; typically scheduled daily or hourly."
+    notes: "DSA ref: ~25 MB/day per source. Periodic batch imports; typically scheduled daily or hourly.",
+    related_uc_ids: ["10.13.1","10.13.2","10.13.3","10.13.4","10.13.5"]
   },
   {
     id: "sec_physical",
@@ -369,7 +383,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.01, typical: 0.1, high: 5 },
     default_endpoints: 10,
-    notes: "EPS per controller/camera. Video analytics metadata only — raw video is not ingested."
+    notes: "EPS per controller/camera. Video analytics metadata only — raw video is not ingested.",
+    related_uc_ids: ["15.3.30","15.3.34","15.3.38","15.3.39","15.3.40"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -407,7 +422,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 20, typical: 200, high: 3000 },
     default_endpoints: 2,
-    notes: "DCs in large environments can produce 1000+ EPS. Kerberos and NTLM audit events dominate."
+    notes: "DCs in large environments can produce 1000+ EPS. Kerberos and NTLM audit events dominate.",
+    related_uc_ids: ["1.2.1","1.2.4","1.2.6","9.1.1","9.1.2"]
   },
   {
     id: "it_linux",
@@ -457,7 +473,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 800 },
     eps_per_endpoint: { low: 1, typical: 20, high: 200 },
     default_endpoints: 2,
-    notes: "Volume correlates with the number of DHCP clients and lease duration."
+    notes: "Volume correlates with the number of DHCP clients and lease duration.",
+    related_uc_ids: ["5.6.1","5.6.2","5.6.4","1.2.15"]
   },
   {
     id: "it_vmware",
@@ -490,7 +507,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 3000, high: 10000 },
     eps_per_endpoint: { low: 0.01, typical: 0.1, high: 2 },
     default_endpoints: 1,
-    notes: "Low sustained EPS but large event sizes. Job failure events can be verbose."
+    notes: "Low sustained EPS but large event sizes. Job failure events can be verbose.",
+    related_uc_ids: ["6.3.1","6.3.2","6.3.3","6.3.4","6.3.5"]
   },
   {
     id: "it_proxy",
@@ -506,7 +524,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 1500, high: 3500 },
     eps_per_endpoint: { low: 10, typical: 200, high: 5000 },
     default_endpoints: 1,
-    notes: "EPS per proxy deployment. SSL inspection logs double the event count (request + response)."
+    notes: "EPS per proxy deployment. SSL inspection logs double the event count (request + response).",
+    related_uc_ids: ["10.5.1","10.5.2","10.5.3","8.1.1","8.1.2"]
   },
   {
     id: "it_email",
@@ -522,7 +541,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 2000, high: 20000 },
     eps_per_endpoint: { low: 0.5, typical: 10, high: 50 },
     default_endpoints: 1,
-    notes: "EPS per gateway. Message trace logs with full headers are much larger than summary logs."
+    notes: "EPS per gateway. Message trace logs with full headers are much larger than summary logs.",
+    related_uc_ids: ["10.4.1","10.4.2","10.4.3","11.1.1","11.1.2"]
   },
 
   // ── DSA: IT Systems & Hardware ──
@@ -540,7 +560,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 1, typical: 3, high: 15 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per cloud account. VPC Flow logs and CloudTrail dominate volume."
+    notes: "DSA ref: ~250 MB/day per cloud account. VPC Flow logs and CloudTrail dominate volume.",
+    related_uc_ids: ["4.1.1","4.1.2","4.2.1","4.2.2","4.3.1"]
   },
   {
     id: "dsa_it_cloud_paas",
@@ -556,7 +577,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per service. Container logs from Kubernetes can exceed this significantly."
+    notes: "DSA ref: ~150 MB/day per service. Container logs from Kubernetes can exceed this significantly.",
+    related_uc_ids: ["4.1.1","4.2.1","4.3.1","4.5.1","4.5.2"]
   },
   {
     id: "dsa_it_cloud_saas",
@@ -572,7 +594,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 700, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per SaaS platform. Per-user audit logs; count represents SaaS platforms not users."
+    notes: "DSA ref: ~150 MB/day per SaaS platform. Per-user audit logs; count represents SaaS platforms not users.",
+    related_uc_ids: ["4.4.1","4.4.2","4.4.3","11.1.1","11.2.1"]
   },
   {
     id: "dsa_it_office365",
@@ -588,7 +611,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.01, typical: 0.06, high: 0.2 },
     default_endpoints: 100,
-    notes: "DSA ref: ~5 MB/day per user. Endpoints = users. Exchange mail flow logs are highest volume."
+    notes: "DSA ref: ~5 MB/day per user. Endpoints = users. Exchange mail flow logs are highest volume.",
+    related_uc_ids: ["11.1.1","11.1.2","11.1.3","11.1.4","11.1.5"]
   },
   {
     id: "dsa_it_crm",
@@ -604,7 +628,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.01, typical: 0.06, high: 0.2 },
     default_endpoints: 100,
-    notes: "DSA ref: ~5 MB/day per user. Endpoints = users. API call logs can be substantial."
+    notes: "DSA ref: ~5 MB/day per user. Endpoints = users. API call logs can be substantial.",
+    related_uc_ids: ["23.1.1","23.1.2","23.1.3","23.1.4"]
   },
   {
     id: "dsa_it_sso",
@@ -620,7 +645,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 2500 },
     eps_per_endpoint: { low: 0.01, typical: 0.06, high: 0.2 },
     default_endpoints: 100,
-    notes: "DSA ref: ~5 MB/day per user. Endpoints = users. MFA challenges and SAML assertions are main sources."
+    notes: "DSA ref: ~5 MB/day per user. Endpoints = users. MFA challenges and SAML assertions are main sources.",
+    related_uc_ids: ["9.3.1","9.3.2","9.3.3","9.3.4","9.3.5"]
   },
   {
     id: "dsa_it_storage",
@@ -636,7 +662,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 1, typical: 3, high: 10 },
     default_endpoints: 2,
-    notes: "DSA ref: ~250 MB/day per high-IOPS array, ~150 MB/day for moderate. High volume correlates with IOPS load."
+    notes: "DSA ref: ~250 MB/day per high-IOPS array, ~150 MB/day for moderate. High volume correlates with IOPS load.",
+    related_uc_ids: ["6.1.1","6.1.2","6.1.3","6.2.1","6.2.2"]
   },
   {
     id: "dsa_it_desktop",
@@ -652,7 +679,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.02, typical: 0.12, high: 0.5 },
     default_endpoints: 100,
-    notes: "DSA ref: ~10 MB/day per endpoint. Endpoints = workstations. Windows Security logs are primary volume."
+    notes: "DSA ref: ~10 MB/day per endpoint. Endpoints = workstations. Windows Security logs are primary volume.",
+    related_uc_ids: ["1.3.1","1.3.2","1.3.3","2.5.1","2.5.2"]
   },
   {
     id: "dsa_it_database",
@@ -668,7 +696,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 3,
-    notes: "DSA ref: ~150 MB/day per production instance, ~50 MB for non-prod. Full query logging increases significantly."
+    notes: "DSA ref: ~150 MB/day per production instance, ~50 MB for non-prod. Full query logging increases significantly.",
+    related_uc_ids: ["7.1.1","7.1.2","7.1.3","7.2.1","7.2.2"]
   },
   {
     id: "dsa_it_webserver",
@@ -684,7 +713,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 5, high: 50 },
     default_endpoints: 3,
-    notes: "DSA ref: ~250 MB/day per server. High-traffic sites can generate orders of magnitude more."
+    notes: "DSA ref: ~250 MB/day per server. High-traffic sites can generate orders of magnitude more.",
+    related_uc_ids: ["8.1.1","8.1.2","8.1.3","8.1.4","8.1.5"]
   },
   {
     id: "dsa_it_appserver",
@@ -700,7 +730,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 5000 },
     eps_per_endpoint: { low: 1, typical: 3, high: 20 },
     default_endpoints: 3,
-    notes: "DSA ref: ~250 MB/day per server. Stack traces and debug logging can spike volume dramatically."
+    notes: "DSA ref: ~250 MB/day per server. Stack traces and debug logging can spike volume dramatically.",
+    related_uc_ids: ["8.2.1","8.2.2","8.2.3","8.2.4","8.2.5"]
   },
   {
     id: "dsa_it_middleware",
@@ -716,7 +747,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 1, typical: 3, high: 20 },
     default_endpoints: 2,
-    notes: "DSA ref: ~250 MB/day per service. Message-intensive integrations can exceed this substantially."
+    notes: "DSA ref: ~250 MB/day per service. Message-intensive integrations can exceed this substantially.",
+    related_uc_ids: ["8.3.1","8.3.2","8.3.3","8.4.1","8.4.2"]
   },
   {
     id: "dsa_it_splunk_internal",
@@ -732,7 +764,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1500 },
     eps_per_endpoint: { low: 0.5, typical: 1.5, high: 5 },
     default_endpoints: 5,
-    notes: "DSA ref: ~100 MB/day per Splunk component. Essential for platform health monitoring."
+    notes: "DSA ref: ~100 MB/day per Splunk component. Essential for platform health monitoring.",
+    related_uc_ids: ["13.1.1","13.1.2","13.1.3","13.2.1","13.2.2"]
   },
   {
     id: "dsa_it_apm",
@@ -748,7 +781,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.5, typical: 1.5, high: 8 },
     default_endpoints: 2,
-    notes: "DSA ref: ~100 MB/day per monitored system. Distributed tracing can generate substantial volume."
+    notes: "DSA ref: ~100 MB/day per monitored system. Distributed tracing can generate substantial volume.",
+    related_uc_ids: ["23.1.1","23.1.2","23.1.3","8.7.1","8.7.2"]
   },
   {
     id: "dsa_it_sap",
@@ -764,7 +798,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 1, typical: 3, high: 15 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per SAP instance. Security audit log and change docs are primary volume."
+    notes: "DSA ref: ~250 MB/day per SAP instance. Security audit log and change docs are primary volume.",
+    related_uc_ids: ["23.1.1","23.1.2","23.2.1","23.2.2"]
   },
   {
     id: "dsa_it_pam",
@@ -780,7 +815,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per PAM deployment. Session recordings and keystroke logs are high volume."
+    notes: "DSA ref: ~250 MB/day per PAM deployment. Session recordings and keystroke logs are high volume.",
+    related_uc_ids: ["9.4.1","9.4.2","9.4.3","9.4.4","9.4.5"]
   },
   {
     id: "dsa_it_telephone",
@@ -796,7 +832,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 1, typical: 3, high: 15 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per system. Call detail records scale with call volume."
+    notes: "DSA ref: ~250 MB/day per system. Call detail records scale with call volume.",
+    related_uc_ids: ["11.3.1","11.3.2","11.3.3","11.3.4","11.3.5"]
   },
   {
     id: "dsa_it_voip",
@@ -812,7 +849,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1000 },
     eps_per_endpoint: { low: 0.5, typical: 2.5, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~200 MB/day per system. SIP message logging produces high volume; CDR summaries are lighter."
+    notes: "DSA ref: ~200 MB/day per system. SIP message logging produces high volume; CDR summaries are lighter.",
+    related_uc_ids: ["11.3.1","11.3.2","5.12.1","5.12.2","5.12.3"]
   },
   {
     id: "dsa_it_uxm",
@@ -828,7 +866,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 2.5, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~200 MB/day per system. Synthetic test frequency and RUM page view volume drive sizing."
+    notes: "DSA ref: ~200 MB/day per system. Synthetic test frequency and RUM page view volume drive sizing.",
+    related_uc_ids: ["5.9.1","5.9.2","5.9.6","23.1.1","23.1.2"]
   },
   {
     id: "dsa_it_cicd",
@@ -844,7 +883,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1500, high: 5000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 2,
-    notes: "DSA ref: ~250 MB/day per system. Console output from builds is largest contributor."
+    notes: "DSA ref: ~250 MB/day per system. Console output from builds is largest contributor.",
+    related_uc_ids: ["12.1.1","12.1.2","12.1.3","12.2.1","12.2.2"]
   },
   {
     id: "dsa_it_config_mgmt",
@@ -860,7 +900,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 4000 },
     eps_per_endpoint: { low: 0.2, typical: 1, high: 5 },
     default_endpoints: 2,
-    notes: "DSA ref: ~100 MB/day per system. Puppet/Chef run reports with diffs can be large events."
+    notes: "DSA ref: ~100 MB/day per system. Puppet/Chef run reports with diffs can be large events.",
+    related_uc_ids: ["12.3.1","12.3.2","12.3.3","12.3.4"]
   },
   {
     id: "dsa_it_qa_test",
@@ -876,7 +917,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1500, high: 5000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per system. Test result detail level drives volume — summary vs full output."
+    notes: "DSA ref: ~250 MB/day per system. Test result detail level drives volume — summary vs full output.",
+    related_uc_ids: ["12.1.1","12.2.1","12.2.2","12.3.1"]
   },
   {
     id: "dsa_it_print",
@@ -892,7 +934,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.5, typical: 1.2, high: 5 },
     default_endpoints: 2,
-    notes: "DSA ref: ~100 MB/day per server. Print activity scales with user population and document volume."
+    notes: "DSA ref: ~100 MB/day per server. Print activity scales with user population and document volume.",
+    related_uc_ids: ["1.2.1","1.2.4","1.1.1"]
   },
   {
     id: "dsa_it_mobile",
@@ -908,7 +951,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1500 },
     eps_per_endpoint: { low: 0.005, typical: 0.06, high: 0.2 },
     default_endpoints: 100,
-    notes: "DSA ref: ~5 MB/day per device. Endpoints = mobile devices. Compliance checks and app events are primary volume."
+    notes: "DSA ref: ~5 MB/day per device. Endpoints = mobile devices. Compliance checks and app events are primary volume.",
+    related_uc_ids: ["9.6.1","9.6.2","9.6.3","9.6.4","9.6.5"]
   },
   {
     id: "dsa_it_emr",
@@ -924,7 +968,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.5, typical: 1.5, high: 8 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per system. Patient record access audit logs are required for HIPAA compliance."
+    notes: "DSA ref: ~150 MB/day per system. Patient record access audit logs are required for HIPAA compliance.",
+    related_uc_ids: ["23.2.1","23.2.2","23.2.3","23.2.4"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -979,7 +1024,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 1200, high: 4000 },
     eps_per_endpoint: { low: 0.5, typical: 10, high: 50 },
     default_endpoints: 1,
-    notes: "EPS per DCS controller/server. Export methods vary widely by vendor."
+    notes: "EPS per DCS controller/server. Export methods vary widely by vendor.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25","14.2.26"]
   },
   {
     id: "ot_mes",
@@ -995,7 +1041,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 3000, high: 10000 },
     eps_per_endpoint: { low: 0.01, typical: 0.5, high: 5 },
     default_endpoints: 1,
-    notes: "Low EPS but large event payloads. Batch records can be very large structured documents."
+    notes: "Low EPS but large event payloads. Batch records can be very large structured documents.",
+    related_uc_ids: ["14.2.12","14.2.16","14.2.25","14.2.26","14.5.1"]
   },
   {
     id: "ot_erp",
@@ -1011,7 +1058,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 2500, high: 8000 },
     eps_per_endpoint: { low: 0.01, typical: 0.2, high: 2 },
     default_endpoints: 1,
-    notes: "EPS per ERP system. Maintenance/work order data is periodic, not continuous."
+    notes: "EPS per ERP system. Maintenance/work order data is periodic, not continuous.",
+    related_uc_ids: ["14.5.1","14.5.2","14.5.3","23.2.1","23.2.2"]
   },
   {
     id: "ot_hmi",
@@ -1027,7 +1075,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.05, typical: 0.5, high: 5 },
     default_endpoints: 5,
-    notes: "EPS per HMI station. Operator action logging only — process data flows through SCADA/historian."
+    notes: "EPS per HMI station. Operator action logging only — process data flows through SCADA/historian.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25"]
   },
 
   // ── DSA: OT-Specific Sources ──
@@ -1045,7 +1094,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 15 },
     default_endpoints: 2,
-    notes: "DSA ref: ~150 MB/day per device. Deep packet inspection of industrial protocols increases volume."
+    notes: "DSA ref: ~150 MB/day per device. Deep packet inspection of industrial protocols increases volume.",
+    related_uc_ids: ["14.9.1","14.9.3","14.9.20","5.2.1","10.14.1"]
   },
   {
     id: "dsa_ot_historian_access",
@@ -1061,7 +1111,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 1, typical: 3, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per historian. Access logs track who queried what data — critical for compliance."
+    notes: "DSA ref: ~250 MB/day per historian. Access logs track who queried what data — critical for compliance.",
+    related_uc_ids: ["14.2.12","14.2.16","14.2.25","14.2.26"]
   },
   {
     id: "dsa_ot_asset_mgmt",
@@ -1077,7 +1128,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 0.1, typical: 0.6, high: 3 },
     default_endpoints: 1,
-    notes: "DSA ref: ~50 MB/day per system. Work order creation and completion events; periodic batch exports."
+    notes: "DSA ref: ~50 MB/day per system. Work order creation and completion events; periodic batch exports.",
+    related_uc_ids: ["14.1.1","14.1.8","14.1.9","14.1.10","14.1.11"]
   },
   {
     id: "dsa_ot_server_mgmt",
@@ -1093,7 +1145,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.05, typical: 0.25, high: 1 },
     default_endpoints: 10,
-    notes: "DSA ref: ~20 MB/day per server. Thermal and power alerts are low-frequency but critical for OT servers."
+    notes: "DSA ref: ~20 MB/day per server. Thermal and power alerts are low-frequency but critical for OT servers.",
+    related_uc_ids: ["14.1.1","14.1.10","14.1.14","1.1.1","1.2.1"]
   },
   {
     id: "dsa_ot_remote_access",
@@ -1109,7 +1162,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.05, typical: 0.3, high: 2 },
     default_endpoints: 5,
-    notes: "DSA ref: ~25 MB/day per system. Session connect/disconnect events; metadata only, not screen data."
+    notes: "DSA ref: ~25 MB/day per system. Session connect/disconnect events; metadata only, not screen data.",
+    related_uc_ids: ["14.9.1","14.9.3","14.9.5","14.9.20","9.4.1"]
   },
   {
     id: "dsa_ot_file_transfer",
@@ -1125,7 +1179,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.01, typical: 0.05, high: 0.5 },
     default_endpoints: 3,
-    notes: "DSA ref: ~1 MB/day per system. Low volume but critical for compliance and change control auditing."
+    notes: "DSA ref: ~1 MB/day per system. Low volume but critical for compliance and change control auditing.",
+    related_uc_ids: ["14.9.1","14.9.3","14.9.20","6.4.1"]
   },
   {
     id: "dsa_ot_scada_security",
@@ -1141,7 +1196,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 1000, high: 2500 },
     eps_per_endpoint: { low: 0.5, typical: 1.5, high: 8 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per system. Protocol anomaly detection and ICS change monitoring events."
+    notes: "DSA ref: ~150 MB/day per system. Protocol anomaly detection and ICS change monitoring events.",
+    related_uc_ids: ["14.9.1","14.9.3","14.9.5","14.9.20","10.14.1"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -1266,7 +1322,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 5, high: 30 },
     default_endpoints: 2,
-    notes: "DSA ref: ~250 MB/day per concentrator. Remote workforce sizing drives tunnel event volume."
+    notes: "DSA ref: ~250 MB/day per concentrator. Remote workforce sizing drives tunnel event volume.",
+    related_uc_ids: ["5.2.1","5.2.3","9.4.1","17.2.9","17.3.23"]
   },
   {
     id: "dsa_net_loadbalancer",
@@ -1282,7 +1339,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 1, typical: 2.5, high: 15 },
     default_endpoints: 2,
-    notes: "DSA ref: ~100 MB/day per device. Virtual server and pool member health logging are primary volume."
+    notes: "DSA ref: ~100 MB/day per device. Virtual server and pool member health logging are primary volume.",
+    related_uc_ids: ["5.3.1","5.3.2","5.3.3","5.3.4","5.3.5"]
   },
   {
     id: "dsa_net_ddos",
@@ -1298,7 +1356,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 20 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per device. Attack event volume is bursty — baseline is low, peaks during DDoS."
+    notes: "DSA ref: ~150 MB/day per device. Attack event volume is bursty — baseline is low, peaks during DDoS.",
+    related_uc_ids: ["5.2.1","5.2.3","10.2.1","10.2.2"]
   },
   {
     id: "dsa_net_nac",
@@ -1314,7 +1373,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 1000, high: 2500 },
     eps_per_endpoint: { low: 1, typical: 3, high: 15 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per deployment. RADIUS accounting and posture re-assessment drive volume."
+    notes: "DSA ref: ~250 MB/day per deployment. RADIUS accounting and posture re-assessment drive volume.",
+    related_uc_ids: ["17.1.1","17.1.3","17.1.7","17.1.13"]
   },
   {
     id: "dsa_net_ldap",
@@ -1330,7 +1390,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 5, high: 20 },
     default_endpoints: 1,
-    notes: "DSA ref: ~250 MB/day per server. Authentication-heavy environments generate more LDAP traffic logs."
+    notes: "DSA ref: ~250 MB/day per server. Authentication-heavy environments generate more LDAP traffic logs.",
+    related_uc_ids: ["9.2.1","9.2.2","9.2.3","9.2.4","9.2.5"]
   },
   {
     id: "dsa_net_ftp",
@@ -1346,7 +1407,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 1, typical: 3, high: 15 },
     default_endpoints: 2,
-    notes: "DSA ref: ~250 MB/day per server. File transfer volume and directory listing activity drive sizing."
+    notes: "DSA ref: ~250 MB/day per server. File transfer volume and directory listing activity drive sizing.",
+    related_uc_ids: ["6.4.1","6.4.2","6.4.3","6.4.4"]
   },
   {
     id: "dsa_net_dpi",
@@ -1362,7 +1424,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 2000 },
     eps_per_endpoint: { low: 1, typical: 5, high: 50 },
     default_endpoints: 1,
-    notes: "DSA ref: ~100 MB/day per sensor. Metadata-only; full PCAP storage is separate and much larger."
+    notes: "DSA ref: ~100 MB/day per sensor. Metadata-only; full PCAP storage is separate and much larger.",
+    related_uc_ids: ["5.7.1","5.7.2","5.7.7","5.7.8"]
   },
   {
     id: "dsa_net_snmp_mgmt",
@@ -1378,7 +1441,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.5, typical: 1.5, high: 8 },
     default_endpoints: 1,
-    notes: "DSA ref: ~100 MB/day per management system. Polling frequency and device count drive volume."
+    notes: "DSA ref: ~100 MB/day per management system. Polling frequency and device count drive volume.",
+    related_uc_ids: ["5.8.1","5.8.2","5.8.3","14.1.10","14.1.11"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -1399,7 +1463,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 80, typical: 200, high: 500 },
     eps_per_endpoint: { low: 0.1, typical: 1, high: 10 },
     default_endpoints: 10,
-    notes: "EPS per PLC/device. Depends on polling interval (1s = 1 EPS per tag group, 60s = 0.017 EPS). Edge aggregation recommended."
+    notes: "EPS per PLC/device. Depends on polling interval (1s = 1 EPS per tag group, 60s = 0.017 EPS). Edge aggregation recommended.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.3.34"]
   },
   {
     id: "ot_plc_opcua",
@@ -1415,7 +1480,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 2000 },
     eps_per_endpoint: { low: 0.1, typical: 2, high: 20 },
     default_endpoints: 5,
-    notes: "EPS per OPC-UA server/connection. Publishing interval drives rate (1s = ~1 EPS per monitored item group)."
+    notes: "EPS per OPC-UA server/connection. Publishing interval drives rate (1s = ~1 EPS per monitored item group).",
+    related_uc_ids: ["14.1.9","14.2.8","14.3.31","14.3.35"]
   },
   {
     id: "ot_rtu",
@@ -1431,7 +1497,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 350, high: 700 },
     eps_per_endpoint: { low: 0.01, typical: 0.1, high: 1 },
     default_endpoints: 10,
-    notes: "RTUs typically report at low frequencies (15s to 5min intervals). EPS is per RTU."
+    notes: "RTUs typically report at low frequencies (15s to 5min intervals). EPS is per RTU.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.1.10"]
   },
   {
     id: "ot_iot_sensor",
@@ -1447,7 +1514,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 80, typical: 250, high: 600 },
     eps_per_endpoint: { low: 0.001, typical: 0.05, high: 1 },
     default_endpoints: 50,
-    notes: "EPS per sensor. Most IoT sensors report every 30s-5min. Battery-powered sensors report less frequently."
+    notes: "EPS per sensor. Most IoT sensors report every 30s-5min. Battery-powered sensors report less frequently.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.7","14.3.24","14.3.42"]
   },
   {
     id: "ot_mqtt",
@@ -1463,7 +1531,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 500, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 50, high: 500 },
     default_endpoints: 1,
-    notes: "EPS per broker (aggregate of all topics subscribed). Highly dependent on topic structure and publisher count."
+    notes: "EPS per broker (aggregate of all topics subscribed). Highly dependent on topic structure and publisher count.",
+    related_uc_ids: ["14.3.5","14.3.24","14.3.33","14.3.42"]
   },
   {
     id: "ot_bacnet",
@@ -1479,7 +1548,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 350, high: 800 },
     eps_per_endpoint: { low: 0.01, typical: 0.2, high: 5 },
     default_endpoints: 20,
-    notes: "EPS per BACnet device/controller. COV subscriptions produce events only on value changes."
+    notes: "EPS per BACnet device/controller. COV subscriptions produce events only on value changes.",
+    related_uc_ids: ["14.1.1","14.1.45","14.1.46","14.3.24"]
   },
   {
     id: "ot_edge_hub",
@@ -1512,7 +1582,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 5, high: 50 },
     default_endpoints: 3,
-    notes: "EPS per EI-enabled device. Data Rules/Data Logic can transform and filter at the edge before HEC."
+    notes: "EPS per EI-enabled device. Data Rules/Data Logic can transform and filter at the edge before HEC.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.7","14.3.34","14.3.42"]
   },
   {
     id: "ot_env_sensor",
@@ -1528,7 +1599,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 80, typical: 200, high: 500 },
     eps_per_endpoint: { low: 0.003, typical: 0.03, high: 0.5 },
     default_endpoints: 20,
-    notes: "Very low EPS per sensor (typically 1 reading every 30s-5min). Volume comes from high sensor counts."
+    notes: "Very low EPS per sensor (typically 1 reading every 30s-5min). Volume comes from high sensor counts.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.24","14.1.45","14.1.46"]
   },
   {
     id: "ot_energy_meter",
@@ -1544,7 +1616,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 0.03, typical: 0.2, high: 2 },
     default_endpoints: 10,
-    notes: "EPS per meter. Demand monitoring typically at 15-minute intervals; power quality at 1s intervals."
+    notes: "EPS per meter. Demand monitoring typically at 15-minute intervals; power quality at 1s intervals.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.24","14.5.1","14.5.2"]
   },
   {
     id: "ot_safety_system",
@@ -1560,7 +1633,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 800, high: 3000 },
     eps_per_endpoint: { low: 0.001, typical: 0.05, high: 1 },
     default_endpoints: 2,
-    notes: "Very low EPS in normal operation. Trip events and proof tests produce larger bursts."
+    notes: "Very low EPS in normal operation. Trip events and proof tests produce larger bursts.",
+    related_uc_ids: ["14.2.1","14.2.15","14.2.25","14.9.1"]
   },
   {
     id: "ot_vibration",
@@ -1576,7 +1650,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 400, high: 2000 },
     eps_per_endpoint: { low: 0.01, typical: 0.1, high: 2 },
     default_endpoints: 10,
-    notes: "EPS per monitored asset. Summary metrics are small; full spectrum data can be very large but is rarely sent to Splunk."
+    notes: "EPS per monitored asset. Summary metrics are small; full spectrum data can be very large but is rarely sent to Splunk.",
+    related_uc_ids: ["14.4.1","14.4.2","14.4.3","14.4.4","14.4.5"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -1694,7 +1769,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 5,
     poll_presets: [0.1, 0.5, 1, 2, 5, 10, 30, 60],
-    notes: "Rarely sent raw to Splunk — typically via Kepware/OPC UA gateway or plant historian. Implicit I/O runs at 1-20ms for control."
+    notes: "Rarely sent raw to Splunk — typically via Kepware/OPC UA gateway or plant historian. Implicit I/O runs at 1-20ms for control.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.9.1"]
   },
   {
     id: "proto_profinet",
@@ -1712,7 +1788,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 5,
     poll_presets: [0.5, 1, 2, 5, 10, 30, 60],
-    notes: "PROFINET IO runs at 1-10ms for controls. Analytics always via OPC UA server on PLC."
+    notes: "PROFINET IO runs at 1-10ms for controls. Analytics always via OPC UA server on PLC.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.9.1"]
   },
   {
     id: "proto_dnp3",
@@ -1730,7 +1807,8 @@ const OT_DATA_SOURCES = [
     default_tags: 200,
     default_poll_sec: 15,
     poll_presets: [2, 5, 10, 15, 30, 60, 120, 300],
-    notes: "Class 1 (high priority) at 2-30s; Class 2 at 30s-2min; Class 3 at 2-15min. Integrity polls slower."
+    notes: "Class 1 (high priority) at 2-30s; Class 2 at 30s-2min; Class 3 at 2-15min. Integrity polls slower.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.9.1"]
   },
   {
     id: "proto_iec61850",
@@ -1748,7 +1826,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 10,
     poll_presets: [0.1, 1, 5, 10, 30, 60],
-    notes: "LN naming (e.g. MMXU1.PhV.phsA) makes tag strings long. GOOSE is sub-ms but rarely ingested raw."
+    notes: "LN naming (e.g. MMXU1.PhV.phsA) makes tag strings long. GOOSE is sub-ms but rarely ingested raw.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.9.1"]
   },
   {
     id: "proto_iec104",
@@ -1766,7 +1845,8 @@ const OT_DATA_SOURCES = [
     default_tags: 200,
     default_poll_sec: 30,
     poll_presets: [3, 5, 10, 15, 30, 60, 300],
-    notes: "General interrogation cycles 3-60s. Spontaneous event reporting adds variable burst data."
+    notes: "General interrogation cycles 3-60s. Spontaneous event reporting adds variable burst data.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.9.1"]
   },
   {
     id: "proto_s7comm",
@@ -1784,7 +1864,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 5,
     poll_presets: [0.2, 0.5, 1, 2, 5, 10, 30, 60],
-    notes: "Splunk rarely parses S7 natively. Use OPC UA on PLC or Kepware S7 driver → JSON."
+    notes: "Splunk rarely parses S7 natively. Use OPC UA on PLC or Kepware S7 driver → JSON.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.9.1"]
   },
   {
     id: "proto_hartip",
@@ -1802,7 +1883,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 30,
     poll_presets: [1, 5, 10, 30, 60, 300],
-    notes: "Asset tag + long variable labels push JSON toward high bound. Multiplexed HART channels via gateways."
+    notes: "Asset tag + long variable labels push JSON toward high bound. Multiplexed HART channels via gateways.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32","14.4.1"]
   },
   {
     id: "proto_sparkplug",
@@ -1820,7 +1902,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 5,
     poll_presets: [0.5, 1, 2, 5, 10, 30, 60],
-    notes: "Protobuf on wire; JSON conversion for HEC inflates sizes. NBIRTH payloads are large bursts on reconnect."
+    notes: "Protobuf on wire; JSON conversion for HEC inflates sizes. NBIRTH payloads are large bursts on reconnect.",
+    related_uc_ids: ["14.3.5","14.3.24","14.3.33","14.3.42"]
   },
   {
     id: "proto_amqp",
@@ -1838,7 +1921,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 10,
     poll_presets: [0.1, 1, 5, 10, 30, 60],
-    notes: "Application properties + body JSON. Batched payloads lower effective bytes/tag."
+    notes: "Application properties + body JSON. Batched payloads lower effective bytes/tag.",
+    related_uc_ids: ["8.3.1","8.3.2","8.3.3","14.3.33"]
   },
   {
     id: "proto_coap",
@@ -1856,7 +1940,8 @@ const OT_DATA_SOURCES = [
     default_tags: 20,
     default_poll_sec: 60,
     poll_presets: [5, 10, 30, 60, 300, 900],
-    notes: "Often translated to MQTT/HTTP at border router before reaching Splunk."
+    notes: "Often translated to MQTT/HTTP at border router before reaching Splunk.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.24","14.3.42"]
   },
   {
     id: "proto_mtconnect",
@@ -1874,7 +1959,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 5,
     poll_presets: [0.1, 0.5, 1, 2, 5, 10, 30],
-    notes: "Verbose XML paths; converted JSON still tends toward upper size band per data item."
+    notes: "Verbose XML paths; converted JSON still tends toward upper size band per data item.",
+    related_uc_ids: ["14.2.7","14.2.12","14.5.1","14.5.2"]
   },
   {
     id: "proto_opcda",
@@ -1892,7 +1978,8 @@ const OT_DATA_SOURCES = [
     default_tags: 200,
     default_poll_sec: 5,
     poll_presets: [0.1, 0.5, 1, 2, 5, 10, 30, 60],
-    notes: "Requires Windows collector or DA→UA wrapper (e.g. Kepware). Then same HEC path as OPC UA."
+    notes: "Requires Windows collector or DA→UA wrapper (e.g. Kepware). Then same HEC path as OPC UA.",
+    related_uc_ids: ["14.1.9","14.2.8","14.3.31","14.3.35"]
   },
   {
     id: "proto_ethercat",
@@ -1910,7 +1997,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 10,
     poll_presets: [1, 2, 5, 10, 30, 60],
-    notes: "Rarely exposed raw. Analytics via TwinCAT ADS or OPC UA from the motion controller."
+    notes: "Rarely exposed raw. Analytics via TwinCAT ADS or OPC UA from the motion controller.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32"]
   },
   {
     id: "proto_lorawan",
@@ -1928,7 +2016,8 @@ const OT_DATA_SOURCES = [
     default_tags: 20,
     default_poll_sec: 300,
     poll_presets: [60, 120, 300, 600, 900, 1800, 3600],
-    notes: "Battery-powered sensors report every 5-60 minutes. Binary payloads expanded to JSON with decoded fields."
+    notes: "Battery-powered sensors report every 5-60 minutes. Binary payloads expanded to JSON with decoded fields.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.24","14.3.42"]
   },
   {
     id: "proto_knx",
@@ -1946,7 +2035,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 60,
     poll_presets: [5, 10, 30, 60, 120, 300],
-    notes: "KNX telegrams are event-driven (on change). Poll rate is a conservative sizing estimate."
+    notes: "KNX telegrams are event-driven (on change). Poll rate is a conservative sizing estimate.",
+    related_uc_ids: ["14.1.1","14.1.45","14.1.46","14.3.24"]
   },
   {
     id: "proto_profibus",
@@ -1964,7 +2054,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 10,
     poll_presets: [1, 2, 5, 10, 30, 60],
-    notes: "Often bridged to PROFINET or OPC at modernization boundary. Analytics via gateway."
+    notes: "Often bridged to PROFINET or OPC at modernization boundary. Analytics via gateway.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32"]
   },
   {
     id: "proto_cclink",
@@ -1982,7 +2073,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 5,
     poll_presets: [1, 2, 5, 10, 30, 60],
-    notes: "Use Mitsubishi gateway or SLMP/MC protocol → OPC server for Splunk-facing JSON."
+    notes: "Use Mitsubishi gateway or SLMP/MC protocol → OPC server for Splunk-facing JSON.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32"]
   },
   {
     id: "proto_fins",
@@ -2000,7 +2092,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 5,
     poll_presets: [0.2, 0.5, 1, 2, 5, 10, 30],
-    notes: "Native FINS to Splunk uncommon. Bridge via Kepware, OPC, or Node-RED style gateways."
+    notes: "Native FINS to Splunk uncommon. Bridge via Kepware, OPC, or Node-RED style gateways.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32"]
   },
   {
     id: "proto_melsec",
@@ -2018,7 +2111,8 @@ const OT_DATA_SOURCES = [
     default_tags: 100,
     default_poll_sec: 5,
     poll_presets: [0.2, 0.5, 1, 2, 5, 10, 30],
-    notes: "GX Works / gateways often paired with OPC UA export for external analytics."
+    notes: "GX Works / gateways often paired with OPC UA export for external analytics.",
+    related_uc_ids: ["14.1.8","14.2.7","14.3.32"]
   },
   {
     id: "proto_iolink",
@@ -2036,7 +2130,8 @@ const OT_DATA_SOURCES = [
     default_tags: 30,
     default_poll_sec: 5,
     poll_presets: [0.1, 0.5, 1, 2, 5, 10, 30],
-    notes: "IO-Link masters aggregate data from multiple ports. Events (e.g. overrange) are bursty."
+    notes: "IO-Link masters aggregate data from multiple ports. Events (e.g. overrange) are bursty.",
+    related_uc_ids: ["14.1.8","14.4.1","14.4.2","14.3.24"]
   },
   {
     id: "proto_wirelesshart",
@@ -2054,7 +2149,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 30,
     poll_presets: [1, 5, 10, 30, 60, 300],
-    notes: "Path to Splunk almost always via DCS/gateway OPC, not raw WirelessHART."
+    notes: "Path to Splunk almost always via DCS/gateway OPC, not raw WirelessHART.",
+    related_uc_ids: ["14.1.8","14.4.1","14.3.24"]
   },
   {
     id: "proto_zigbee",
@@ -2072,7 +2168,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 60,
     poll_presets: [10, 30, 60, 120, 300, 600],
-    notes: "Usually via hub (SmartThings, vendor bridge) to cloud/MQTT before Splunk."
+    notes: "Usually via hub (SmartThings, vendor bridge) to cloud/MQTT before Splunk.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.24"]
   },
   {
     id: "proto_restjson",
@@ -2090,7 +2187,8 @@ const OT_DATA_SOURCES = [
     default_tags: 50,
     default_poll_sec: 10,
     poll_presets: [1, 2, 5, 10, 30, 60, 300],
-    notes: "Verbose REST responses drive high estimates unless normalized at edge. Batch endpoints reduce events/sec."
+    notes: "Verbose REST responses drive high estimates unless normalized at edge. Batch endpoints reduce events/sec.",
+    related_uc_ids: ["8.4.1","8.4.2","14.3.42","23.1.1"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -2111,7 +2209,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 1.5, high: 8 },
     default_endpoints: 2,
-    notes: "DSA ref: ~100 MB/day per system. Covers order mgmt, billing, procurement, and delivery systems."
+    notes: "DSA ref: ~100 MB/day per system. Covers order mgmt, billing, procurement, and delivery systems.",
+    related_uc_ids: ["23.1.1","23.1.2","23.1.3","23.1.4","23.1.5"]
   },
   {
     id: "dsa_biz_ecommerce",
@@ -2127,7 +2226,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 5, typical: 10, high: 100 },
     default_endpoints: 1,
-    notes: "DSA ref: ~1000 MB/day per platform. Major e-commerce produces very high transaction volumes."
+    notes: "DSA ref: ~1000 MB/day per platform. Major e-commerce produces very high transaction volumes.",
+    related_uc_ids: ["23.1.1","23.1.2","23.1.3","23.2.1"]
   },
   {
     id: "dsa_biz_pos",
@@ -2143,7 +2243,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.05, typical: 0.3, high: 2 },
     default_endpoints: 10,
-    notes: "DSA ref: ~25 MB/day per terminal. Endpoints = POS terminals. Transaction rate scales with store traffic."
+    notes: "DSA ref: ~25 MB/day per terminal. Endpoints = POS terminals. Transaction rate scales with store traffic.",
+    related_uc_ids: ["23.1.1","23.1.2","23.2.1","23.2.2"]
   },
   {
     id: "dsa_biz_batch",
@@ -2159,7 +2260,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1500 },
     eps_per_endpoint: { low: 0.1, typical: 0.3, high: 2 },
     default_endpoints: 3,
-    notes: "DSA ref: ~25 MB/day per system. Job start/stop events plus row-level audit trails."
+    notes: "DSA ref: ~25 MB/day per system. Job start/stop events plus row-level audit trails.",
+    related_uc_ids: ["23.1.1","23.1.2","23.2.1"]
   },
   {
     id: "dsa_biz_apm",
@@ -2175,7 +2277,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.5, typical: 1.5, high: 8 },
     default_endpoints: 2,
-    notes: "DSA ref: ~100 MB/day per monitored service. Service degradation events and metric streams."
+    notes: "DSA ref: ~100 MB/day per monitored service. Service degradation events and metric streams.",
+    related_uc_ids: ["23.1.1","23.1.2","23.1.3","8.7.1","8.7.2"]
   },
   {
     id: "dsa_biz_fraud",
@@ -2191,7 +2294,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 1, typical: 6, high: 30 },
     default_endpoints: 1,
-    notes: "DSA ref: ~500 MB/day per system. Financial services generate high volumes of scored transactions."
+    notes: "DSA ref: ~500 MB/day per system. Financial services generate high volumes of scored transactions.",
+    related_uc_ids: ["10.12.1","10.12.2","10.12.3","23.1.1"]
   },
   {
     id: "dsa_biz_social",
@@ -2207,7 +2311,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 3000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 1,
-    notes: "DSA ref: ~150 MB/day per feed. Volume depends on brand mention frequency and tracked keywords."
+    notes: "DSA ref: ~150 MB/day per feed. Volume depends on brand mention frequency and tracked keywords.",
+    related_uc_ids: ["23.2.1","23.2.2","23.2.3"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -2297,7 +2402,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.1, typical: 2, high: 20 },
     default_endpoints: 10,
-    notes: "Low-Medium volume (API). Per endpoint = per Meraki device. MX security events produce most volume. API polling is rate-limited by Meraki dashboard API (5 calls/sec)."
+    notes: "Low-Medium volume (API). Per endpoint = per Meraki device. MX security events produce most volume. API polling is rate-limited by Meraki dashboard API (5 calls/sec).",
+    related_uc_ids: ["5.1.36","5.2.19","5.4.12","5.8.2","14.1.15"]
   },
   {
     id: "cisco_meraki_sensors",
@@ -2313,7 +2419,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 350, high: 800 },
     eps_per_endpoint: { low: 0.02, typical: 0.1, high: 1 },
     default_endpoints: 20,
-    notes: "Low-Medium volume. Per endpoint = per MT sensor. Default 10-min polling intervals. MQTT streaming with BLE gateway provides sub-second updates but higher volume."
+    notes: "Low-Medium volume. Per endpoint = per MT sensor. Default 10-min polling intervals. MQTT streaming with BLE gateway provides sub-second updates but higher volume.",
+    related_uc_ids: ["14.1.15","14.3.1","14.3.6","14.3.24"]
   },
   {
     id: "cisco_meraki_cameras",
@@ -2329,7 +2436,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.5, typical: 5, high: 30 },
     default_endpoints: 5,
-    notes: "High volume. Per endpoint = per camera. Raw detection events are high frequency; zone aggregates are lower. Only analytics metadata — raw video is NOT ingested."
+    notes: "High volume. Per endpoint = per camera. Raw detection events are high frequency; zone aggregates are lower. Only analytics metadata — raw video is NOT ingested.",
+    related_uc_ids: ["15.3.30","15.3.34","15.3.38","14.1.15"]
   },
 
   // ── Cisco Security ──
@@ -2398,7 +2506,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.01, typical: 0.05, high: 0.5 },
     default_endpoints: 500,
-    notes: "Medium volume. Per endpoint = per protected device (desktop/server). File conviction events are moderate; enable event streaming API for near-real-time."
+    notes: "Medium volume. Per endpoint = per protected device (desktop/server). File conviction events are moderate; enable event streaming API for near-real-time.",
+    related_uc_ids: ["10.3.1","10.3.2","10.3.3","10.11.41","10.11.42"]
   },
   {
     id: "cisco_umbrella",
@@ -2414,7 +2523,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.1, typical: 1, high: 10 },
     default_endpoints: 100,
-    notes: "Very High volume. Per endpoint = per protected user/device. DNS query logs dominate; proxy and firewall logs add substantially. S3 export recommended for high-volume deployments."
+    notes: "Very High volume. Per endpoint = per protected user/device. DNS query logs dominate; proxy and firewall logs add substantially. S3 export recommended for high-volume deployments.",
+    related_uc_ids: ["10.5.1","10.5.2","10.5.3","5.6.1","5.6.2"]
   },
   {
     id: "cisco_duo",
@@ -2430,7 +2540,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1000, high: 2500 },
     eps_per_endpoint: { low: 0.005, typical: 0.03, high: 0.1 },
     default_endpoints: 500,
-    notes: "Medium volume. Per endpoint = per Duo-protected user. Auth log events scale with login frequency. Admin and telephony logs are much lower volume."
+    notes: "Medium volume. Per endpoint = per Duo-protected user. Auth log events scale with login frequency. Admin and telephony logs are much lower volume.",
+    related_uc_ids: ["9.5.1","9.5.2","9.5.3","9.5.4","9.5.5"]
   },
   {
     id: "cisco_secure_network_analytics",
@@ -2446,7 +2557,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 1000, high: 2500 },
     eps_per_endpoint: { low: 1, typical: 5, high: 30 },
     default_endpoints: 1,
-    notes: "High volume. Per endpoint = per SMC deployment. Alert events are moderate; flow summary data is high. Encrypted traffic analytics adds analytical context events."
+    notes: "High volume. Per endpoint = per SMC deployment. Alert events are moderate; flow summary data is high. Encrypted traffic analytics adds analytical context events.",
+    related_uc_ids: ["5.7.1","5.7.2","5.7.7","10.2.1","10.2.2"]
   },
   {
     id: "cisco_email_security",
@@ -2462,7 +2574,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 5, typical: 20, high: 100 },
     default_endpoints: 2,
-    notes: "High volume. Per endpoint = per ESA appliance. Message tracking and content filter logs are highest volume. AMP file analysis events add moderate overhead."
+    notes: "High volume. Per endpoint = per ESA appliance. Message tracking and content filter logs are highest volume. AMP file analysis events add moderate overhead.",
+    related_uc_ids: ["10.4.1","10.4.2","10.4.3","10.4.4","10.4.5"]
   },
   {
     id: "cisco_web_security",
@@ -2478,7 +2591,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 700, high: 1500 },
     eps_per_endpoint: { low: 10, typical: 50, high: 500 },
     default_endpoints: 2,
-    notes: "Very High volume. Per endpoint = per WSA appliance. Access log volume scales linearly with user count and browsing activity. HTTPS decryption adds ~20% more volume."
+    notes: "Very High volume. Per endpoint = per WSA appliance. Access log volume scales linearly with user count and browsing activity. HTTPS decryption adds ~20% more volume.",
+    related_uc_ids: ["10.5.1","10.5.2","10.5.3","10.5.4","10.5.5"]
   },
 
   // ── Cisco Collaboration ──
@@ -2496,7 +2610,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.005, typical: 0.03, high: 0.1 },
     default_endpoints: 500,
-    notes: "Low-Medium volume. Per endpoint = per Webex licensed user. Meeting sessions are batch-polled; participant QoS detail adds per-attendee events."
+    notes: "Low-Medium volume. Per endpoint = per Webex licensed user. Meeting sessions are batch-polled; participant QoS detail adds per-attendee events.",
+    related_uc_ids: ["11.5.1","11.5.2","11.5.3","11.3.1","11.3.2"]
   },
   {
     id: "cisco_webex_calling",
@@ -2512,7 +2627,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 700, high: 1500 },
     eps_per_endpoint: { low: 0.005, typical: 0.02, high: 0.1 },
     default_endpoints: 500,
-    notes: "Medium volume. Per endpoint = per Webex Calling user. CDR volume scales with call activity; typical user makes 10–30 calls/day."
+    notes: "Medium volume. Per endpoint = per Webex Calling user. CDR volume scales with call activity; typical user makes 10–30 calls/day.",
+    related_uc_ids: ["11.3.1","11.3.2","11.3.3","5.12.1","5.12.2"]
   },
   {
     id: "cisco_webex_contact_center",
@@ -2528,7 +2644,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.1, typical: 0.5, high: 3 },
     default_endpoints: 50,
-    notes: "Medium-High volume. Per endpoint = per contact center agent. Interaction detail records + agent state changes. High-volume contact centers can produce 1+ GB/day."
+    notes: "Medium-High volume. Per endpoint = per contact center agent. Interaction detail records + agent state changes. High-volume contact centers can produce 1+ GB/day.",
+    related_uc_ids: ["11.3.1","11.3.2","23.1.1","23.1.2"]
   },
   {
     id: "cisco_ucm",
@@ -2544,7 +2661,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 1, typical: 5, high: 25 },
     default_endpoints: 2,
-    notes: "Medium volume. Per endpoint = per UCM publisher/subscriber. CDR records scale with call volume; CMR quality records double the count."
+    notes: "Medium volume. Per endpoint = per UCM publisher/subscriber. CDR records scale with call volume; CMR quality records double the count.",
+    related_uc_ids: ["11.3.1","11.3.2","11.3.3","11.3.4","11.3.5"]
   },
 
   // ── Cisco Infrastructure & Cloud ──
@@ -2562,7 +2680,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.1, typical: 0.5, high: 3 },
     default_endpoints: 10,
-    notes: "Low-Medium volume. Per endpoint = per managed UCS/HyperFlex device. Advisory and alarm events are periodic; telemetry polled at configurable intervals."
+    notes: "Low-Medium volume. Per endpoint = per managed UCS/HyperFlex device. Advisory and alarm events are periodic; telemetry polled at configurable intervals.",
+    related_uc_ids: ["19.1.1","19.1.2","19.1.3","1.4.1","1.4.2"]
   },
   {
     id: "cisco_appdynamics",
@@ -2578,7 +2697,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 1, typical: 5, high: 30 },
     default_endpoints: 5,
-    notes: "High volume. Per endpoint = per monitored application. Health rule violations, slow transaction events, and metric data points dominate volume."
+    notes: "High volume. Per endpoint = per monitored application. Health rule violations, slow transaction events, and metric data points dominate volume.",
+    related_uc_ids: ["23.1.1","23.1.2","23.1.3","8.7.1","8.7.2"]
   },
   {
     id: "cisco_secure_access",
@@ -2594,7 +2714,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 700, high: 1500 },
     eps_per_endpoint: { low: 0.05, typical: 0.3, high: 2 },
     default_endpoints: 500,
-    notes: "High volume. Per endpoint = per protected user. Combines DNS, web, firewall, and ZTNA logs in a single platform. Volume similar to Umbrella + ZTNA combined."
+    notes: "High volume. Per endpoint = per protected user. Combines DNS, web, firewall, and ZTNA logs in a single platform. Volume similar to Umbrella + ZTNA combined.",
+    related_uc_ids: ["17.2.9","17.3.23","10.5.1","9.3.1"]
   },
   {
     id: "cisco_xdr",
@@ -2610,7 +2731,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 800, typical: 2000, high: 5000 },
     eps_per_endpoint: { low: 0.1, typical: 0.5, high: 3 },
     default_endpoints: 1,
-    notes: "Low-Medium volume. Per deployment. Correlated incidents are lower volume than raw source events. Valuable for enriching Splunk ES with cross-product context."
+    notes: "Low-Medium volume. Per deployment. Correlated incidents are lower volume than raw source events. Valuable for enriching Splunk ES with cross-product context.",
+    related_uc_ids: ["10.7.1","10.7.2","10.7.3","10.7.4","10.7.5"]
   },
   {
     id: "cisco_ind",
@@ -2626,7 +2748,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.1, typical: 0.5, high: 3 },
     default_endpoints: 1,
-    notes: "Low volume. Per deployment. Alarm and device status events. Critical for OT network visibility alongside Cyber Vision."
+    notes: "Low volume. Per deployment. Alarm and device status events. Critical for OT network visibility alongside Cyber Vision.",
+    related_uc_ids: ["14.1.1","14.1.8","14.1.10","14.1.14","5.8.3"]
   },
   {
     id: "cisco_catalyst_switches",
@@ -2642,7 +2765,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 20 },
     default_endpoints: 20,
-    notes: "Medium volume. Per endpoint = per switch. Industrial Ethernet (IE) switches in OT environments produce less syslog than campus switches. Enable selective logging levels."
+    notes: "Medium volume. Per endpoint = per switch. Industrial Ethernet (IE) switches in OT environments produce less syslog than campus switches. Enable selective logging levels.",
+    related_uc_ids: ["5.1.1","5.1.6","5.1.13","5.1.22","5.1.36"]
   },
   {
     id: "cisco_routers",
@@ -2658,7 +2782,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1200 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 15 },
     default_endpoints: 5,
-    notes: "Medium volume. Per endpoint = per router. Industrial routers (IR series) with Edge Intelligence generate additional OT telemetry events."
+    notes: "Medium volume. Per endpoint = per router. Industrial routers (IR series) with Edge Intelligence generate additional OT telemetry events.",
+    related_uc_ids: ["5.1.4","5.1.5","5.1.16","5.1.35"]
   },
   {
     id: "cisco_wlc",
@@ -2691,7 +2816,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 3,
-    notes: "Variable volume (edge-filtered). Per endpoint = per EI-enabled router/gateway. Volume depends heavily on edge filtering — deadband and change-of-value reduce by 80–95%."
+    notes: "Variable volume (edge-filtered). Per endpoint = per EI-enabled router/gateway. Volume depends heavily on edge filtering — deadband and change-of-value reduce by 80–95%.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.7","14.3.34","14.3.42"]
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -2713,7 +2839,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 20 },
     default_endpoints: 5,
-    notes: "Medium volume. Per endpoint = per connected asset group. Volume depends on number of monitored aspects and polling frequency configured in MindSphere."
+    notes: "Medium volume. Per endpoint = per connected asset group. Volume depends on number of monitored aspects and polling frequency configured in MindSphere.",
+    related_uc_ids: ["14.3.1","14.3.6","14.4.1","14.5.1"]
   },
   {
     id: "siemens_wincc",
@@ -2729,7 +2856,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 10, high: 200 },
     default_endpoints: 2,
-    notes: "High volume if historian tags exported. Per endpoint = per WinCC server. Alarm journal + operator audit is moderate; full tag history export can be 10-100x higher."
+    notes: "High volume if historian tags exported. Per endpoint = per WinCC server. Alarm journal + operator audit is moderate; full tag history export can be 10-100x higher.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25"]
   },
   {
     id: "siemens_tia_portal",
@@ -2745,7 +2873,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.01, typical: 0.1, high: 1 },
     default_endpoints: 3,
-    notes: "Low volume. Per endpoint = per engineering workstation. Important for change management audit — captures who downloaded what to which PLC."
+    notes: "Low volume. Per endpoint = per engineering workstation. Important for change management audit — captures who downloaded what to which PLC.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.9.1"]
   },
   {
     id: "siemens_sinema",
@@ -2761,7 +2890,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 1,
-    notes: "Low-Medium volume. Per deployment. VPN session and remote access logs are critical for OT security compliance."
+    notes: "Low-Medium volume. Per deployment. VPN session and remote access logs are critical for OT security compliance.",
+    related_uc_ids: ["14.1.1","14.1.10","14.1.14","5.8.3"]
   },
   {
     id: "siemens_scalance",
@@ -2777,7 +2907,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 20 },
     default_endpoints: 10,
-    notes: "Medium volume. Per endpoint = per industrial switch/router. Enable selective severity logging (Warning+) to manage volume."
+    notes: "Medium volume. Per endpoint = per industrial switch/router. Enable selective severity logging (Warning+) to manage volume.",
+    related_uc_ids: ["14.1.1","14.1.10","5.1.1","5.1.6"]
   },
   {
     id: "siemens_industrial_edge",
@@ -2793,7 +2924,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 1, typical: 5, high: 50 },
     default_endpoints: 3,
-    notes: "Variable volume. Per endpoint = per Edge device. Volume depends on deployed edge apps and their output frequency."
+    notes: "Variable volume. Per endpoint = per Edge device. Volume depends on deployed edge apps and their output frequency.",
+    related_uc_ids: ["14.3.1","14.3.6","14.3.7","14.3.42"]
   },
   {
     id: "siemens_opcenter",
@@ -2809,7 +2941,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 15 },
     default_endpoints: 1,
-    notes: "Medium volume. Per deployment. Production order and quality record events. Batch-heavy plants produce more events during shift changes."
+    notes: "Medium volume. Per deployment. Production order and quality record events. Batch-heavy plants produce more events during shift changes.",
+    related_uc_ids: ["14.2.12","14.5.1","14.5.2","14.5.3"]
   },
 
   // ── Rockwell Automation ──
@@ -2827,7 +2960,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 2,
-    notes: "Medium-High volume. Per endpoint = per FT View SE server. Alarm floods during upsets can spike 100x. FactoryTalk Diagnostics logs provide cross-product health."
+    notes: "Medium-High volume. Per endpoint = per FT View SE server. Alarm floods during upsets can spike 100x. FactoryTalk Diagnostics logs provide cross-product health.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25"]
   },
   {
     id: "rockwell_ft_historian",
@@ -2843,7 +2977,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 1,
-    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. Size for aggregated KPIs, alarm summaries, and audit events only. Raw tag rates can exceed 10K pts/sec."
+    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. Size for aggregated KPIs, alarm summaries, and audit events only. Raw tag rates can exceed 10K pts/sec.",
+    related_uc_ids: ["14.2.12","14.2.16","14.2.25","14.2.26"]
   },
   {
     id: "rockwell_plantpax",
@@ -2859,7 +2994,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 5, typical: 30, high: 300 },
     default_endpoints: 1,
-    notes: "High volume. Per deployment (plant). Alarm + batch + SOE logging. SOE data is bursty during process upsets. PlantPAx integrates ControlLogix + FT stack."
+    notes: "High volume. Per deployment (plant). Alarm + batch + SOE logging. SOE data is bursty during process upsets. PlantPAx integrates ControlLogix + FT stack.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25"]
   },
   {
     id: "rockwell_plex",
@@ -2875,7 +3011,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 1,
-    notes: "Medium volume. Per deployment. Cloud-hosted SaaS — API rate limits may apply. Production order and quality inspection events."
+    notes: "Medium volume. Per deployment. Cloud-hosted SaaS — API rate limits may apply. Production order and quality inspection events.",
+    related_uc_ids: ["14.2.12","14.5.1","14.5.2","14.5.3"]
   },
   {
     id: "rockwell_fiix",
@@ -2891,7 +3028,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 1000, high: 2500 },
     eps_per_endpoint: { low: 0.01, typical: 0.05, high: 0.3 },
     default_endpoints: 1,
-    notes: "Low volume. Per deployment. Work order creation/completion events. Valuable for correlating maintenance with process anomalies."
+    notes: "Low volume. Per deployment. Work order creation/completion events. Valuable for correlating maintenance with process anomalies.",
+    related_uc_ids: ["14.4.1","14.4.2","14.4.3","14.4.4"]
   },
   {
     id: "rockwell_thinmanager",
@@ -2907,7 +3045,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.1, typical: 0.5, high: 3 },
     default_endpoints: 1,
-    notes: "Low volume. Per ThinManager server. Session and authentication events for OT workstation access control."
+    notes: "Low volume. Per ThinManager server. Session and authentication events for OT workstation access control.",
+    related_uc_ids: ["14.3.38","14.2.1","2.5.1","2.5.2"]
   },
 
   // ── Schneider Electric ──
@@ -2925,7 +3064,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 2, typical: 15, high: 150 },
     default_endpoints: 1,
-    notes: "High volume. Per deployment. Alarm and event journal dominates; historian tag exports add substantially. Citect SCADA variant common in mining/minerals."
+    notes: "High volume. Per deployment. Alarm and event journal dominates; historian tag exports add substantially. Citect SCADA variant common in mining/minerals.",
+    related_uc_ids: ["14.2.1","14.2.7","14.3.1","14.5.1"]
   },
   {
     id: "schneider_ecostruxure_building",
@@ -2941,7 +3081,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 1, typical: 5, high: 30 },
     default_endpoints: 1,
-    notes: "Medium volume. Per building/campus. BACnet point trend logging is primary volume. Large campuses with multiple buildings multiply accordingly."
+    notes: "Medium volume. Per building/campus. BACnet point trend logging is primary volume. Large campuses with multiple buildings multiply accordingly.",
+    related_uc_ids: ["14.1.45","14.1.46","14.3.24","14.3.1"]
   },
   {
     id: "schneider_ecostruxure_power",
@@ -2957,7 +3098,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 20 },
     default_endpoints: 5,
-    notes: "Medium volume. Per endpoint = per metered electrical panel/bus. ION meters log at configurable intervals. Power quality events are bursty during disturbances."
+    notes: "Medium volume. Per endpoint = per metered electrical panel/bus. ION meters log at configurable intervals. Power quality events are bursty during disturbances.",
+    related_uc_ids: ["14.3.1","14.3.6","14.5.1","14.5.2"]
   },
   {
     id: "schneider_triconex",
@@ -2973,7 +3115,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.01, typical: 0.1, high: 50 },
     default_endpoints: 1,
-    notes: "Very Low steady state, extreme bursts during safety trips. Per SIS controller. SOE data is compliance-critical (IEC 61511). Trip events spike 100-1000x for minutes."
+    notes: "Very Low steady state, extreme bursts during safety trips. Per SIS controller. SOE data is compliance-critical (IEC 61511). Trip events spike 100-1000x for minutes.",
+    related_uc_ids: ["14.2.1","14.2.15","14.2.25","14.9.1"]
   },
   {
     id: "schneider_powerlogic",
@@ -2989,7 +3132,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 0.1, typical: 0.5, high: 3 },
     default_endpoints: 10,
-    notes: "Low-Medium volume. Per endpoint = per power meter. Typical 15-60 sec polling intervals. Power quality waveform captures are much larger but infrequent."
+    notes: "Low-Medium volume. Per endpoint = per power meter. Typical 15-60 sec polling intervals. Power quality waveform captures are much larger but infrequent.",
+    related_uc_ids: ["14.3.1","14.3.6","14.5.1","14.5.2"]
   },
 
   // ── ABB ──
@@ -3007,7 +3151,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 5,
-    notes: "Medium volume. Per endpoint = per monitored asset group. KPI and condition monitoring summaries; raw vibration data stays in ABB cloud."
+    notes: "Medium volume. Per endpoint = per monitored asset group. KPI and condition monitoring summaries; raw vibration data stays in ABB cloud.",
+    related_uc_ids: ["14.3.1","14.3.6","14.4.1","14.5.1"]
   },
   {
     id: "abb_800xa",
@@ -3023,7 +3168,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 5, typical: 30, high: 300 },
     default_endpoints: 1,
-    notes: "High volume. Per deployment (plant). Alarm + batch + audit logging. 800xA integrates control, safety, electrical, and telecoms in one platform."
+    notes: "High volume. Per deployment (plant). Alarm + batch + audit logging. 800xA integrates control, safety, electrical, and telecoms in one platform.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25"]
   },
   {
     id: "abb_robotics",
@@ -3039,7 +3185,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.1, typical: 1, high: 5 },
     default_endpoints: 10,
-    notes: "Low-Medium volume. Per endpoint = per robot controller. Cycle time events produce steady stream; fault/error events are bursty."
+    notes: "Low-Medium volume. Per endpoint = per robot controller. Cycle time events produce steady stream; fault/error events are bursty.",
+    related_uc_ids: ["14.2.12","14.4.1","14.5.1","14.5.2"]
   },
 
   // ── Honeywell ──
@@ -3057,7 +3204,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 5, typical: 30, high: 300 },
     default_endpoints: 1,
-    notes: "High volume. Per deployment (plant). Alarm journal and SOE are primary Splunk targets. Experion LEAP architecture may have distributed alarm sources."
+    notes: "High volume. Per deployment (plant). Alarm journal and SOE are primary Splunk targets. Experion LEAP architecture may have distributed alarm sources.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25"]
   },
   {
     id: "honeywell_phd",
@@ -3073,7 +3221,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 1,
-    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. Size for aggregated KPIs and alarm summaries only. Raw PHD can exceed 100K points/sec at source."
+    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. Size for aggregated KPIs and alarm summaries only. Raw PHD can exceed 100K points/sec at source.",
+    related_uc_ids: ["14.2.12","14.2.16","14.2.25","14.2.26"]
   },
   {
     id: "honeywell_bms",
@@ -3089,7 +3238,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 1, typical: 5, high: 30 },
     default_endpoints: 1,
-    notes: "Medium volume. Per building/campus. BACnet point trending and alarm management. Multi-building campuses multiply volume linearly."
+    notes: "Medium volume. Per building/campus. BACnet point trending and alarm management. Multi-building campuses multiply volume linearly.",
+    related_uc_ids: ["14.1.45","14.1.46","14.3.24","14.3.1"]
   },
 
   // ── Emerson ──
@@ -3107,7 +3257,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 5, typical: 30, high: 300 },
     default_endpoints: 1,
-    notes: "High volume. Per deployment (plant). Alarm + batch + SOE logging. DeltaV Batch records can be large (multi-KB per batch record). Chronicle provides SQL access."
+    notes: "High volume. Per deployment (plant). Alarm + batch + SOE logging. DeltaV Batch records can be large (multi-KB per batch record). Chronicle provides SQL access.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25"]
   },
   {
     id: "emerson_ovation",
@@ -3123,7 +3274,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 3, typical: 20, high: 200 },
     default_endpoints: 1,
-    notes: "High volume. Per power unit. SOE and trip data are compliance-critical (NERC CIP). Unit trips create massive alarm bursts."
+    notes: "High volume. Per power unit. SOE and trip data are compliance-critical (NERC CIP). Unit trips create massive alarm bursts.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25"]
   },
   {
     id: "emerson_plantweb",
@@ -3139,7 +3291,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 400, typical: 1000, high: 2500 },
     eps_per_endpoint: { low: 0.05, typical: 0.3, high: 2 },
     default_endpoints: 1,
-    notes: "Low-Medium volume. Per deployment. Device diagnostic alerts and calibration records. Valuable for predictive maintenance correlation."
+    notes: "Low-Medium volume. Per deployment. Device diagnostic alerts and calibration records. Valuable for predictive maintenance correlation.",
+    related_uc_ids: ["14.3.1","14.3.6","14.4.1","14.5.1"]
   },
 
   // ── GE Vernova / GE Digital ──
@@ -3157,7 +3310,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 1,
-    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. Size for aggregated KPIs and alarm summaries. Raw tag rates can exceed 50K samples/sec."
+    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. Size for aggregated KPIs and alarm summaries. Raw tag rates can exceed 50K samples/sec.",
+    related_uc_ids: ["14.2.12","14.2.16","14.2.25","14.2.26"]
   },
   {
     id: "ge_ifix",
@@ -3173,7 +3327,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 2,
-    notes: "Medium-High volume. Per endpoint = per SCADA server. Alarm journal is primary volume. Plant Applications adds MES-level batch and production events."
+    notes: "Medium-High volume. Per endpoint = per SCADA server. Alarm journal is primary volume. Plant Applications adds MES-level batch and production events.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25"]
   },
   {
     id: "ge_mark_vie",
@@ -3189,7 +3344,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 3000 },
     eps_per_endpoint: { low: 0.1, typical: 1, high: 50 },
     default_endpoints: 2,
-    notes: "Low steady state, extreme bursts during turbine trips. Per endpoint = per turbine/generator. Trip event bundles can contain thousands of SOE records in seconds."
+    notes: "Low steady state, extreme bursts during turbine trips. Per endpoint = per turbine/generator. Trip event bundles can contain thousands of SOE records in seconds.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25"]
   },
 
   // ── Yokogawa ──
@@ -3207,7 +3363,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 300, typical: 800, high: 2000 },
     eps_per_endpoint: { low: 5, typical: 25, high: 250 },
     default_endpoints: 1,
-    notes: "High volume. Per deployment (plant). Exaopc provides OPC gateway for third-party integration. Alarm + SOE are primary Splunk targets."
+    notes: "High volume. Per deployment (plant). Exaopc provides OPC gateway for third-party integration. Alarm + SOE are primary Splunk targets.",
+    related_uc_ids: ["14.2.1","14.2.7","14.2.15","14.2.25"]
   },
   {
     id: "yokogawa_prosafe",
@@ -3223,7 +3380,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 0.01, typical: 0.1, high: 50 },
     default_endpoints: 1,
-    notes: "Very Low steady state, extreme bursts during safety trips. Per SIS controller. SOE data is compliance-critical (IEC 61511). Integrates with CENTUM VP."
+    notes: "Very Low steady state, extreme bursts during safety trips. Per SIS controller. SOE data is compliance-critical (IEC 61511). Integrates with CENTUM VP.",
+    related_uc_ids: ["14.2.1","14.2.15","14.2.25","14.9.1"]
   },
 
   // ── AVEVA / OSIsoft ──
@@ -3241,7 +3399,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 1, typical: 20, high: 200 },
     default_endpoints: 1,
-    notes: "Massive raw volume — do NOT ingest all raw PI points. Per deployment. Size for event frames, notifications, KPI aggregates, and audit. Raw PI can handle 1M+ events/sec."
+    notes: "Massive raw volume — do NOT ingest all raw PI points. Per deployment. Size for event frames, notifications, KPI aggregates, and audit. Raw PI can handle 1M+ events/sec.",
+    related_uc_ids: ["14.2.12","14.2.16","14.2.25","14.2.26"]
   },
   {
     id: "aveva_system_platform",
@@ -3257,7 +3416,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 2,
-    notes: "Medium-High volume. Per endpoint = per Galaxy node/platform. Alarm journal is primary volume. OMI (Operations Management Interface) is the modern visualization layer."
+    notes: "Medium-High volume. Per endpoint = per Galaxy node/platform. Alarm journal is primary volume. OMI (Operations Management Interface) is the modern visualization layer.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25"]
   },
   {
     id: "aveva_historian",
@@ -3273,7 +3433,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 1, typical: 10, high: 100 },
     default_endpoints: 1,
-    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. SQL Server-based — use DB Connect with aggregate views. IDAS interfaces connect to Modbus/OPC/custom sources."
+    notes: "High raw volume — do NOT ingest all raw tags. Per deployment. SQL Server-based — use DB Connect with aggregate views. IDAS interfaces connect to Modbus/OPC/custom sources.",
+    related_uc_ids: ["14.2.12","14.2.16","14.2.25","14.2.26"]
   },
 
   // ── Building Automation ──
@@ -3291,7 +3452,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 1, typical: 5, high: 30 },
     default_endpoints: 1,
-    notes: "Medium volume. Per building/campus. Trend history and alarm management are primary data sources. Multi-building campuses multiply volume."
+    notes: "Medium volume. Per building/campus. Trend history and alarm management are primary data sources. Multi-building campuses multiply volume.",
+    related_uc_ids: ["14.1.45","14.1.46","14.3.24","14.3.1"]
   },
   {
     id: "tridium_niagara",
@@ -3307,7 +3469,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 1, typical: 5, high: 30 },
     default_endpoints: 2,
-    notes: "Medium volume. Per endpoint = per Niagara Supervisor/JACE. Multi-protocol integration makes it a BMS data hub. Common in commercial real estate and smart buildings."
+    notes: "Medium volume. Per endpoint = per Niagara Supervisor/JACE. Multi-protocol integration makes it a BMS data hub. Common in commercial real estate and smart buildings.",
+    related_uc_ids: ["14.1.45","14.1.46","14.3.24","14.3.1"]
   },
 
   // ── Other SCADA / HMI ──
@@ -3325,7 +3488,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 2, typical: 15, high: 200 },
     default_endpoints: 1,
-    notes: "Variable volume. Per Ignition Gateway. Alarm journal + tag historian are primary. Ignition's SQL-based historian is readily accessible via DB Connect. MQTT Sparkplug B is modern path."
+    notes: "Variable volume. Per Ignition Gateway. Alarm journal + tag historian are primary. Ignition's SQL-based historian is readily accessible via DB Connect. MQTT Sparkplug B is modern path.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25","14.3.1"]
   },
   {
     id: "copadata_zenon",
@@ -3341,7 +3505,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 600, high: 1500 },
     eps_per_endpoint: { low: 1, typical: 10, high: 80 },
     default_endpoints: 1,
-    notes: "Medium volume. Per deployment. Strong in pharma (audit trails), energy (IEC 61850), and food/bev (batch). Ergonomic API via zenon Service Engine."
+    notes: "Medium volume. Per deployment. Strong in pharma (audit trails), energy (IEC 61850), and food/bev (batch). Ergonomic API via zenon Service Engine.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25"]
   },
   {
     id: "vtscada",
@@ -3357,7 +3522,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 1, typical: 8, high: 60 },
     default_endpoints: 1,
-    notes: "Medium volume. Per deployment. Popular in water/wastewater utilities. Built-in historian means no separate historian to integrate."
+    notes: "Medium volume. Per deployment. Popular in water/wastewater utilities. Built-in historian means no separate historian to integrate.",
+    related_uc_ids: ["14.3.38","14.2.1","14.2.15","14.2.25"]
   },
 
   // ── PLC / Edge Platforms ──
@@ -3375,7 +3541,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 30 },
     default_endpoints: 5,
-    notes: "Variable volume. Per endpoint = per TwinCAT IPC. TwinCAT Analytics can pre-process at the edge before forwarding aggregates. Motion control diagnostics add modest volume."
+    notes: "Variable volume. Per endpoint = per TwinCAT IPC. TwinCAT Analytics can pre-process at the edge before forwarding aggregates. Motion control diagnostics add modest volume.",
+    related_uc_ids: ["14.2.1","14.2.7","14.3.32","14.9.1"]
   },
   {
     id: "phoenix_plcnext",
@@ -3391,7 +3558,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 150, typical: 400, high: 1000 },
     eps_per_endpoint: { low: 0.5, typical: 3, high: 20 },
     default_endpoints: 5,
-    notes: "Variable volume. Per endpoint = per PLCnext device. Linux-based allows standard syslog forwarding. Docker/container apps add application-level logs."
+    notes: "Variable volume. Per endpoint = per PLCnext device. Linux-based allows standard syslog forwarding. Docker/container apps add application-level logs.",
+    related_uc_ids: ["14.2.1","14.2.7","14.3.32","14.3.42"]
   },
   {
     id: "wago_pfc",
@@ -3407,7 +3575,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 100, typical: 300, high: 800 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 15 },
     default_endpoints: 5,
-    notes: "Low-Medium volume. Per endpoint = per WAGO controller. Linux-based with Docker support. Common in building automation and small-scale industrial IoT."
+    notes: "Low-Medium volume. Per endpoint = per WAGO controller. Linux-based with Docker support. Common in building automation and small-scale industrial IoT.",
+    related_uc_ids: ["14.2.1","14.2.7","14.3.32","14.3.1"]
   },
 
   // ── Robotics and CNC ──
@@ -3425,7 +3594,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.5, typical: 2, high: 10 },
     default_endpoints: 10,
-    notes: "Low-Medium volume. Per endpoint = per CNC machine. MTConnect provides standardized data model. FOCAS gives deeper Fanuc-specific diagnostics."
+    notes: "Low-Medium volume. Per endpoint = per CNC machine. MTConnect provides standardized data model. FOCAS gives deeper Fanuc-specific diagnostics.",
+    related_uc_ids: ["14.2.12","14.5.1","14.5.2","14.4.1"]
   },
   {
     id: "fanuc_robotics",
@@ -3441,7 +3611,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.1, typical: 1, high: 5 },
     default_endpoints: 10,
-    notes: "Low-Medium volume. Per endpoint = per robot controller. Cycle time events produce steady stream during production. Fault events are intermittent."
+    notes: "Low-Medium volume. Per endpoint = per robot controller. Cycle time events produce steady stream during production. Fault events are intermittent.",
+    related_uc_ids: ["14.2.12","14.4.1","14.5.1","14.5.2"]
   },
   {
     id: "kuka_robotics",
@@ -3457,7 +3628,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 200, typical: 500, high: 1200 },
     eps_per_endpoint: { low: 0.1, typical: 1, high: 5 },
     default_endpoints: 10,
-    notes: "Low-Medium volume. Per endpoint = per robot controller. KRC controllers log to XML files on the controller — can collect via cell network gateway."
+    notes: "Low-Medium volume. Per endpoint = per robot controller. KRC controllers log to XML files on the controller — can collect via cell network gateway.",
+    related_uc_ids: ["14.2.12","14.4.1","14.5.1","14.5.2"]
   },
 
   // ── CMMS / EAM ──
@@ -3475,7 +3647,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.05, typical: 0.3, high: 2 },
     default_endpoints: 1,
-    notes: "Low-Medium volume. Per deployment. Work order and maintenance events. Maximo is the industry-standard EAM; often the authoritative asset register."
+    notes: "Low-Medium volume. Per deployment. Work order and maintenance events. Maximo is the industry-standard EAM; often the authoritative asset register.",
+    related_uc_ids: ["14.4.1","14.4.2","14.4.3","14.4.4"]
   },
   {
     id: "sap_pm",
@@ -3491,7 +3664,8 @@ const OT_DATA_SOURCES = [
     bytes_per_event: { low: 500, typical: 1200, high: 3000 },
     eps_per_endpoint: { low: 0.05, typical: 0.3, high: 2 },
     default_endpoints: 1,
-    notes: "Low-Medium volume. Per deployment. Maintenance notification and work order events. Often integrated with DCS/SCADA alarm-to-notification workflows."
+    notes: "Low-Medium volume. Per deployment. Maintenance notification and work order events. Often integrated with DCS/SCADA alarm-to-notification workflows.",
+    related_uc_ids: ["14.4.1","14.4.2","14.5.1","23.2.1"]
   }
 ];
 
