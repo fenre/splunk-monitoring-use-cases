@@ -4572,7 +4572,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="cloud_function"
 
 ---
 
-### UC-4.4.5 · Cloud Control Plane API Call Volume Anomaly (MLTK)
+### UC-4.4.32 · Cloud Control Plane API Call Volume Anomaly (MLTK)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Performance

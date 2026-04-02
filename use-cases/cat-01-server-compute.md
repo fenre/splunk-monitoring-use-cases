@@ -2882,7 +2882,7 @@ index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
 
 ## Document Information
 
-- **Total Use Cases:** 121 (UC-1.1.21 through UC-1.1.141)
+- **Total Use Cases:** 121 (UC-1.1.21 through UC-1.1.131)
 - **Coverage Areas:** Kernel/System, Storage, Memory, Network, Security, Services/Processes, Logs/Audit, Performance, Hardware, Compliance, Boot
 - **All SPL Queries:** Functional and reference real Splunk_TA_nix sourcetypes
 - **Splunk_TA_nix Integration:** Comprehensive use of native Splunk_TA_nix data sources including: cpu, vmstat, df, iostat, interfaces, openPorts, package, protocol, ps, time, top, usersWithLoginPrivs, who, lsof, netstat, rlog, hardware, syslog, linux_secure, linux_audit

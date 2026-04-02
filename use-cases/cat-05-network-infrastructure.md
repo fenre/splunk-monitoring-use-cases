@@ -6144,7 +6144,7 @@ index=network sourcetype=snmptrap
 | stats count by severity, state, thousandeyes.test.name
 | sort -count
 ```
-- **Implementation:** Events with type "DNS Issue" are fetched via the Event input at the configured interval. Filter by `severity` (high, medium, low) and `state` (active, resolved) to focus on current issues. Correlate with DNS availability metrics from UC-5.10.13.
+- **Implementation:** Events with type "DNS Issue" are fetched via the Event input at the configured interval. Filter by `severity` (high, medium, low) and `state` (active, resolved) to focus on current issues. Correlate with DNS availability metrics from UC-5.10.6.
 - **Visualization:** Events timeline, Table (test, severity, state), Single value (active DNS issues).
 - **CIM Models:** N/A
 

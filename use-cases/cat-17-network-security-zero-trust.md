@@ -1220,7 +1220,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-30d
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
-- **Value:** Statistical outliers in VPN session length — unusually short (brute probe) or long (unattended tunnel) vs UC-17.3.10 fixed thresholds.
+- **Value:** Statistical outliers in VPN session length — unusually short (brute probe) or long (unattended tunnel) vs UC-17.3.8 fixed thresholds.
 - **App/TA:** VPN TA
 - **Equipment Models:** Cisco ASA
 - **Data Sources:** `vpn:session` or ASA with start/end

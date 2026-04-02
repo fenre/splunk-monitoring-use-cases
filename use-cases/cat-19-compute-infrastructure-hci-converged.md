@@ -492,7 +492,7 @@ index=cisco_intersight sourcetype="cisco:intersight:alarms" affected_object_type
 
 #### 19.1 HCI Platforms (Nutanix)
 
-### UC-19.1.7 · Nutanix Prism Central Alert Monitoring
+### UC-19.1.26 · Nutanix Prism Central Alert Monitoring
 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
@@ -519,7 +519,7 @@ index=nutanix sourcetype="nutanix:prism_central:alerts"
 
 ---
 
-### UC-19.1.8 · Nutanix AOS Version Compliance
+### UC-19.1.27 · Nutanix AOS Version Compliance
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
@@ -543,7 +543,7 @@ index=nutanix sourcetype="nutanix:prism_central:clusters"
 
 ---
 
-### UC-19.1.9 · Nutanix Snapshot Retention Compliance
+### UC-19.1.28 · Nutanix Snapshot Retention Compliance
 
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate

@@ -10,7 +10,36 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [5.6] - 2026-03-26
+## [4.0] - 2026-04-02
+
+### Cisco Network Intelligence UI
+
+- **Complete UI redesign** — The entire site now uses the Cisco Network Intelligence design system: blue header bar, pill-shaped elements, card-based layouts, and a clean light/dark mode with proper contrast across all elements.
+- **My Equipment overhaul** — Equipment inventory rebuilt with DSA-style source cards showing use case counts, data source counts, and model counts per equipment. Serves as both a use case filter and a direct DSA launcher with the "Estimate Sizing →" button.
+- **Data Sizing Assessment integration** — Equipment selected in My Equipment maps to DSA data sources. Launch DSA pre-populated from inventory or from the bottom sizing tray with combined equipment + use case selections.
+- **Wider detail panel** — Use case detail panel expanded to 800px for improved readability. App/TA visualizations capped at 520px to avoid stretching.
+- **Smart sizing tray** — Bottom bar only appears when items are selected; automatically retracts when the detail panel opens to avoid overlap. Clear button now resets both use case and equipment selections.
+- **Subcategory landing pages** — Clicking a category shows subcategory cards with descriptions, UC counts, and criticality breakdowns before diving into the full list.
+- **Breadcrumb navigation** — Hierarchical breadcrumbs on category and subcategory views for easier wayfinding.
+- **Accessibility** — Keyboard focus styles, ARIA roles, and tabindex on sidebar items. Print stylesheet expanded. JSON-LD structured data restored.
+- **Dark mode hardened** — Comprehensive audit of all UI elements for proper contrast and visibility in dark mode, including badges, tags, inputs, buttons, overlays, and colorblind-friendly combinations.
+
+---
+
+## [3.25] - 2026-04-01
+
+### Data Sizing Assessment Tool
+
+- **New companion tool** &mdash; Interactive Data Sizing Assessment (DSA) tool added under `tools/data-sizing/`. Helps customers estimate Splunk data ingest volume (GB/day, EPS, events/day) by selecting equipment and data sources from a catalog of 206+ entries.
+- **9 source categories** &mdash; Security Sources, IT Systems & Hardware, OT System Sources, Network Sources, OT Hardware & Sensors, Protocols, Business & Compliance, Cisco Products, and OT Vendor Systems.
+- **Two sizing models** &mdash; Endpoint sources (EPS-based) and Protocol sources (tag/poll-based) with configurable parameters per source.
+- **Outputs** &mdash; Total GB/day, EPS, events/day, recommended Splunk license tier, storage estimates with retention and compression, peak headroom with burst factor, and CSV export.
+- **Cross-linked to use cases** &mdash; 28 key data sources include `related_uc_ids` linking to relevant monitoring use cases in the main catalog. Source detail modal shows clickable links.
+- **Bidirectional navigation** &mdash; Footer link from main catalog to the DSA tool; header link from DSA back to the Use Case Catalog.
+
+---
+
+## [3.24] - 2026-03-26
 
 ### Audit Fixes — Verified Sourcetypes, Fields, and SPL
 
@@ -22,7 +51,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [5.5] - 2026-03-26
+## [3.23] - 2026-03-26
 
 ### UI — Subcategory Navigation & Source Catalog Updates
 
@@ -32,7 +61,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [5.4] - 2026-03-26
+## [3.22] - 2026-03-26
 
 ### gNMI / gRPC Streaming Telemetry — New Section 5.11
 
@@ -43,7 +72,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [5.3] - 2026-03-26
+## [3.21] - 2026-03-26
 
 ### Nozomi Networks — Multi-Vendor OT Security
 
@@ -55,7 +84,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [4.3] - 2026-03-26
+## [3.20] - 2026-03-26
 
 ### My Environment Inventory
 
@@ -67,7 +96,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [5.0] - 2026-03-26
+## [3.19] - 2026-03-26
 
 ### Business Analytics & Executive Intelligence — New Category 23
 
@@ -89,7 +118,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [5.2] - 2026-03-26
+## [3.18] - 2026-03-26
 
 ### Citrix — uberAgent & Expanded Data Center Coverage
 
@@ -99,7 +128,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [5.1] - 2026-03-26
+## [3.17] - 2026-03-26
 
 ### Cisco Data Center — Expanded Coverage
 
@@ -110,7 +139,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [4.6] - 2026-03-26
+## [3.16] - 2026-03-26
 
 ### DORA — Full Digital Operational Resilience Coverage
 
@@ -133,7 +162,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [4.5] - 2026-03-26
+## [3.15] - 2026-03-26
 
 ### GDPR — Comprehensive Article Coverage Expansion
 
@@ -156,7 +185,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [4.4] - 2026-03-26
+## [3.14] - 2026-03-26
 
 ### NIS2 Directive — Full Article 21 & Article 23 Coverage
 
@@ -169,7 +198,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [4.3] - 2026-03-26
+## [3.13] - 2026-03-26
 
 ### Check Point Quantum Firewall & Security Expansion
 
@@ -179,7 +208,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [4.2] - 2026-03-26
+## [3.12] - 2026-03-26
 
 ### Zero Trust / SASE Vendor Expansion
 
@@ -198,7 +227,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [4.1] - 2026-03-26
+## [3.11] - 2026-03-26
 
 ### Multi-Vendor TA Coverage & Archived App Display
 
@@ -209,7 +238,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [4.0] - 2026-03-24
+## [3.10] - 2026-03-25
 
 ### Multi-Vendor Network Coverage Expansion
 
@@ -225,7 +254,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [3.9] - 2026-03-26
+## [3.9] - 2026-03-25
 
 ### Cisco Cyber Vision OT Security
 
@@ -233,7 +262,7 @@ Catalog now at 5,054 use cases across 23 categories.
 
 ---
 
-## [3.8] - 2026-03-26
+## [3.8] - 2026-03-25
 
 ### Building Management & Smart Buildings
 

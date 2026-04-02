@@ -2999,7 +2999,7 @@ index=edge-hub-logs sourcetype=edge_hub temperature_response_test=true stimulus_
 
 ## Summary
 
-All 50 new use cases (UC-14.3.8 through UC-14.3.57) are documented with:
+All 50 new use cases (UC-14.3.9 through UC-14.3.57) are documented with:
 - Real Edge Hub index names (edge-hub-data, edge-hub-logs, edge-hub-health, edge-hub-anomalies, edge-hub-snmp)
 - Real sourcetypes (splunk_edge_hub_log, splunk_edge_hub_opcua, edge_hub)
 - Realistic SPL queries using | mstats for metrics, regular search for events

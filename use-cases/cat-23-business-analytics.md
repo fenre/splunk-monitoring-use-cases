@@ -37,6 +37,7 @@ index=web sourcetype="access_combined" status=200 earliest=-7d
 ```
 - **Implementation:** (1) Map your site's URL patterns to funnel stages in the `case()` statement; (2) for SPAs, use custom event logging via HEC with page/view identifiers; (3) schedule daily and weekly for trend comparison; (4) add revenue estimates per stage using average order value lookup; (5) segment by traffic source (organic, paid, direct) using referer field.
 - **Visualization:** Funnel chart or stacked bar, Single value (overall conversion rate), Table (drop-off per stage), Line chart (daily conversion trend).
+- **CIM Models:** N/A
 
 ---
 
@@ -68,6 +69,7 @@ index=app_events sourcetype="app:ecommerce" event_type IN ("cart_add","purchase_
 ```
 - **Implementation:** (1) Instrument your e-commerce platform to send cart_add and purchase_complete events via HEC with session_id, item_value, and item_sku; (2) alert when daily abandonment rate exceeds baseline by >10 percentage points — this often signals a payment gateway issue; (3) segment by device type (mobile vs desktop) and traffic source; (4) feed abandoned session data to marketing automation for recovery emails.
 - **Visualization:** Single value (abandonment rate + trend), Line chart (daily abandonment trend), Bar chart (abandonment by device/source), Single value (abandoned revenue).
+- **CIM Models:** N/A
 
 ---
 
@@ -105,11 +107,12 @@ index=web sourcetype="access_combined" status=200 earliest=-30d
 ```
 - **Implementation:** (1) Ensure web server logs include response time (Apache: `%D`, Nginx: `$request_time`); (2) link web sessions to purchase events via session ID; (3) run monthly to build the business case for performance investment; (4) alert when average response time degrades past the "Moderate" threshold; (5) calculate the revenue uplift from moving sessions from "Slow" to "Fast" buckets.
 - **Visualization:** Bar chart (conversion rate by speed bucket), Table (revenue per session by performance), Line chart (daily avg response time vs daily revenue), Single value (estimated revenue loss from slow pages).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.1.4 · Customer Satisfaction Score (CSAT/NPS) Trend Dashboard
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
@@ -132,6 +135,7 @@ index=business sourcetype="nps_survey" earliest=-90d
 ```
 - **Implementation:** (1) Ingest survey responses via HEC or DB Connect from your survey platform (Qualtrics, Medallia, SurveyMonkey); (2) include product/service and channel fields for segmentation; (3) schedule weekly NPS calculation; (4) alert when NPS drops below threshold or week-over-week decline exceeds 10 points; (5) add text analytics on verbatim comments using `rex` for common complaint themes.
 - **Visualization:** Line chart (NPS trend), Single value (current NPS), Pie chart (Promoter/Passive/Detractor split), Word cloud or bar chart (top complaint themes from verbatims).
+- **CIM Models:** N/A
 
 ---
 
@@ -164,6 +168,7 @@ index=web sourcetype="access_combined" earliest=-30d
 ```
 - **Implementation:** (1) Unify customer identity across channels using a customer ID or email — use identity resolution lookup if needed; (2) ingest email engagement via HEC from your ESP; (3) import call centre logs from ACD/IVR systems; (4) import POS transactions from retail systems; (5) build multi-touch attribution models (first-touch, last-touch, linear, time-decay) as additional saved searches.
 - **Visualization:** Sankey diagram (channel flow), Bar chart (conversion contribution by channel), Table (customer journey paths), Single value (avg touchpoints before conversion).
+- **CIM Models:** N/A
 
 ---
 
@@ -189,6 +194,7 @@ index=app_events sourcetype IN ("app:crash","app:session") earliest=-7d
 ```
 - **Implementation:** (1) Instrument your mobile app to send crash reports and session start events via HEC; (2) include app version, OS version, device model, and user ID; (3) alert when crash rate for any version exceeds 2%; (4) track crash rate trends after new releases; (5) correlate crash-affected users with churn data to quantify business impact.
 - **Visualization:** Line chart (crash rate by version over time), Bar chart (crashes by device/OS), Single value (current crash-free rate %), Table (top crash types with user impact).
+- **CIM Models:** N/A
 
 ---
 
@@ -229,6 +235,7 @@ index=business sourcetype="dbx:crm_opportunities" earliest=-90d
 ```
 - **Implementation:** (1) Use DB Connect to query CRM opportunities table on a schedule (hourly or daily); (2) map CRM stage names to your pipeline stages; (3) build quarter-over-quarter comparison for forecast accuracy; (4) alert when pipeline coverage drops below 3x target; (5) segment by sales team, region, and product line for management reviews.
 - **Visualization:** Funnel (pipeline by stage), Single value (weighted pipeline, win rate, avg deal cycle), Bar chart (pipeline by forecast category), Line chart (pipeline trend over time).
+- **CIM Models:** N/A
 
 ---
 
@@ -259,6 +266,7 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-30d@d
 ```
 - **Implementation:** (1) Connect to ERP/billing system via DB Connect; (2) create `monthly_targets.csv` with month and target_revenue columns; (3) schedule every 4 hours for near-real-time visibility; (4) alert when run rate projects a miss of >10% against target; (5) segment by product line, region, and customer segment for management drill-down.
 - **Visualization:** Line chart (daily revenue + cumulative MTD), Single value (MTD revenue, % of target, run rate), Bar chart (daily revenue vs same day last month), Gauge (MTD progress to target).
+- **CIM Models:** N/A
 
 ---
 
@@ -302,6 +310,7 @@ index=app_events sourcetype="app:login" earliest=-90d
 ```
 - **Implementation:** (1) Instrument product usage logging via HEC (logins, feature usage, session duration); (2) import billing and subscription data via DB Connect; (3) import support ticket data from ITSM; (4) tune churn score weights based on historical churn analysis; (5) alert customer success managers daily on new high-risk accounts; (6) track intervention outcomes to refine the scoring model.
 - **Visualization:** Table (at-risk customers sorted by churn score), Gauge (portfolio health — % low risk), Bar chart (churn risk distribution), Line chart (weekly churn score trend).
+- **CIM Models:** N/A
 
 ---
 
@@ -328,11 +337,12 @@ index=business sourcetype="dbx:subscriptions" earliest=-1d@d latest=now()
 ```
 - **Implementation:** (1) Import subscription records via DB Connect including renewal dates, ARR, and product tier; (2) join with product usage data to calculate usage_pct against entitlement; (3) schedule daily and feed to CRM/account management tools; (4) alert when total ARR at risk in the 30-day window exceeds threshold; (5) create a detailed drill-down showing individual accounts with health scores.
 - **Visualization:** Table (renewals by urgency and signal), Single value (total ARR renewing in 30/60/90 days), Stacked bar (renewal pipeline by health), Timeline (renewal schedule).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.2.5 · Pricing and Discount Effectiveness Analysis
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
@@ -359,6 +369,7 @@ index=business sourcetype="dbx:crm_opportunities" stage IN ("Closed Won","Closed
 ```
 - **Implementation:** (1) Import opportunity data including list price and actual selling price; (2) calculate discount percentage at deal level; (3) run quarterly for pricing reviews; (4) alert when any rep's average discount exceeds the policy threshold; (5) segment by product, region, and deal size for nuanced analysis.
 - **Visualization:** Bar chart (win rate by discount band), Table (discount effectiveness), Scatter plot (discount % vs deal size), Single value (overall average discount).
+- **CIM Models:** N/A
 
 ---
 
@@ -396,6 +407,7 @@ index=business sourcetype="dbx:crm_opportunities" earliest=-90d
 ```
 - **Implementation:** (1) Tag CRM opportunities with campaign source using UTM parameters or CRM campaign membership; (2) maintain `marketing_spend.csv` with monthly spend by channel — update from finance/marketing ops; (3) schedule monthly for marketing reviews; (4) add time-to-revenue calculation by comparing opportunity creation date to close date; (5) segment by customer segment (enterprise, mid-market, SMB).
 - **Visualization:** Bar chart (ROI by channel), Table (full metrics per channel), Bubble chart (spend vs revenue, bubble size = deals), Single value (blended ROI, total marketing-sourced revenue).
+- **CIM Models:** N/A
 
 ---
 
@@ -426,11 +438,12 @@ index=business sourcetype="dbx:crm_leads" earliest=-90d
 ```
 - **Implementation:** (1) Import lead and opportunity records via DB Connect; (2) map your CRM status values to the standard funnel stages; (3) schedule weekly; (4) alert when any stage conversion rate drops below historical baseline; (5) segment by lead source, geography, and product interest for actionable insights.
 - **Visualization:** Funnel chart, Single values (conversion rate per stage), Line chart (weekly conversion trends), Bar chart (conversion by lead source).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.3.3 · Email Campaign Performance and Engagement
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
@@ -457,11 +470,12 @@ index=business sourcetype="email_engagement" earliest=-30d
 ```
 - **Implementation:** (1) Configure your email platform (Mailchimp, Marketo, HubSpot, Salesforce Marketing Cloud) to send engagement events via webhooks to Splunk HEC; (2) include campaign ID, event type, and recipient; (3) schedule daily summaries; (4) alert on bounce rates >5% or unsubscribe rates >1%; (5) compare A/B test variants using campaign_id segmentation.
 - **Visualization:** Table (campaign metrics), Bar chart (open/click rates by campaign), Line chart (engagement trends over time), Single value (avg open rate, avg click rate).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.3.4 · Website Traffic Source and SEO Performance
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
@@ -488,6 +502,7 @@ index=web sourcetype="access_combined" status=200 NOT uri IN ("/favicon.ico","ro
 ```
 - **Implementation:** (1) Ensure web server logs capture referer and full URI including query strings; (2) customise source classification for your UTM conventions; (3) schedule daily and weekly comparisons; (4) alert on significant organic traffic drops (possible SEO issue or algorithm change); (5) add landing page analysis by cross-referencing source with first URI per session.
 - **Visualization:** Pie chart (sessions by source), Bar chart (visitors by source), Table (quality metrics per source), Line chart (daily traffic by source).
+- **CIM Models:** N/A
 
 ---
 
@@ -527,11 +542,12 @@ index=business sourcetype="dbx:hris_employees" earliest=-365d
 ```
 - **Implementation:** (1) Import employee records via DB Connect from HRIS; (2) anonymise personal data — use employee IDs, not names; (3) schedule monthly for HR leadership reviews; (4) alert when any department's annual attrition exceeds 20%; (5) add manager-level rollup for people manager coaching; (6) compare voluntary vs involuntary terminations.
 - **Visualization:** Heatmap (department × tenure band), Bar chart (attrition by department), Line chart (monthly attrition trend), Single value (organisation-wide attrition rate).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.4.2 · Time-to-Hire and Recruiting Pipeline Health
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
@@ -557,11 +573,12 @@ index=business sourcetype="dbx:ats_requisitions" earliest=-180d
 ```
 - **Implementation:** (1) Import requisition data from ATS (Greenhouse, Lever, Workday Recruiting) via DB Connect; (2) include stage timestamps for stage-level analysis; (3) schedule weekly for talent acquisition reviews; (4) alert when any critical role is open >60 days; (5) compare recruiter performance (time-to-fill, offer acceptance rate).
 - **Visualization:** Bar chart (avg time-to-fill by department), Table (stale requisitions), Line chart (monthly hiring velocity), Single value (overall median time-to-fill).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.4.3 · Diversity and Inclusion Metrics Dashboard
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Business, Compliance
 - **Industry:** Cross-industry
@@ -580,6 +597,7 @@ index=business sourcetype="dbx:hris_employees" status="active"
 ```
 - **Implementation:** (1) Import anonymised demographic data from HRIS; (2) handle self-reported data sensitively — include "Prefer not to say"; (3) schedule monthly; (4) track representation changes over time with timechart; (5) compare new hire diversity vs existing workforce diversity; (6) measure promotion rates by demographic group to identify glass ceiling patterns.
 - **Visualization:** Stacked bar (representation by role level), Line chart (diversity trend over quarters), Table (representation vs targets), Single value (% representation by group).
+- **CIM Models:** N/A
 
 ---
 
@@ -610,6 +628,7 @@ index=business sourcetype="lms_completion" mandatory="yes"
 ```
 - **Implementation:** (1) Import LMS completion data via HEC webhooks or DB Connect; (2) mark courses as mandatory/optional; (3) alert managers when team members have overdue mandatory training; (4) schedule daily for compliance reporting; (5) produce audit-ready reports showing completion rates by department and deadline.
 - **Visualization:** Stacked bar (completion status by course), Table (overdue employees), Single value (overall compliance rate %), Gauge (mandatory training completion).
+- **CIM Models:** N/A
 
 ---
 
@@ -644,6 +663,7 @@ index=business sourcetype="dbx:erp_orders" earliest=-90d
 ```
 - **Implementation:** (1) Import order lifecycle events from ERP via DB Connect; (2) ensure each stage transition is logged with timestamp; (3) define standard stages (Ordered → Confirmed → Picked → Packed → Shipped → Delivered → Invoiced → Paid); (4) schedule weekly for operations reviews; (5) alert when average cycle time exceeds target; (6) segment by product category, customer tier, and warehouse for targeted improvement.
 - **Visualization:** Waterfall chart (time per stage), Bar chart (avg vs P95 by stage), Line chart (cycle time trend), Single value (overall avg order-to-cash days).
+- **CIM Models:** N/A
 
 ---
 
@@ -673,6 +693,7 @@ index=business sourcetype="dbx:inventory" earliest=-1d@d latest=now()
 ```
 - **Implementation:** (1) Import inventory snapshot via DB Connect daily from ERP/WMS; (2) calculate rolling average daily demand from sales history; (3) include supplier lead times in the lookup; (4) alert purchasing team immediately on STOCKOUT and CRITICAL items; (5) generate a weekly overstock report for markdown/clearance decisions; (6) integrate with demand forecasting model outputs for improved accuracy.
 - **Visualization:** Table (exception list), Single value (items in stockout, total revenue at risk), Gauge (% of SKUs at healthy levels), Bar chart (stockout risk by category).
+- **CIM Models:** N/A
 
 ---
 
@@ -703,6 +724,7 @@ index=business sourcetype="dbx:purchase_orders" actual_delivery_date=* earliest=
 ```
 - **Implementation:** (1) Import purchase order data including promised and actual delivery dates via DB Connect; (2) define your OTIF tolerance (e.g., ±1 day for "on time"); (3) schedule monthly for supplier reviews; (4) alert procurement when any strategic supplier's OTIF drops below 90%; (5) share supplier scorecards via scheduled PDF reports.
 - **Visualization:** Table (supplier scorecard), Bar chart (OTIF by supplier), Line chart (OTIF trend over months), Single value (overall OTIF rate).
+- **CIM Models:** N/A
 
 ---
 
@@ -729,6 +751,7 @@ index=business sourcetype="dbx:shipments" actual_delivery=* earliest=-30d
 ```
 - **Implementation:** (1) Import shipment tracking data from TMS or carrier APIs via HEC; (2) map carrier service levels to your customer-facing delivery promises; (3) schedule daily for logistics team; (4) alert when any carrier/service_level combination drops below 95% compliance; (5) calculate financial impact of late deliveries (refunds, credits, lost customers).
 - **Visualization:** Bar chart (SLA compliance by carrier), Table (carrier scorecard), Heatmap (carrier × region), Single value (overall SLA compliance %).
+- **CIM Models:** N/A
 
 ---
 
@@ -768,6 +791,7 @@ index=business sourcetype="dbx:ar_invoices" status="open" earliest=-1y
 ```
 - **Implementation:** (1) Import open AR invoices via DB Connect from ERP; (2) schedule daily; (3) alert collections team when any customer exceeds 60 days overdue; (4) calculate DSO: (AR balance / revenue) × days in period; (5) trend DSO monthly for CFO reporting; (6) segment by customer segment and region for targeted collection strategies.
 - **Visualization:** Stacked bar (AR by aging bucket), Table (top overdue customers), Single value (total overdue, DSO), Line chart (DSO trend).
+- **CIM Models:** N/A
 
 ---
 
@@ -798,6 +822,7 @@ index=business sourcetype="expense_reports" earliest=-90d
 ```
 - **Implementation:** (1) Import expense data from expense management system (Concur, Expensify, SAP) via DB Connect or HEC; (2) tune approval threshold amounts to match your policy (e.g., $500); (3) schedule weekly for finance review; (4) compare duplicate merchant/date/amount combinations across employees; (5) build a peer comparison model by role and department for more accurate outlier detection.
 - **Visualization:** Table (flagged employees with reasons), Bar chart (anomaly types), Single value (% of expenses flagged), Scatter plot (amount vs department average).
+- **CIM Models:** N/A
 
 ---
 
@@ -828,6 +853,7 @@ index=business sourcetype="dbx:gl_transactions" earliest=-1mon@mon latest=@mon
 ```
 - **Implementation:** (1) Import GL transaction data via DB Connect from ERP; (2) maintain `budget_plan.csv` with approved budget by cost centre and GL account; (3) schedule monthly after period close; (4) add YTD cumulative view alongside monthly; (5) alert department heads when any cost centre exceeds budget by >10%; (6) enable drill-down to individual transactions for variance investigation.
 - **Visualization:** Bar chart (variance by cost centre), Table (over-budget items), Gauge (department spend vs budget), Line chart (cumulative spend vs budget over months).
+- **CIM Models:** N/A
 
 ---
 
@@ -857,6 +883,7 @@ index=business sourcetype="payment_gateway" earliest=-24h
 ```
 - **Implementation:** (1) Forward payment gateway events to Splunk via HEC; (2) include transaction details, decline codes, and amounts; (3) alert immediately when success rate drops below 95% — likely a gateway issue; (4) analyse decline reasons to identify recoverable declines (e.g., retry logic, alternative payment methods); (5) track by country for regional payment method optimisation.
 - **Visualization:** Single value (overall success rate, revenue lost today), Line chart (success rate over time), Bar chart (decline reasons), Table (performance by payment method).
+- **CIM Models:** N/A
 
 ---
 
@@ -897,11 +924,12 @@ index=itsm sourcetype="snow:incident" earliest=-30d
 ```
 - **Implementation:** (1) Configure ServiceNow TA for incident ingestion; (2) map your SLA targets by priority; (3) schedule every 4 hours for team leads; (4) alert when any team's backlog exceeds capacity threshold; (5) add first-response time tracking alongside resolution time.
 - **Visualization:** Single value (open backlog, SLA %), Bar chart (volume by team), Line chart (daily ticket trend), Table (team performance).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.7.2 · First Contact Resolution Rate and Escalation Patterns
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
@@ -923,11 +951,12 @@ index=itsm sourcetype="snow:incident" state="Closed" earliest=-30d
 ```
 - **Implementation:** (1) Track reassignment count and escalation events in your ticketing system; (2) define FCR criteria (resolved by original assignee, no reopens within 48h); (3) schedule weekly; (4) identify top escalation categories for targeted training; (5) compare FCR by channel (phone vs chat vs email) to understand channel effectiveness.
 - **Visualization:** Bar chart (FCR rate by category), Table (top escalation categories), Single value (overall FCR rate), Line chart (FCR trend over time).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.7.3 · Customer Effort Score and Support Channel Effectiveness
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Business
 - **Industry:** Cross-industry
@@ -950,6 +979,7 @@ index=business sourcetype="support_survey" earliest=-90d
 ```
 - **Implementation:** (1) Ingest post-interaction CES surveys via HEC; (2) use a 1-7 scale (lower = less effort = better); (3) correlate with operational data from ticketing system; (4) schedule monthly; (5) identify high-effort combinations (e.g., "Billing + Phone = high effort") for process redesign; (6) track CES trend after implementing improvements.
 - **Visualization:** Heatmap (channel × issue type), Bar chart (CES by channel), Table (highest effort combinations), Line chart (CES trend).
+- **CIM Models:** N/A
 
 ---
 
@@ -1004,6 +1034,7 @@ index=business sourcetype="support_survey" earliest=-90d
 ```
 - **Implementation:** (1) Define 8-12 executive KPIs in `executive_kpi_targets.csv` with name, target, label, and unit; (2) build individual saved searches for each KPI sourcing from the relevant business data; (3) combine into a unified scorecard using append; (4) schedule refresh every 4 hours; (5) provide drill-down links from each KPI to the detailed dashboard; (6) distribute via scheduled PDF to the executive team.
 - **Visualization:** Single value tiles (one per KPI with traffic light colors), Table (KPI vs target), Gauge or bullet charts for each metric.
+- **CIM Models:** N/A
 
 ---
 
@@ -1035,6 +1066,7 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-1mon@
 ```
 - **Implementation:** (1) Combine revenue, headcount, and process data into a unified view; (2) define "cost per transaction" calculation based on your cost structure; (3) track process automation by tagging automated vs manual processes in application logs; (4) schedule monthly for operations reviews; (5) trend over quarters to show efficiency improvements.
 - **Visualization:** Single value (revenue per employee, automation rate), Bar chart (metrics over time), Gauge (automation rate vs target), Table (efficiency metrics).
+- **CIM Models:** N/A
 
 ---
 
@@ -1079,6 +1111,7 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-1mon@
 ```
 - **Implementation:** (1) Define `business_risk_thresholds.csv` with green/amber/red thresholds per metric; (2) add risk domains relevant to your business; (3) schedule daily for executive team; (4) alert the executive team when any risk moves to RED; (5) add drill-down to the domain-specific dashboard for investigation; (6) maintain risk register notes for board reporting.
 - **Visualization:** Heatmap (risk areas × risk level), Single value tiles per domain, Table (risk register with current status), Trend chart (risk movement over time).
+- **CIM Models:** N/A
 
 ---
 
@@ -1127,11 +1160,12 @@ index=facilities sourcetype="power_meter" earliest=-1mon@mon latest=@mon
 ```
 - **Implementation:** (1) Install power and gas meters with data logging to Splunk via BMS/IoT integration; (2) maintain `carbon_factors.csv` with region-specific emission factors (update annually); (3) import fleet fuel and travel data from procurement/booking systems; (4) schedule monthly calculation; (5) compare against annual targets and prior year; (6) generate quarterly ESG report data for board and external disclosure.
 - **Visualization:** Stacked bar (emissions by scope), Pie chart (emission sources), Line chart (monthly trend vs target), Single value (total CO2e, % reduction YoY).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.9.2 · Energy Consumption and Efficiency by Facility
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Business
 - **Industry:** Cross-industry
@@ -1154,11 +1188,12 @@ index=facilities sourcetype="power_meter" earliest=-30d
 ```
 - **Implementation:** (1) Install sub-metering at system level (HVAC, lighting, compute) where possible; (2) ingest meter data via BACnet/Modbus through Edge Hub or BMS integration; (3) maintain `facility_details.csv` with building size and occupancy; (4) schedule daily; (5) alert when any site's EUI exceeds benchmark by >20%; (6) compare weekday vs weekend consumption to identify waste.
 - **Visualization:** Bar chart (EUI by facility), Heatmap (energy by system × site), Line chart (daily consumption trend), Single value (total monthly cost, EUI benchmark).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.9.3 · Waste Diversion and Recycling Rate Tracking
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance, Business
 - **Industry:** Cross-industry
@@ -1178,11 +1213,12 @@ index=business sourcetype="waste_manifest" earliest=-90d
 ```
 - **Implementation:** (1) Import waste manifests from waste management provider via CSV upload or HEC; (2) classify disposal methods consistently; (3) schedule monthly; (4) set diversion rate targets by facility; (5) alert when any site's diversion rate drops below target; (6) trend quarterly for ESG reporting.
 - **Visualization:** Bar chart (diversion rate by site), Pie chart (waste by type), Line chart (monthly diversion trend), Single value (overall diversion rate %).
+- **CIM Models:** N/A
 
 ---
 
 ### UC-23.9.4 · Water Consumption Monitoring and Conservation
-- **Criticality:** 🟢 Medium
+- **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Business
 - **Industry:** Manufacturing, Data Centers, Hospitality
@@ -1204,6 +1240,7 @@ index=facilities sourcetype="water_meter" earliest=-30d
 ```
 - **Implementation:** (1) Install smart water meters with data logging; (2) ingest readings via Edge Hub or HEC; (3) schedule daily with anomaly detection for leak identification; (4) compare consumption against production output for water intensity metrics; (5) trend quarterly for ESG reporting; (6) set reduction targets by facility.
 - **Visualization:** Bar chart (consumption by site), Line chart (daily trend with anomaly markers), Single value (monthly total, cost), Table (sites with anomalies).
+- **CIM Models:** N/A
 
 ---
 
@@ -1231,3 +1268,4 @@ index=facilities sourcetype="water_meter" earliest=-30d
 ```
 - **Implementation:** (1) Build `esg_metric_registry.csv` listing all required ESG metrics by framework (CSRD, GRI, SASB, TCFD); (2) map each metric to its Splunk data source and data owner; (3) schedule quarterly readiness checks; (4) alert data owners when their metrics have data gaps; (5) generate audit trail showing when each metric was last validated; (6) produce a readiness report for the sustainability committee.
 - **Visualization:** Table (metric readiness by framework), Gauge (overall completeness %), Bar chart (gaps by framework), Single value (metrics with gaps).
+- **CIM Models:** N/A

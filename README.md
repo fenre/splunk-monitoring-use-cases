@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring Use Cases
 
-A curated collection of **5,075+ IT infrastructure monitoring use cases** for Splunk, organized across 22 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
+A curated collection of **5,097+ IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
 
 Browse them in the **interactive dashboard** or use the **machine-readable catalog** (`catalog.json`) for automation and integrations.
 
@@ -52,6 +52,10 @@ Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over
 
 The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which has **one labeled chart per** Quick-Start use case (**44** panels = top 2 × 22 categories from `use-cases/INDEX.md`). See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`). Regenerate the JSON with **`scripts/generate_catalog_dashboard.py`** after changing Quick Start lists.
 
+### Data Sizing Assessment Tool
+
+Open **`tools/data-sizing/`** (or click "Data Sizing Tool" in the dashboard footer) to estimate Splunk data ingest volume. Select equipment and data sources from a catalog of 206+ entries, configure endpoints/tags and polling rates, and get GB/day, EPS, license tier recommendations, and storage estimates. Exports a CSV sizing report. Key data sources link back to relevant use cases in the main catalog.
+
 ### Cribl / Splunk datagen (POC)
 
 **`docs/guides/datagen-top10-use-cases.md`** describes how to drive **Cribl Stream Datagen** (or HEC) for **ten** representative catalog use cases, with **`eventgen_data/manifest-top10.json`**, sample lines under **`eventgen_data/samples/`**, and scripts **`scripts/generate_manifest_samples.py`** and **`scripts/parse_uc_catalog.py`**. See **`eventgen_data/README.md`**.
@@ -62,14 +66,15 @@ The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **s
 
 ```
 .
-├── use-cases/              Source of truth: 22 category files + INDEX.md
+├── use-cases/              Source of truth: 23 category files + INDEX.md
 │   ├── INDEX.md            Category metadata (icons, descriptions, quick starters)
 │   ├── cat-00-preamble.md  Legend and field descriptions (not a category)
 │   ├── cat-01-server-compute.md
 │   ├── ...
 │   ├── cat-20-cost-capacity-management.md
 │   ├── cat-21-industry-verticals.md
-│   └── cat-22-regulatory-compliance.md
+│   ├── cat-22-regulatory-compliance.md
+│   └── cat-23-business-analytics.md
 ├── build.py                Parses markdown, emits data.js and catalog.json
 ├── validate_md.py          Validates structure and UC-ID consistency
 ├── scripts/                Utilities (e.g. deploy Dashboard Studio via REST, regenerate catalog JSON)
@@ -82,6 +87,8 @@ The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **s
 ├── llms-full.txt           Complete UC listing for LLMs
 ├── sitemap.xml             Search engine sitemap
 ├── robots.txt              Crawler directives
+├── tools/                  Companion tools
+│   └── data-sizing/        Data Sizing Assessment — ingest volume estimator
 ├── dashboards/             Optional Splunk Dashboard Studio JSON (synthetic demo data)
 │   ├── README.md           Import instructions
 │   ├── catalog-quick-start-top2.json
@@ -108,7 +115,7 @@ The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **s
 
 ---
 
-## Technology Domains (22 Categories)
+## Technology Domains (23 Categories)
 
 | # | Category | Examples |
 |---|----------|----------|
@@ -134,6 +141,7 @@ The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **s
 | 20 | Cost & Capacity Management | Cloud cost, rightsizing, forecasting |
 | 21 | Industry Verticals | Energy, manufacturing, healthcare, telecom, transportation, retail, aviation, insurance |
 | 22 | Regulatory & Compliance Frameworks | GDPR, NIS2, DORA, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2 |
+| 23 | Business Analytics | Executive dashboards, KPI tracking, data quality |
 
 ---
 
@@ -166,7 +174,7 @@ Additional fields are available for security use cases (MITRE ATT&CK, detection 
 - **Search** across all use cases by keyword, UC-ID, or SPL content (Cmd/Ctrl+K shortcut)
 - **Filter by equipment** you have (e.g. "Cisco", "AWS", "VMware") with optional model-level drill-down
 - **Sort** by criticality, difficulty, name, or category
-- **Virtual scrolling** for large lists (5,075+ use cases rendered on demand)
+- **Virtual scrolling** for large lists (5,097+ use cases rendered on demand)
 - **Non-technical view** with plain-language outcomes per category
 - **Quick-win starters** highlighted per category for fast implementation
 - **Print-friendly** layout with dedicated print stylesheet
