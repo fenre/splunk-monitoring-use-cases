@@ -1,6 +1,6 @@
-# 1. Server & Compute
+## 1. Server & Compute
 
-## 1.1 Linux Servers
+### 1.1 Linux Servers
 
 **Primary App/TA:** Splunk Add-on for Unix and Linux (`Splunk_TA_nix`) — Splunkbase #833
 
@@ -2880,18 +2880,7 @@ index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
 
 ---
 
-## Document Information
-
-- **Total Use Cases:** 121 (UC-1.1.21 through UC-1.1.131)
-- **Coverage Areas:** Kernel/System, Storage, Memory, Network, Security, Services/Processes, Logs/Audit, Performance, Hardware, Compliance, Boot
-- **All SPL Queries:** Functional and reference real Splunk_TA_nix sourcetypes
-- **Splunk_TA_nix Integration:** Comprehensive use of native Splunk_TA_nix data sources including: cpu, vmstat, df, iostat, interfaces, openPorts, package, protocol, ps, time, top, usersWithLoginPrivs, who, lsof, netstat, rlog, hardware, syslog, linux_secure, linux_audit
-- **Criticality Distribution:** 33 Critical, 56 High, 30 Medium, 2 Low (reflects operational importance)
-- **Implementation Depth:** Each use case includes realistic Splunk deployment guidance with Splunk_TA_nix input references
-
----
-
-## 1.2 Windows Servers
+### 1.2 Windows Servers
 
 **Primary App/TA:** Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`) — Free on Splunkbase
 
@@ -5965,7 +5954,7 @@ index=os sourcetype=windows_pending_reboot host=*
 
 ---
 
-## 1.3 macOS Endpoints
+### 1.3 macOS Endpoints
 
 **Primary App/TA:** Splunk Universal Forwarder for macOS with custom scripted inputs (no official Splunkbase TA — use Splunk_TA_nix where applicable, or custom inputs)
 
@@ -6094,7 +6083,7 @@ index=os sourcetype=macos_gatekeeper host=*
 
 ---
 
-## 1.4 Bare-Metal / Hardware
+### 1.4 Bare-Metal / Hardware
 
 **Primary App/TA:** Custom scripted inputs (`ipmitool`, `smartctl`, `storcli`), vendor management APIs (iDRAC/iLO), SNMP Modular Input
 

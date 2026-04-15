@@ -538,6 +538,11 @@ window.NON_TECHNICAL = {
         { id: "11.3.48", why: "We monitor instant messaging and presence services — when they fail, everyone shows as 'unknown' status." },
         { id: "11.3.49", why: "We watch the voicemail system so messages don't get lost or delayed." }
       ]},
+      { name: "Pexip video conferencing", description: "Pexip Infinity video meetings, call quality, node capacity, and gateway routing. We help you keep video meetings running across SIP, Teams, and WebRTC.", ucs: [
+        { id: "11.3.52", why: "We monitor call quality for every participant — finding the sites and endpoints with choppy video before users complain." },
+        { id: "11.3.53", why: "We watch conferencing node load so new meetings don't get rejected because a server ran out of capacity." },
+        { id: "11.3.55", why: "We catch platform alarms — licensing warnings, node failures, certificate expiry — before they cause meeting outages." }
+      ]},
       { name: "Mail transport & relay", description: "On-premises mail servers, SMTP relays, and mail queue health. We help you keep email flowing.", ucs: [
         { id: "11.4.1", why: "Monitor SMTP service availability — if it goes down, no emails get sent." },
         { id: "11.4.3", why: "Watch email queue depth — backed-up queues mean delayed messages." },
@@ -694,6 +699,11 @@ window.NON_TECHNICAL = {
         { id: "14.6.5", why: "Audit Modbus function codes — some codes should rarely appear in normal operations." },
         { id: "14.6.20", why: "Detect unknown protocols on your OT network — they should not be there." }
       ]},
+      { name: "Litmus Edge industrial IoT gateway", description: "We monitor Litmus Edge gateways that connect factory PLCs and sensors to your data platform. We watch connectivity, data pipelines, and fleet health across sites.", ucs: [
+        { id: "14.7.1", why: "We check that every Litmus Edge gateway is connected and reporting — if it drops off, you lose visibility into that part of the factory." },
+        { id: "14.7.4", why: "We audit whether all expected sensor readings are arriving — missing data means dashboards and alarms go blind." },
+        { id: "14.7.7", why: "We track the health of your entire Litmus Edge fleet across sites — so one failing gateway does not go unnoticed." }
+      ]},
       { name: "IoT & OT trending", description: "We watch plant and fleet metrics over weeks and months — who is online, data quality, equipment effectiveness, and maintenance signals.", ucs: [
         { id: "14.8.1", why: "We track what share of your devices are reporting — drops warn you before you lose visibility on the plant floor." },
         { id: "14.8.2", why: "We trend bad or missing sensor readings — so data quality problems are fixed before dashboards and alarms go blind." },
@@ -843,6 +853,11 @@ window.NON_TECHNICAL = {
         { id: "19.2.1", why: "Watch overall cluster health — a degraded cluster puts workloads at risk." },
         { id: "19.2.5", why: "Get alerted when a disk fails so it can be replaced before data is lost." },
         { id: "19.2.2", why: "Track storage pool capacity — running out of storage stops everything." }
+      ]},
+      { name: "Azure Stack HCI", description: "Microsoft on-premises hyper-converged clusters. We watch cluster health, storage pools, updates, and cloud connection so virtual machines stay available.", ucs: [
+        { id: "19.3.1", why: "Catch cluster validation or quorum problems early — they can block live migration when you need it most." },
+        { id: "19.3.2", why: "See when storage pools are full or cache tiers are out of balance — slow storage affects every virtual machine." },
+        { id: "19.3.4", why: "Know when Azure Arc stops reporting — without it, patching and policy may not reach your servers." }
       ]}
     ]
   },

@@ -20,12 +20,11 @@ index=storage sourcetype="netapp:ontap:volume"
 | where pct_used > 85
 | sort -pct_used
 ```
-- **References:** [Splunk Add-on for NetApp](https://splunkbase.splunk.com/app/1664), vendor REST/SNMP documentation
-- **Known false positives:** Temporary spikes during snapshots or replication; use rolling average or exclude known maintenance windows.
-
 - **Implementation:** Deploy vendor TA on a heavy forwarder. Configure REST API polling (every 15 min) for volume metrics. Create alert for >85% and >95% thresholds. Build capacity forecast using `predict` command.
 - **Visualization:** Line chart (capacity trend per volume), Single value (current % used), Table (volumes above threshold).
 - **CIM Models:** N/A
+- **References:** [Splunk Add-on for NetApp](https://splunkbase.splunk.com/app/1664), vendor REST/SNMP documentation
+- **Known false positives:** Temporary spikes during snapshots or replication; use rolling average or exclude known maintenance windows.
 
 ---
 

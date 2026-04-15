@@ -1,6 +1,6 @@
-# 4. Cloud Infrastructure
+## 4. Cloud Infrastructure
 
-## 4.1 Amazon Web Services (AWS)
+### 4.1 Amazon Web Services (AWS)
 
 **Primary App/TA:** Splunk Add-on for AWS (`Splunk_TA_aws`) — Free on Splunkbase; Splunk App for AWS (optional dashboards)
 
@@ -10,6 +10,7 @@
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1526
 - **Value:** AccessDenied errors reveal reconnaissance activity, compromised credentials with insufficient permissions, or misconfigurations. Early indicator of attack or drift.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`, CloudTrail logs
@@ -42,6 +43,7 @@ index=aws sourcetype="aws:cloudtrail" errorCode="AccessDenied" OR errorCode="Una
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004
 - **Value:** The AWS root account has unrestricted access and should never be used for daily operations. Any root activity is a critical security event.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -68,6 +70,7 @@ index=aws sourcetype="aws:cloudtrail" userIdentity.type="Root"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1562.007, T1578
 - **Value:** Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -95,6 +98,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="AuthorizeSecurityGroupIngress" 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.001, T1098.003
 - **Value:** IAM policy changes affect who can do what across the entire AWS account. Unauthorized policy attachments can grant admin access.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -121,6 +125,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="CreatePolicy" OR eventName="At
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078.004
 - **Value:** Console access without MFA is a security risk — compromised passwords alone can grant full account access. Most compliance frameworks require MFA.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -149,6 +154,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="ConsoleLogin" responseElements.
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1578.002, T1578.003
 - **Value:** Tracks instance lifecycle for audit and change management. Unexpected terminations indicate accidents, auto-scaling issues, or attacks.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -175,6 +181,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="RunInstances" OR eventName="Te
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1530, T1619
 - **Value:** S3 bucket policy changes can expose sensitive data to the public internet. One of the most common cloud security incidents.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -201,6 +208,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="PutBucketPolicy" OR eventName=
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** GuardDuty provides ML-powered threat detection for AWS accounts. Centralizing findings in Splunk enables correlation with other security data.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatch:guardduty`
@@ -223,6 +231,7 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** VPC Flow Logs provide network-level visibility into all traffic. Detects rejected traffic, data exfiltration, lateral movement, and network anomalies.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatchlogs:vpcflow`
@@ -336,6 +345,7 @@ index=aws sourcetype="aws:billing"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578
 - **Value:** AWS Config rules continuously evaluate resource compliance against security best practices. Non-compliant resources are attack surface.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:config:notification`
@@ -355,6 +365,7 @@ index=aws sourcetype="aws:config:notification" configRuleList{}.complianceType="
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078.004, T1530
 - **Value:** Encryption key usage audit ensures data protection compliance. Unusual key access patterns may indicate unauthorized data decryption.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail`
@@ -407,6 +418,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="AllocateAddress" OR eventName=
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1578
 - **Value:** Drift means infrastructure no longer matches its declared template — manual changes have been made. This breaks IaC and causes inconsistencies.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail` (DetectStackDrift events)
@@ -434,6 +446,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="DetectStackDrift" OR eventName=
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580
 - **Value:** WAF blocks reveal attack patterns targeting your applications. Analysis helps tune rules and understand the threat landscape.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:waf` (WAF logs via S3 or Kinesis)
@@ -644,6 +657,7 @@ index=aws sourcetype="aws:cloudwatch:events" detail-type="EC2 Spot Instance Inte
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562.008
 - **Value:** Failed CloudTrail delivery means audit gaps. Attackers may target trail deletion or S3 permissions to hide activity.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** CloudTrail insight events, S3 bucket event notifications, or CloudWatch Logs for trail validation
@@ -726,6 +740,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/VPN" metric_name="TunnelSta
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.003
 - **Value:** SCP (Service Control Policy) and OU structure changes affect permissions across many accounts. Unauthorized changes can weaken security boundaries.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail` (management account or delegated admin)
@@ -923,6 +938,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/EFS" metric_name="BurstCred
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1526, T1613
 - **Value:** Inspector findings (EC2, ECR, Lambda) identify vulnerabilities. Tracking trends and new critical findings supports patch and image hygiene.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** Inspector findings via EventBridge or SNS, or Security Hub (which aggregates Inspector)
@@ -1076,6 +1092,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/Lambda" metric_name="Thrott
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1610, T1613
 - **Value:** ECR image scan finds CVEs in container images. Critical/high findings in production images require immediate remediation or rollback.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** ECR scan findings via EventBridge (ECR Image Scan), or Security Hub
@@ -1133,6 +1150,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/Kinesis" metric_name="GetRe
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.001, T1078.004
 - **Value:** Failed rotation leaves stale credentials. Unusual access patterns may indicate credential abuse. Audit supports compliance and incident response.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** CloudTrail (RotateSecret, GetSecretValue, DescribeSecret)
@@ -1237,6 +1255,7 @@ index=aws (sourcetype="aws:config:notification" resourceType="AWS::EC2::TransitG
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1530, T1619
 - **Value:** Unusual ListBucket volume, access from new regions, or anonymous reads often precede data exfiltration; pattern detection reduces dwell time.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail` (s3.amazonaws.com), optional S3 server access logs `sourcetype=aws:s3:accesslogs`
@@ -1258,6 +1277,7 @@ index=aws sourcetype="aws:cloudtrail" eventSource="s3.amazonaws.com" eventName="
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** Security Hub rolls up Config, GuardDuty, Inspector, and partner findings; aggregating by account and severity prioritizes remediation queues.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:firehose` or `sourcetype=aws:cloudwatch:events` (Security Hub findings), EventBridge to Splunk
@@ -1281,6 +1301,7 @@ index=aws sourcetype="aws:cloudwatch:events" detail-type="Security Hub Findings 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1562.007
 - **Value:** NACL changes can open subnets to the internet or break least-privilege segmentation; they are less common than security groups and warrant explicit audit.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudtrail` (ec2.amazonaws.com CreateNetworkAclEntry, ReplaceNetworkAclEntry, DeleteNetworkAclEntry)
@@ -1339,6 +1360,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/ECS" (metric_name="CPUUtili
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1613, T1609
 - **Value:** Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EKS.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** EKS control plane logs in `sourcetype=aws:cloudwatchlogs` (cluster audit), CloudTrail `eks.amazonaws.com` API
@@ -1359,6 +1381,7 @@ index=aws sourcetype="aws:cloudwatchlogs" log_group="/aws/eks/*/cluster"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** Prioritizing GuardDuty findings by severity and type reduces noise and speeds triage versus raw event volume.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatch:guardduty`, GuardDuty S3 export
@@ -1378,6 +1401,7 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578
 - **Value:** Resources oscillating between COMPLIANT and NON_COMPLIANT indicate automation fights or manual changes—drift trends surface systemic issues.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:config:notification`, Config history snapshots
@@ -1542,6 +1566,7 @@ index=aws sourcetype="aws:cloudwatch" (namespace="AWS/ApplicationELB" OR namespa
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1087.004, T1580
 - **Value:** Access Analyzer identifies unintended external access to S3, IAM roles, KMS keys, and other resources—reducing public exposure risk.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events`
@@ -1621,7 +1646,7 @@ index=cloud sourcetype="aws:cloudwatch:metric" Namespace="AWS/ECS" MetricName="C
 
 ---
 
-## 4.2 Microsoft Azure
+### 4.2 Microsoft Azure
 
 **Primary App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`) — Free on Splunkbase
 
@@ -1631,6 +1656,7 @@ index=cloud sourcetype="aws:cloudwatch:metric" Namespace="AWS/ECS" MetricName="C
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** Activity Log captures all control plane operations across Azure subscriptions. Essential audit trail for resource management and compliance.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:audit`, Azure Activity Log via Event Hub
@@ -1657,6 +1683,7 @@ index=azure sourcetype="mscs:azure:audit" operationName.value="*delete*" OR oper
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1110
 - **Value:** Risky sign-ins include impossible travel, unfamiliar locations, and anonymous IP usage. Primary detection layer for account compromise.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:signinlog`, Entra ID sign-in logs
@@ -1676,6 +1703,7 @@ index=azure sourcetype="mscs:azure:signinlog" riskLevelDuringSignIn!="none"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.003, T1078.004
 - **Value:** Privileged role assignments (Global Admin, Privileged Role Admin) grant extreme power. Unauthorized assignments mean full tenant compromise.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:auditlog`, Entra ID audit logs
@@ -1703,6 +1731,7 @@ index=azure sourcetype="mscs:azure:auditlog" activityDisplayName="Add member to 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** NSG Flow Logs provide Azure network-level visibility. Detects blocked traffic, anomalous patterns, and lateral movement within VNets.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:nsgflowlog`
@@ -1779,6 +1808,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="kube-apiserver" level=
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1530
 - **Value:** Key Vault stores secrets, keys, and certificates. Unauthorized or anomalous access could indicate credential theft or data breach preparation.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:diagnostics` (Key Vault diagnostics)
@@ -1799,6 +1829,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="AuditEvent" ResourceTy
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1530, T1619
 - **Value:** Microsoft Defender provides threat detection across Azure resources. Centralizing in Splunk enables cross-platform security correlation.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Defender alerts via Event Hub
@@ -1818,6 +1849,7 @@ index=azure sourcetype="mscs:azure:defender" severity="High" OR severity="Critic
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1530, T1619
 - **Value:** Unusual storage access patterns may indicate data exfiltration or compromised service principals accessing sensitive data.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Storage analytics logs via Event Hub
@@ -2029,6 +2061,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="DeliveryFailure"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1610, T1613
 - **Value:** ACR stores container images. Unusual pull/push or image scan findings indicate abuse or vulnerable images in use.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** ACR diagnostic logs (Pull, Push), Defender for Containers / ACR vulnerability scan
@@ -2049,6 +2082,7 @@ index=azure sourcetype="mscs:azure:diagnostics" ResourceType="MICROSOFT.CONTAINE
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1562.007
 - **Value:** Firewall logs show allowed/denied traffic and threat intelligence hits. Essential for network security and incident response.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Azure Firewall diagnostic logs (AzureFirewallApplicationRule, AzureFirewallNetworkRule, AzureFirewallThreatIntelLog)
@@ -2107,6 +2141,7 @@ index=azure sourcetype="mscs:azure:audit" operationName.value="Microsoft.Insight
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004
 - **Value:** Blocked sign-ins by Conditional Access indicate policy enforcement. Tracking blocks helps tune policies and detect bypass attempts.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra ID sign-in logs (resultType=0 for success; filter for blocks)
@@ -2145,6 +2180,7 @@ index=azure sourcetype="mscs:azure:audit" category.value="ServiceHealth"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578
 - **Value:** Azure Policy enforces governance. Non-compliant resources increase risk and compliance gaps. Tracking compliance supports remediation.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Policy state change events, Azure Monitor (policy compliance API or diagnostic)
@@ -2208,6 +2244,7 @@ index=azure sourcetype="mscs:azure:diagnostics" resourceType="Microsoft.Cdn/prof
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** NSG flow logs reveal lateral movement, denied probes, and unexpected east-west volume; baselining flows speeds incident triage beyond simple allow/deny counts.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:nsgflow` or Event Hub JSON (flow records)
@@ -2246,6 +2283,7 @@ index=azure sourcetype="mscs:azure:audit" complianceState="NonCompliant"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1530
 - **Value:** Secret and key unwrap operations must be traceable for insider and breach investigations; unusual callers warrant immediate review.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:audit` (Microsoft.KeyVault vaults), diagnostic logs
@@ -2284,6 +2322,7 @@ index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Web/sites" (
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Fault
+- **MITRE ATT&CK:** T1613, T1609
 - **Value:** Control plane and node problems surface as API errors, failed mounts, and ImagePullBackOff; centralized errors shorten MTTR.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:diagnostics` (kube-audit, container logs), Azure Monitor for containers
@@ -2324,6 +2363,7 @@ index=azure sourcetype="mscs:azure:cost"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1562.007
 - **Value:** Threat intel–based denies block known-bad IPs and domains at the edge; volume and target trends indicate active campaigns or misclassified traffic.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Azure Firewall diagnostic logs (`AzureFirewallApplicationRule`, `AzureFirewallNetworkRule`), threat intel action
@@ -2343,6 +2383,7 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="AzureFirewallApplicati
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580
 - **Value:** Managed rule blocks protect origins; tracking rule IDs separates scanning noise from targeted application abuse.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Front Door diagnostic logs (WebApplicationFirewallLog)
@@ -2462,6 +2503,7 @@ index=azure sourcetype="mscs:azure:audit" (operationName.value="*scheduledQueryR
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1538
 - **Value:** Secure score and recommendations drive hardening backlog; trending open recommendations shows risk posture over time.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Defender export API
 - **Data Sources:** Defender for Cloud recommendations JSON, continuous export to Log Analytics/Event Hub
@@ -2481,6 +2523,7 @@ index=azure sourcetype="mscs:azure:defender" recommendationState="Active"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1098.003
 - **Value:** Locks prevent accidental deletes; removing a lock before maintenance is high risk and must be audited.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** `sourcetype=mscs:azure:audit` (Microsoft.Authorization/locks)
@@ -2526,6 +2569,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.container
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Fault
+- **MITRE ATT&CK:** T1580, T1562.007
 - **Value:** Application Gateway is the primary L7 load balancer for most Azure web workloads. Backend health probe failures cause 502 errors for users; WAF blocks need tuning to avoid false positives.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics)
 - **Data Sources:** `sourcetype=azure:monitor:metric`, `sourcetype=azure:diagnostics` (ApplicationGatewayAccessLog, ApplicationGatewayFirewallLog)
@@ -2690,6 +2734,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/t
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078.004, T1580
 - **Value:** Bastion provides secure, auditable VM access without public IPs. Monitoring session activity ensures compliance with access policies and detects unauthorized connection attempts.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)
 - **Data Sources:** `sourcetype=azure:diagnostics` (BastionAuditLogs)
@@ -2763,7 +2808,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.compute/d
 
 ---
 
-## 4.3 Google Cloud Platform (GCP)
+### 4.3 Google Cloud Platform (GCP)
 
 **Primary App/TA:** Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`) — Free on Splunkbase
 
@@ -2773,6 +2818,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.compute/d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** GCP audit logs capture all admin activity and data access. Foundational for security monitoring and compliance in GCP environments.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=google:gcp:pubsub:message` (via Pub/Sub)
@@ -2801,6 +2847,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" logName="*activity"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.001, T1098.003
 - **Value:** IAM binding changes control who can access what in GCP. Unauthorized changes to bindings on projects, folders, or organizations are critical security events.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=google:gcp:pubsub:message`
@@ -2829,6 +2876,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.methodName="SetIam
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** GCP VPC Flow Logs provide network traffic visibility. Same use case as AWS/Azure — detect rejected traffic, anomalies, exfiltration.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** VPC Flow Logs via Pub/Sub
@@ -2871,6 +2919,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="k8s_cluster"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** SCC provides vulnerability findings and threat detections across GCP. Centralizing in Splunk enables multi-cloud security correlation.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** SCC findings via Pub/Sub notification
@@ -2893,6 +2942,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="scc_finding"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1578.002
 - **Value:** Compute Engine VM performance monitoring for capacity planning and baseline trending without guest-level agents.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Cloud Monitoring metrics via API
@@ -2911,6 +2961,7 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="compute.googleapis.com
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1530, T1619
 - **Value:** BigQuery can generate massive costs from poorly optimized queries. Audit and cost tracking prevents bill shock and identifies optimization opportunities.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** BigQuery audit logs via Pub/Sub
@@ -2991,6 +3042,7 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="pubsub.googleapis.com/
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1619, T1530
 - **Value:** GCS request count and latency support performance tuning. Cost tracking by bucket/class prevents bill shock.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Cloud Monitoring (storage.googleapis.com/request_count), Billing export
@@ -3087,6 +3139,7 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="cdn.googleapis.com/cac
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1610, T1613
 - **Value:** Unusual push/pull may indicate abuse. Vulnerability scan findings in images require remediation before deployment.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Audit logs (Artifact Registry API), Container Analysis (vulnerability occurrences)
@@ -3107,6 +3160,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="artif
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1562.008
 - **Value:** Log sink and exclusion changes affect what is exported to Splunk or other destinations. Unauthorized changes create visibility gaps.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Audit logs (logging.googleapis.com)
@@ -3133,6 +3187,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="loggi
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.001, T1098.003
 - **Value:** IAM policy and custom role changes affect who can access resources. Broader than SetIamPolicy — includes role create/delete and org policy.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Audit logs (iam.googleapis.com, admin.googleapis.com)
@@ -3179,6 +3234,7 @@ index=gcp sourcetype="gcp:billing"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562.007, T1580
 - **Value:** Cloud Armor blocks and DDoS metrics indicate attack traffic and policy effectiveness. Essential for WAF and DDoS visibility.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Cloud Logging (loadbalancing.googleapis.com/http_requests with security policy), Cloud Monitoring (DDoS metrics)
@@ -3237,6 +3293,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="dataproc_cluster
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562.007
 - **Value:** VPC Service Controls enforce network perimeter. Violations indicate data exfiltration attempts or misconfigured access. Critical for data perimeter security.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Access Context Manager / VPC SC audit logs (perimeter violation events)
@@ -3322,6 +3379,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="k8s_cluster" ("F
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1562.007
 - **Value:** WAF blocks indicate attack traffic or misrules; separating noise from targeted campaigns protects edge apps behind HTTPS load balancers.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** HTTP(S) LB request logs with Cloud Armor, `sourcetype=google:gcp:pubsub:message` (loadbalancing.googleapis.com/requests)
@@ -3342,6 +3400,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" logName="*requests" httpRequest
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562.007
 - **Value:** Real-time violation tracking complements perimeter design reviews and catches data exfiltration paths early.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Access Context Manager audit via `sourcetype=google:gcp:pubsub:message`
@@ -3382,6 +3441,7 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="pubsub.googleapis.com/
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** SCC aggregates misconfigurations and threats; operationalizing findings closes gaps faster than periodic console reviews.
 - **App/TA:** `Splunk_TA_google-cloudplatform` (Pub/Sub export)
 - **Data Sources:** `sourcetype=google:gcp:pubsub:message` (SCC findings JSON), SCC Pub/Sub notifications
@@ -3403,6 +3463,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" sourceProperties.ResourceName=*
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1098.001
 - **Value:** Crypto policy often mandates rotation; tracking next rotation time avoids audit findings and forced emergency rotations.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=google:gcp:pubsub:message` (cloudkms.googleapis.com audit), Asset Inventory key metadata
@@ -3423,6 +3484,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="cloud
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1562.008
 - **Value:** Broken sinks drop audit and security logs silently; monitoring export errors preserves compliance and detection coverage.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=google:gcp:pubsub:message` (logging sink errors), Admin Activity for sink changes
@@ -3543,6 +3605,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" httpRequest.latency!=""
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1530, T1619
 - **Value:** Public buckets and IAM relaxations are common breach paths; real-time detection limits exposure window.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
 - **Data Sources:** Admin Activity `sourcetype=google:gcp:pubsub:message` (storage.setIamPermissions, bucket updates)
@@ -3603,7 +3666,7 @@ index=cloud sourcetype="gcp:monitoring:timeseries"
 
 ---
 
-## 4.4 Multi-Cloud & Cloud Management
+### 4.4 Multi-Cloud & Cloud Management
 
 ---
 
@@ -3611,6 +3674,7 @@ index=cloud sourcetype="gcp:monitoring:timeseries"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1578
 - **Value:** Infrastructure drift from declared IaC state means manual changes broke the single source of truth. Causes unpredictable behavior and deployment failures.
 - **App/TA:** Custom input (Terraform CLI output, CI/CD integration)
 - **Data Sources:** `terraform plan` output, CI/CD pipeline logs
@@ -3631,6 +3695,7 @@ index=devops sourcetype="terraform:plan"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1580
 - **Value:** Users often have identities across AWS/Azure/GCP. Correlating activity provides unified view for security investigation and insider threat detection.
 - **App/TA:** Combined cloud TAs + lookup tables
 - **Data Sources:** All cloud audit logs
@@ -3674,6 +3739,7 @@ index=aws sourcetype="aws:billing" OR index=azure sourcetype="azure:costmanageme
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578
 - **Value:** Untagged resources can't be tracked for cost allocation, compliance, or ownership. Tagging compliance is foundational for cloud governance.
 - **App/TA:** Cloud provider TAs, Config rules
 - **Data Sources:** Cloud resource inventories, Config/Policy compliance
@@ -3696,6 +3762,7 @@ index=aws sourcetype="aws:config:notification" resourceType="AWS::EC2::Instance"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC.
 - **App/TA:** Combined cloud TAs, Config/Policy exports, or third-party CSPM
 - **Data Sources:** AWS Config, Azure Resource Graph, GCP Asset Inventory (or provider APIs)
@@ -3717,6 +3784,7 @@ index=aws OR index=azure OR index=gcp
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** CSPM tools (or native Security Hub, Defender, SCC) produce findings across clouds. Centralizing in Splunk enables unified prioritization and remediation tracking.
 - **App/TA:** Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz)
 - **Data Sources:** AWS Security Hub, Azure Defender/Security Center, GCP Security Command Center, or third-party CSPM API
@@ -3739,6 +3807,7 @@ index=security (sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourc
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
+- **MITRE ATT&CK:** T1562.008
 - **Value:** Log pipelines (CloudTrail → S3 → Splunk, Event Hub → Splunk, Pub/Sub → Splunk) can break. Monitoring pipeline health ensures no audit or observability gaps.
 - **App/TA:** Splunk _internal, ingest metrics, or custom heartbeat
 - **Data Sources:** Splunk ingest metrics (by source/sourcetype), heartbeat searches, or pipeline-specific metrics (e.g. S3 object count, Event Hub lag)
@@ -3802,6 +3871,7 @@ index=aws sourcetype="aws:billing" lineItem_LineItemType=*Reserved* OR lineItem_
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1526, T1580
 - **Value:** 429 (Too Many Requests) from cloud APIs indicate client or provider throttling. Tracking trends supports quota increase and architecture changes.
 - **App/TA:** Splunk TAs for each cloud (CloudTrail, Activity Log, GCP audit)
 - **Data Sources:** CloudTrail (errorCode=ThrottlingException), Azure Activity Log (status=Throttled), GCP audit (status 429)
@@ -3821,6 +3891,7 @@ index=aws sourcetype="aws:cloudtrail" errorCode="ThrottlingException"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1098.001, T1530
 - **Value:** Unencrypted resources or keys past rotation date violate compliance. Central view across clouds supports audit and remediation.
 - **App/TA:** Config/Security Hub, Defender, SCC, or CSPM
 - **Data Sources:** AWS Config (encryption rules), Azure Policy (encryption compliance), GCP SCC (crypto key rotation)
@@ -3840,6 +3911,7 @@ index=aws sourcetype="aws:config:notification" configRuleList{}.configRuleName=*
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1087.004
 - **Value:** Correlating identity activity across AWS IAM, Entra ID, and GCP IAM detects cross-cloud abuse and compromised identities.
 - **App/TA:** Combined cloud TAs, identity lookup tables
 - **Data Sources:** CloudTrail (IAM), Entra ID sign-in/audit, GCP audit (IAM)
@@ -3881,6 +3953,7 @@ index=cloud_status provider=* status=*impact*
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562.008
 - **Value:** Missing or disabled CloudTrail, Activity Log export, or GCP audit log sink creates blind spots. Detecting gaps ensures full audit coverage.
 - **App/TA:** Config, Azure Policy, GCP Asset Inventory, or custom API checks
 - **Data Sources:** AWS Config (cloudtrail-enabled), Azure Policy (diagnostic setting compliance), GCP log sink audit
@@ -3900,6 +3973,7 @@ index=aws sourcetype="aws:config:notification" resourceType="AWS::CloudTrail::Tr
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578
 - **Value:** Missing or inconsistent tags (Owner, CostCenter, Environment) block cost allocation, automation, and governance. Detecting untagged or non-compliant resources supports tag policy enforcement.
 - **App/TA:** `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory
 - **Data Sources:** AWS Config (resource compliance), Azure Policy compliance, GCP labels API
@@ -3920,6 +3994,7 @@ index=aws sourcetype="aws:config:resource" tag_compliance="non_compliant"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1578.001, T1537
 - **Value:** Replication lag or failed backup copies leave RPO/RTO at risk. Monitoring ensures DR readiness and supports audit of backup and replication jobs.
 - **App/TA:** `Splunk_TA_aws`, Azure Monitor, GCP operations
 - **Data Sources:** S3 replication metrics, RDS cross-region replica lag, Azure Backup job status, GCP snapshot schedule
@@ -3961,6 +4036,7 @@ index=aws sourcetype="aws:service_quotas"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1580
 - **Value:** PrivateLink, VPC endpoints, and private DNS zones enable secure access to AWS/Azure/GCP services. Endpoint or DNS failures cause application outages that are hard to diagnose.
 - **App/TA:** Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health
 - **Data Sources:** Route53 Resolver query logs, VPC endpoint connection acceptance, Azure Private Endpoint status
@@ -3981,6 +4057,7 @@ index=cloud sourcetype="endpoint:health"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Cost
+- **MITRE ATT&CK:** T1580
 - **Value:** Sudden cost spikes across AWS, Azure, or GCP indicate misconfiguration, abuse, or runaway resources. Early detection limits financial impact and supports FinOps review.
 - **App/TA:** `Splunk_TA_aws`, Azure Cost Management export, GCP Billing export
 - **Data Sources:** AWS CUR, Azure Cost Management, GCP Billing export (BigQuery or file)
@@ -4025,6 +4102,7 @@ index=cloud sourcetype="dns:resolution"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578
 - **Value:** Untagged or improperly tagged resources impact cost allocation, governance, and security. Compliance gaps block chargeback and policy enforcement.
 - **App/TA:** `Splunk_TA_aws`, Azure inputs, GCP inputs
 - **Data Sources:** AWS Config rules (required-tags), Azure Policy (tag compliance), GCP Asset Inventory (resource metadata)
@@ -4045,6 +4123,7 @@ index=aws sourcetype="aws:config:notification" configRuleName="*required-tags*" 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1580
 - **Value:** Federation misconfiguration or token abuse spans IdPs and cloud consoles; unified visibility reduces blind spots for lateral movement across AWS, Azure, and GCP.
 - **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=aws:cloudtrail` (AssumeRoleWithSAML, federation), `sourcetype=mscs:azure:audit` (federated sign-ins), `sourcetype=google:gcp:pubsub:message` (SAML/OIDC audit)
@@ -4067,6 +4146,7 @@ index=aws sourcetype="aws:config:notification" configRuleName="*required-tags*" 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1580
 - **Value:** DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.
 - **App/TA:** Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs)
 - **Data Sources:** `sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled)
@@ -4110,6 +4190,7 @@ index=cloud (sourcetype="dns:health" OR sourcetype="synthetic:dns")
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1098.001, T1552.005
 - **Value:** Secrets touched across AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager must be auditable for least-privilege reviews and breach investigations.
 - **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`
 - **Data Sources:** `sourcetype=aws:cloudtrail` (secretsmanager, kms), `sourcetype=mscs:azure:audit` (Key Vault), `sourcetype=google:gcp:pubsub:message` (secretmanager.googleapis.com)
@@ -4132,6 +4213,7 @@ index=cloud (sourcetype="dns:health" OR sourcetype="synthetic:dns")
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578
 - **Value:** A single tagging schema across clouds enables chargeback and policy automation; drift in one provider breaks consolidated FinOps views.
 - **App/TA:** `Splunk_TA_aws`, Azure Policy exports, GCP Asset Inventory
 - **Data Sources:** `sourcetype=aws:config:notification`, Azure Policy compliance events, `sourcetype=google:gcp:pubsub:message` (asset exports)
@@ -4178,6 +4260,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1078.004, T1098
 - **Value:** AD Connect, Cloud Identity, and similar sync failures leave cloud groups stale, breaking access and compliance.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Windows/Entra diagnostics, GCP Identity logs
 - **Data Sources:** `sourcetype=mscs:azure:audit` / AD Connect health, `sourcetype=WinEventLog:Security` (on-prem), `sourcetype=google:gcp:pubsub:message` (identity sync)
@@ -4198,6 +4281,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1578.001, T1578.004
 - **Value:** Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves RPO/RTO.
 - **App/TA:** `Splunk_TA_aws`, Azure Backup logs, GCP Backup for GKE / Database exports
 - **Data Sources:** `sourcetype=aws:cloudwatch:events` (Backup), `sourcetype=mscs:azure:diagnostics` (Backup), `sourcetype=google:gcp:pubsub:message` (gkebackup, sqladmin)
@@ -4222,6 +4306,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1526, T1580
 - **Value:** Automation hitting AWS throttling, Azure 429s, or GCP RESOURCE_EXHAUSTED breaks pipelines; trending limits prevents silent job loss.
 - **App/TA:** Cloud TAs + application logs with HTTP status
 - **Data Sources:** `sourcetype=aws:cloudtrail` (ThrottlingException), `sourcetype=mscs:azure:audit` / app logs (429), `sourcetype=google:gcp:pubsub:message` (status 429, RESOURCE_EXHAUSTED)
@@ -4243,6 +4328,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1580
 - **Value:** Expired certs break TLS for APIs and VPNs across regions; a unified expiry calendar prevents outages.
 - **App/TA:** ACM/Key Vault/Certificate Manager exports, optional certstream
 - **Data Sources:** `sourcetype=aws:acm:inventory`, `sourcetype=mscs:azure:metrics` / cert inventory, `sourcetype=google:gcp:pubsub:message` (certificatemanager)
@@ -4262,7 +4348,7 @@ index=cloud (sourcetype="aws:acm:inventory" OR sourcetype="azure:keyvault:certs"
 
 ---
 
-## 4.5 Serverless & FaaS
+### 4.5 Serverless & FaaS
 
 ---
 
@@ -4457,6 +4543,7 @@ index=aws sourcetype="aws:billing" OR index=azure sourcetype="azure:costmanageme
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1610
 - **Value:** Messages landing in DLQs mean unprocessed events—often billing, inventory, or security actions—until replayed or dropped.
 - **App/TA:** `Splunk_TA_aws`
 - **Data Sources:** `sourcetype=aws:cloudwatch` (namespace `AWS/SQS`), optional `sourcetype=aws:cloudwatch:events`
@@ -4576,6 +4663,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="cloud_function"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Performance
+- **MITRE ATT&CK:** T1078.004, T1526, T1580, T1098.001
 - **Value:** Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence. Anomalous spikes in API call volume may indicate compromised credentials, runaway automation, or an attacker enumerating resources — all of which are invisible to static rate limits but detectable through ML-based baselining.
 - **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP
 - **Data Sources:** `index=cloud sourcetype=aws:cloudtrail` or `sourcetype=azure:monitor:activity` or `sourcetype=google:gcp:pubsub:message`
@@ -4598,11 +4686,10 @@ index=cloud sourcetype IN ("aws:cloudtrail","azure:monitor:activity","google:gcp
 - **CIM Models:** Change
 
 - **Known false positives:** Infrastructure-as-code deployments (Terraform apply), DR drills, and cloud migration events. Maintain a deployment calendar lookup to suppress known automation windows.
-- **MITRE ATT&CK:** T1078 (Valid Accounts), T1580 (Cloud Infrastructure Discovery), T1098 (Account Manipulation)
 
 ---
 
-## 4.6 Cloud Infrastructure Trending
+### 4.6 Cloud Infrastructure Trending
 
 ### UC-4.6.1 · Cloud Resource Count Trending
 - **Criticality:** 🟡 Medium
@@ -4651,6 +4738,7 @@ index=cloud sourcetype="aws:cloudwatch" Namespace="AWS/Lambda" MetricName="Invoc
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1580, T1526
 - **Value:** Tracking new versus resolved security findings over time shows whether your cloud security posture is improving and whether scanners or policies are flagging more issues than teams can remediate. Supports executive reporting and backlog triage.
 - **App/TA:** AWS Security Hub, Azure Defender, GCP Security Command Center — forwarded via HEC or add-on
 - **Data Sources:** `index=cloud sourcetype=aws:securityhub:finding` OR `sourcetype=azure:defender:alert` OR `sourcetype=gcp:scc:finding`

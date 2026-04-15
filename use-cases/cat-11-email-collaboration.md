@@ -1806,6 +1806,244 @@ index=voip sourcetype="cisco:unity:mailbox"
 
 ---
 
+#### 11.3.PX Pexip Infinity — Video Conferencing Platform
+
+**Primary App/TA:** Custom Pexip TA (Add-on Builder), Splunk Connect for Syslog, HEC
+
+---
+
+### UC-11.3.51 · Pexip Conference Volume and Concurrency Trending
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Pexip Infinity clusters have finite conferencing node capacity. Understanding conference volume patterns — peak hours, concurrent participant counts, and growth trends — is essential for capacity planning and license procurement. Unexpected spikes can exhaust node resources, causing new conferences to fail or existing ones to degrade. Tracking concurrency against licensed capacity prevents brownouts during company all-hands or large training events.
+- **App/TA:** Custom Pexip TA (scripted input polling Management REST API)
+- **Equipment Models:** Pexip Infinity Management Node, Pexip Conferencing Nodes
+- **Data Sources:** `sourcetype=pexip:conference_history` (polled from `/api/admin/history/v1/conference/`)
+- **SPL:**
+```spl
+index=pexip sourcetype="pexip:conference_history"
+| eval start=strptime(start_time, "%Y-%m-%dT%H:%M:%S")
+| eval end=strptime(end_time, "%Y-%m-%dT%H:%M:%S")
+| bin _time span=15m
+| stats dc(name) as active_conferences, sum(participant_count) as total_participants, max(participant_count) as peak_per_conf by _time
+| lookup pexip_capacity_lookup node_pool OUTPUT max_capacity
+| eval utilization_pct=round(total_participants*100/max_capacity, 1)
+| timechart span=1h avg(total_participants) as avg_participants, max(total_participants) as peak_participants
+| predict peak_participants as predicted algorithm=LLP5 future_timespan=24
+```
+- **Implementation:** Deploy a scripted input that polls the Pexip Management REST API at `/api/admin/history/v1/conference/` every 5 minutes. The API returns up to 10,000 conference instances with participant counts and timestamps. Parse the JSON response and index with sourcetype `pexip:conference_history`. Build a `pexip_capacity_lookup` CSV mapping node pools to their maximum participant capacity. Calculate utilization as total concurrent participants divided by capacity. Use `predict` to forecast peak demand 24 hours ahead. Alert when utilization exceeds 80% or when predicted peaks will exceed capacity. Track weekly and monthly growth to support procurement cycles. Correlate with calendar events (all-hands, training) using a `corporate_events` lookup for context.
+- **Visualization:** Line chart (concurrent participants over 24 hours with prediction band), Gauge (current utilization %), Column chart (conference count by hour of day), Single value (peak concurrency today vs capacity).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.52 · Pexip Participant Call Quality Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** Pexip calculates call quality based on packet loss: Good (<1%), OK (<3%), Bad (<10%), Terrible (>=10%). Unlike platforms that only report aggregate quality, Pexip media stream statistics provide per-participant, per-stream metrics including jitter and packet loss for both audio and video. Identifying quality degradation by participant, location, or protocol allows targeted remediation — a site with consistently bad quality likely has a WAN problem, while a single participant with issues may have a local network or endpoint problem.
+- **App/TA:** Custom Pexip TA (scripted input polling Management REST API)
+- **Equipment Models:** Pexip Infinity Management Node, Pexip Conferencing Nodes
+- **Data Sources:** `sourcetype=pexip:media_stream` (polled from `/api/admin/history/v1/participant/media_stream/`)
+- **SPL:**
+```spl
+index=pexip sourcetype="pexip:media_stream"
+| eval quality_rating=case(
+    packet_loss < 1, "Good",
+    packet_loss < 3, "OK",
+    packet_loss < 10, "Bad",
+    packet_loss >= 10, "Terrible",
+    1==1, "Unknown")
+| stats count as streams,
+    avg(packet_loss) as avg_loss,
+    avg(jitter) as avg_jitter,
+    perc95(packet_loss) as p95_loss,
+    sum(case(quality_rating="Bad" OR quality_rating="Terrible", 1, 0)) as poor_streams
+    by participant_alias, conference_name, stream_type
+| eval poor_pct=round(poor_streams*100/streams, 1)
+| where poor_pct > 5
+| sort -poor_pct
+| table participant_alias, conference_name, stream_type, streams, avg_loss, avg_jitter, p95_loss, poor_pct
+```
+- **Implementation:** Poll `/api/admin/history/v1/participant/media_stream/` every 5 minutes via the custom Pexip TA. Each media stream record contains packet loss, jitter, and the quality rating that Pexip itself assigns. Index as `pexip:media_stream`. Classify streams using Pexip's own thresholds (Good/OK/Bad/Terrible based on packet loss percentages). Calculate the percentage of streams rated Bad or Terrible per participant and conference. Alert when more than 5% of streams in a 15-minute window are Bad/Terrible. Build a site-pair quality lookup mapping participant IP subnets to office locations to identify geographic patterns. Compare quality by protocol (SIP, H.323, WebRTC, Teams connector) to identify protocol-specific issues. Correlate with network monitoring data (UC-5.x) for root cause analysis when quality degrades.
+- **Visualization:** Pie chart (quality distribution: Good/OK/Bad/Terrible), Heatmap (quality by location pair), Table (worst participants with quality metrics), Line chart (poor stream percentage trend over 7 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.53 · Pexip Conferencing Node Capacity and Load
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Availability
+- **Value:** Pexip Conferencing Nodes process all media transcoding and conference hosting. Each node has a finite capacity measured in HD call equivalents. When a node reaches capacity, new calls are either routed to other nodes (if available) or rejected. Uneven load distribution across nodes wastes capacity — one overloaded node may reject calls while others sit idle. Monitoring per-node load ensures efficient resource usage and prevents capacity-related call failures.
+- **App/TA:** Custom Pexip TA (Event Sink API via HEC), `Splunk Connect for Syslog`
+- **Equipment Models:** Pexip Infinity Conferencing Nodes (VM or hardware)
+- **Data Sources:** `sourcetype=pexip:event_sink` (HTTP POST from Conferencing Nodes to HEC), `sourcetype=pexip:syslog`
+- **SPL:**
+```spl
+index=pexip sourcetype="pexip:event_sink" event_type="conference*" OR event_type="participant*"
+| eval node=coalesce(conferencing_node, node_name)
+| bin _time span=5m
+| stats dc(conference_id) as active_conferences, dc(participant_id) as active_participants by _time, node
+| lookup pexip_node_capacity node OUTPUT max_hd_calls
+| eval load_pct=round(active_participants*100/max_hd_calls, 1)
+| eval status=case(load_pct >= 90, "Critical", load_pct >= 75, "Warning", 1==1, "OK")
+| table _time, node, active_conferences, active_participants, max_hd_calls, load_pct, status
+| sort -load_pct
+```
+- **Implementation:** Configure Pexip's Event Sink API to POST events to a Splunk HEC endpoint. The Event Sink delivers conference and participant lifecycle events (start, join, leave, end) in JSON format from each Conferencing Node. Enable bulk delivery mode for efficiency. Also forward Conferencing Node syslog for resource-level messages (CPU, memory, media processing warnings). Build a `pexip_node_capacity` lookup mapping each node hostname to its rated HD call capacity (varies by VM size and license). Calculate per-node load as active participants divided by capacity. Alert at 75% (warning) and 90% (critical) utilization. Track load imbalance: if max_node_load minus min_node_load exceeds 30 percentage points, the overflow/distribution policy may need tuning. Monitor node availability — if a node stops sending events for more than 5 minutes, it may be down.
+- **Visualization:** Column chart (load % per node, colored by status), Line chart (per-node participant count over 24 hours), Single value (cluster-wide utilization %), Table (node status with load metrics).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.54 · Pexip License Consumption Tracking
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Basic
+- **Monitoring type:** Capacity, Compliance
+- **Value:** Pexip licensing is typically based on concurrent ports or participants. Exceeding licensed capacity prevents new participants from joining conferences. Under-utilization means wasted license spend. Tracking actual consumption against purchased licenses supports renewal negotiations with real data, identifies peak usage patterns for right-sizing, and provides early warning when growth trends approach license limits.
+- **App/TA:** Custom Pexip TA (scripted input polling Management REST API)
+- **Equipment Models:** Pexip Infinity Management Node
+- **Data Sources:** `sourcetype=pexip:conference_history` (license_count field from conference records)
+- **SPL:**
+```spl
+index=pexip sourcetype="pexip:conference_history"
+| bin _time span=15m
+| stats sum(participant_count) as concurrent_licenses by _time
+| lookup pexip_license_info type OUTPUT total_licenses
+| eval usage_pct=round(concurrent_licenses*100/total_licenses, 1)
+| eval license_status=case(usage_pct >= 95, "Critical", usage_pct >= 80, "Warning", 1==1, "OK")
+| stats max(concurrent_licenses) as peak_licenses, avg(concurrent_licenses) as avg_licenses, max(usage_pct) as peak_usage_pct by _time
+| timechart span=1d max(peak_licenses) as daily_peak, avg(avg_licenses) as daily_avg
+```
+- **Implementation:** Reuse the conference history data collected for UC-11.3.51. Each conference record includes participant count and license consumption. Build a `pexip_license_info` lookup with the purchased license count by type (audio, video, VMR). Calculate concurrent license usage per 15-minute bin. Alert at 80% (plan for expansion) and 95% (imminent risk). Generate a monthly license utilization report showing daily peak, daily average, and peak-to-average ratio — a high ratio means licenses are sized for spikes that rarely occur, while a low ratio suggests consistent usage. Track month-over-month growth to predict when current licenses will be exhausted.
+- **Visualization:** Line chart (daily peak vs average license usage with license limit line), Single value (current usage % with traffic-light color), Gauge (peak usage vs total licenses), Table (monthly summary: peak, avg, growth %).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.55 · Pexip Alarm and Service Health Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Basic
+- **Monitoring type:** Availability, Fault
+- **Value:** Pexip Infinity generates alarms for infrastructure problems: database connectivity loss, licensing errors, node unreachability, certificate expiry, and media resource exhaustion. These alarms represent active service risks that can escalate to conference failures. Centralizing alarm monitoring in Splunk provides correlation with other infrastructure events and enables faster incident response than checking the Pexip management console manually.
+- **App/TA:** Custom Pexip TA (Event Sink API via HEC), `Splunk Connect for Syslog`
+- **Equipment Models:** Pexip Infinity Management Node, Pexip Conferencing Nodes
+- **Data Sources:** `sourcetype=pexip:event_sink` (alarm events), `sourcetype=pexip:syslog` (facility local0, local2)
+- **SPL:**
+```spl
+index=pexip (sourcetype="pexip:event_sink" event_type="alarm*") OR (sourcetype="pexip:syslog" severity<=3)
+| eval alarm_category=case(
+    like(_raw, "%license%") OR like(_raw, "%License%"), "Licensing",
+    like(_raw, "%database%") OR like(_raw, "%Database%"), "Database",
+    like(_raw, "%certificate%") OR like(_raw, "%TLS%"), "Certificate",
+    like(_raw, "%node%unreachable%") OR like(_raw, "%NodeUnreachable%"), "Node Health",
+    like(_raw, "%media%") OR like(_raw, "%resource%"), "Media Resources",
+    1==1, "Other")
+| stats count as occurrences, latest(_time) as last_seen, values(host) as affected_hosts by alarm_category, alarm_id
+| eval age_hours=round((now()-last_seen)/3600, 1)
+| where age_hours < 24
+| sort -occurrences
+| table alarm_category, alarm_id, occurrences, affected_hosts, age_hours
+```
+- **Implementation:** Pexip Event Sink API delivers alarm events to HEC. Also forward Management Node and Conferencing Node syslog via Splunk Connect for Syslog using facility codes local0 (admin) and local2 (support). Classify alarms into categories: Licensing (approaching or exceeding limits), Database (replication or connectivity), Certificate (expiry within 30 days), Node Health (unreachable or degraded nodes), and Media Resources (port or transcoding exhaustion). Alert immediately on Node Health and Media Resources alarms (service-affecting). Alert within 1 hour on Licensing and Database alarms. Certificate alarms should trigger 30 days before expiry. Track alarm frequency over time — increasing alarm rates indicate systemic degradation.
+- **Visualization:** Single value (active alarm count by severity), Timeline (alarm events over 24 hours), Table (active alarms with category and affected hosts), Column chart (alarm count by category over 7 days).
+- **CIM Models:** Alerts
+
+---
+
+### UC-11.3.56 · Pexip Registration and Gateway Call Routing
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** Pexip acts as a gateway between different video conferencing protocols and platforms — SIP, H.323, WebRTC, and Microsoft Teams via the Teams Connector. Call routing rules determine how incoming calls reach their destination VMR (Virtual Meeting Room) or are forwarded to external systems. Routing failures cause participants to reach wrong destinations or fail to connect entirely. Monitoring registration status and gateway routing ensures interoperability between the Pexip infrastructure and external systems like CUCM, Teams, or third-party SIP endpoints.
+- **App/TA:** Custom Pexip TA (scripted input polling Management REST API), `Splunk Connect for Syslog`
+- **Equipment Models:** Pexip Infinity Management Node, Pexip Conferencing Nodes, Pexip Teams Connector
+- **Data Sources:** `sourcetype=pexip:conference_history`, `sourcetype=pexip:syslog`
+- **SPL:**
+```spl
+index=pexip sourcetype="pexip:conference_history"
+| eval call_direction=case(
+    like(source_alias, "%@teams%") OR protocol="mssip", "Teams Inbound",
+    like(destination_alias, "%@teams%"), "Teams Outbound",
+    protocol="sip", "SIP",
+    protocol="h323", "H.323",
+    protocol="webrtc", "WebRTC",
+    1==1, "Other")
+| stats count as calls, avg(duration) as avg_duration_sec,
+    sum(case(disconnect_reason!="OK" AND disconnect_reason!="Otherendclearedcall", 1, 0)) as failed_calls
+    by call_direction, destination_alias
+| eval failure_pct=round(failed_calls*100/calls, 1)
+| where calls > 5
+| sort -failure_pct
+| table call_direction, destination_alias, calls, avg_duration_sec, failed_calls, failure_pct
+```
+- **Implementation:** Analyze conference history records to classify calls by protocol and direction. The `protocol` field identifies the signaling protocol (SIP, H.323, WebRTC, mssip for Teams). Track call success rates by routing path — high failure rates on a specific destination alias or protocol indicate misconfigured dial plans or network connectivity issues. Monitor Teams Connector specifically: failures here affect the growing population of Teams-native users trying to join Pexip conferences (or vice versa). Track registration status via syslog for SIP and H.323 trunk registrations. Alert when failure rate exceeds 5% on any routing path with more than 5 calls. Correlate routing failures with network events and Conferencing Node health (UC-11.3.53).
+- **Visualization:** Pie chart (call volume by protocol), Table (routing paths with failure rates), Line chart (calls per protocol over 7 days), Column chart (failure rate by call direction).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.57 · Pexip Participant Join Failure Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** When participants fail to join a Pexip conference, the disconnect reason reveals the root cause: capacity exhaustion, authentication failure, codec mismatch, network timeout, or policy rejection. Understanding the distribution and trend of join failures by reason enables targeted remediation. A spike in "capacity" failures means nodes need scaling; "codec mismatch" failures mean endpoint configuration needs updating; "timeout" failures point to network problems between participant and conferencing node.
+- **App/TA:** Custom Pexip TA (Event Sink API via HEC)
+- **Equipment Models:** Pexip Infinity Management Node, Pexip Conferencing Nodes
+- **Data Sources:** `sourcetype=pexip:event_sink` (participant disconnect events), `sourcetype=pexip:participant`
+- **SPL:**
+```spl
+index=pexip (sourcetype="pexip:event_sink" event_type="participant_disconnected") OR sourcetype="pexip:participant"
+| where disconnect_reason!="OK" AND disconnect_reason!="Otherendclearedcall" AND disconnect_reason!="Otherenddisconnected"
+| eval failure_category=case(
+    like(disconnect_reason, "%capacity%") OR like(disconnect_reason, "%resource%"), "Capacity Exhaustion",
+    like(disconnect_reason, "%authen%") OR like(disconnect_reason, "%pin%") OR like(disconnect_reason, "%denied%"), "Authentication",
+    like(disconnect_reason, "%codec%") OR like(disconnect_reason, "%media%"), "Media/Codec",
+    like(disconnect_reason, "%timeout%") OR like(disconnect_reason, "%unreachable%"), "Network Timeout",
+    like(disconnect_reason, "%policy%") OR like(disconnect_reason, "%rejected%"), "Policy Rejection",
+    1==1, "Other")
+| bin _time span=1h
+| stats count as failures, dc(participant_alias) as unique_participants, values(conference_name) as affected_conferences by _time, failure_category
+| sort -failures
+```
+- **Implementation:** The Event Sink API sends participant disconnect events with a `disconnect_reason` field. Filter out normal disconnects (OK, user-initiated hangups) to isolate genuine failures. Categorize failures by root cause. Alert on any Capacity Exhaustion failures (immediate service impact). Track Authentication failures — a spike may indicate a PIN policy change that users are unaware of. Codec/Media failures suggest endpoint incompatibility — correlate with the protocol field from UC-11.3.58 to identify which endpoint types are affected. Network Timeout failures should trigger cross-referencing with network monitoring (latency, packet loss on the WAN path between the participant's site and the Conferencing Node). Build a weekly failure trend report for the UC operations team.
+- **Visualization:** Column chart (failures by category over 24 hours), Single value (total failures last hour), Table (recent failures with participant, conference, reason), Line chart (failure trend by category over 7 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-11.3.58 · Pexip Interoperability and Protocol Mix
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Basic
+- **Monitoring type:** Performance, Compliance
+- **Value:** Pexip's core value proposition is interoperability — connecting participants across SIP, H.323, WebRTC, Microsoft Teams, and Google Meet. Understanding the protocol mix reveals how the platform is actually being used versus its intended deployment. A shift from H.323 to WebRTC signals endpoint modernization. Growing Teams Connector traffic validates the hybrid meeting room investment. Protocol distribution also affects capacity planning because different protocols consume different amounts of transcoding resources on Conferencing Nodes.
+- **App/TA:** Custom Pexip TA (scripted input polling Management REST API)
+- **Equipment Models:** Pexip Infinity Management Node, Pexip Conferencing Nodes, Pexip Teams Connector
+- **Data Sources:** `sourcetype=pexip:participant` (polled from `/api/admin/history/v1/participant/`)
+- **SPL:**
+```spl
+index=pexip sourcetype="pexip:participant"
+| eval protocol=coalesce(protocol, "Unknown")
+| eval vendor=case(
+    like(user_agent, "%Teams%") OR protocol="mssip", "Microsoft Teams",
+    like(user_agent, "%Oand%") OR like(user_agent, "%webrtc%") OR protocol="webrtc", "WebRTC Browser",
+    like(user_agent, "%Poly%") OR like(user_agent, "%OALTP%"), "Poly Endpoint",
+    like(user_agent, "%Cisco%") OR like(user_agent, "%CE%"), "Cisco Endpoint",
+    protocol="sip", "SIP (Other)",
+    protocol="h323", "H.323 (Other)",
+    1==1, "Other")
+| bin _time span=1d
+| stats count as participants, avg(call_quality) as avg_quality, dc(conference_name) as conferences by _time, protocol, vendor
+| sort _time, -participants
+```
+- **Implementation:** Poll `/api/admin/history/v1/participant/` via the custom Pexip TA. Each participant record includes protocol, user_agent, call quality, and duration. Map user_agent strings to vendor categories using eval case logic. Track protocol distribution over time to identify migration trends (e.g., H.323 declining, WebRTC growing). Compare call quality by protocol and vendor — if Cisco endpoints consistently show higher quality than Poly endpoints, this informs procurement decisions. Generate monthly interoperability reports showing protocol mix, vendor distribution, and quality-by-protocol. This data also supports Pexip license negotiations by showing which features (Teams Connector, WebRTC gateway) drive the most value.
+- **Visualization:** Pie chart (participant count by protocol), Stacked area chart (protocol distribution trend over 30 days), Table (vendor breakdown with quality metrics), Column chart (average quality by protocol).
+- **CIM Models:** N/A
+
+---
+
 ### 11.4 Mail Transport & Relay Infrastructure
 
 **Primary App/TA:** Postfix, Sendmail, Microsoft Exchange, Cisco Email Security Appliance (ESA), generic SMTP/MTA logs

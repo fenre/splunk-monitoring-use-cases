@@ -388,6 +388,130 @@ index=cisco_aci sourcetype="cisco:aci:cluster_diag" earliest=-24h
 - **Visualization:** Line chart (repl delay), Table (alerts), Single value (max lag ms).
 - **CIM Models:** N/A
 
+### UC-18.1.19 · ACI Fault Domain Severity Rollup
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Fault domains group infrastructure and policy failures by functional area (for example connectivity, configuration, or capacity). Rolling up open faults by domain shows where the fabric is structurally weak, helps prioritize remediation before east-west traffic degrades, and shortens war-room triage during incidents.
+- **App/TA:** `TA_cisco-ACI`, Cisco DC Networking Application (Splunkbase 7777)
+- **Equipment Models:** Cisco APIC, Nexus 9300/9500 (ACI mode)
+- **Data Sources:** `index=cisco_aci` `sourcetype="cisco:aci:faults"` with fields `fault_domain`, `severity`, `code`, `dn`, `lc`
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:faults" earliest=-24h
+| where severity IN ("critical","major") AND (isnull(lc) OR NOT match(lower(lc),"(?i)resolved|cleared"))
+| stats dc(dn) as affected_objects, values(code) as codes by fault_domain, severity
+| sort fault_domain, -affected_objects
+| table fault_domain, severity, affected_objects, codes
+```
+- **Implementation:** (1) Map `fault_domain` from APIC fault MO or TA extraction; if missing, derive from `dn` prefix via `rex`. (2) Schedule hourly and alert when any domain exceeds baseline affected object count. (3) Correlate spikes with change windows and interface faults (UC-18.1.6).
+- **Visualization:** Stacked bar chart (faults by domain × severity), Table (top domains), Single value (open major+critical count).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.1.20 · Contract Violation and Implicit Deny Bursts
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Security
+- **Value:** Sudden increases in implicit denies or contract violations usually mean a mis-deployed contract, a missing EPG binding, or an attack probing disallowed paths. Catching bursts early prevents application outages and avoids silent security gaps where traffic is dropped without operator visibility.
+- **App/TA:** `TA_cisco-ACI`, APIC syslog
+- **Equipment Models:** Cisco APIC, ACI leaf switches
+- **Data Sources:** `index=cisco_aci` `sourcetype="cisco:aci:contracts"` or `sourcetype="cisco:aci:syslog"` with fields `src_epg`, `dst_epg`, `contract_name`, `deny_count`, `implicit_deny_count`
+- **SPL:**
+```spl
+index=cisco_aci (sourcetype="cisco:aci:contracts" OR sourcetype="cisco:aci:syslog") earliest=-4h
+| bin _time span=5m
+| eval denies=coalesce(deny_count, implicit_deny_count, 0)
+| stats sum(denies) as deny_burst by _time, src_epg, dst_epg, contract_name
+| eventstats median(deny_burst) as med by src_epg, dst_epg
+| where deny_burst > med*10 AND deny_burst > 100
+| sort -deny_burst
+| table _time, src_epg, dst_epg, contract_name, deny_burst, med
+```
+- **Implementation:** (1) Normalize deny counters from contract stats or syslog patterns (`implicitDeny`, `vzBrCP`). (2) Tune multiplier and floor to fabric size. (3) Page on critical EPG pairs; attach last successful change ticket from audit (UC-18.1.5).
+- **Visualization:** Timechart (deny burst timeline), Table (worst EPG pairs), Heatmap (src_epg × dst_epg).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.1.21 · EPG Endpoint Learning and Deletion Churn
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** Rapid endpoint learn/delete cycles on an EPG strain the control plane and can precede bridging or routing instability. Monitoring learning churn protects workload mobility designs and catches misconfigured duplicate IPs or spanning-tree interactions before they impact database and storage east-west paths.
+- **App/TA:** `TA_cisco-ACI`, APIC event log
+- **Equipment Models:** Cisco APIC, Nexus 9000 (ACI)
+- **Data Sources:** `index=cisco_aci` `sourcetype="cisco:aci:endpoint"` with fields `action`, `tenant`, `epg`, `mac`, `ip`
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:endpoint" earliest=-24h
+| where action IN ("learn","delete","move")
+| bin _time span=15m
+| stats count as ops by _time, tenant, epg, action
+| stats sum(eval(if(action=="learn",ops,0))) as learn_ops sum(eval(if(action=="delete",ops,0))) as del_ops max(_time) as last_window by tenant, epg
+| where learn_ops>500 OR del_ops>500
+| table tenant, epg, learn_ops, del_ops, last_window
+| sort -learn_ops
+```
+- **Implementation:** (1) Ingest endpoint tracker events at least every poll interval of APIC TA. (2) Baseline per business EPG; exclude known vMotion pools via lookup. (3) Correlate with faults on the same `dn` and with L3Out prefix churn (UC-18.1.14).
+- **Visualization:** Timechart (learn vs delete), Table (noisy EPGs), Single value (EPGs over threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.1.22 · Fabric Port-Channel and Member Link Imbalance
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** Uneven distribution across port-channel members defeats ECMP assumptions and can saturate individual uplinks while siblings stay idle. Detecting imbalance protects spine-leaf oversubscription models and avoids tail latency for storage and replication traffic.
+- **App/TA:** `TA_cisco-ACI`, APIC interface statistics
+- **Equipment Models:** Cisco Nexus 9300/9500 (ACI leaf/spine)
+- **Data Sources:** `index=cisco_aci` `sourcetype="cisco:aci:interface_stats"` with fields `node`, `interface`, `port_channel`, `bytesRate`, `speed`
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:interface_stats" earliest=-2h
+| where isnotnull(port_channel)
+| stats sum(bytesRate) as br by node, port_channel, interface
+| eventstats sum(br) as pc_total by node, port_channel
+| eval member_pct=round(100*br/pc_total,2)
+| eventstats range(member_pct) as spread by node, port_channel
+| where spread > 35
+| table node, port_channel, interface, member_pct, spread
+| sort node, port_channel, -member_pct
+```
+- **Implementation:** (1) Ensure `port_channel` is extracted from interface DN or API; map orphan physical members. (2) Alert when member spread exceeds policy (for example 35%). (3) Validate hashing and down-members with operational state feed.
+- **Visualization:** Bar chart (member_pct by interface), Table (imbalanced PCs), Heatmap (node × port_channel).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.1.23 · APIC Controller Resource Exhaustion Watch
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Capacity
+- **Value:** APIC nodes host the policy repository and cluster services; disk, memory, or inode pressure delays policy pushes and can stall fault processing. Watching controller resources prevents brownouts where the fabric stays up but automation and incremental updates fail during change windows.
+- **App/TA:** `TA_cisco-ACI`, APIC SNMP or API metrics scripted input
+- **Equipment Models:** Cisco APIC M3/L3 cluster nodes
+- **Data Sources:** `index=cisco_aci` `sourcetype="cisco:aci:apic_capacity"` with fields `apic_id`, `disk_used_pct`, `mem_used_pct`, `inode_used_pct`
+- **SPL:**
+```spl
+index=cisco_aci sourcetype="cisco:aci:apic_capacity" earliest=-24h
+| stats latest(disk_used_pct) as disk latest(mem_used_pct) as mem latest(inode_used_pct) as inode by apic_id
+| where disk>85 OR mem>90 OR inode>85
+| eval risk=case(inode>85,"Inode pressure", mem>90,"Memory pressure", disk>85,"Disk pressure",1==1,"OK")
+| table apic_id, disk, mem, inode, risk
+| sort -mem
+```
+- **Implementation:** (1) Poll `/api/node/mo/sys/summary` or vendor TA capacity fields every 5 minutes. (2) Alert at staged thresholds; include log partition growth rate. (3) Correlate with cluster replication lag (UC-18.1.18).
+- **Visualization:** Gauge (per-APIC disk/mem), Table (nodes at risk), Timechart (capacity trends).
+- **CIM Models:** N/A
+
 ---
 
 ### 18.2 VMware NSX
@@ -657,6 +781,127 @@ index=vmware sourcetype="vmware:nsx:manager_cluster" earliest=-24h
 - **Implementation:** Map NSX version-specific cluster health API. Alert immediately if not STABLE or any node offline.
 - **Visualization:** Status grid (manager nodes), Single value (cluster OK), Timeline.
 - **CIM Models:** N/A
+
+### UC-18.2.14 · NSX Intelligence Top Flows and Anomalous East-West Volume
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** NSX Intelligence summarizes flow metadata across the overlay. Tracking dominant flows and sudden volume shifts highlights misconfigured services, lateral movement, or noisy neighbors before micro-segmentation rules are tuned, keeping data center east-west paths predictable for latency-sensitive tiers.
+- **App/TA:** `vmware_nsx_addon`, NSX Intelligence HEC/syslog export
+- **Equipment Models:** NSX-T Manager, NSX Intelligence appliance
+- **Data Sources:** `index=vmware` `sourcetype="vmware:nsx:intelligence_flow"` with fields `src_vm`, `dst_vm`, `service_id`, `flow_bytes`, `domain_name`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:intelligence_flow" earliest=-24h
+| stats sum(flow_bytes) as bytes dc(dst_vm) as dst_count by src_vm, service_id, domain_name
+| eventstats perc95(bytes) as p95
+| where bytes > p95*3
+| eval mb=round(bytes/1048576,2)
+| sort -bytes
+| head 50
+| table domain_name, src_vm, service_id, dst_count, mb
+```
+- **Implementation:** (1) Enable Intelligence flow export to Splunk HEC with CIM-friendly field names. (2) Baseline per domain; exclude backup VLANs via lookup. (3) Correlate spikes with DFW deny events (UC-18.2.1).
+- **Visualization:** Table (top talkers), Sankey (src to service), Timechart (bytes per domain).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-18.2.15 · Distributed Firewall Rule Hit Counts by Application Tier
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Compliance
+- **Value:** Grouping DFW hits by application tier proves which segmentation boundaries are exercised in production and identifies stale allow rules that see no traffic. This reduces attack surface during audits and prevents accidental removal of rules that still protect critical tiers.
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** NSX-T Data Center
+- **Data Sources:** `index=vmware` `sourcetype="vmware:nsx:dfw"` with fields `rule_id`, `rule_name`, `action`, `src`, `tier`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:dfw" earliest=-7d
+| lookup nsx_vm_tier.csv vm_name AS src OUTPUT tier AS src_tier
+| stats count by src_tier, rule_id, rule_name, action
+| eventstats sum(count) as tier_total by src_tier, action
+| eval pct=round(100*count/tier_total,2)
+| sort src_tier, -count
+| table src_tier, rule_id, rule_name, action, count, pct
+```
+- **Implementation:** (1) Maintain `nsx_vm_tier.csv` mapping VM names to tier labels. (2) Refresh weekly from CMDB. (3) Alert when production tier shows zero hits on mandatory allow rules for seven days.
+- **Visualization:** Heatmap (tier × rule hits), Bar chart (hits by tier), Table (zero-hit rules).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.2.16 · Edge Cluster BFD and Uplink Session Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** Tier-0 edge clusters depend on BFD and stable uplinks for fast failure detection. Degraded BFD or partial uplink loss causes asymmetric north-south paths and intermittent application reachability. Proactive monitoring supports failover drills and prevents surprise brownouts during ISP maintenance.
+- **App/TA:** `vmware_nsx_addon`
+- **Equipment Models:** NSX Edge cluster nodes (VM or bare metal)
+- **Data Sources:** `index=vmware` `sourcetype="vmware:nsx:edge_bfd"` with fields `edge_node`, `cluster`, `peer_ip`, `bfd_state`, `uplink_name`, `message`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:edge_bfd" earliest=-4h
+| where bfd_state!="UP" OR match(lower(coalesce(message,"")),"(?i)timeout|down")
+| stats latest(bfd_state) as bfd latest(_time) as t by edge_node, cluster, peer_ip, uplink_name
+| sort -t
+| table edge_node, cluster, uplink_name, peer_ip, bfd, t
+```
+- **Implementation:** (1) Ingest BFD telemetry from NSX Manager API or Edge syslog. (2) Join with `vmware:nsx:edge_status` (UC-18.2.8) for BGP state. (3) Page on any BFD not UP on production T0 uplinks.
+- **Visualization:** Status grid (edge × uplink), Timeline (BFD events), Table (non-UP sessions).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-18.2.17 · Transport Node Data Plane Interface Errors and Drops
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** Overlay GENEVE depends on clean physical NICs and switch ports. Rising errors or drops on TN N-VDS or VDS uplinks manifest as intermittent VM connectivity and false-positive firewall symptoms. Isolating TN-level drops speeds root cause between server, rack, and fabric teams.
+- **App/TA:** `vmware_nsx_addon`, vSphere metrics optional
+- **Equipment Models:** ESXi transport nodes
+- **Data Sources:** `index=vmware` `sourcetype="vmware:nsx:tn_iface"` with fields `transport_node`, `pnic`, `rx_errors`, `tx_errors`, `rx_drops`, `tx_drops`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:tn_iface" earliest=-24h
+| eval bad=rx_errors+tx_errors+rx_drops+tx_drops
+| stats sum(bad) as issues max(rx_errors) as max_rx max(tx_errors) as max_tx by transport_node, pnic
+| where issues > 100 OR max_rx>0 OR max_tx>0
+| sort -issues
+| table transport_node, pnic, issues, max_rx, max_tx
+```
+- **Implementation:** (1) Collect per-pnic counters via NSX API on 60s interval. (2) Baseline known noisy lab hosts. (3) Correlate with overlay loss diagnostics (UC-18.2.9).
+- **Visualization:** Bar chart (issues by TN), Table (worst pnics), Single value (TNs with errors).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.2.18 · NSX Intelligence Recommended Firewall Rule Publish Queue
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Availability
+- **Value:** NSX Intelligence proposes micro-segmentation rules; a backed-up or failed publish queue delays enforcement of least-privilege changes and leaves temporary broad access in place. Monitoring queue depth ties security posture to operational SLAs for the data center network.
+- **App/TA:** `vmware_nsx_addon`, NSX Intelligence API
+- **Equipment Models:** NSX Intelligence Node
+- **Data Sources:** `index=vmware` `sourcetype="vmware:nsx:intel_publish"` with fields `domain_name`, `queue_depth`, `last_error`, `status`
+- **SPL:**
+```spl
+index=vmware sourcetype="vmware:nsx:intel_publish" earliest=-24h
+| stats latest(queue_depth) as depth latest(status) as st latest(last_error) as err by domain_name
+| where depth>25 OR match(lower(st),"(?i)fail|error") OR (isnotnull(err) AND err!="" AND err!="null")
+| table domain_name, depth, st, err
+| sort -depth
+```
+- **Implementation:** (1) Scripted input for Intelligence recommendation publish API. (2) Alert when depth exceeds agreed SLA or status non-success. (3) Link failures to NSX Manager cluster health (UC-18.2.13).
+- **Visualization:** Single value (max queue depth), Table (failed domains), Timechart (depth trend).
+- **CIM Models:** Change
+
+---
 
 ### 18.3 Other SDN
 
@@ -1029,6 +1274,131 @@ index=snmp sourcetype="snmp:cpu" role="leaf" earliest=-1h
 
 ---
 
+### UC-18.3.18 · BGP EVPN Route Withdrawal Rate and Flap Storms
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Performance
+- **Value:** Withdrawal storms shrink effective ECMP sets and extend convergence after link or node events, which shows up as application timeouts and storage path loss. Measuring withdrawal velocity per peer differentiates normal housekeeping from dangerous churn in the EVPN control plane.
+- **App/TA:** Custom BGP monitor, `TA-cisco_ios`, Arista eAPI scripted input
+- **Equipment Models:** BGP EVPN-capable leaf and spine switches
+- **Data Sources:** `index=network` `sourcetype="bgp:evpn_events"` with fields `host`, `peer_ip`, `event_type`, `rd`, `prefix`
+- **SPL:**
+```spl
+index=network sourcetype="bgp:evpn_events" earliest=-1h
+| where match(lower(event_type),"(?i)withdraw|wdr|revoke")
+| bin _time span=1m
+| stats count as wdr by _time, host, peer_ip
+| where wdr > 200
+| sort -wdr
+| table _time, host, peer_ip, wdr
+```
+- **Implementation:** (1) Stream BGP UPDATE syslog or BMP into `bgp:evpn_events` with normalized `event_type`. (2) Tune per-fabric scale; exclude RR-only peers if needed. (3) Correlate with spine-leaf neighbor state (UC-18.3.14).
+- **Visualization:** Timechart (withdrawals per minute), Table (worst peers), Single value (peak wdr).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-18.3.19 · Spine-Leaf ECMP Member Utilization Balance
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** ECMP assumes balanced hashing across parallel paths; persistent skew overloads individual spine uplinks while others remain idle. Monitoring member utilization protects oversubscribed Clos designs and avoids silent drops when one path saturates during backup or replication waves.
+- **App/TA:** gNMI/Telegraf, SNMP TA
+- **Equipment Models:** Cisco Nexus, Arista 7050/7280 spine-leaf
+- **Data Sources:** `index=network` `sourcetype="fabric:ecmp_member"` with fields `leaf`, `spine_peer`, `member_if`, `out_bits_per_sec`
+- **SPL:**
+```spl
+index=network sourcetype="fabric:ecmp_member" earliest=-30m
+| stats avg(out_bits_per_sec) as avg_bps by leaf, spine_peer, member_if
+| eventstats sum(avg_bps) as leaf_total by leaf, spine_peer
+| eventstats dc(member_if) as paths by leaf, spine_peer
+| eval expected_share=if(paths>0,100/paths,0)
+| eval share_pct=round(100*avg_bps/leaf_total,2)
+| eval skew=abs(share_pct-expected_share)
+| where skew > 20 AND leaf_total > 1000000000
+| table leaf, spine_peer, member_if, share_pct, expected_share, skew
+| sort -skew
+```
+- **Implementation:** (1) Ingest per-member interface counters from telemetry at 30–60s. (2) Alert on sustained skew; verify hashing seeds and broken members. (3) Compare with interface errors on hot members.
+- **Visualization:** Heatmap (member_if × leaf skew), Bar chart (skew by spine), Table (outliers).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-18.3.20 · Fabric Host Route and ARP Scale Headroom
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity, Availability
+- **Value:** EVPN Type-2 host routes and ARP scale drive TCAM and forwarding table use on leafs. Running out of headroom stalls new workload placement and causes black-holed traffic during scale-out events. Trending utilization against hardware limits informs purchase timing and route summarization design.
+- **App/TA:** NX-API/CLI scripted input, SNMP
+- **Equipment Models:** VXLAN EVPN leaf switches
+- **Data Sources:** `index=network` `sourcetype="fabric:route_scale"` with fields `host`, `host_routes`, `host_route_limit`, `arp_entries`, `arp_limit`
+- **SPL:**
+```spl
+index=network sourcetype="fabric:route_scale" earliest=-24h
+| eval host_pct=round(100*host_routes/host_route_limit,2)
+| eval arp_pct=round(100*arp_entries/arp_limit,2)
+| where host_pct>80 OR arp_pct>80
+| stats latest(host_pct) as host_pct latest(arp_pct) as arp_pct latest(host_routes) as hr latest(arp_entries) as arp by host
+| table host, host_pct, arp_pct, hr, arp
+| sort -host_pct
+```
+- **Implementation:** (1) Poll `show system internal forwarding resource` or vendor equivalents nightly plus hourly if above 75%. (2) Map limits per platform SKU via lookup. (3) Join with EVPN route summary growth (UC-18.3.10).
+- **Visualization:** Gauge (headroom %), Table (critical leafs), Timechart (host route growth).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.21 · EVPN Ethernet Segment (ESI) DF Election and BUM Stability
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Availability
+- **Value:** All-active multihoming depends on correct designated forwarder election and stable per-ESI state. DF flaps or split-brain indicators disrupt BUM handling and can isolate VLANs for dual-homed hosts. Early detection protects clustered databases and hypervisor trunks.
+- **App/TA:** NX-OS/EOS syslog, custom `evpn:esi` parser
+- **Equipment Models:** MLAG/EVPN multihomed leaf pairs
+- **Data Sources:** `index=network` `sourcetype="evpn:esi"` with fields `leaf`, `esi`, `event`, `vlan`
+- **SPL:**
+```spl
+index=network sourcetype="evpn:esi" earliest=-24h
+| where match(lower(event),"(?i)df|designated|esi|split|conflict")
+| stats count by leaf, esi, event
+| where count>5
+| sort -count
+| table leaf, esi, event, count
+```
+- **Implementation:** (1) Normalize DF change syslog into `evpn:esi`. (2) Alert on rapid DF changes per ESI within one hour. (3) Correlate with port-channel member events (UC-18.3.14).
+- **Visualization:** Timeline (DF changes), Table (noisy ESIs), Single value (ESIs with recent DF churn).
+- **CIM Models:** N/A
+
+---
+
+### UC-18.3.22 · VXLAN Underlay Path MTU and DF Bit Fragmentation Risk
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Fault
+- **Value:** VXLAN adds overhead; MTU mismatches or PMTUD black holes cause silent throughput collapse and TCP retransmits on east-west paths. Tracking DF-bit probes and ICMP unreachables across the underlay separates fabric issues from guest OS misconfiguration before tickets flood application teams.
+- **App/TA:** `TA-cisco_ios`, `arista:eos` via SC4S, ICMP probe scripted input
+- **Equipment Models:** Spine-leaf underlay routers
+- **Data Sources:** `index=network` `sourcetype="fabric:mtu_diag"` with fields `src_leaf`, `dst_leaf`, `max_mtu_ok`, `icmp_needfrag`, `test_size`
+- **SPL:**
+```spl
+index=network sourcetype="fabric:mtu_diag" earliest=-24h
+| where max_mtu_ok=0 OR icmp_needfrag>0
+| stats sum(icmp_needfrag) as needfrag max(test_size) as last_size by src_leaf, dst_leaf
+| sort -needfrag
+| table src_leaf, dst_leaf, needfrag, last_size
+```
+- **Implementation:** (1) Run scheduled jumbo ping/UDP probes between loopbacks with DF set. (2) Ingest syslog `ICMP unreachable` / `MTU` messages. (3) Document expected MTU (for example 9216) per site and alert on regression.
+- **Visualization:** Table (bad pairs), Diagram (site × path status), Single value (paths failing MTU).
+- **CIM Models:** Network Traffic
+
+---
+
 ### 18.4 Cisco Nexus Dashboard & NX-OS Fabric
 
 > **Note:** Nexus Dashboard, NDFC, and NDO sourcetypes vary by add-on version and deployment method. The sourcetypes shown below (e.g. `cisco:nexusdashboard:*`, `cisco:ndfc:*`, `cisco:ndo:*`) are representative examples — verify against your installed Cisco DC Networking add-on's `props.conf`.
@@ -1220,6 +1590,123 @@ index=cisco_dc sourcetype="cisco:ndfc:inventory"
 - **Implementation:** Poll NDFC inventory weekly. Maintain a lookup of Cisco EoS/EoL dates. Alert at 12, 6, and 3 month thresholds. Generate quarterly lifecycle reports for procurement.
 - **Visualization:** Table (switches approaching EoS), Pie chart (lifecycle status distribution), Single value (switches past EoS).
 - **CIM Models:** N/A
+
+### UC-18.4.9 · Nexus Dashboard Site and Fabric Assurance Health Score
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Compliance
+- **Value:** Site-level assurance scores roll up connectivity, best-practice violations, and capacity risk across all managed switches. Surfacing declining scores in Splunk gives data center operators a single trend line to prioritize remediation before Insights opens critical anomalies during business peaks.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), Nexus Dashboard REST export
+- **Equipment Models:** Nexus Dashboard, NDFC-managed fabrics
+- **Data Sources:** `index=cisco_dc` `sourcetype="cisco:nd:site_health"` with fields `site_name`, `fabric_name`, `assurance_score`, `risk_level`, `open_findings`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:nd:site_health" earliest=-24h
+| stats latest(assurance_score) as score latest(risk_level) as risk latest(open_findings) as findings by site_name, fabric_name
+| where score < 85 OR match(lower(risk),"(?i)high|critical")
+| sort score
+| table site_name, fabric_name, score, risk, findings
+```
+- **Implementation:** (1) Schedule API pull from Nexus Dashboard Assurance or ingest pre-aggregated JSON via HEC. (2) Map score scale to your SLA colors. (3) Correlate drops with NDI anomalies (UC-18.4.1) and compliance drift (UC-18.4.2).
+- **Visualization:** Single value (worst site score), Bar chart (score by fabric), Table (sites below threshold).
+- **CIM Models:** Alerts
+
+---
+
+### UC-18.4.10 · Golden Firmware Image Compliance Across NDFC Fabrics
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Risk
+- **Value:** Running multiple NX-OS trains in one fabric increases interoperability defects during upgrades. Comparing live images to the approved golden list per platform reduces unplanned reload risk and speeds security patch campaigns for the physical data center network.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), `cisco:ndfc:inventory`
+- **Equipment Models:** NDFC-managed Nexus 9000/3000
+- **Data Sources:** `index=cisco_dc` `sourcetype="cisco:ndfc:inventory"` with fields `switch_name`, `fabric_name`, `model`, `software_version`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndfc:inventory" earliest=-24h
+| lookup ndfc_golden_image.csv model OUTPUT golden_version
+| where isnotnull(golden_version) AND software_version!=golden_version
+| stats values(software_version) as running_versions values(golden_version) as golden_versions count by fabric_name, model
+| sort -count
+| table fabric_name, model, running_versions, golden_versions, count
+```
+- **Implementation:** (1) Maintain `ndfc_golden_image.csv` with CAB-approved NX-OS per SKU. (2) Nightly diff from inventory API. (3) Drive remediation tickets with risk tier from PSIRT correlation (UC-18.4.3).
+- **Visualization:** Pie chart (compliant vs drift), Table (non-compliant switches), Bar chart (count by fabric).
+- **CIM Models:** Change
+
+---
+
+### UC-18.4.11 · NDFC Flow Telemetry Drop and Export Health
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** Flow telemetry underpins capacity and security analytics for the NX-OS fabric. Collector drops or stalled exports create blind spots where congestion and microbursts go unseen until applications complain. Monitoring pipeline health preserves trust in east-west utilization dashboards.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), NetFlow/IPFIX collector syslog
+- **Equipment Models:** Nexus 9300/9500 with flow telemetry enabled
+- **Data Sources:** `index=cisco_dc` `sourcetype="cisco:ndfc:flow_export"` with fields `switch_name`, `export_profile`, `dropped_flows`, `export_rate_eps`, `collector_ip`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndfc:flow_export" earliest=-4h
+| stats sum(dropped_flows) as drops avg(export_rate_eps) as eps by switch_name, collector_ip
+| where drops>0 OR eps < 100
+| sort -drops
+| table switch_name, collector_ip, drops, eps
+```
+- **Implementation:** (1) Ingest NDFC telemetry health API or collector events with per-switch counters. (2) Baseline `eps` per site. (3) Alert on drops or sustained low export rate; verify CPU and sampler intervals on switches.
+- **Visualization:** Timechart (export rate), Table (switches with drops), Single value (total dropped flows).
+- **CIM Models:** Network Traffic
+
+---
+
+### UC-18.4.12 · Nexus Dashboard Insights Alert Noise and Category Mix
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Compliance
+- **Value:** Insights can generate bursts of correlated alerts after a single root cause. Tracking alert volume by category separates chronic noise from emerging systemic issues and helps tune NDI policies without losing visibility into real data center network regressions.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), `cisco:ndi:anomaly`
+- **Equipment Models:** Nexus Dashboard Insights
+- **Data Sources:** `index=cisco_dc` `sourcetype="cisco:ndi:anomaly"` with fields `category`, `anomaly_type`, `fabric_name`, `severity`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndi:anomaly" earliest=-7d
+| bin _time span=1d
+| stats count by _time, category, severity
+| eventstats sum(count) as daily by _time
+| eventstats avg(daily) as baseline
+| where daily > baseline*1.5
+| sort -daily
+| table _time, category, severity, count, daily, baseline
+```
+- **Implementation:** (1) Ensure stable `category` mapping from webhook payload. (2) Tune multiplier for seasonal maintenance. (3) Feed noisy categories into NDI suppression workflow with Splunk approval ID.
+- **Visualization:** Line chart (daily alert volume), Stacked bar (category mix), Table (spike days).
+- **CIM Models:** Alerts
+
+---
+
+### UC-18.4.13 · NDFC POAP / ZTP Bootstrap and Day-0 Onboarding Failures
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Automated provisioning brings switches into the fabric quickly; DHCP, image fetch, or certificate failures during POAP/ZTP delay expansions and leave partially configured devices in racks. Monitoring onboarding outcomes keeps brownfield growth on schedule and prevents rogue devices from sitting outside policy.
+- **App/TA:** Cisco DC Networking Application (Splunkbase 7777), NDFC syslog
+- **Equipment Models:** Nexus 9000 being onboarded via NDFC
+- **Data Sources:** `index=cisco_dc` `sourcetype="cisco:ndfc:poap"` with fields `serial_number`, `switch_name`, `stage`, `status`, `error_code`
+- **SPL:**
+```spl
+index=cisco_dc sourcetype="cisco:ndfc:poap" earliest=-7d
+| where match(lower(status),"(?i)fail|error|timeout") OR (match(lower(stage),"(?i)image|cert|dhcp") AND status!="success")
+| stats latest(_time) as last_fail latest(error_code) as err latest(stage) as stage by serial_number, switch_name
+| sort -last_fail
+| table last_fail, serial_number, switch_name, stage, err
+```
+- **Implementation:** (1) Forward NDFC POAP/ZTP logs to Splunk with parsed `stage` milestones. (2) Alert on any failure before switch reaches `In-Sync`. (3) Join serial to inventory (UC-18.4.8) for asset context.
+- **Visualization:** Timeline (bootstrap attempts), Table (failed devices), Single value (open failures).
+- **CIM Models:** Change
 
 ---
 

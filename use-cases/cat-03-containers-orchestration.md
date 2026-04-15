@@ -1,6 +1,6 @@
-# 3. Containers & Orchestration
+## 3. Containers & Orchestration
 
-## 3.1 Docker
+### 3.1 Docker
 
 **Primary App/TA:** Splunk Connect for Docker, custom scripted inputs
 
@@ -624,7 +624,7 @@ index=containers sourcetype="docker:stats"
 
 ---
 
-## 3.2 Kubernetes
+### 3.2 Kubernetes
 
 **Primary App/TA:** Splunk OpenTelemetry Collector for Kubernetes, Splunk Connect for Kubernetes — Free
 
@@ -1652,7 +1652,7 @@ index=k8s sourcetype="kube:events" reason="FailedScheduling"
 
 ---
 
-## 3.3 OpenShift
+### 3.3 OpenShift
 
 **Primary App/TA:** OpenTelemetry Collector, OpenShift audit log forwarding
 
@@ -1889,7 +1889,7 @@ index=openshift sourcetype="openshift:subscription"
 
 ---
 
-## 3.4 Container Registries
+### 3.4 Container Registries
 
 **Primary App/TA:** Custom API inputs, webhook receivers
 
@@ -2080,7 +2080,7 @@ index=containers (sourcetype="trivy:scan" OR sourcetype="grype:scan" OR sourcety
 
 ---
 
-## 3.5 Service Mesh & Serverless Containers
+### 3.5 Service Mesh & Serverless Containers
 
 **Primary App/TA:** Splunk OpenTelemetry Collector (Istio/Envoy metrics and access logs), `Splunk_TA_aws` (ECS/Fargate), `Splunk_TA_microsoft-cloudservices` (Azure Monitor), `Splunk_TA_google-cloudplatform` (Cloud Run / Cloud Monitoring)
 
@@ -2446,7 +2446,7 @@ index=containers sourcetype="kube:objects:resourcequotas"
 
 ---
 
-## 3.6 Container & Kubernetes Trending
+### 3.6 Container & Kubernetes Trending
 
 ### UC-3.6.1 · Pod Restart Rate Trending
 - **Criticality:** 🟡 Medium

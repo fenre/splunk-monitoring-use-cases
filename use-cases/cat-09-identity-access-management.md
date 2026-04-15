@@ -10,6 +10,7 @@
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1110, T1110.001
 - **Value:** Brute-force attacks are a primary credential compromise vector. Early detection prevents account takeover.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Windows Security Event Log (Event ID 4625 — failed logon)
@@ -38,6 +39,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1110
 - **Value:** Lockouts cause user productivity loss and help desk load. Source identification enables rapid resolution.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (Event ID 4740 — account locked out)
@@ -65,6 +67,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098
 - **Value:** Adding accounts to Domain Admins or Enterprise Admins (EventCode 4728/4732/4756) in minutes limits blast radius from stolen Tier-0 credentials. Immediate detection supports audit evidence for privileged access changes and enables rapid containment before lateral movement escalates.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4728 — member added to security-enabled global group, 4732 — local group, 4756 — universal group)
@@ -92,6 +95,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4728,4732,4756
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078, T1078.002
 - **Value:** Service accounts used interactively or from unexpected hosts indicate compromise. Detection prevents lateral movement.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4624 — successful logon, Logon Type field)
@@ -120,6 +124,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1558.001, T1558.003
 - **Value:** Detects Kerberoasting and Golden Ticket attacks, which are advanced AD compromise techniques. Essential for security monitoring.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4768 — TGT request, 4769 — TGS request)
@@ -175,6 +180,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4723, 4724)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1484.001
 - **Value:** GPO changes affect all domain-joined machines. Unauthorized modifications can disable security controls across the organization.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (5136 — directory service object modified)
@@ -257,6 +263,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=1644
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.002, T1087.002
 - **Value:** Stale accounts are an attack surface — unused accounts may be compromised without detection. Regular cleanup reduces risk.
 - **App/TA:** Scripted input (PowerShell AD query)
 - **Data Sources:** AD attributes (lastLogonTimestamp, pwdLastSet) via scripted input
@@ -286,6 +293,7 @@ index=ad sourcetype="ad:accounts"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004
 - **Value:** Entra ID Identity Protection detects risky sign-ins using Microsoft's threat intelligence. Ingesting into Splunk enables correlation with on-prem events.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra ID sign-in logs, risk detection events (via Graph API)
@@ -384,6 +392,7 @@ index=ad sourcetype="ad:accounts"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1558.003
 - **Value:** Attackers request weakly encrypted TGS tickets for service accounts to crack passwords offline. Focused Kerberoasting detection complements generic Kerberos monitoring.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4769 — Kerberos service ticket requested)
@@ -412,6 +421,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769 Ticket_Encryp
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1558.001
 - **Value:** Forged TGTs often produce anomalous ticket lifetimes, encryption types, or DC sourcing. Heuristic alerts support hunt teams when krbtgt may be compromised.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4768 — Kerberos authentication ticket requested), 4624 (logon type 10 with Kerberos)
@@ -432,6 +442,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4768
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1098.003, T1562.001
 - **Value:** Policy edits can weaken MFA, device compliance, or location controls org-wide. Auditing changes supports SOC2/ISO and incident response.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra ID audit logs (`DirectoryAudit` — Conditional Access policy create/update/delete)
@@ -472,6 +483,7 @@ index=azure sourcetype="azure:intune:devices" OR sourcetype="azure:aad:devices"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Security
+- **MITRE ATT&CK:** T1552
 - **Value:** Failed LAPS rotations leave predictable local admin passwords; attackers target stale LAPS attributes.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Operational log `Microsoft-Windows-LAPS/Operational` (Event IDs 10023, 10024, 10025, 10026), or legacy CSE events
@@ -511,6 +523,7 @@ index=wineventlog (sourcetype="WinEventLog:Directory Service" EventCode IN (1308
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098
 - **Value:** Changes to AdminSDHolder or SDProp timing can preserve attacker persistence on privileged accounts.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (5136 — directory service object modified), object DN containing AdminSDHolder
@@ -531,6 +544,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1484.001
 - **Value:** Tampering via SYSVOL (file-level) may bypass 5136-only monitoring. File integrity on GPO paths catches unauthorized edits.
 - **App/TA:** `Splunk_TA_windows`, FIM TA (e.g., Splunk FIM or OSSEC)
 - **Data Sources:** GPO change events (5136), SYSVOL file integrity events, DFS-R replication errors for SYSVOL
@@ -551,6 +565,7 @@ index=ossec sourcetype="ossec:fim" OR index=fim sourcetype="fim:change"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078.004, T1098.003
 - **Value:** Privileged Identity Management activations grant time-bound admin roles; auditing ensures approvals and detects abuse.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra audit logs (`Add member to role completed`, PIM `RequestApproved` / `RoleAssignmentSchedule`)
@@ -571,6 +586,7 @@ index=azure sourcetype="azure:aad:audit"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078.002, T1087.002
 - **Value:** Stale computer objects enable rogue domain joins and clutter access reviews. Tracking supports automated disable/delete workflows.
 - **App/TA:** Scripted input (PowerShell `Get-ADComputer`)
 - **Data Sources:** AD computer attributes (`lastLogonTimestamp`, `pwdLastSet`, `whenCreated`)
@@ -592,6 +608,7 @@ index=ad sourcetype="ad:computers"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1484.002
 - **Value:** Trust direction and selective authentication changes alter cross-forest attack surface; distinct from one-off session events.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4706 — trust modified, 4713 — trust deleted, 4716 — trusted domain information modified)
@@ -611,6 +628,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706,4713,4716
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1552.004
 - **Value:** Misconfigured templates (ESC1/ESC8) allow domain escalation via certificate requests. Monitoring issuance and template edits reduces exposure.
 - **App/TA:** `Splunk_TA_windows`, AD CS logs
 - **Data Sources:** Certificate Services (4886, 4887, 4888), AD CS template change auditing (5136 on `CN=Certificate Templates`)
@@ -657,6 +675,7 @@ index=ad sourcetype=repadmin_replsummary
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1552.004, T1098
 - **Value:** ADCS misconfigurations enable privilege escalation (ESC1-ESC8 attacks). Monitoring certificate requests catches unauthorized certificate enrollment for domain admin impersonation.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** `sourcetype=WinEventLog:Security` (EventCode 4886, 4887, 4888)
@@ -684,6 +703,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4886, 4887, 48
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
+- **MITRE ATT&CK:** T1110, T1110.001
 - **Value:** LDAP bind failures indicate authentication issues, misconfigured applications, or brute-force attempts against directory services.
 - **App/TA:** Syslog, LDAP server logs
 - **Data Sources:** OpenLDAP syslog, 389 Directory access log
@@ -740,6 +760,7 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1484
 - **Value:** Schema changes to directory services can break applications and are rarely expected. Detection ensures change control compliance.
 - **App/TA:** LDAP audit log
 - **Data Sources:** LDAP server audit log (schema modification events)
@@ -820,6 +841,7 @@ index=azure sourcetype="azure:aad:signin"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Performance
+- **MITRE ATT&CK:** T1087
 - **Value:** Sudden spikes in LDAP searches may indicate reconnaissance, brute enumeration, or misbehaving applications hammering directory services.
 - **App/TA:** LDAP access log parsing, `Splunk_TA_windows` (Directory Service 1644)
 - **Data Sources:** OpenLDAP access log (SEARCH count), AD DS expensive search / query stats
@@ -842,6 +864,7 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Fault
+- **MITRE ATT&CK:** T1110, T1110.003
 - **Value:** Elevated invalid credential rates often precede password spraying or application misconfiguration; complements per-event bind failure monitoring.
 - **App/TA:** Syslog, LDAP server logs
 - **Data Sources:** OpenLDAP syslog (err=49), AD DS LDAP interface events
@@ -863,6 +886,7 @@ index=ldap sourcetype="syslog" "BIND" ("err=49" OR "data 52e")
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration, Compliance
+- **MITRE ATT&CK:** T1484
 - **Value:** Schema changes in AD (classes/attributes) are rare and high impact; complements generic LDAP schema logging for OpenLDAP/389.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (5136 — directory service object modified under `CN=Schema,CN=Configuration`)
@@ -922,6 +946,7 @@ index=wineventlog sourcetype="WinEventLog:System" SourceName="Schannel" EventCod
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1556
 - **Value:** Channel binding tokens for LDAP/SASL mitigate relay attacks; monitoring confirms clients meet `ldapEnforceChannelBinding` policy.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Directory Service (3039 — rejected bind missing channel binding tokens when required)
@@ -996,6 +1021,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004
 - **Value:** Authentication from two geographically distant locations within an impossibly short timeframe strongly indicates credential compromise.
 - **App/TA:** `Splunk_TA_okta`, custom correlation
 - **Data Sources:** IdP sign-in logs with IP geolocation
@@ -1026,6 +1052,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.session.start"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1528, T1550.001
 - **Value:** Token replay attacks bypass authentication entirely. Detection prevents persistent unauthorized access.
 - **App/TA:** `Splunk_TA_okta`, IdP audit logs
 - **Data Sources:** IdP token issuance logs, application token validation logs
@@ -1135,6 +1162,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1539, T1550.001
 - **Value:** Sessions used from multiple locations simultaneously indicate session token theft. Detection prevents ongoing unauthorized access.
 - **App/TA:** `Splunk_TA_okta`, IdP session logs
 - **Data Sources:** IdP session activity logs, application session logs
@@ -1163,6 +1191,7 @@ index=okta sourcetype="OktaIM2:log"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1550.001
 - **Value:** Replayed SAML assertions can grant access without fresh authentication. Correlating assertion IDs and NotOnOrAfter windows catches reuse.
 - **App/TA:** IdP logs, application SAML trace (e.g., Shibboleth, Okta, ADFS)
 - **Data Sources:** SAML response logs with `AssertionID`, `InResponseTo`, `NotOnOrAfter`
@@ -1183,6 +1212,7 @@ index=saml sourcetype="saml:assertion"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1528, T1550.001
 - **Value:** Excessive refresh grants, scope expansion, or token use from new ASNs indicates stolen refresh tokens or malicious OAuth clients.
 - **App/TA:** `Splunk_TA_okta`, Entra sign-in + Graph audit, API gateway logs
 - **Data Sources:** `app.oauth2.token.grant`, Entra `TokenIssuance` / `Update application` (consent)
@@ -1203,6 +1233,7 @@ index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1539, T1550.001
 - **Value:** Complements session ID correlation with user-agent flips, ASN changes mid-session, and impossible concurrent SSO from IdP telemetry.
 - **App/TA:** `Splunk_TA_okta`, Entra sign-in logs
 - **Data Sources:** IdP `user.authentication.sso` with session correlation ID, device fingerprint fields
@@ -1224,6 +1255,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1484.002
 - **Value:** Adding SAML/OIDC federation to new domains or apps expands blast radius; auditing trust metadata changes is essential.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_okta`
 - **Data Sources:** Entra `Add federation to domain`, Okta `trustedOrigin.*` / `idp.*` lifecycle events
@@ -1244,6 +1276,7 @@ index=azure sourcetype="azure:aad:audit" activityDisplayName="Add external user"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.001
 - **Value:** Users granting excessive delegated permissions to malicious OAuth apps is a common attack; monitoring consent events enables revocation.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra audit logs (`Consent to application`, `Add OAuth2PermissionGrant`)
@@ -1288,6 +1321,7 @@ index=azure sourcetype="azure:graph:applications"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004, T1098.001
 - **Value:** Unexpected tenants or guest users accessing multi-tenant apps may indicate consent phishing or lateral SaaS movement.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra sign-in logs (`resourceTenantId`, `crossTenantAccessType`, `homeTenantId`)
@@ -1309,6 +1343,7 @@ index=azure sourcetype="azure:aad:signin"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1098.001, T1528
 - **Value:** Applications accumulating scopes over time violate least privilege; comparing current vs approved scopes finds drift.
 - **App/TA:** Graph API inventory, Okta `app.oauth2.*` events
 - **Data Sources:** OAuth scope grants per `client_id`, approved scope lookup CSV
@@ -1330,6 +1365,7 @@ index=oauth sourcetype="oauth:scope_inventory"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Security
+- **MITRE ATT&CK:** T1110.004, T1110
 - **Value:** Throttling at `/oauth2/token` breaks integrations and may indicate credential stuffing or runaway automation.
 - **App/TA:** API gateway / WAF logs, Entra `SignInLogs` with error codes, custom HEC from reverse proxy
 - **Data Sources:** HTTP 429, `AADSTS50196` / `invalid_client` bursts, `rateLimit` in response headers
@@ -1358,6 +1394,7 @@ index=proxy sourcetype="access_combined" uri_path="/oauth2/v2.0/token"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078.002
 - **Value:** Complete audit trail of privileged sessions is required for compliance (SOX, PCI, HIPAA) and security investigation.
 - **App/TA:** Splunk_TA_cyberark, BeyondTrust TA for Splunk
 - **Data Sources:** PAM session logs (session start/end, target system, user, protocol)
@@ -1415,6 +1452,7 @@ index=pam sourcetype="cyberark:vault"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1078.002, T1078.004
 - **Value:** Break-glass accounts provide emergency access and should rarely be used. Any usage requires immediate investigation and documentation.
 - **App/TA:** Splunk_TA_cyberark, custom alert
 - **Data Sources:** PAM vault events for break-glass accounts
@@ -1473,6 +1511,7 @@ index=pam sourcetype="cyberark:account_inventory"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1078, T1003
 - **Value:** Detecting dangerous commands during privileged sessions enables real-time intervention before damage occurs.
 - **App/TA:** CyberArk PSM, BeyondTrust session monitoring
 - **Data Sources:** PAM session recordings/keystroke logs
@@ -1547,6 +1586,7 @@ index=iam sourcetype="idp:health"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1528, T1550.001
 - **Value:** Unusual API token usage may indicate token theft or abuse. Detection supports least-privilege and incident response.
 - **App/TA:** Cloud identity TAs, API gateway logs
 - **Data Sources:** Token audit logs, API request logs
@@ -1567,6 +1607,7 @@ index=iam sourcetype="api:token_audit"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1484.002
 - **Value:** Trust relationship changes can enable cross-domain abuse. Early detection prevents privilege escalation across forests.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Security Event Log (4706 — trust modified, 4714 — trust created)
@@ -1586,6 +1627,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706, 4714)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078, T1098
 - **Value:** JIT access reduces standing privilege. Monitoring request and approval patterns ensures policy compliance and detects abuse.
 - **App/TA:** PAM / JIT access system logs
 - **Data Sources:** Access request and approval audit logs
@@ -1666,6 +1708,7 @@ index=ad_perf sourcetype="ad:dc_probe"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078.002
 - **Value:** Real-time alerts on PSM recordings—policy violations, blocked commands, or session anomalies—enable SOC response before logout.
 - **App/TA:** Splunk TA for CyberArk
 - **Data Sources:** PSM recording events, policy violation syslog from PSM
@@ -1686,6 +1729,7 @@ index=pam sourcetype="cyberark:psm" OR sourcetype="cyberark:psm_alert"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078
 - **Value:** Sessions far longer than peer baseline may indicate data exfiltration or abandoned hijacked sessions.
 - **App/TA:** CyberArk / BeyondTrust session logs
 - **Data Sources:** PAM session start/end with duration
@@ -1727,6 +1771,7 @@ index=pam sourcetype="cyberark:vault_replication"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1098
 - **Value:** Analytics on JIT volume, self-approval, and after-hours patterns complements simple volume alerts (UC-9.4.10).
 - **App/TA:** PAM JIT / Entra PIM logs
 - **Data Sources:** Request ID, requester, approver, time-to-approve, business justification field
@@ -1749,6 +1794,7 @@ index=pam sourcetype="jit:requests"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.002, T1078.004
 - **Value:** Real-time paging for emergency-only vault accounts beyond standard break-glass (UC-9.4.3)—includes usage from non-SOC networks.
 - **App/TA:** Splunk TA for CyberArk, AD Security logs
 - **Data Sources:** PAM checkout for accounts tagged `emergency_only`, 4624 for same sAMAccountName
@@ -1770,6 +1816,7 @@ index=pam sourcetype="cyberark:vault" account_tag="emergency_only"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.002
 - **Value:** Shared privileged accounts used from two locations simultaneously indicate credential sharing or theft.
 - **App/TA:** PAM session logs, bastion logs
 - **Data Sources:** Session start with same `target_account` and overlapping time ranges
@@ -1819,6 +1866,7 @@ index=pam sourcetype="cyberark:agent_heartbeat"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1110, T1110.003
 - **Value:** Spikes in failed logins reveal credential attacks, misconfigured apps, or lockout conditions before accounts are fully compromised.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`user.authentication.sso`, `user.authentication.auth_via_*`)
@@ -1840,6 +1888,7 @@ index=okta sourcetype="OktaIM2:log" outcome.result="FAILURE"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1556
 - **Value:** Attempts to skip or weaken MFA (policy gaps, risky grant flows) are a direct path to account takeover; monitoring policy evaluation outcomes closes that gap.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`policy.evaluate_sign_on`, `user.authentication`)
@@ -1860,6 +1909,7 @@ index=okta sourcetype="OktaIM2:log" eventType="policy.evaluate_sign_on"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004
 - **Value:** Okta threat signals and anomalous sessions (new device, new country, Tor) surface account takeovers before lateral movement.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`security.threat.detected`, `user.session.start`)
@@ -1880,6 +1930,7 @@ index=okta sourcetype="OktaIM2:log" (eventType="security.threat.detected" OR sev
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1098.003, T1078.004
 - **Value:** Changes in the admin console affect global security posture; auditing who changed what supports SOC2/ISO investigations and insider-threat programs.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`system.*`, `user.session.access_admin_app`, `resource.*`)
@@ -1899,6 +1950,7 @@ index=okta sourcetype="OktaIM2:log" (eventType="user.session.access_admin_app" O
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1562.001, T1098.003
 - **Value:** Sign-on, MFA, and password policy edits can weaken security org-wide; detecting unauthorized or out-of-window changes is essential for governance.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`policy.*`)
@@ -1919,6 +1971,7 @@ index=okta sourcetype="OktaIM2:log"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.003
 - **Value:** New super-admin or role assignments are high-value targets for attackers; immediate notification enables rapid validation.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`user.privilege.grant`, `group.privilege*`)
@@ -1940,6 +1993,7 @@ index=okta sourcetype="OktaIM2:log"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1110
 - **Value:** Denied logins (fraud, policy, or lockout) indicate attacks or misconfigurations; volume and user patterns guide response.
 - **App/TA:** Cisco Duo TA
 - **Data Sources:** `sourcetype=duo:authentication`
@@ -1982,6 +2036,7 @@ index=duo sourcetype="duo:authentication"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1098.001
 - **Value:** Sudden bulk enrollments or enrollments from unusual locations can indicate attacker-driven device registration or help-desk abuse.
 - **App/TA:** Cisco Duo TA
 - **Data Sources:** `sourcetype=duo:admin`, `sourcetype=duo:authentication` (enrollment events)
@@ -2002,6 +2057,7 @@ index=duo sourcetype="duo:admin" event_type="enrollment"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1528, T1550.001
 - **Value:** Excessive OAuth/OIDC grants, refresh-token reuse, or token minting from new clients can indicate session theft or malicious automation.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`app.oauth2.*`, `app.oauth2.token.*`)
@@ -2022,6 +2078,7 @@ index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078.004
 - **Value:** Two successful sessions from geolocations that cannot be reached in the elapsed time indicate credential theft or shared accounts.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`user.session.start`, `user.authentication.sso`)
@@ -2065,6 +2122,7 @@ index=okta (sourcetype="okta:api" OR sourcetype="OktaIM2:log")
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1098.003
 - **Value:** New access to sensitive SaaS apps is a common attack path; monitoring assignments supports least-privilege and access reviews.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`application.user_membership.*`, `group.user_membership.*`)
@@ -2084,6 +2142,7 @@ index=okta sourcetype="OktaIM2:log" (eventType="application.user_membership.add"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1556
 - **Value:** Push bombing and fraudulent approve taps are common MFA bypass techniques; correlating push volume and user behavior stops approval fatigue attacks.
 - **App/TA:** Cisco Duo TA
 - **Data Sources:** `sourcetype=duo:authentication`
@@ -2105,6 +2164,7 @@ index=duo sourcetype="duo:authentication" factor="push"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1136.003, T1531
 - **Value:** Orphaned accounts, failed deprovisions, and unexpected creates drive audit findings and residual access after employee exit.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** `sourcetype=OktaIM2:log` (`user.lifecycle.*`, `user.account.*`)

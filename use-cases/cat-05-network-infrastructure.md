@@ -1,4 +1,4 @@
-# 5. Network Infrastructure
+## 5. Network Infrastructure
 
 **Monitoring type** (filter category): Each use case is tagged with one or more of the following so you can filter by kind of network monitoring:
 
@@ -15,7 +15,7 @@
 
 ---
 
-## 5.1 Routers & Switches
+### 5.1 Routers & Switches
 
 **Primary App/TA:** Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847), Arista EOS syslog (`arista:eos` via SC4S), HPE Aruba CX syslog, SNMP Modular Input — Free
 
@@ -1376,7 +1376,7 @@ index=network (sourcetype=syslog OR sourcetype=snmptrapd OR sourcetype="snmp:tra
 ---
 
 
-## 5.2 Firewalls
+### 5.2 Firewalls
 
 **Primary App/TA:** Palo Alto Networks Add-on for Splunk (`Splunk_TA_paloalto`, Splunkbase 7523), Fortinet FortiGate Add-On for Splunk (`TA-fortinet_fortigate`, Splunkbase 2846), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847) for SRX Series — Free
 
@@ -2759,7 +2759,7 @@ index=firewall sourcetype="cp_log" earliest=-4h
 ---
 
 
-## 5.3 Load Balancers & ADCs
+### 5.3 Load Balancers & ADCs
 
 **Primary App/TA:** Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`), Citrix ADC TA — Free
 
@@ -3261,7 +3261,7 @@ index=network sourcetype="citrix:netscaler:ssl" metric_type="ssl_stats"
 ---
 
 
-## 5.4 Wireless Infrastructure
+### 5.4 Wireless Infrastructure
 
 **Primary App/TA:** Splunk Add-on for Cisco Meraki, Cisco WLC syslog, Aruba Networks Add-on for Splunk (Splunkbase 4668), HPE Aruba ClearPass App for Splunk (Splunkbase 7865) — Free
 
@@ -4077,7 +4077,7 @@ index=network sourcetype="aruba:central" OR sourcetype="aruba:central:client"
 
 
 
-## 5.5 SD-WAN
+### 5.5 SD-WAN
 
 **Primary App/TA:** Cisco SD-WAN TA (vManage API), Fortinet FortiGate Add-On (`TA-fortinet_fortigate`, SD-WAN events), Aruba EdgeConnect SD-WAN syslog, Cato Networks Events App (Splunkbase 8037), vendor-specific integrations
 
@@ -4564,7 +4564,7 @@ index=sdwan sourcetype="cisco:sdwan:bfd" state="up"
 ---
 
 
-## 5.6 DNS & DHCP
+### 5.6 DNS & DHCP
 
 **Primary App/TA:** Splunk Add-on for Infoblox, Windows DNS/DHCP, BIND syslog — Free
 
@@ -4963,7 +4963,7 @@ index=network sourcetype=dns_query
 ---
 
 
-## 5.7 Network Flow Data
+### 5.7 Network Flow Data
 
 **Primary App/TA:** Splunk App for Stream, Splunk Add-on for NetFlow — Free
 
@@ -5255,7 +5255,7 @@ index=network sourcetype="netflow"
 ---
 
 
-## 5.8 Network Management Platforms
+### 5.8 Network Management Platforms
 
 **Primary App/TA:** Cisco DNA Center TA, Meraki TA, syslog/SNMP trap receivers
 
@@ -5742,7 +5742,7 @@ index=network sourcetype=snmptrap
 ---
 
 
-## 5.9 Cisco ThousandEyes
+### 5.9 Cisco ThousandEyes
 
 **Primary App/TA:** Cisco ThousandEyes App for Splunk (Splunkbase 7719) — Cisco Supported
 
@@ -6837,7 +6837,7 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 
 ---
 
-## 5.10 Carrier and Service Provider Signaling
+### 5.10 Carrier and Service Provider Signaling
 
 ### UC-5.10.1 · Diameter Signaling Health Monitoring
 - **Criticality:** 🔴 Critical
@@ -6988,7 +6988,7 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 
 ---
 
-## 5.11 gNMI / gRPC Streaming Telemetry
+### 5.11 gNMI / gRPC Streaming Telemetry
 
 **Primary App/TA:** Telegraf with `inputs.gnmi` plugin → Splunk HEC (`splunkmetric` format), Arista CloudVision Telemetry Extension, Nokia gNMIc collector. No native Splunkbase gNMI add-on exists; Telegraf is the documented collector pattern (see [Splunk Lantern: Monitoring Cisco network devices using gRPC](https://lantern.splunk.com/Platform_Data_Management/Unlock_Insights/Monitoring_Cisco_network_devices_using_gRPC)).
 

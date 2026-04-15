@@ -10,7 +10,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [4.0] - 2026-04-02
+## [3.25.1] - 2026-04-02
 
 ### Cisco Network Intelligence UI
 

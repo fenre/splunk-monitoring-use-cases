@@ -198,6 +198,83 @@ index=app_events sourcetype IN ("app:crash","app:session") earliest=-7d
 
 ---
 
+### UC-23.1.7 · Site Search Effectiveness and Zero-Result Rate
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Measures how often on-site searches return no results or no clicks, which usually means frustrated shoppers or support deflection failure. We help merchandising and content teams fix synonyms and catalog gaps before abandonment rises.
+- **App/TA:** Splunk Add-on for Apache Web Server (Splunkbase 3186), HEC
+- **Data Sources:** `index=web` `sourcetype="access_combined"` (uri, status, query), `index=app_events` `sourcetype="site_search"` (search_term, result_count, clicked_result)
+- **SPL:**
+```spl
+index=app_events sourcetype="site_search" earliest=-14d
+| eval zero_results=if(result_count=0 OR isnull(result_count),1,0)
+| eval no_click=if(clicked_result="none" OR isnull(clicked_result),1,0)
+| stats count as searches, sum(zero_results) as zero_hits, sum(no_click) as no_click by search_term
+| eval zero_rate_pct=round(100*zero_hits/searches,1)
+| eval no_click_rate_pct=round(100*no_click/searches,1)
+| where searches>=20
+| sort - zero_rate_pct
+| head 40
+| table search_term, searches, zero_hits, zero_rate_pct, no_click_rate_pct
+```
+- **Implementation:** (1) Log each search with term, count of results, and whether the user clicked a hit using HEC from your storefront or portal; (2) filter bots from web logs if you also infer search from query strings; (3) send the top twenty high-volume zero-result terms weekly to the product content owner with suggested catalog checks.
+- **Visualization:** Bar chart (zero-result rate by term), Table (top problem searches), Line chart (overall zero-result trend), Single value (searches with no click percent).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.1.8 · Form Abandonment and Field-Level Drop-Off
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Shows which form fields correlate with users leaving before submit so teams can shorten lead flows and improve compliance without guessing. We help growth leaders recover more sign-ups from the same traffic volume.
+- **App/TA:** HEC (form analytics)
+- **Data Sources:** `index=app_events` `sourcetype="form_analytics"` (form_id, field_name, event_type, session_id, dwell_ms)
+- **SPL:**
+```spl
+index=app_events sourcetype="form_analytics" earliest=-30d
+| where event_type="abandon"
+| stats count as abandons by form_id, field_name
+| sort - abandons
+| head 25
+| table form_id, field_name, abandons
+```
+- **Implementation:** (1) Instrument blur, focus, submit, and abandon events with field names and session identifiers through HEC; (2) define abandon as leaving the page without submit after interacting with the form; (3) prioritise redesign of the top three field-and-form pairs every sprint until abandon counts fall by the agreed target.
+- **Visualization:** Bar chart (abandons by last field), Table (form and field ranking), Funnel chart (started vs submitted), Single value (overall form completion rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.1.9 · Third-Party Tag and API Latency Impact on Engagement
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Correlates slow marketing tags or partner application programming interface calls with shorter sessions and fewer conversions. We help digital teams decide which vendors to keep, async load, or remove based on customer impact, not vendor promises alone.
+- **App/TA:** HEC (RUM or browser telemetry), Splunk Add-on for Apache Web Server (Splunkbase 3186)
+- **Data Sources:** `index=app_events` `sourcetype="rum:resource"` (session_id, resource_host, duration_ms, initiator_type), `index=app_events` `sourcetype="app:ecommerce"` (session_id, event_type)
+- **SPL:**
+```spl
+index=app_events sourcetype="rum:resource" initiator_type="script" earliest=-7d
+| stats perc95(duration_ms) as p95_ms, avg(duration_ms) as avg_ms, count as loads,
+        dc(session_id) as affected_sessions by resource_host
+| eval slow_tag=if(p95_ms>500,"SLOW","OK")
+| sort - p95_ms
+| head 25
+| table resource_host, affected_sessions, loads, avg_ms, p95_ms, slow_tag
+```
+- **Implementation:** (1) Capture real user monitoring resource timings with host and initiator type via HEC; (2) map session identifiers consistently with commerce events; (3) review monthly with marketing technology owners and defer or replace any third-party host above the latency budget for two consecutive weeks.
+- **Visualization:** Bar chart (ninety-fifth percentile duration by host), Table (slow tag list), Scatter plot (loads vs latency), Single value (count of hosts over budget).
+- **CIM Models:** N/A
+
+---
+
 ### 23.2 Revenue & Sales Operations
 
 **Primary App/TA:** Splunk DB Connect (Splunkbase 2686), HEC (CRM/ERP integration).
@@ -373,6 +450,89 @@ index=business sourcetype="dbx:crm_opportunities" stage IN ("Closed Won","Closed
 
 ---
 
+### UC-23.2.6 · Quota Attainment and Capacity Coverage
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Compares booked revenue to quota by rep and region so leaders see who is on track before the quarter ends. We help you move deals, coaching, and territory support to the teams with the largest gap to plan.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:crm_opportunities"` (owner, region, stage, amount, close_date), `sales_quota.csv` (owner, quarter, quota_amount)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:crm_opportunities" stage="Closed Won" earliest=-90d
+| eval qn=ceil(tonumber(strftime(strptime(close_date,"%Y-%m-%d"),"%m"))/3)
+| eval quarter=strftime(strptime(close_date,"%Y-%m-%d"),"%Y")."-Q".tostring(qn)
+| stats sum(amount) as booked by owner, region, quarter
+| lookup sales_quota.csv owner quarter OUTPUT quota_amount
+| eval attainment_pct=if(quota_amount>0, round(100*booked/quota_amount,1), null())
+| eval gap_to_quota=quota_amount-booked
+| where gap_to_quota>0
+| sort - gap_to_quota
+| table owner, region, quarter, quota_amount, booked, attainment_pct, gap_to_quota
+```
+- **Implementation:** (1) Export closed-won revenue and owner keys from your customer relationship management system on a nightly DB Connect schedule; (2) maintain `sales_quota.csv` with fiscal quarter and approved quota amounts; (3) email sales leadership each Monday with reps below eighty percent attainment entering the final month of the quarter.
+- **Visualization:** Bar chart (attainment by rep), Table (gap to quota), Heatmap (region × quarter), Single value (team blended attainment).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.2.7 · Average Contract Value and Deal Size Mix
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Business
+- **Industry:** SaaS, Professional Services
+- **Splunk Pillar:** Observability
+- **Value:** Tracks whether new business is trending larger or smaller so product and packaging teams can adjust offers before average contract value drifts. We help finance stress-test forecasts when the mix shifts toward many small deals or a few giants.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:crm_opportunities"` (opportunity_id, deal_type, amount, stage, product_line, close_date)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:crm_opportunities" stage="Closed Won" deal_type="New Business" earliest=-180d
+| eval close_epoch=strptime(close_date,"%Y-%m-%d")
+| eval month=strftime(close_epoch,"%Y-%m")
+| eval deal_band=case(
+    amount < 10000, "<10k",
+    amount < 50000, "10k-50k",
+    amount < 250000, "50k-250k",
+    1=1, "250k+")
+| stats count as deals, sum(amount) as revenue, avg(amount) as acv by month, deal_band
+| sort month, deal_band
+| table month, deal_band, deals, revenue, acv
+```
+- **Implementation:** (1) Require deal type and product line on closed opportunities in your source system; (2) import history for at least six months to see mix shifts; (3) review monthly with revenue operations and adjust campaign targeting when small-deal share spikes unexpectedly.
+- **Visualization:** Stacked bar (revenue by deal band over time), Line chart (average contract value trend), Table (mix percentages), Single value (current quarter average contract value).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.2.8 · Win–Loss Reason Coding and Competitive Rate
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Summarises why deals are won or lost and how often named competitors appear so product and enablement invest in the right battlecards. We help you reduce repeated losses to the same objection without relying on anecdotal win stories alone.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:crm_opportunities"` (stage, loss_reason, win_reason, competitor, amount, region)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:crm_opportunities" stage="Closed Lost" earliest=-180d
+| where isnotnull(loss_reason)
+| stats count as deals, sum(amount) as pipeline by loss_reason, competitor
+| eventstats sum(deals) as total_lost
+| eval share_pct=round(100*deals/total_lost,1)
+| sort - deals
+| head 30
+| table loss_reason, competitor, deals, pipeline, share_pct
+```
+- **Implementation:** (1) Enforce structured loss and competitor picklists in your customer relationship management close workflow; (2) replicate closed opportunity rows including reasons via DB Connect; (3) run a bi-weekly review with product marketing when any single loss reason exceeds ten percent of losses for two periods in a row.
+- **Visualization:** Bar chart (top loss reasons), Table (competitor × reason), Pie chart (loss reason mix), Single value (losses with competitor tagged percent).
+- **CIM Models:** N/A
+
+---
+
 ### 23.3 Marketing Performance & Attribution
 
 **Primary App/TA:** Splunk Add-on for Apache Web Server (Splunkbase 3186), Splunk DB Connect (Splunkbase 2686), HEC (marketing platform data).
@@ -506,6 +666,99 @@ index=web sourcetype="access_combined" status=200 NOT uri IN ("/favicon.ico","ro
 
 ---
 
+### UC-23.3.5 · Paid Media Cost Per Acquisition and Quality Score
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Divides advertising spend by attributed sign-ups or qualified leads so paid media teams stop optimising for cheap clicks that never buy. We help you reallocate budget toward campaigns that bring customers who actually convert downstream.
+- **App/TA:** HEC (ad platform), Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="ad_spend"` (campaign_id, spend, impressions, clicks, date), `index=business` `sourcetype="dbx:crm_leads"` (lead_id, campaign_id, status)
+- **SPL:**
+```spl
+index=business sourcetype="ad_spend" earliest=-30d
+| stats sum(spend) as spend, sum(clicks) as clicks, sum(impressions) as impressions by campaign_id
+| join type=left campaign_id [
+    search index=business sourcetype="dbx:crm_leads" earliest=-30d
+    | eval qualified=if(match(lower(status),"qualified|mql"),1,0)
+    | stats dc(lead_id) as leads, sum(qualified) as qualified_leads by campaign_id
+]
+| fillnull value=0 leads qualified_leads
+| eval cpa_spend=if(leads>0, round(spend/leads,2), null())
+| eval cpq=if(qualified_leads>0, round(spend/qualified_leads,2), null())
+| eval ctr_pct=if(impressions>0, round(100*clicks/impressions,2), null())
+| sort - spend
+| table campaign_id, spend, clicks, ctr_pct, leads, qualified_leads, cpa_spend, cpq
+```
+- **Implementation:** (1) Land daily campaign cost and click files from your advertising APIs into Splunk using HEC; (2) join leads on a shared campaign identifier from your marketing automation or customer relationship management system; (3) alert marketing when cost per qualified lead doubles week over week for any active campaign.
+- **Visualization:** Scatter plot (spend vs qualified leads), Table (campaign efficiency), Bar chart (cost per qualified lead), Single value (blended cost per acquisition).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.3.6 · Content Engagement and Lead Conversion Lift
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Links blog and resource centre engagement to lead creation so editorial investments can be judged like performance channels. We help you retire low-traffic pages that consume effort without pipeline impact.
+- **App/TA:** Splunk Add-on for Apache Web Server (Splunkbase 3186), Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=web` `sourcetype="access_combined"` (uri, clientip, status), `index=business` `sourcetype="dbx:crm_leads"` (lead_id, landing_page, created_date)
+- **SPL:**
+```spl
+index=web sourcetype="access_combined" status=200 uri="/blog/*" earliest=-30d
+| eval session=clientip."_".useragent
+| stats dc(session) as sessions, count as views by uri
+| join type=left uri [
+    search index=business sourcetype="dbx:crm_leads" earliest=-30d
+    | stats dc(lead_id) as leads by landing_page
+    | rename landing_page as uri
+]
+| fillnull value=0 leads
+| eval views_per_lead=if(leads>0, round(views/leads,0), null())
+| sort - views
+| head 25
+| table uri, sessions, views, leads, views_per_lead
+```
+- **Implementation:** (1) Standardise landing page URLs on forms so they match blog paths where possible; (2) import lead timestamps and landing page from customer relationship management nightly; (3) review monthly with content marketing to double down on topics with strong lead lift and archive thin content.
+- **Visualization:** Bar chart (views by article), Table (lead conversion proxy), Line chart (sessions vs leads), Single value (blog-sourced leads).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.3.7 · Webinar and Event Pipeline Contribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Attributes opportunities and revenue to webinars and field events so field marketing proves return beyond attendance counts. We help leadership compare expensive programmes to simpler digital motions using the same pipeline currency.
+- **App/TA:** HEC (event platform), Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="event_registration"` (event_id, registrant_id, attended_flag), `index=business` `sourcetype="dbx:crm_opportunities"` (opportunity_id, campaign_source, amount, stage)
+- **SPL:**
+```spl
+index=business sourcetype="event_registration" earliest=-90d
+| stats dc(registrant_id) as registrations, sum(eval(if(attended_flag="yes",1,0))) as attendees by event_id
+| join type=left event_id [
+    search index=business sourcetype="dbx:crm_opportunities" earliest=-90d
+    | eval from_event=if(match(campaign_source,"(?i)webinar|event|field"),1,0)
+    | where from_event=1
+    | stats sum(amount) as pipeline, sum(eval(if(stage="Closed Won",amount,0))) as won_revenue by campaign_source
+    | rename campaign_source as event_id
+]
+| fillnull value=0 pipeline won_revenue
+| eval attendance_rate=if(registrations>0, round(100*attendees/registrations,1), null())
+| sort - won_revenue
+| table event_id, registrations, attendees, attendance_rate, pipeline, won_revenue
+```
+- **Implementation:** (1) Send registration and attendance webhooks from your event tool into Splunk with identifiers that match customer relationship management campaigns; (2) require opportunities to carry the originating programme code; (3) publish a quarterly event portfolio review sorted by won revenue and pipeline efficiency.
+- **Visualization:** Bar chart (won revenue by event), Table (attendance and pipeline), Single value (events-sourced pipeline), Line chart (attendance rate trend).
+- **CIM Models:** N/A
+
+---
+
 ### 23.4 HR & People Analytics
 
 **Primary App/TA:** Splunk DB Connect (Splunkbase 2686), HEC (HRIS integration).
@@ -632,6 +885,87 @@ index=business sourcetype="lms_completion" mandatory="yes"
 
 ---
 
+### UC-23.4.5 · Absence and Leave Pattern Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Surfaces unusual absence spikes by team or location so managers can offer support or adjust rosters before service levels suffer. We help people leaders spot burnout or local illness trends early while respecting privacy aggregation.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686), HEC
+- **Data Sources:** `index=business` `sourcetype="dbx:time_attendance"` (employee_id, department, absence_hours, date, absence_type)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:time_attendance" absence_hours>0 earliest=-90d
+| eval week=strftime(strptime(date,"%Y-%m-%d"),"%Y-%U")
+| stats sum(absence_hours) as total_absence_hours, dc(employee_id) as absentees by department, week
+| eventstats avg(total_absence_hours) as org_avg
+| eval variance_pct=if(org_avg>0, round(100*(total_absence_hours-org_avg)/org_avg,1), null())
+| where variance_pct>25
+| sort - total_absence_hours
+| table department, week, absentees, total_absence_hours, variance_pct
+```
+- **Implementation:** (1) Import anonymised time and attendance extracts without attaching medical reasons unless legally approved; (2) roll up to department and week by default; (3) alert human resources when any department exceeds twenty-five percent above the company average for two consecutive weeks.
+- **Visualization:** Line chart (absence hours trend by department), Table (outlier weeks), Heatmap (department × week), Single value (organisation absence hours).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.4.6 · Internal Mobility and Promotion Velocity
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Tracks how often people move roles internally and how long promotions take after eligibility. We help talent leaders prove whether career paths are real or blocked, which affects engagement and retention.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:hris_employees"` (employee_id, department, role, hire_date, promotion_date, job_change_type)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:hris_employees" earliest=-730d
+| where isnotnull(promotion_date)
+| eval promo_epoch=strptime(promotion_date,"%Y-%m-%d")
+| eval hire_epoch=strptime(hire_date,"%Y-%m-%d")
+| eval months_to_promo=round((promo_epoch-hire_epoch)/(86400*30),1)
+| eval internal_move=if(job_change_type IN ("Transfer","Promotion","Lateral"),1,0)
+| stats count as events, sum(internal_move) as internal_moves, avg(months_to_promo) as avg_months_to_promo by department
+| eval internal_move_rate=round(100*internal_moves/events,1)
+| sort - internal_move_rate
+| table department, events, internal_moves, internal_move_rate, avg_months_to_promo
+```
+- **Implementation:** (1) Ensure job change events carry a type flag from your human resources information system feed; (2) refresh monthly after payroll close; (3) review with business unit heads when promotion velocity lengthens materially versus the prior year.
+- **Visualization:** Bar chart (internal move rate by department), Table (promotion timing), Line chart (average months to promotion), Single value (company internal move rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.4.7 · Overtime Cost and Burnout Risk Indicator
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Manufacturing, Retail, Healthcare
+- **Splunk Pillar:** Observability
+- **Value:** Aggregates overtime hours and premium pay by cost centre so finance controls labour inflation while people teams watch burnout signals. We help you intervene when a few teams carry an unsustainable load.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:time_attendance"` (employee_id, cost_centre, overtime_hours, pay_week, hourly_rate)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:time_attendance" overtime_hours>0 earliest=-56d
+| eval ot_pay=overtime_hours*hourly_rate*1.5
+| stats sum(overtime_hours) as total_ot_hours, sum(ot_pay) as total_ot_pay,
+        dc(employee_id) as employees_with_ot by cost_centre, pay_week
+| eventstats perc90(total_ot_pay) as p90_pay by pay_week
+| eval high_cost=if(total_ot_pay>=p90_pay,"YES","NO")
+| where high_cost="YES"
+| sort - total_ot_pay
+| table cost_centre, pay_week, employees_with_ot, total_ot_hours, total_ot_pay
+```
+- **Implementation:** (1) Load approved time cards with overtime and base rates through DB Connect using payroll rules your controller validates; (2) group by cost centre and pay week for privacy-preserving views; (3) trigger a fortnightly review when any cost centre repeatedly lands in the top decile of overtime pay.
+- **Visualization:** Bar chart (overtime pay by cost centre), Table (high-cost weeks), Line chart (total overtime hours trend), Single value (total overtime pay period).
+- **CIM Models:** N/A
+
+---
+
 ### 23.5 Supply Chain & Operations
 
 **Primary App/TA:** Splunk DB Connect (Splunkbase 2686), Splunk Add-on for ServiceNow (Splunkbase 1928), HEC (WMS/TMS/ERP integration).
@@ -751,6 +1085,93 @@ index=business sourcetype="dbx:shipments" actual_delivery=* earliest=-30d
 ```
 - **Implementation:** (1) Import shipment tracking data from TMS or carrier APIs via HEC; (2) map carrier service levels to your customer-facing delivery promises; (3) schedule daily for logistics team; (4) alert when any carrier/service_level combination drops below 95% compliance; (5) calculate financial impact of late deliveries (refunds, credits, lost customers).
 - **Visualization:** Bar chart (SLA compliance by carrier), Table (carrier scorecard), Heatmap (carrier × region), Single value (overall SLA compliance %).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.5.5 · Perfect Order Rate and Customer Impact
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Retail, Manufacturing, Distribution
+- **Splunk Pillar:** Observability
+- **Value:** Combines on-time, in-full, and damage-free delivery into one perfect order score so sales and operations share one customer-facing metric. We help you see when service looks acceptable on paper but customers still receive wrong or damaged goods.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686), HEC
+- **Data Sources:** `index=business` `sourcetype="dbx:shipments"` (order_id, customer_tier, sla_met, damage_flag, short_ship_flag), `index=business` `sourcetype="returns_log"` (order_id, return_reason)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:shipments" earliest=-30d
+| eval on_time=sla_met
+| eval in_full=if(short_ship_flag="no",1,0)
+| eval no_damage=if(damage_flag="no",1,0)
+| join type=left order_id [
+    search index=business sourcetype="returns_log" earliest=-30d
+    | stats count as return_count by order_id
+]
+| fillnull value=0 return_count
+| eval perfect=if(on_time=1 AND in_full=1 AND no_damage=1 AND return_count=0,1,0)
+| stats count as orders, sum(perfect) as perfect_orders by customer_tier
+| eval perfect_order_rate=round(100*perfect_orders/orders,1)
+| sort - perfect_order_rate
+| table customer_tier, orders, perfect_orders, perfect_order_rate
+```
+- **Implementation:** (1) Align shipment, quality, and returns feeds on a common order identifier ingested through DB Connect or HEC; (2) define “perfect” with commercial and logistics leaders; (3) publish weekly to account teams when any customer tier drops below the agreed perfect-order threshold.
+- **Visualization:** Bar chart (perfect order rate by tier), Single value (overall perfect order %), Table (tier detail), Line chart (weekly trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.5.6 · Capacity Utilisation vs Demand Forecast
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Manufacturing, Logistics
+- **Splunk Pillar:** Observability
+- **Value:** Compares production or warehouse throughput to forecast demand so planners see under-used lines before capital is wasted or overloaded sites before service fails. We help you align staffing and shifts with expected volume swings.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686), HEC
+- **Data Sources:** `index=business` `sourcetype="mes:throughput"` (line_id, units_produced, shift_date), `demand_forecast.csv` (line_id, week, forecast_units)
+- **SPL:**
+```spl
+index=business sourcetype="mes:throughput" earliest=-14d
+| eval week=strftime(_time,"%Y-%U")
+| stats sum(units_produced) as actual_units by line_id, week
+| lookup demand_forecast.csv line_id week OUTPUT forecast_units
+| eval utilisation_pct=if(forecast_units>0, round(100*actual_units/forecast_units,1), null())
+| eval gap_units=forecast_units-actual_units
+| where utilisation_pct<85 OR utilisation_pct>115
+| eval abs_gap=abs(gap_units)
+| sort - abs_gap
+| table line_id, week, forecast_units, actual_units, utilisation_pct, gap_units
+```
+- **Implementation:** (1) Ingest manufacturing execution system or warehouse throughput events on each shift via HEC; (2) refresh `demand_forecast.csv` from planning each week with matching line and week keys; (3) review exceptions daily with planning and plant managers to rebalance loads or adjust forecasts.
+- **Visualization:** Line chart (utilisation vs one hundred percent by line), Table (under and over capacity), Single value (lines out of band), Bar chart (gap units by line).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.5.7 · Returns Rate and Reverse Logistics Cost
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Business
+- **Industry:** Retail, E-Commerce
+- **Splunk Pillar:** Observability
+- **Value:** Tracks return counts and refund value against shipped units so merchandising sees which products drive margin leakage. We help you trigger quality reviews or sizing guides before return rates damage the brand.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="returns_log"` (sku, return_date, refund_amount, reason_code), `index=business` `sourcetype="dbx:shipments"` (sku, shipped_qty, ship_date)
+- **SPL:**
+```spl
+index=business sourcetype="returns_log" earliest=-30d
+| stats count as returns, sum(refund_amount) as refund_total by sku, reason_code
+| join type=left sku [
+    search index=business sourcetype="dbx:shipments" earliest=-30d
+    | stats sum(shipped_qty) as shipped_units by sku
+]
+| eval return_rate_pct=if(shipped_units>0, round(100*returns/shipped_units,2), null())
+| sort - refund_total
+| table sku, reason_code, shipped_units, returns, return_rate_pct, refund_total
+```
+- **Implementation:** (1) Load returns authorisations and shipment facts from order management with a shared stock keeping unit key; (2) normalise reason codes to a small taxonomy for reporting; (3) schedule weekly and invite category managers when any stock keeping unit exceeds the agreed return rate.
+- **Visualization:** Bar chart (return rate by SKU), Table (reason code breakdown), Single value (portfolio return %), Pie chart (reason mix).
 - **CIM Models:** N/A
 
 ---
@@ -887,6 +1308,59 @@ index=business sourcetype="payment_gateway" earliest=-24h
 
 ---
 
+### UC-23.6.5 · Purchase Order Cycle Time and Maverick Spend
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Measures how long purchase requests take from submission to approval and flags orders placed outside preferred suppliers. We help procurement protect negotiated savings and shorten delays that stall projects.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=business` `sourcetype="dbx:purchase_orders"` (po_number, request_date, approved_date, supplier, preferred_flag, amount)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:purchase_orders" earliest=-90d
+| eval req=strptime(request_date,"%Y-%m-%d")
+| eval appr=strptime(approved_date,"%Y-%m-%d")
+| eval cycle_days=if(isnotnull(appr), round((appr-req)/86400,0), null())
+| eval maverick=if(preferred_flag="no",1,0)
+| stats avg(cycle_days) as avg_cycle_days, perc95(cycle_days) as p95_cycle_days,
+        sum(amount) as total_spend, sum(eval(if(maverick=1,amount,0))) as maverick_spend,
+        count as po_count by supplier
+| eval maverick_pct=if(total_spend>0, round(100*maverick_spend/total_spend,1), null())
+| sort - maverick_spend
+| table supplier, po_count, avg_cycle_days, p95_cycle_days, total_spend, maverick_spend, maverick_pct
+```
+- **Implementation:** (1) Replicate purchase order lifecycle fields from enterprise resource planning or procurement workflow into Splunk using DB Connect; (2) maintain a preferred supplier flag on each vendor record; (3) alert procurement when maverick spend exceeds policy for two consecutive weeks.
+- **Visualization:** Bar chart (maverick spend by supplier), Table (cycle time and maverick detail), Single value (overall maverick %), Line chart (average cycle days trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.6.6 · Intercompany Reconciliation Exception Queue
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Surfaces journal entries that fail intercompany matching rules so the close team clears exceptions before statutory reporting deadlines. We help finance reduce manual spreadsheet chasing during month-end.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:ic_reconciliation"` (ic_pair_id, entity_a, entity_b, amount_a, amount_b, status, posting_date)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:ic_reconciliation" status!="matched" earliest=-60d
+| eval variance=abs(amount_a-amount_b)
+| eval severity=case(variance>10000,"HIGH", variance>1000,"MEDIUM", 1=1,"LOW")
+| stats count as open_items, sum(variance) as total_variance, max(variance) as max_variance by entity_a, entity_b, severity
+| sort - total_variance
+| table entity_a, entity_b, severity, open_items, total_variance, max_variance
+```
+- **Implementation:** (1) Export unmatched intercompany lines nightly from the general ledger or reconciliation tool via DB Connect; (2) classify severity bands with your controller; (3) assign a daily saved search that emails the shared services inbox when high severity open items exceed the agreed cap.
+- **Visualization:** Table (exceptions by entity pair), Bar chart (open items by severity), Single value (total unmatched variance), Pie chart (severity mix).
+- **CIM Models:** N/A
+
+---
+
 ### 23.7 Customer Support & Service Excellence
 
 **Primary App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk DB Connect (Splunkbase 2686), HEC (helpdesk/CRM integration).
@@ -979,6 +1453,90 @@ index=business sourcetype="support_survey" earliest=-90d
 ```
 - **Implementation:** (1) Ingest post-interaction CES surveys via HEC; (2) use a 1-7 scale (lower = less effort = better); (3) correlate with operational data from ticketing system; (4) schedule monthly; (5) identify high-effort combinations (e.g., "Billing + Phone = high effort") for process redesign; (6) track CES trend after implementing improvements.
 - **Visualization:** Heatmap (channel × issue type), Bar chart (CES by channel), Table (highest effort combinations), Line chart (CES trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.7.4 · Backlog Age and Breach Risk Forecast
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Highlights tickets that have been open longer than your policy allows before they breach service promises. We help capacity planners see how much work is aging so they can add shifts or shift topics before customers feel ignored.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (number, opened_at, closed_at, priority, assignment_group)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" state!="Closed" earliest=-30d
+| eval opened_epoch=strptime(opened_at, "%Y-%m-%d %H:%M:%S")
+| eval age_hours=round((now()-opened_epoch)/3600,1)
+| eval sla_target_hours=case(priority="1",4, priority="2",8, priority="3",24, 1=1,72)
+| eval pct_of_sla=round(100*age_hours/sla_target_hours,0)
+| eval breach_risk=case(pct_of_sla>=100,"BREACHED", pct_of_sla>=80,"AT RISK", 1=1,"OK")
+| stats count as tickets, avg(age_hours) as avg_age_h, max(age_hours) as max_age_h by assignment_group, breach_risk
+| sort assignment_group, breach_risk
+| table assignment_group, breach_risk, tickets, avg_age_h, max_age_h
+```
+- **Implementation:** (1) Ingest open incidents with accurate opened timestamps from ServiceNow; (2) align `sla_target_hours` with your contractual response and resolve clocks; (3) schedule every two hours and route “AT RISK” queues to team leads before breaches hit customer reports.
+- **Visualization:** Stacked bar (tickets by risk band and team), Table (oldest tickets), Single value (count at risk), Line chart (backlog age trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.7.5 · Agent Occupancy and Schedule Adherence
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Relates logged-in and productive handle time to published schedules so workforce leaders see understaffing before service levels collapse. We help you balance labour cost with customer wait times using facts instead of anecdotal busy signals.
+- **App/TA:** HEC (contact centre platform), Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="acd:agent_state"` (agent_id, state, duration_sec, queue), `agent_schedule.csv` (agent_id, scheduled_seconds, work_date)
+- **SPL:**
+```spl
+index=business sourcetype="acd:agent_state" earliest=-7d
+| eval work_states=if(state IN ("On_Call","After_Call_Work","Busy"),1,0)
+| eval work_date=strftime(_time,"%Y-%m-%d")
+| stats sum(eval(if(work_states=1,duration_sec,0))) as productive_sec,
+        sum(duration_sec) as logged_sec by agent_id, work_date
+| lookup agent_schedule.csv agent_id work_date OUTPUT scheduled_seconds
+| fillnull value=28800 scheduled_seconds
+| eval occupancy_pct=if(logged_sec>0, round(100*productive_sec/logged_sec,1), null())
+| eval adherence_pct=if(scheduled_seconds>0, round(100*logged_sec/scheduled_seconds,1), null())
+| stats avg(occupancy_pct) as avg_occupancy, avg(adherence_pct) as avg_adherence, dc(agent_id) as agents
+| table agents, avg_occupancy, avg_adherence
+```
+- **Implementation:** (1) Stream agent state changes from your automatic call distributor into Splunk using HEC with consistent state names; (2) publish `agent_schedule.csv` with per-agent scheduled seconds per work date from workforce management; (3) review weekly with operations and adjust forecasts when adherence drifts more than five points from target.
+- **Visualization:** Bar chart (occupancy by agent), Table (adherence exceptions), Single value (team average occupancy), Heatmap (hour-of-day occupancy).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.7.6 · Knowledge Base Deflection and Self-Service ROI
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Compares article views and successful searches to ticket volume so content owners see which topics actually reduce contacts. We help you justify investment in help articles by linking usage to fewer paid support minutes.
+- **App/TA:** HEC (help centre analytics), Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=web` `sourcetype="access_combined"` (uri, status, clientip), `index=itsm` `sourcetype="snow:incident"` (category, opened_at)
+- **SPL:**
+```spl
+index=web sourcetype="access_combined" status=200 uri="/help/*" earliest=-30d
+| eval session=clientip."_".useragent
+| stats dc(session) as help_sessions, count as article_views by uri
+| appendcols [
+    search index=itsm sourcetype="snow:incident" earliest=-30d
+    | stats count as tickets_30d
+]
+| sort - article_views
+| head 20
+| table uri, help_sessions, article_views, tickets_30d
+```
+- **Implementation:** (1) Ensure help centre URLs are structured so `/help/` paths are easy to filter in web logs; (2) join or correlate weekly ticket counts by category with top article topics using a shared topic tag if available; (3) publish a monthly readout to the knowledge team listing articles with high views and categories where tickets remain high.
+- **Visualization:** Bar chart (top articles by views), Table (URI performance), Line chart (help sessions vs tickets), Single value (help sessions per thousand tickets).
 - **CIM Models:** N/A
 
 ---
@@ -1111,6 +1669,111 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-1mon@
 ```
 - **Implementation:** (1) Define `business_risk_thresholds.csv` with green/amber/red thresholds per metric; (2) add risk domains relevant to your business; (3) schedule daily for executive team; (4) alert the executive team when any risk moves to RED; (5) add drill-down to the domain-specific dashboard for investigation; (6) maintain risk register notes for board reporting.
 - **Visualization:** Heatmap (risk areas × risk level), Single value tiles per domain, Table (risk register with current status), Trend chart (risk movement over time).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.8.4 · Rule-of-40 and SaaS Unit Economics
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** SaaS, Technology
+- **Splunk Pillar:** Observability
+- **Value:** Combines revenue growth with profit margin into a single investor-friendly score so boards can see whether the company balances growth and discipline. We help finance and strategy teams spot quarters where efficiency slips without waiting for the full close package.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:erp_orders"` (revenue, order_date, order_status), `index=business` `sourcetype="dbx:gl_transactions"` (ebitda_amount, revenue_amount, period)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-270d latest=now()
+| eval qn=ceil(tonumber(strftime(_time,"%m"))/3)
+| eval quarter=strftime(_time,"%Y")."-Q".tostring(qn)
+| stats sum(revenue) as q_revenue by quarter
+| sort quarter
+| streamstats window=1 current=f last(q_revenue) as prev_rev
+| eval growth_pct=if(isnotnull(prev_rev) AND prev_rev>0, round(100*(q_revenue-prev_rev)/prev_rev,1), null())
+| join type=left quarter [
+    search index=business sourcetype="dbx:gl_transactions" earliest=-270d latest=now()
+    | eval pe=coalesce(strptime(period,"%Y-%m-%d"),strptime(period."-01","%Y-%m-%d"))
+    | eval qn=ceil(tonumber(strftime(pe,"%m"))/3)
+    | eval quarter=strftime(pe,"%Y")."-Q".tostring(qn)
+    | stats sum(ebitda_amount) as q_ebitda, sum(revenue_amount) as q_rev_gl by quarter
+    | eval margin_pct=if(q_rev_gl>0, round(100*q_ebitda/q_rev_gl,1), null())
+    | fields quarter, margin_pct
+]
+| eval rule_of_40=round(coalesce(growth_pct,0)+coalesce(margin_pct,0),1)
+| table quarter, q_revenue, growth_pct, margin_pct, rule_of_40
+```
+- **Implementation:** (1) Align revenue and profit data from your enterprise resource planning system on the same fiscal calendar via DB Connect; (2) map the earnings before interest accounts used for margin; (3) refresh each quarter and compare rule-of-40 to board targets and peer benchmarks from your planning lookup.
+- **Visualization:** Line chart (rule-of-40 over quarters), Table (growth and margin components), Single value (latest rule-of-40), Bar chart (margin vs growth stacked).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.8.5 · Customer Acquisition Cost and Payback Period
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Divides sales and marketing spend by new customers won so leadership sees whether growth is efficient or expensive. We help you estimate how many months a typical customer must stay to repay that investment, which guides budget cuts and pricing decisions.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686), HEC
+- **Data Sources:** `index=business` `sourcetype="dbx:crm_opportunities"` (stage, customer_id, close_date, amount), `marketing_spend.csv` (month, spend)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:crm_opportunities" stage="Closed Won" earliest=-90d
+| eval month=strftime(strptime(close_date,"%Y-%m-%d"),"%Y-%m")
+| stats dc(customer_id) as new_customers, sum(amount) as booked_revenue by month
+| join type=left month [
+    | inputlookup marketing_spend.csv
+    | stats sum(marketing_spend) as marketing_spend, sum(sales_spend) as sales_spend by month
+]
+| fillnull value=0 marketing_spend sales_spend
+| eval total_spend=marketing_spend+sales_spend
+| eval cac=if(new_customers>0, round(total_spend/new_customers,0), null())
+| eval avg_first_year_revenue=if(new_customers>0, round(booked_revenue/new_customers,2), null())
+| eval payback_months=if(avg_first_year_revenue>0 AND cac>0, round(cac/(avg_first_year_revenue/12),1), null())
+| sort month
+| table month, new_customers, total_spend, cac, avg_first_year_revenue, payback_months
+```
+- **Implementation:** (1) Load closed-won customers with first-order dates from customer relationship management via DB Connect; (2) combine marketing and allocated sales costs in `marketing_spend.csv` or separate lookups by month; (3) review monthly with the chief marketing officer and finance partner and set alert thresholds when payback months exceed policy.
+- **Visualization:** Line chart (CAC and payback trend), Table (monthly detail), Single value (blended CAC), Bar chart (spend vs new customers).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.8.6 · Working Capital and Cash Conversion Cycle
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Business
+- **Industry:** Manufacturing, Retail, Distribution
+- **Splunk Pillar:** Observability
+- **Value:** Combines days inventory outstanding, days sales outstanding, and days payables outstanding into a cash conversion view so treasury can see how long cash is tied up in operations. We help you prioritise collections, stock, and supplier terms when liquidity is tight.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="dbx:inventory"` (sku, qty_on_hand, unit_cost), `index=business` `sourcetype="dbx:ar_invoices"` (amount, status), `index=business` `sourcetype="dbx:ap_invoices"` (amount, status), `index=business` `sourcetype="dbx:gl_transactions"` (revenue_amount, period)
+- **SPL:**
+```spl
+index=business sourcetype="dbx:inventory" earliest=-1d@d latest=now()
+| stats sum(eval(qty_on_hand*unit_cost)) as inventory_value
+| appendcols [
+    search index=business sourcetype="dbx:ar_invoices" status="open" earliest=-1d@d
+    | stats sum(amount) as ar_open
+]
+| appendcols [
+    search index=business sourcetype="dbx:ap_invoices" status="open" earliest=-1d@d
+    | stats sum(amount) as ap_open
+]
+| appendcols [
+    search index=business sourcetype="dbx:gl_transactions" earliest=-30d
+    | stats sum(revenue_amount) as revenue_30d
+]
+| eval dio=if(revenue_30d>0, round(inventory_value/(revenue_30d/30),0), null())
+| eval dso=if(revenue_30d>0, round(ar_open/(revenue_30d/30),0), null())
+| eval dpo=if(revenue_30d>0, round(ap_open/(revenue_30d/30),0), null())
+| eval ccc=round(dio+dso-dpo,0)
+| table inventory_value, ar_open, ap_open, revenue_30d, dio, dso, dpo, ccc
+```
+- **Implementation:** (1) Schedule a daily snapshot from inventory, receivables, and payables tables through DB Connect using consistent valuation rules; (2) use trailing thirty-day revenue as the activity denominator unless your controller specifies otherwise; (3) alert treasury when the cash conversion cycle moves more than five days away from the rolling average.
+- **Visualization:** Single value (CCC, DIO, DSO, DPO), Waterfall (components), Line chart (CCC trend), Table (daily snapshot history).
 - **CIM Models:** N/A
 
 ---
@@ -1269,3 +1932,60 @@ index=facilities sourcetype="water_meter" earliest=-30d
 - **Implementation:** (1) Build `esg_metric_registry.csv` listing all required ESG metrics by framework (CSRD, GRI, SASB, TCFD); (2) map each metric to its Splunk data source and data owner; (3) schedule quarterly readiness checks; (4) alert data owners when their metrics have data gaps; (5) generate audit trail showing when each metric was last validated; (6) produce a readiness report for the sustainability committee.
 - **Visualization:** Table (metric readiness by framework), Gauge (overall completeness %), Bar chart (gaps by framework), Single value (metrics with gaps).
 - **CIM Models:** N/A
+
+---
+
+### UC-23.9.6 · Renewable Energy Share and Green Tariff Attribution
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Business, Compliance
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Shows what share of your electricity came from renewable contracts or on-site generation versus grid mix, so leaders can prove progress to investors and regulators. We help you tie tariff decisions to reported carbon outcomes instead of guessing after the fact.
+- **App/TA:** Splunk DB Connect (Splunkbase 2686), HEC (utility data)
+- **Data Sources:** `index=facilities` `sourcetype="power_meter"` (site, kwh, contract_type, timestamp), `renewable_contracts.csv` (site, renewable_pct, period)
+- **SPL:**
+```spl
+index=facilities sourcetype="power_meter" earliest=-30d
+| bin _time span=1d
+| stats sum(kwh) as daily_kwh by _time, site, contract_type
+| stats sum(daily_kwh) as total_kwh by site, contract_type
+| lookup renewable_contracts.csv site OUTPUT renewable_pct
+| eval renewable_kwh=round(total_kwh * coalesce(renewable_pct,0) / 100, 2)
+| eval grid_kwh=total_kwh-renewable_kwh
+| stats sum(renewable_kwh) as sum_renewable, sum(grid_kwh) as sum_grid, sum(total_kwh) as sum_total by site
+| eval renewable_share_pct=if(sum_total>0, round(100*sum_renewable/sum_total, 1), null())
+| sort - renewable_share_pct
+| table site, sum_total, sum_renewable, sum_grid, renewable_share_pct
+```
+- **Implementation:** (1) Tag each meter or site with contract type and ingest utility invoices or supplier files via DB Connect; (2) maintain `renewable_contracts.csv` with the certified renewable percentage per site and period; (3) schedule monthly and compare renewable share to your science-based or net-zero milestones.
+- **Visualization:** Stacked bar (renewable vs grid kWh by site), Single value (portfolio renewable %), Table (site-level mix), Line chart (renewable share trend).
+- **CIM Models:** N/A
+
+---
+
+### UC-23.9.7 · Scope 3 Commuting and Hybrid Work Emissions
+- **Criticality:** 🟢 Low
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Business, Compliance
+- **Industry:** Cross-industry
+- **Splunk Pillar:** Observability
+- **Value:** Estimates emissions from employee commuting and hybrid office attendance using badge and survey data, which many disclosure frameworks now ask for under Scope 3. We help workplace and sustainability teams see which locations and commute modes drive the largest footprint so travel and office policies can be adjusted fairly.
+- **App/TA:** HEC (badge/HR systems), Splunk DB Connect (Splunkbase 2686)
+- **Data Sources:** `index=business` `sourcetype="commute_survey"` (employee_id, site, mode, distance_km, days_per_week), `commute_emission_factors.csv` (mode, kg_co2_per_km)
+- **SPL:**
+```spl
+index=business sourcetype="commute_survey" earliest=-90d
+| eval weekly_km=distance_km*days_per_week
+| lookup commute_emission_factors.csv mode OUTPUT kg_co2_per_km
+| eval weekly_kg_co2=round(weekly_km * coalesce(kg_co2_per_km, 0.12), 2)
+| stats sum(weekly_kg_co2) as total_kg_co2, dc(employee_id) as respondents, avg(weekly_km) as avg_weekly_km by site, mode
+| eval tonnes_co2=round(total_kg_co2/1000, 2)
+| sort - tonnes_co2
+| table site, mode, respondents, avg_weekly_km, tonnes_co2
+```
+- **Implementation:** (1) Send anonymised commute surveys or badge-based attendance summaries to Splunk via HEC on a schedule employees understand; (2) keep `commute_emission_factors.csv` aligned with your country’s published factors; (3) run quarterly and review results with facilities and people leaders before publishing ESG narratives.
+- **Visualization:** Bar chart (tonnes CO2 by commute mode), Table (site and mode breakdown), Pie chart (mode share), Single value (total estimated commuting tonnes).
+- **CIM Models:** N/A
+
+---

@@ -2,7 +2,7 @@
 
 ### 20.1 Cloud Cost Monitoring
 
-**Splunk Add-on:** Cloud provider TAs, CUR/billing export ingestion
+**Primary App/TA:** Cloud provider TAs, CUR/billing export ingestion
 
 ### UC-20.1.1 · Daily Spend Trending
 
@@ -439,9 +439,194 @@ index=summary sourcetype="cloud:idle_candidates" earliest=-1d
 - **Visualization:** Bar chart (idle $ by account), Table (owner, idle $), Single value (fleet idle $).
 - **CIM Models:** N/A
 
+---
+
+### UC-20.1.21 · Azure Cost Management Daily Spend by Meter Category
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Performance
+- **Value:** Azure invoices spread spend across many meters (compute, storage, networking, PaaS). Rolling up daily cost by `MeterCategory` and subscription exposes the biggest budget drivers early so teams can tune SKUs, retire sandboxes, and negotiate reservations before month-end true-up.
+- **App/TA:** `Splunk Add-on for Microsoft Cloud Services`, Azure Cost Management export (Blob/HEC)
+- **Data Sources:** `index=cloud_billing` `sourcetype="azure:billing:usage"`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="azure:billing:usage" earliest=-30d
+| eval cost=tonumber(coalesce(CostUSD, cost, pretax_cost))
+| eval sub=coalesce(SubscriptionId, subscription_id)
+| eval cat=coalesce(MeterCategory, meter_category, "Unknown")
+| bin _time span=1d
+| stats sum(cost) as daily_spend by _time, sub, cat
+| timechart span=1d sum(daily_spend) as spend by cat
+```
+- **Implementation:** (1) Export Cost Management actual + amortized cost daily to Splunk (Blob pull or Event Hub). (2) Normalize currency fields and subscription identifiers. (3) Alert when any `MeterCategory` exceeds its 14-day median by 40% for two consecutive days.
+- **Visualization:** Stacked area chart (spend by meter category), Table (top categories by subscription), Single value (MTD vs prior MTD %).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.1.22 · GCP Billing Export Cost by Project and Service
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Capacity
+- **Value:** Google Cloud bills aggregate credits, sustained-use discounts, and cross-project shared VPC egress. Tracking `project.id` and `service.description` daily highlights runaway BigQuery scan jobs, idle Composer environments, and forgotten projects that quietly consume committed spend.
+- **App/TA:** `Splunk Add-on for Google Cloud Platform`, BigQuery billing export (JSONL to GCS → HEC)
+- **Data Sources:** `index=cloud_billing` `sourcetype="gcp:billing:export"`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="gcp:billing:export" earliest=-30d
+| eval cost=tonumber(coalesce(cost, cost_amount, usage.amount))
+| eval project=coalesce('project.id', project_id)
+| eval svc=coalesce('service.description', service_description, sku.description)
+| bin _time span=1d
+| stats sum(cost) as daily_cost by _time, project, svc
+| stats sum(eval(if(_time>=relative_time(now(),"-7d@d"),daily_cost,0))) as last7d
+         sum(eval(if(_time<relative_time(now(),"-7d@d") AND _time>=relative_time(now(),"-14d@d"),daily_cost,0))) as prev7d by project, svc
+| eval wow_pct=round(100*(last7d-prev7d)/nullif(prev7d,0),1)
+| where wow_pct>25 OR last7d>5000
+| sort -last7d
+```
+- **Implementation:** (1) Enable detailed billing export with project hierarchy labels. (2) Ingest with stable `project`/`service` field aliases. (3) Route week-over-week spikes to FinOps with drilldown links to BigQuery job IDs when present.
+- **Visualization:** Treemap (cost by project), Bar chart (top services), Table (WoW % and 7-day spend).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.1.23 · Reserved Instance Purchase Amortization vs On-Demand Leakage
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost, Performance
+- **Value:** Amortized RI fees should displace on-demand box usage in the same instance family. When amortized reservation cost rises but matching usage stays on-demand, coverage or scope mismatches waste committed dollars. This view quantifies leakage for purchasing corrections.
+- **App/TA:** `Splunk Add-on for AWS` (CUR)
+- **Data Sources:** `index=cloud_billing` `sourcetype="aws:billing:cur"`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+| eval cost=tonumber(lineItem_UnblendedCost)
+| eval ri_fee=if(lineItem_LineItemType IN ("DiscountedUsage","RIFee"), cost, 0)
+| eval od_compute=if(match(lineItem_UsageType,"BoxUsage") AND isnull(reservation_ReservationARN), cost, 0)
+| eval family=replace(lineItem_UsageType,"BoxUsage:","")
+| stats sum(ri_fee) as ri_spend sum(od_compute) as od_leak by lineItem_UsageAccountId, family
+| eval leak_ratio=round(od_leak/nullif(ri_spend+od_leak,0)*100,1)
+| where od_leak>100 AND leak_ratio>15
+| sort -od_leak
+```
+- **Implementation:** (1) Confirm CUR includes amortized cost columns for your payer account. (2) Map `lineItem_UsageType` to instance family for EC2. (3) Review accounts with high `leak_ratio` against AWS Cost Explorer coverage reports.
+- **Visualization:** Table (accounts and families with leakage), Bar chart (on-demand leak $), Heatmap (account × family).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.1.24 · Savings Plan Coverage of Eligible Compute Spend
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Capacity
+- **Value:** Savings Plans discount compute only when usage is eligible and within the commitment’s scope. Low coverage means you are still paying list price for large portions of EC2, Fargate, or Lambda despite owning a plan—direct savings opportunity on the next purchase or exchange.
+- **App/TA:** `Splunk Add-on for AWS`, CUR with `savingsPlan_*` fields
+- **Data Sources:** `index=cloud_billing` `sourcetype="aws:billing:cur"`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+| eval cost=tonumber(lineItem_UnblendedCost)
+| eval sp_covered=if(isnotnull(savingsPlan_SavingsPlanARN) AND savingsPlan_SavingsPlanARN!="", cost, 0)
+| eval eligible=if(lineItem_ProductCode IN ("AmazonEC2","AmazonECS","AWSLambda") AND match(lineItem_UsageType,"(BoxUsage|SpotUsage|Fargate)"), cost, 0)
+| stats sum(sp_covered) as sp_sum sum(eligible) as elig_sum by lineItem_UsageAccountId
+| eval coverage_pct=round(100*sp_sum/nullif(elig_sum,0),1)
+| where coverage_pct<60 AND elig_sum>500
+| sort elig_sum
+```
+- **Implementation:** (1) Ensure CUR includes Savings Plan ARN fields. (2) Tune the `eligible` filter to your contract (exclude Marketplace line items). (3) Target accounts below 60% coverage for rightsizing plus incremental SP buys.
+- **Visualization:** Gauge (fleet-wide coverage), Table (accounts under target), Bar chart (eligible on-demand still uncovered).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.1.25 · NAT Gateway and VPC Endpoint Egress Cost Concentration
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Performance
+- **Value:** Managed NAT and interface endpoints bill per GB processed; a single chatty microservice behind NAT can dominate networking spend. Ranking usage types tied to NAT Gateway and PrivateLink highlights candidates for VPC endpoint redesign, caching, or regional consolidation.
+- **App/TA:** `Splunk Add-on for AWS`, VPC Flow Logs (optional correlation)
+- **Data Sources:** `index=cloud_billing` `sourcetype="aws:billing:cur"`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+| eval cost=tonumber(lineItem_UnblendedCost)
+| search lineItem_ProductCode="AmazonEC2" (lineItem_UsageType="NatGateway*" OR lineItem_UsageType="VpcEndpoint*")
+| eval resource=coalesce(lineItem_ResourceId, resourceId)
+| stats sum(cost) as nat_vpc_cost sum(lineItem_UsageAmount) as usage_qty by lineItem_UsageAccountId, lineItem_UsageType, resource
+| sort -nat_vpc_cost
+| head 50
+```
+- **Implementation:** (1) Tag NAT gateways and endpoints with owning application. (2) Join top resources to flow log aggregates if available. (3) Prioritize architecture reviews for the top 10 resources by trailing 30-day cost.
+- **Visualization:** Table (top NAT/VPC-endpoint resources), Bar chart (cost by usage type), Pie chart (share by account).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.1.26 · Spot Fleet Savings vs Interrupted Instance-Hours
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Performance
+- **Value:** Spot savings only matter if interruptions stay within SLOs. Correlating amortized spot spend with interruption counts from CloudTrail yields a simple dollars-saved-per-interruption metric so teams balance price and reliability across pools.
+- **App/TA:** `Splunk Add-on for AWS` (CUR + CloudTrail)
+- **Data Sources:** `index=cloud_billing` `sourcetype="aws:billing:cur"`, `index=aws` `sourcetype="aws:cloudtrail"`
+- **SPL:**
+```spl
+index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
+| eval cost=tonumber(lineItem_UnblendedCost)
+| search lineItem_UsageType="*SpotUsage*"
+| stats sum(cost) as spot_spend by lineItem_UsageAccountId
+| join type=left lineItem_UsageAccountId [
+  search index=aws sourcetype="aws:cloudtrail" earliest=-30d eventName="SpotInstanceInterruption"
+  | eval acct=coalesce(recipientAccountId, accountId)
+  | stats count as interruptions by acct
+  | rename acct as lineItem_UsageAccountId
+]
+| fillnull value=0 interruptions
+| eval savings_per_intr=if(interruptions>0, round(spend/interruptions,2), null())
+| sort -spot_spend
+```
+- **Implementation:** (1) Normalize account IDs across billing and CloudTrail. (2) Schedule weekly review for accounts with high interruption counts and rising spot spend. (3) Pair with capacity-optimized vs price-optimized fleet settings from ASG/Launch Template metadata if ingested.
+- **Visualization:** Scatter plot (spot spend vs interruptions), Table (accounts with worst ratio), Single value (fleet spot savings MTD).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.1.27 · Cross-Cloud Consolidated FinOps Executive Rollup
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost, Capacity
+- **Value:** Enterprises rarely have a single pane for AWS, Azure, and GCP together. Normalizing daily spend into `cloud_provider`, `business_unit`, and `currency` enables portfolio-level trending and board-ready variance explanations without manual spreadsheet merges.
+- **App/TA:** Multi-cloud billing TAs, optional `lookup fx_rates`
+- **Data Sources:** `index=finops` `sourcetype="cost:unified_daily"`
+- **SPL:**
+```spl
+index=finops sourcetype="cost:unified_daily" earliest=-90d
+| eval spend_local=tonumber(daily_cost)
+| lookup fx_rates currency as billing_currency OUTPUT usd_per_unit
+| eval spend_usd=round(spend_local*usd_per_unit,2)
+| bin _time span=1mon
+| stats sum(spend_usd) as month_spend by _time, cloud_provider, business_unit
+| eventstats sum(month_spend) as portfolio_total by _time
+| eval pct_of_portfolio=round(100*month_spend/nullif(portfolio_total,0),1)
+| sort _time, -month_spend
+```
+- **Implementation:** (1) Build a daily scheduled search that writes `cost:unified_daily` from each cloud’s normalized sourcetype. (2) Maintain FX rates for non-USD billers. (3) Publish an executive dashboard with MoM variance annotations from budget lookup.
+- **Visualization:** Column chart (monthly spend by cloud), Stacked bar (business unit mix), Table (MoM % change).
+- **CIM Models:** N/A
+
+---
+
 ### 20.2 Capacity Planning
 
-**Splunk Add-on:** Cross-referencing infrastructure metrics with trending/forecasting
+**Primary App/TA:** Cross-referencing infrastructure metrics with trending/forecasting
 
 ### UC-20.2.1 · Compute Capacity Forecasting
 
@@ -981,6 +1166,216 @@ index=infra sourcetype IN ("vmware:perf:cpu","linux:cpu","nix:df")
 
 ---
 
+### UC-20.2.26 · Kubernetes Namespace Resource Quota Pressure
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Hard quotas stop deployments during peak traffic, causing revenue-impacting outages. Tracking requested versus hard limits for CPU, memory, and persistent volume claims per namespace lets platform teams expand quotas or reclaim unused requests before developers hit the wall.
+- **App/TA:** Kubernetes metrics TA, Prometheus exporter, OpenTelemetry
+- **Data Sources:** `index=kubernetes` `sourcetype="kube:quota"`
+- **SPL:**
+```spl
+index=kubernetes sourcetype="kube:quota" earliest=-1h
+| eval cpu_req=tonumber(coalesce(cpu_requests_cores, cpu_requests))
+| eval cpu_lim=tonumber(coalesce(cpu_hard_quota_cores, cpu_hard_limit))
+| eval mem_req=tonumber(coalesce(memory_requests_gib, mem_requests_gib))
+| eval mem_lim=tonumber(coalesce(memory_hard_quota_gib, mem_hard_limit_gib))
+| eval cpu_headroom_pct=round(100*(cpu_lim-cpu_req)/nullif(cpu_lim,0),1)
+| eval mem_headroom_pct=round(100*(mem_lim-mem_req)/nullif(mem_lim,0),1)
+| where cpu_headroom_pct<15 OR mem_headroom_pct<15
+| stats latest(cpu_headroom_pct) as cpu_head latest(mem_headroom_pct) as mem_head by cluster, namespace
+| sort cluster, cpu_head
+```
+- **Implementation:** (1) Ingest kube-state-metrics quota objects or a vendor CMDB export with limits and allocated requests. (2) Alert when headroom stays below 15% for six hours. (3) Pair with cost data (UC-20.1.16) before raising quotas on idle namespaces.
+- **Visualization:** Heatmap (namespace × resource headroom), Table (clusters at risk), Gauge (worst namespace headroom).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.27 · Object Storage Bucket Growth Forecast
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Cost
+- **Value:** Object storage growth from logs, images, and backups drives recurring invoices. Forecasting gigabytes by bucket supports lifecycle policies, intelligent tiering, and archive capacity before ingest jobs fail.
+- **App/TA:** `Splunk Add-on for AWS`, Azure Storage metrics, GCP monitoring export
+- **Data Sources:** `index=cloud_storage` `sourcetype="aws:s3:bucket_metrics"`
+- **SPL:**
+```spl
+index=cloud_storage sourcetype="aws:s3:bucket_metrics" earliest=-90d
+| eval gb=tonumber(coalesce(size_bytes, BucketSizeBytes))/1024/1024/1024
+| bin _time span=1d
+| stats latest(gb) as used_gb by _time, bucket_name, account_id
+| timechart span=1d latest(used_gb) as used_gb by bucket_name
+| predict used_gb as forecast_gb algorithm=LLP5 future_timespan=60
+| where 'forecast_gb+60d' > used_gb*1.25
+| table bucket_name, used_gb, 'forecast_gb+60d'
+```
+- **Implementation:** (1) Collect bucket size daily from CloudWatch `BucketSizeBytes`, Storage Lens, or vendor export. (2) Exclude buckets with heavy lifecycle churn unless using MLTK for seasonality. (3) Alert owners when the 60-day forecast exceeds 125% of current size.
+- **Visualization:** Line chart (actual versus forecast per bucket), Table (fastest-growing buckets), Single value (total forecasted terabytes).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.28 · Database Datafile Size and Autogrow Trending
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** SQL Server and Oracle datafiles that autogrow frequently signal unexpected data loads or missing archival. Trending file size and growth events avoids emergency disk extensions during month-end loads.
+- **App/TA:** `Splunk DB Connect`, database monitoring scripts
+- **Data Sources:** `index=database` `sourcetype="db:filegrowth"`
+- **SPL:**
+```spl
+index=database sourcetype="db:filegrowth" earliest=-60d
+| eval size_gb=tonumber(coalesce(size_gb, current_size_gb))
+| eval ev=lower(coalesce(event_type, message, ""))
+| eval grew=if(match(ev, "(grow|extend|autogrow)"),1,0)
+| bin _time span=1d
+| stats latest(size_gb) as size_gb sum(grew) as grow_events by _time, db_name, logical_filename
+| sort 0 db_name, logical_filename, _time
+| streamstats global=f window=2 earliest(size_gb) as prev_gb by db_name, logical_filename
+| eval daily_delta_gb=round(size_gb-prev_gb,2)
+| where daily_delta_gb>5 OR grow_events>3
+| table _time, db_name, logical_filename, size_gb, grow_events, daily_delta_gb
+```
+- **Implementation:** (1) Push file-level metrics and autogrow events from DB Connect or a DBA agent. (2) Map `logical_filename` to disk mount for infrastructure correlation. (3) Page when daily delta exceeds policy (example five GB) or grow_events exceeds three in one day.
+- **Visualization:** Timechart (size by database), Table (large deltas and autogrow counts), Bar chart (top databases by growth rate).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.29 · Site-to-Site VPN Tunnel Bandwidth Headroom
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Performance
+- **Value:** VPN tunnels to cloud and partners have fixed negotiated throughput. Sustained high utilization causes latency and drops during batch windows. Headroom reporting triggers circuit upgrades or traffic engineering before outages.
+- **App/TA:** SNMP, `Splunk Add-on for AWS` (VPN metrics), SD-WAN TA
+- **Data Sources:** `index=network` `sourcetype="vpn:tunnel"`
+- **SPL:**
+```spl
+index=network sourcetype="vpn:tunnel" earliest=-7d
+| eval bps=tonumber(coalesce(ingress_bps, in_bps))+tonumber(coalesce(egress_bps, out_bps))
+| eval cap=tonumber(coalesce(negotiated_bandwidth_bps, tunnel_capacity_bps))
+| eval util_pct=round(100*bps/nullif(cap,0),2)
+| bin _time span=5m
+| stats perc95(util_pct) as p95_util by tunnel_id, site_name
+| eval headroom_pct=round(100-p95_util,1)
+| where headroom_pct < 20
+| sort headroom_pct
+```
+- **Implementation:** (1) Ingest per-tunnel throughput from SD-WAN or cloud VPN metrics. (2) Store negotiated capacity per tunnel in a lookup. (3) Alert when seven-day P95 utilization leaves less than twenty percent headroom.
+- **Visualization:** Gauge (headroom percent), Line chart (utilization trend), Table (tunnels sorted by risk).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.30 · Search and Analytics Cluster Disk Watermark Risk
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** OpenSearch and Elasticsearch clusters stop indexing when disk watermarks are breached, breaking log and application pipelines. Tracking used shard store versus cluster capacity predicts when frozen tiers or data nodes must be added.
+- **App/TA:** Elastic/OpenSearch monitoring API, HTTP Event Collector
+- **Data Sources:** `index=observability` `sourcetype="elastic:cluster_stats"`
+- **SPL:**
+```spl
+index=observability sourcetype="elastic:cluster_stats" earliest=-30d
+| eval used=tonumber(coalesce(store_size_bytes, total_used_bytes))
+| eval total=tonumber(coalesce(total_capacity_bytes, disk_total_bytes))
+| eval used_pct=round(100*used/nullif(total,0),2)
+| bin _time span=1d
+| stats latest(used_pct) as used_pct by _time, cluster_name
+| predict used_pct as forecast_pct algorithm=LLP5 future_timespan=30
+| where 'forecast_pct+30d' > 75
+| table cluster_name, used_pct, 'forecast_pct+30d'
+```
+- **Implementation:** (1) Poll `_cluster/stats` or Elastic Cloud metrics daily. (2) Align thresholds with `cluster.routing.allocation.disk.watermark` settings. (3) Integrate with storage forecasting (UC-20.2.2) when forecast crosses seventy-five percent within thirty days.
+- **Visualization:** Area chart (used percent with forecast), Table (clusters breaching planning threshold), Single value (clusters over watermark risk).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.31 · Message Broker Disk and Retention Capacity
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Cost
+- **Value:** Kafka retains messages on disk; retention growth from new microservices or poison-pill topics can fill brokers and halt producers. Monitoring log segment volume and free disk prevents cascading application failures.
+- **App/TA:** JMX TA, Prometheus, Confluent metrics exporter
+- **Data Sources:** `index=messaging` `sourcetype="kafka:broker:disk"`
+- **SPL:**
+```spl
+index=messaging sourcetype="kafka:broker:disk" earliest=-14d
+| eval used_gb=tonumber(coalesce(log_size_gb, kafka_log_size_gb))
+| eval free_gb=tonumber(coalesce(disk_free_gb, volume_free_gb))
+| eval total_gb=used_gb+free_gb
+| eval used_pct=round(100*used_gb/nullif(total_gb,0),1)
+| bin _time span=1h
+| stats latest(used_pct) as used_pct latest(retention_hours) as ret_hrs by _time, broker_id, cluster
+| where used_pct>70
+| stats max(used_pct) as peak_used min(ret_hrs) as min_ret by cluster, broker_id
+| sort -peak_used
+```
+- **Implementation:** (1) Export per-broker log volume and filesystem free space. (2) Alert when used_pct exceeds seventy percent for four hours or minimum retention hours drops unexpectedly. (3) Correlate with topic byte rate to find noisy producers.
+- **Visualization:** Line chart (disk used percent by broker), Table (brokers over threshold), Heatmap (cluster by broker).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.32 · GPU Pool Utilization for ML Workload Capacity
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity, Performance
+- **Value:** GPU nodes are expensive; low average utilization wastes capital while queue spikes delay training service levels. Tracking streaming-multiprocessor utilization and peak load by host informs autoscaler bounds and purchase versus spot decisions.
+- **App/TA:** NVIDIA DCGM exporter, Kubernetes GPU metrics, cloud GPU monitoring
+- **Data Sources:** `index=ml_infra` `sourcetype="dcgm:gpu"`
+- **SPL:**
+```spl
+index=ml_infra sourcetype="dcgm:gpu" earliest=-7d
+| eval util=tonumber(coalesce(gpu_sm_utilization, sm_util_pct))
+| bin _time span=1h
+| stats avg(util) as avg_sm perc95(util) as p95_sm by _time, host, gpu_index
+| stats avg(avg_sm) as fleet_avg max(p95_sm) as fleet_p95 by host
+| eval underused=if(fleet_avg<35 AND fleet_p95<70,1,0)
+| where underused=1 OR fleet_p95>92
+| table host, fleet_avg, fleet_p95
+```
+- **Implementation:** (1) Deploy DCGM on GPU nodes and normalize `gpu_index`. (2) Tag hosts with workload type such as training versus inference. (3) Right-size node pools when underused persists fourteen days; scale out when fleet_p95 exceeds ninety-two.
+- **Visualization:** Box plot (utilization distribution), Table (underused hosts), Timechart (job queue depth if ingested).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.2.33 · Domain Controller Performance Under LDAP Load
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Authentication and directory search storms can saturate domain controllers before generic server CPU alerts explain the blast radius. Correlating directory operation rate with CPU utilization supports extra domain controllers, load balancing changes, and misbehaving application fixes.
+- **App/TA:** `Splunk Add-on for Microsoft Windows`, scripted performance export
+- **Data Sources:** `index=active_directory` `sourcetype="ad:dc:performance"`
+- **SPL:**
+```spl
+index=active_directory sourcetype="ad:dc:performance" earliest=-24h
+| eval ldap_ops=tonumber(coalesce(ldap_searches_sec, ldap_ops_per_sec))
+| eval cpu_pct=tonumber(coalesce(cpu_utilization, cpu_load_percent))
+| bin _time span=5m
+| stats avg(ldap_ops) as ldap_avg avg(cpu_pct) as cpu_avg by _time, host
+| eventstats median(ldap_avg) as med_ldap by host
+| eval stress=if(ldap_avg>med_ldap*2.5 AND cpu_avg>80,1,0)
+| where stress=1
+| table _time, host, ldap_avg, cpu_avg, med_ldap
+```
+- **Implementation:** (1) Collect NTDS `LDAP Searches/sec` and total CPU via Performance Monitor or a lightweight forwarder script into `ad:dc:performance`. (2) Tune multipliers for your baseline. (3) Escalate repeated stress windows to the identity engineering team with top calling applications from firewall or load balancer logs.
+- **Visualization:** Timeline (stress markers overlaid on CPU), Table (domain controllers with correlated spikes), Single value (stress hours per week).
+- **CIM Models:** N/A
+
+---
+
 ### 20.3 License & Subscription Management
 
 **Primary App/TA:** Microsoft 365 / Entra ID reporting add-ons, Salesforce Splunk Connector, Flexera / ServiceNow SAM exports, `license:usage` HEC, cloud marketplace billing (AWS/Azure/GCP subscription lines).
@@ -1161,6 +1556,276 @@ index=contracts (sourcetype="license:usage" OR sourcetype="contracts:events")
 
 ---
 
+### UC-20.3.8 · Microsoft 365 Inactive License Harvest Candidates
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Capacity
+- **Value:** Seats assigned to users who have not signed in for months are pure renewal waste. Identifying inactive assignees before true-up converts soft savings into reclaimed licenses and lower E5 or add-on counts at contract signature.
+- **App/TA:** Microsoft Entra ID Add-on, `o365:reporting` HEC export, Graph API scripted input
+- **Data Sources:** `index=saas` `sourcetype="o365:license_assignment"`
+- **SPL:**
+```spl
+index=saas sourcetype="o365:license_assignment" earliest=-1d
+| eval last_signin=if(isnotnull(last_signin_epoch), last_signin_epoch, strptime(last_signin,"%Y-%m-%dT%H:%M:%SZ"))
+| eval inactive_days=round((now()-last_signin)/86400,0)
+| where isnotnull(assigned_license_sku) AND assigned_license_sku!="" AND (inactive_days>90 OR isnull(last_signin))
+| stats dc(user_upn) as harvest_candidates sum(monthly_seat_cost_usd) as monthly_at_risk by assigned_license_sku, department
+| sort -monthly_at_risk
+```
+- **Implementation:** (1) Ingest daily license assignment with last interactive sign-in from Graph `reports/getOffice365ActivationsUserDetail` or equivalent. (2) Join `monthly_seat_cost_usd` from a procurement lookup by SKU. (3) Open harvest tickets only after manager approval workflow in ITSM.
+- **Visualization:** Table (SKU and department reclaim value), Bar chart (inactive seats by workload), Single value (total monthly at-risk dollars).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.9 · Salesforce Seat Activity vs Purchased Licenses
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Performance
+- **Value:** Salesforce contracts charge per seat tier while many users only log in quarterly for reporting. Comparing thirty-day active logins to purchased seats highlights downgrade and permission-set consolidation opportunities before renewal ramps.
+- **App/TA:** Salesforce Splunk Connector, EventLog from Salesforce Shield (optional)
+- **Data Sources:** `index=saas` `sourcetype="salesforce:login"`
+- **SPL:**
+```spl
+index=saas sourcetype="salesforce:login" earliest=-30d
+| eval uid=coalesce(user_id, USER_ID)
+| stats dc(uid) as active_users_30d by org_id
+| join type=left org_id [
+  search index=saas sourcetype="salesforce:license_snapshot" earliest=-1d
+  | stats latest(purchased_seats) as purchased by org_id
+]
+| eval utilization_pct=round(100*active_users_30d/nullif(purchased,0),1)
+| eval slack_seats=purchased-active_users_30d
+| where slack_seats>20 OR utilization_pct<60
+| table org_id, purchased, active_users_30d, utilization_pct, slack_seats
+```
+- **Implementation:** (1) Schedule daily license snapshot via Salesforce REST into `salesforce:license_snapshot`. (2) Deduplicate login events per user per day before `dc`. (3) Feed slack_seats into renewal negotiation talking points.
+- **Visualization:** Gauge (utilization percent), Bar chart (slack seats by org), Table (orgs under sixty percent utilization).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.10 · ServiceNow Fulfiller versus Requester License Mix
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Cost, Compliance
+- **Value:** ITSM platforms often blend fulfiller, approver, and requester licenses; over-purchasing fulfiller seats while requester counts spike drives both waste and audit findings. Aligning provisioned roles to transaction patterns avoids shelfware and compliance gaps.
+- **App/TA:** ServiceNow Splunk Integration, `snow:license` export
+- **Data Sources:** `index=itsm` `sourcetype="snow:user_role"`
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:user_role" earliest=-1d
+| eval fulfiller=if(match(lower(roles),"itil|fulfiller|agent"),1,0)
+| stats dc(eval(if(fulfiller=1,user_id,null()))) as fulfiller_users
+        dc(user_id) as total_users by instance_name
+| join type=left instance_name [
+  search index=itsm sourcetype="snow:transaction" earliest=-30d
+  | stats dc(opened_by) as active_requesters by instance_name
+]
+| eval fulfiller_ratio=round(100*fulfiller_users/nullif(total_users,0),1)
+| where fulfiller_users>active_requesters*1.5 OR fulfiller_ratio>35
+| table instance_name, fulfiller_users, active_requesters, fulfiller_ratio
+```
+- **Implementation:** (1) Export user-to-role assignments nightly from ServiceNow `sys_user_has_role`. (2) Count distinct requesters from `incident` and `sc_request` over thirty days. (3) Work with process owners when fulfiller count greatly exceeds active requesters.
+- **Visualization:** Scatter plot (fulfiller users versus active requesters), Table (instances over policy ratio), Single value (excess fulfiller seats estimate from lookup).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.11 · Oracle Database Option Usage versus Entitlements
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Cost
+- **Value:** Options such as Partitioning, Advanced Compression, and Diagnostics Pack are metered separately from the processor license. Undetected feature use creates audit exposure and six-figure true-up risk; proactive comparison to LMS entitlements funds remediation projects instead of penalties.
+- **App/TA:** `Splunk DB Connect` (DBA_FEATURE_USAGE_STATISTICS), Oracle audit exports
+- **Data Sources:** `index=database` `sourcetype="oracle:option_usage"`
+- **SPL:**
+```spl
+index=database sourcetype="oracle:option_usage" earliest=-1d
+| eval detected=if(upper(currently_used)="TRUE" OR currently_used="1",1,0)
+| stats values(product) as option_name max(detected) as in_use by db_name, host
+| join type=left db_name host [
+  search index=licenses sourcetype="oracle:entitlement" earliest=-1d
+  | table db_name, host, product, entitled
+]
+| eval gap=if(in_use=1 AND (entitled=0 OR isnull(entitled)),1,0)
+| where gap=1
+| table db_name, host, option_name, entitled
+```
+- **Implementation:** (1) Ingest weekly DBA_FEATURE_USAGE_STATISTICS via DB Connect with stable `product` names. (2) Maintain `oracle:entitlement` from procurement. (3) Open high-priority changes to disable unused options or purchase entitlements before vendor review.
+- **Visualization:** Table (unentitled options in use), Bar chart (gap count by data center), Single value (databases with violations).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.12 · Splunk Enterprise License Pool Usage and Stack Warnings
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Cost
+- **Value:** Splunk indexing volume directly ties to dollar cost; pools that repeatedly approach quota force soft violations, search degradation, and unplanned license purchases. Watching daily ingestion by pool and stack supports data retirement and routing before finance sees an emergency PO.
+- **App/TA:** Splunk internal telemetry (no TA), Monitoring Console (optional)
+- **Data Sources:** `index=_internal` `source=*license_usage.log*` `type=Usage`
+- **SPL:**
+```spl
+index=_internal source=*license_usage.log* type=Usage earliest=-30d
+| eval gb=round(b/1024/1024/1024,4)
+| bin _time span=1d
+| stats sum(gb) as idx_gb by _time, pool, stack
+| eventstats sum(idx_gb) as daily_total by _time
+| lookup splunk_license_quota pool stack OUTPUT quota_gb_per_day
+| eval util_pct=round(100*idx_gb/nullif(quota_gb_per_day,0),1)
+| where util_pct>85
+| sort -util_pct
+```
+- **Implementation:** (1) Build `splunk_license_quota` from your entitlement and stacking plan (GB per day per pool). (2) Alert at eighty-five percent for two consecutive days. (3) Pair with `data model` acceleration and sourcetype-level volume reports to find noisy sources.
+- **Visualization:** Line chart (indexed GB versus quota by pool), Table (pools over threshold), Single value (total daily utilization percent).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.13 · SAP Named User License versus Concurrent Session Peaks
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Capacity
+- **Value:** SAP named-user contracts are priced on authorized humans while technical users and peak dialog sessions can exceed design points. Comparing entitled named users to measured concurrent dialog peaks highlights indirect access risk and indirect-license optimization programs.
+- **App/TA:** SAProuter or SAP Security Audit Log forwarder, SAP Solution Manager export
+- **Data Sources:** `index=sap` `sourcetype="sap:sm20"`
+- **SPL:**
+```spl
+index=sap sourcetype="sap:sm20" earliest=-30d
+| eval user=coalesce(sap_user, user_name)
+| bin _time span=1h
+| stats dc(user) as named_dialog_users by _time, system_id
+| eventstats max(named_dialog_users) as peak_concurrent by system_id
+| join type=left system_id [
+  search index=licenses sourcetype="sap:license_position" earliest=-1d
+  | stats latest(named_users_entitled) as entitled by system_id
+]
+| eval peak_to_entitled_pct=round(100*peak_concurrent/nullif(entitled,0),1)
+| where peak_to_entitled_pct>25 AND peak_concurrent>entitled*0.9
+| table system_id, entitled, peak_concurrent, peak_to_entitled_pct
+```
+- **Implementation:** (1) Ingest SM20 or gateway session logs with one-hour granularity. (2) Refresh `named_users_entitled` from LAW or contract system weekly. (3) Engage SAP measurement team when peaks approach entitlement for sustained business days.
+- **Visualization:** Line chart (concurrent users versus entitlement), Table (systems breaching policy), Single value (peak over entitlement hours per month).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.14 · Software License Harvesting Queue from SAM Reclamation
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Cost, Capacity
+- **Value:** Reclamation workflows stall when approvals idle in queues. Tracking candidate seats from assignment to uninstall reduces carry-over into the next renewal cycle and improves realized savings from harvest playbooks.
+- **App/TA:** Flexera IT Visibility, ServiceNow SAM, Snow Inventory
+- **Data Sources:** `index=software` `sourcetype="sam:reclaim_ticket"`
+- **SPL:**
+```spl
+index=software sourcetype="sam:reclaim_ticket" earliest=-90d
+| eval opened=strptime(opened_at,"%Y-%m-%d %H:%M:%S")
+| eval closed=strptime(closed_at,"%Y-%m-%d %H:%M:%S")
+| eval age_days=if(isnotnull(closed), round((closed-opened)/86400,1), round((now()-opened)/86400,1))
+| where status!="Closed" OR age_days>14
+| stats count as tickets avg(age_days) as avg_age sum(potential_savings_usd) as pipeline_savings by owner_team, publisher
+| where tickets>5
+| sort -pipeline_savings
+```
+- **Implementation:** (1) Push reclamation ticket milestones from ITSM when integrated with SAM. (2) Escalate tickets open more than fourteen days. (3) Report pipeline_savings to FinOps monthly for credited harvest dollars.
+- **Visualization:** Bar chart (open reclaim savings by team), Table (stale tickets), Single value (total pipeline savings dollars).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.15 · GitHub Enterprise Seat Utilization versus Active Contributors
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Cost, Performance
+- **Value:** GitHub Enterprise bills per occupied seat while many accounts represent bots, service users, or former contractors. Comparing billed seats to users with pushes or reviews in the last sixty days supports deprovisioning and org consolidation before annual renewal.
+- **App/TA:** GitHub Audit Log streaming to Splunk, GitHub Enterprise Server TA (optional)
+- **Data Sources:** `index=devops` `sourcetype="github:audit"`
+- **SPL:**
+```spl
+index=devops sourcetype="github:audit" earliest=-60d
+| search action=pull_request OR action=push OR action=issue_comment
+| eval actor=coalesce(actor, user, login)
+| stats dc(actor) as active_contributors_60d by enterprise_slug
+| join type=left enterprise_slug [
+  search index=devops sourcetype="github:license_snapshot" earliest=-1d
+  | stats latest(billed_seats) as billed_seats by enterprise_slug
+]
+| eval seat_util_pct=round(100*active_contributors_60d/nullif(billed_seats,0),1)
+| eval dormant_seats=billed_seats-active_contributors_60d
+| where dormant_seats>10 OR seat_util_pct<70
+| table enterprise_slug, billed_seats, active_contributors_60d, seat_util_pct, dormant_seats
+```
+- **Implementation:** (1) Enable audit log streaming with actor and action fields normalized. (2) Ingest nightly seat count from billing API into `github:license_snapshot`. (3) Coordinate dormant seat removal with org owners outside peak release windows.
+- **Visualization:** Gauge (seat utilization percent), Table (enterprises with dormant seats), Bar chart (dormant seats by business unit tag).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.16 · Webex or Zoom Concurrent License Peak versus Subscription
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Cost
+- **Value:** Meeting platforms often license peak concurrent ports or hosts; a single all-hands can force expensive burst add-ons if baseline is wrong. Tracking measured concurrent peaks against purchased ports prevents both overbuying idle capacity and embarrassing hard caps during executive broadcasts.
+- **App/TA:** Webex Control Hub export, Zoom Operation logs, vendor SCIM usage
+- **Data Sources:** `index=collab` `sourcetype="meetings:usage"`
+- **SPL:**
+```spl
+index=collab sourcetype="meetings:usage" earliest=-30d
+| eval concurrent=tonumber(coalesce(concurrent_participants, concurrent_ports, peak_attendees))
+| bin _time span=5m
+| stats max(concurrent) as peak_5m by _time, tenant_id
+| stats max(peak_5m) as month_peak by tenant_id
+| join type=left tenant_id [
+  search index=collab sourcetype="meetings:entitlement" earliest=-1d
+  | stats latest(purchased_concurrent) as purchased by tenant_id
+]
+| eval headroom_pct=round(100*(purchased-month_peak)/nullif(purchased,0),1)
+| where month_peak > purchased*0.85 OR headroom_pct>60
+| table tenant_id, purchased, month_peak, headroom_pct
+```
+- **Implementation:** (1) Ingest five-minute concurrent participant metrics from admin APIs. (2) Store purchased concurrent or port counts in `meetings:entitlement`. (3) Alert when month_peak exceeds eighty-five percent of purchased; review sustained high headroom for downgrade at renewal.
+- **Visualization:** Line chart (five-minute peak trend), Gauge (headroom percent), Table (tenants at risk of cap).
+- **CIM Models:** N/A
+
+---
+
+### UC-20.3.17 · Citrix Virtual Apps and Desktops Concurrent Session versus License Count
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Cost
+- **Value:** CVAD licenses are tied to peak concurrent instances or user connections; sustained peaks above entitlement trigger true-up or session denial. Trending peaks against purchased counts informs additional packs, burst cloud burst packs, or rightsizing published apps before renewal.
+- **App/TA:** Citrix Director / Monitor data export, `Splunk Add-on for Citrix`
+- **Data Sources:** `index=virtualization` `sourcetype="citrix:session"`
+- **SPL:**
+```spl
+index=virtualization sourcetype="citrix:session" earliest=-30d
+| where session_state="Active" OR session_state="Connected"
+| bin _time span=5m
+| stats dc(session_key) as concurrent_sessions by _time, site_name
+| stats max(concurrent_sessions) as license_peak_30d by site_name
+| lookup citrix_license_entitlement site_name OUTPUT concurrent_license_count
+| eval peak_util_pct=round(100*license_peak_30d/nullif(concurrent_license_count,0),1)
+| where peak_util_pct>85 OR peak_util_pct<40
+| table site_name, concurrent_license_count, license_peak_30d, peak_util_pct
+```
+- **Implementation:** (1) Forward Director OData or Broker session records with stable `session_key`. (2) Maintain `citrix_license_entitlement` from license server or reseller CSV. (3) Plan purchases when peak_util_pct exceeds eighty-five for more than three peak days per month; investigate downsizing when under forty percent.
+- **Visualization:** Area chart (concurrent sessions with license line overlay), Table (sites over or under target), Single value (portfolio peak utilization percent).
+- **CIM Models:** N/A
+
+---
+
 ## Summary Statistics
 
 | Category | Subcategories | Use Cases |
@@ -1184,8 +1849,8 @@ index=contracts (sourcetype="license:usage" OR sourcetype="contracts:events")
 | 17. Network Security & Zero Trust | 3 | 22 |
 | 18. Data Center Fabric & SDN | 3 | 15 |
 | 19. Compute Infrastructure (HCI) | 2 | 13 |
-| 20. Cost & Capacity Management | 3 | 27 |
-| **TOTAL** | **76** | **1042** |
+| 20. Cost & Capacity Management | 3 | 77 |
+| **TOTAL** | **76** | **1067** |
 
 ---
 

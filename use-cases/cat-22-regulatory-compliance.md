@@ -12,6 +12,7 @@
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1005
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Detects email, phone, and SSN patterns in indexed application and web logs so controllers can prove technical measures for data minimisation and lawful processing under Arts. 5-6.
@@ -67,6 +68,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** The key GDPR Art. 33 evidence artifacts are time-to-DPO notification and time-to-supervisory authority filing, not just SOC notable age. This use case tracks both handoff milestones, preventing false compliance comfort from measuring queue time alone.
@@ -92,6 +94,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Capacity
+- **MITRE ATT&CK:** T1005
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Audits Splunk index-level retention settings against written data retention policy so personal data in logs is not kept longer than necessary under the storage limitation principle.
@@ -144,6 +147,7 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1530
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Highlights outbound traffic volumes to destinations outside the approved EEA/adequacy footprint so transfers can be gated by SCCs, BCRs, TIAs, or blocking controls.
@@ -175,6 +179,7 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1005, T1562
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Article 32 requires controllers and processors to implement measures ensuring confidentiality, integrity, availability and resilience of processing systems — explicitly calling out pseudonymisation and encryption. This use case continuously monitors encryption-at-rest status for databases holding personal data, TLS enforcement on processing systems, and pseudonymisation coverage — providing the technical evidence that Art. 32 controls are operational, not just documented.
@@ -266,6 +271,7 @@ index=web sourcetype="access_combined" earliest=-7d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1098
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Articles 5(1)(f) and 32 require integrity and confidentiality of personal data. Privileged access to databases and file stores containing personal data is the highest-risk vector for both accidental exposure and malicious exfiltration. This use case monitors DBA/admin access to personal data stores, detects bulk data exports, and identifies access outside approved change windows — providing the accountability evidence regulators expect.
@@ -318,6 +324,7 @@ index=dbaudit sourcetype IN ("mssql:audit","oracle:audit","postgres:csv","mysql:
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1005
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Article 33(3) requires breach notifications to include the categories and approximate number of affected data subjects. This use case automates breach scoping by correlating incident indicators (compromised hosts, accounts, or data stores) with the personal data register to estimate the number and categories of affected individuals — accelerating the breach assessment that must be completed within the 72-hour notification window.
@@ -346,6 +353,7 @@ index=dbaudit sourcetype IN ("mssql:audit","oracle:audit","postgres:csv","mysql:
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1048
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Article 34 requires controllers to communicate personal data breaches directly to affected data subjects "without undue delay" when the breach is likely to result in a high risk to their rights and freedoms. While Art. 33 covers DPA notification, Art. 34 addresses the often-overlooked obligation to notify individuals. This use case tracks whether high-risk breaches have triggered individual notification workflows and monitors their completion.
@@ -472,6 +480,7 @@ index=dbaudit sourcetype IN ("mssql:audit","oracle:audit","postgres:csv","mysql:
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1070, T1562
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Article 5(2) requires controllers to demonstrate compliance (accountability principle). Audit logs are the primary evidence mechanism, but logs that can be tampered with have no evidentiary value. This use case monitors Splunk's internal audit trail for suspicious activities — index deletions, user-capability changes, search-time data manipulation, and modifications to retention settings — ensuring the integrity of the very evidence used to prove GDPR compliance.
@@ -502,6 +511,7 @@ index=_audit earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1565, T1005
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
 - **Value:** Article 22 gives data subjects the right not to be subject to decisions based solely on automated processing that produce legal or similarly significant effects. This use case monitors automated decision-making systems (credit scoring, fraud detection, HR screening, insurance pricing) for transparency — tracking decision volumes, override rates, and appeal/challenge requests to ensure human review is available and exercised.
@@ -606,6 +616,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1562
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Measures detection-to-response progress on high-urgency ES notables to support early-warning obligations and internal crisis reporting within the first 24 hours of awareness.
@@ -632,6 +643,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1048
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Correlates vendor privileged access sessions (PAM) with threat intelligence on supplier domains to surface abnormal third-party activity affecting essential services.
@@ -657,6 +669,7 @@ index=pam sourcetype="cyberark:session" earliest=-24h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1562
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Tracks CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.
@@ -712,6 +725,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-24h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1098
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Audits interactive logon success/failure and special privilege assignment on Windows assets supporting essential services, including after-hours and non-interactive patterns, for access-control assurance.
@@ -761,6 +775,7 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1562
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** After the 24-hour early warning (UC-22.2.1), Article 23(2) requires a more detailed incident notification within 72 hours containing initial severity assessment, impact analysis, and indicators of compromise. This use case tracks whether significant incidents have the required enrichment fields populated within the filing window, ensuring the 72-hour notification is substantive rather than a rehash of the early warning.
@@ -789,6 +804,7 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Article 23(4) requires a comprehensive final report within one month of the incident notification, containing root cause analysis, detailed description, mitigation measures applied, and cross-border impact assessment. This use case tracks whether closed significant incidents have completed post-incident reviews within the mandated timeframe.
@@ -884,6 +900,7 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1562, T1005
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Article 21(2)(h) requires policies and procedures for cryptography and encryption. This use case monitors TLS certificate health, identifies weak cipher usage, detects unencrypted protocols on NIS2-scoped networks, and tracks encryption-at-rest status — providing continuous evidence that cryptographic controls are operational and current.
@@ -912,6 +929,7 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1556
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Article 21(2)(j) requires MFA or continuous authentication, secured voice/video/text communications, and emergency communication systems. This use case monitors MFA enforcement across critical systems, detects authentication bypasses, and validates that administrative and emergency access channels are secured — providing evidence of the strongest authentication controls NIS2 mandates.
@@ -972,6 +990,7 @@ index=auth OR index=azure OR index=okta earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1098
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Article 21(2)(i) requires human resources security controls including lifecycle-managed access. This use case detects accounts that remain active after employee departure, identifies access rights that persist after role changes, and monitors onboarding completeness — providing evidence that joiner/mover/leaver (JML) processes are enforced and auditable.
@@ -1029,6 +1048,7 @@ index=devops sourcetype IN ("github:webhook","gitlab:pipeline","jenkins:build") 
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1048
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.
@@ -1088,6 +1108,7 @@ index=backup sourcetype IN ("veeam:backup","commvault:job","rubrik:event","aws:b
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1562
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Article 21(2)(a) requires information system security policies to be operational, not just documented. This use case provides continuous network security monitoring — detecting lateral movement, unauthorized network segments, protocol anomalies, and traffic patterns that deviate from baseline — serving as the core evidence that network security policies are enforced through technical controls.
@@ -1122,6 +1143,7 @@ index=backup sourcetype IN ("veeam:backup","commvault:job","rubrik:event","aws:b
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048
 - **Splunk Pillar:** Security
 - **Regulations:** EU NIS2
 - **Value:** Article 23(3) requires entities to determine whether significant incidents have cross-border impact and to notify CSIRTs in all affected Member States. This use case identifies whether incident-related traffic, compromised assets, or affected users span multiple countries — automating the cross-border impact assessment that NIS2 makes mandatory for multi-jurisdictional operations.
@@ -1214,6 +1236,7 @@ index=risk sourcetype="stash" earliest=-30d@d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1562
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
@@ -1363,6 +1386,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-24h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
@@ -1395,6 +1419,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-24h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability, Compliance
+- **MITRE ATT&CK:** T1048, T1562
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
@@ -1491,6 +1516,7 @@ index=backup sourcetype IN ("veeam:backup","commvault:job","rubrik:event","aws:b
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
@@ -1618,6 +1644,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-30d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1110, T1098
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
@@ -1652,6 +1679,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-30d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1562
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
@@ -1692,6 +1720,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-30d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1562
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
 - **Regulations:** DORA
@@ -1853,6 +1882,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1530
 - **Splunk Pillar:** Security
 - **Regulations:** CCPA
 - **Value:** Measures consumer interaction with "Do Not Sell/Share" flows and detects Global Privacy Control (GPC) signal presence for downstream marketing-system enforcement evidence.
@@ -1877,6 +1907,7 @@ index=web sourcetype="access_combined" earliest=-24h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1005, T1530
 - **Splunk Pillar:** Security
 - **Regulations:** CCPA
 - **Value:** Surfaces DLP policy hits from Microsoft 365 to demonstrate monitoring and limitation controls around sensitive personal information processing.
@@ -1891,6 +1922,135 @@ index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 ```
 - **Implementation:** (1) Enable Office 365 Management Activity inputs in TA 4055 and confirm `Workload="Dlp"` events are ingested; (2) map `SensitiveInfoType` values to your CCPA SPI categories via lookup; (3) alert on high-severity exfil patterns; (4) retain per legal hold requirements.
 - **Visualization:** Bar chart (events by PolicyName), Heatmap (user x SensitiveInfoType), Line chart (daily volume by Severity).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.4.4 · CCPA Right to Correct Inaccurate Personal Information (§1798.106)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** CCPA
+- **Value:** Businesses must use commercially reasonable efforts to correct inaccurate personal information upon a verifiable request. This search tracks correction tickets from intake through closure so you can prove timely handling and reduce risk of complaints to the California Attorney General for mishandled consumer rights workflows.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` `sourcetype="snow:sc_req_item"` (number, opened_at, closed_at, state, cat_item, short_description, assignment_group)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:sc_req_item" earliest=-90d
+    (short_description="*correct*" OR short_description="*inaccurate*" OR cat_item="*CCPA*Correct*")
+| eval opened_epoch=strptime(opened_at, "%Y-%m-%d %H:%M:%S")
+| eval closed_epoch=if(isnotnull(closed_at), strptime(closed_at, "%Y-%m-%d %H:%M:%S"), null())
+| eval age_days=round((now()-opened_epoch)/86400, 1)
+| eval sla_days=45
+| eval at_risk=if(isnull(closed_epoch) AND age_days>(sla_days-7), 1, 0)
+| stats count as requests, sum(at_risk) as nearing_breach by assignment_group, state
+| sort - requests
+```
+- **Implementation:** (1) Align `cat_item` and keyword filters with your ServiceNow CCPA correction catalog items; (2) route agent queues into `assignment_group` for accountability dashboards; (3) join optional `consumer_id_hash` field if present for deduplication; (4) schedule daily and alert when `nearing_breach>0`; (5) export monthly evidence for privacy counsel.
+- **Visualization:** Table (open corrections with age), Bar chart (volume by assignment_group), Single value (requests past 38 days open).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.4.5 · CCPA Data Broker Sale Disclosure and Third-Party Sharing Audit (§1798.99.80, §1798.115)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1048, T1530
+- **Splunk Pillar:** Security
+- **Regulations:** CCPA
+- **Value:** Consumers must receive meaningful notice about categories of personal information sold or shared and the categories of third parties. Monitoring structured “sale/share” pipeline logs shows operational alignment with disclosure obligations and supports rapid investigation if downstream systems process opted-out households.
+- **App/TA:** Splunk HTTP Event Collector (core platform), Splunk Add-on for AWS (Splunkbase 1876) (optional archive path)
+- **Data Sources:** `index=privacy` `sourcetype="_json"` `source="http:ccpa_sale_share"` (event_type, consumer_opted_out, data_category, third_party_id, contract_id, _time)
+- **SPL:**
+```spl
+index=privacy sourcetype="_json" source="http:ccpa_sale_share" earliest=-7d
+| where event_type IN ("sale_batch","share_batch","broker_feed")
+| eval violation=if(consumer_opted_out="true" AND match(event_type,"sale|share|broker"), 1, 0)
+| stats count as events, sum(violation) as potential_violations, dc(third_party_id) as third_parties by data_category, event_type
+| sort - potential_violations
+```
+- **Implementation:** (1) Instrument CRM, CDP, or data-broker connectors to POST JSON batches to HEC with `consumer_opted_out` resolved from your consent store; (2) map `data_category` labels to your external privacy notice; (3) block or alert on `violation=1`; (4) retain five years or per records-management policy; (5) correlate with web `dnsmpi` hits from UC-22.4.2 for end-to-end proof.
+- **Visualization:** Table (categories x third parties), Column chart (events by event_type), Single value (potential_violations).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.4.6 · CCPA Global Privacy Control and “Do Not Sell or Share” Signal Enforcement (§1798.120, §1798.135(b))
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1565, T1078
+- **Splunk Pillar:** Security
+- **Regulations:** CCPA
+- **Value:** Opt-out preference signals including GPC must be honored where required. Aggregating API-side opt-out application outcomes demonstrates that technical controls downstream of the browser actually suppress sale/share processing, not only that marketing pages were visited.
+- **App/TA:** Splunk HTTP Event Collector (core platform)
+- **Data Sources:** `index=privacy` `sourcetype="_json"` `source="http:ccpa_optout_apply"` (profile_id, channel, gpc_received, opt_out_applied, failure_reason, _time)
+- **SPL:**
+```spl
+index=privacy sourcetype="_json" source="http:ccpa_optout_apply" earliest=-24h
+| eval failed=if(opt_out_applied="false" OR isnotnull(failure_reason), 1, 0)
+| stats count as attempts, sum(failed) as failures, sum(eval(gpc_received="true")) as gpc_context by channel
+| eval fail_rate=round(100*failures/attempts, 2)
+| sort - failures
+```
+- **Implementation:** (1) Emit one event per profile/channel when consent middleware finishes applying opt-out; (2) set `gpc_received` from upstream headers; (3) alert if `fail_rate>1` percent for any `channel`; (4) join failures to application logs via `profile_id`; (5) document rollback procedures for bad releases.
+- **Visualization:** Timechart (attempts vs failures), Table (channel, fail_rate), Pie chart (gpc_context ratio).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.4.7 · CCPA Financial Incentive Program Consent and Withdrawal Monitoring (§1798.125)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** CCPA
+- **Value:** Financial incentive programs require good-faith estimates of program value, clear opt-in, and easy withdrawal without discriminatory treatment. This use case audits incentive enrollments and withdrawals to evidence fair process and support inquiries about material terms.
+- **App/TA:** Splunk Add-on for Apache Web Server (Splunkbase 3186) or Splunk HTTP Event Collector (core platform)
+- **Data Sources:** `index=web` `sourcetype="access_combined"` (method, uri, status, clientip); OR `index=marketing` `sourcetype="_json"` `source="http:loyalty_ccpa"` (action, program_id, material_terms_version, _time)
+- **SPL:**
+```spl
+(index=web sourcetype="access_combined" earliest=-30d uri="*/loyalty/ccpa-consent*" OR uri="*/financial-incentive*")
+OR (index=marketing sourcetype="_json" source="http:loyalty_ccpa" earliest=-30d)
+| eval evt=coalesce(action, method)
+| eval ok=if(status IN ("200","201","204") OR match(_raw,"\"success\"\\s*:\\s*true"), 1, 0)
+| stats count as hits, sum(ok) as successful by uri, program_id, material_terms_version
+| fillnull value="web" program_id
+| sort - hits
+```
+- **Implementation:** (1) Log consent, withdrawal, and material-terms acknowledgment with version IDs in JSON or stable URI patterns; (2) map `program_id` to written estimate documents; (3) alert on spikes in non-200 responses; (4) exclude bot user agents via lookup; (5) quarterly export for legal review of `material_terms_version` mix.
+- **Visualization:** Bar chart (hits by program_id), Table (terms version adoption), Line chart (daily successful consents).
+- **CIM Models:** Web
+
+---
+
+### UC-22.4.8 · CCPA Authorized Agent Request Verification and Fulfillment (§1798.140(ah), §1798.145)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1078, T1110
+- **Splunk Pillar:** Security
+- **Regulations:** CCPA
+- **Value:** Businesses may require authorized agents to submit proof of signing authority. Tracking agent-submitted tickets with verification outcomes reduces fraud risk and demonstrates consistent authentication before disclosing or deleting consumer data.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` `sourcetype="snow:sc_req_item"` (number, short_description, u_agent_verified, u_power_of_attorney_on_file, state, opened_at)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:sc_req_item" earliest=-90d
+    (short_description="*authorized agent*" OR short_description="*power of attorney*")
+| eval verified=coalesce(u_agent_verified, "unknown")
+| eval fulfilled=if(match(state,"(?i)closed|resolved|complete"),1,0)
+| stats count as tickets,
+        sum(eval(verified="false" OR verified="unknown")) as not_verified,
+        sum(fulfilled) as closed
+    by verified
+| eval risk_pct=round(100*not_verified/tickets,1)
+| sort - tickets
+```
+- **Implementation:** (1) Add custom fields on the privacy request form for agent verification and PoA storage references; (2) block fulfillment workflows until `u_agent_verified=true` except where statute allows; (3) schedule weekly review of `not_verified`; (4) integrate DocuSign webhook optional second sourcetype; (5) redact attachments from Splunk—index metadata only.
+- **Visualization:** Table (verification state x counts), Donut chart (verified vs not), Timeline (median days to close by verified).
 - **CIM Models:** N/A
 
 ---
@@ -1987,6 +2147,137 @@ index=trading sourcetype="_json" source="http:bestex" earliest=-7d
 
 ---
 
+### UC-22.5.4 · MiFID II Transaction Reporting Timeliness and Rejection Root-Cause (RTS 22, Art. 26)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** MiFID II
+- **Value:** Competent authorities expect complete, accurate, and timely transaction reports. Measuring submit-to-acknowledgement latency and clustering rejection codes supports proactive fixes before regulatory breaches and demonstrates surveillance over ARM/APA gateway health.
+- **App/TA:** Splunk HTTP Event Collector (core platform) with JSON parsing
+- **Data Sources:** `index=trading` `sourcetype="_json"` `source="http:trx_reporting"` (transaction_report_id, submit_epoch_ms, ack_epoch_ms, reject_code, venue, instrument_id)
+- **SPL:**
+```spl
+index=trading sourcetype="_json" source="http:trx_reporting" earliest=-7d
+| eval latency_ms=ack_epoch_ms-submit_epoch_ms
+| eval late=if(latency_ms>600000 OR isnull(ack_epoch_ms), 1, 0)
+| stats count as reports, sum(late) as late_or_open, dc(reject_code) as distinct_reject_codes by venue, reject_code
+| sort - late_or_open
+```
+- **Implementation:** (1) Normalize clocks with NTP on reporting hosts and store epoch milliseconds; (2) treat missing `ack_epoch_ms` after T+1 as open submissions; (3) maintain `reject_code_meanings.csv` lookup for narrative dashboards; (4) alert if `late_or_open/reports>0.01`; (5) feed monthly summary to compliance committee.
+- **Visualization:** Histogram (latency_ms), Table (venue, reject_code, counts), Single value (late_or_open).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.5.5 · MiFID II Product Governance and Target Market Appropriateness Evidence (Art. 9(3) MiFIR, Art. 16(3) MiFID II)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** MiFID II
+- **Value:** Manufacturers and distributors must maintain product-approval processes and identify target markets. Tracking workflow completion for new product launches evidences governance discipline and helps detect rushed approvals or missing distributor notifications.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` `sourcetype="snow:sc_req_item"` (number, cat_item, state, opened_at, closed_at, u_product_isin, u_target_market_signed_off)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:sc_req_item" earliest=-365d
+    (cat_item="*Product Governance*" OR cat_item="*MiFID Product*")
+| eval signed_off=coalesce(u_target_market_signed_off, "false")
+| eval is_closed=if(match(state,"(?i)closed|resolved|complete"),1,0)
+| stats count as launches,
+        sum(eval(is_closed=0)) as open_approvals,
+        sum(eval(signed_off="false" AND is_closed=1)) as closed_without_signoff
+    by cat_item
+| where open_approvals>0 OR closed_without_signoff>0
+| sort - open_approvals
+```
+- **Implementation:** (1) Model ServiceNow catalog items for product approval with mandatory `u_target_market_signed_off`; (2) require `u_product_isin` or internal SKU; (3) alert on `closed_without_signoff>0`; (4) join marketing distribution lists optional via lookup; (5) archive closed items quarterly for NCAs.
+- **Visualization:** Table (catalog item health), Bar chart (open_approvals), Single value (closed_without_signoff).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.5.6 · MiFID II Order and Decision Data Record Integrity (Art. 25)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1565, T1005
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** MiFID II
+- **Value:** Investment firms must keep orderly records of services and transactions. Detecting gaps or duplicate order IDs in OMS/EMS journals supports defensible reconstruction of the decision chain during regulatory reconstruction exercises.
+- **App/TA:** Financial Information eXchange (FIX) Log Parsing (Splunkbase 431), Splunk HTTP Event Collector (core platform)
+- **Data Sources:** `index=trading` `sourcetype="_json"` `source="http:order_lifecycle"` (order_id, cl_ord_id, event_type, venue, decision_time_ms, _time)
+- **SPL:**
+```spl
+index=trading sourcetype="_json" source="http:order_lifecycle" earliest=-1d
+| where event_type IN ("NewOrderSingle","OrderCancelReplaceRequest","ExecutionReport","OrderCancelRequest")
+| stats min(_time) as first_seen, max(_time) as last_seen, dc(event_type) as event_types, count as events by order_id
+| eval span_sec=last_seen-first_seen
+| eventstats dc(order_id) as total_orders
+| eventstats sum(events) as sum_events
+| eval dup_ratio=round(events/sum_events, 6)
+| where events<2 OR span_sec<0.001
+| sort order_id
+```
+- **Implementation:** (1) Ensure every order emits at least creation and terminal state events; (2) hash sensitive client fields before indexing; (3) alert on `events<2` for statuses that should be terminal within T day; (4) tune `span_sec` threshold for high-frequency desks; (5) export samples for internal audit replay tools.
+- **Visualization:** Table (suspect orders), Column chart (events per order_id distribution via `bin events`), Single value (count of orders with events<2).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.5.7 · MiFID II Clock Synchronization and Timestamp Quality for Reporting (RTS 25)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔴 Expert
+- **Monitoring type:** Compliance, Security
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** MiFID II
+- **Value:** RTS 25 mandates traceable UTC synchronization for algorithmic and high-frequency activity reporting. Comparing application-reported event time to Splunk ingestion `_time` highlights skewed hosts or malformed timestamps that could invalidate best execution and transaction reports.
+- **App/TA:** Splunk Universal Forwarder (core platform), Splunk Add-on for Unix and Linux (Splunkbase 833)
+- **Data Sources:** `index=os` `sourcetype="Unix:Version"` OR `sourcetype="chrony:tracking"` (host, SystemTime, LeapStatus, LastOffset, RMSOffset); `index=trading` `sourcetype="_json"` `source="http:order_lifecycle"` (host, reported_event_epoch_ms, _time)
+- **SPL:**
+```spl
+index=trading sourcetype="_json" source="http:order_lifecycle" earliest=-4h isnotnull(reported_event_epoch_ms)
+| eval skew_ms=abs((reported_event_epoch_ms/1000)-_time)*1000
+| stats median(skew_ms) as p50_skew, perc95(skew_ms) as p95_skew, max(skew_ms) as max_skew by host
+| where p95_skew>250 OR max_skew>1000
+| sort - p95_skew
+```
+- **Implementation:** (1) Forward `chrony` or `ntpq` telemetry from trading servers; (2) align JSON `reported_event_epoch_ms` with exchange event time definitions; (3) alert on hosts breaching your documented max skew (e.g. 250 ms); (4) exclude batch backfills with a `ingest_mode` flag; (5) document remediation in runbooks tied to RTS 25 testing.
+- **Visualization:** Table (host skew stats), Timechart (median skew by host), Single value (hosts breaching threshold).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.5.8 · MiFID II Algorithmic Trading Strategy Limits and Kill-Switch Audit (Art. 17)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1562, T1078
+- **Industry:** Financial Services
+- **Splunk Pillar:** Security
+- **Regulations:** MiFID II
+- **Value:** Firms must have effective systems and risk controls for algorithmic trading, including thresholds and kill switches. Auditing throttle breaches and manual halts evidences governance and supports supervisory questions after market stress events.
+- **App/TA:** Splunk HTTP Event Collector (core platform)
+- **Data Sources:** `index=trading` `sourcetype="_json"` `source="http:algo_controls"` (strategy_id, event_type, notional_limit_usd, notional_observed_usd, kill_switch_actor, _time)
+- **SPL:**
+```spl
+index=trading sourcetype="_json" source="http:algo_controls" earliest=-30d
+| where event_type IN ("limit_breach","kill_switch_activated","kill_switch_reset","parameter_change")
+| eval breach=if(event_type="limit_breach" OR (isnotnull(notional_observed_usd) AND notional_observed_usd>notional_limit_usd), 1, 0)
+| stats count as events, sum(breach) as breaches, dc(strategy_id) as strategies_affected by event_type, kill_switch_actor
+| sort - breaches
+```
+- **Implementation:** (1) Emit structured events from risk gateways when limits are approached, breached, or when kill switches fire; (2) require `kill_switch_actor` for manual actions; (3) correlate with market data halts optional; (4) retain immutable copy to WORM storage per policy; (5) quarterly tabletop review of top `strategies_affected`.
+- **Visualization:** Timeline (events by strategy_id), Table (event_type totals), Bar chart (breaches by strategy).
+- **CIM Models:** N/A
+
+---
+
 ### 22.6 ISO 27001
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
@@ -2062,6 +2353,7 @@ index=_audit action=search info=completed user!="splunk-system-user" earliest=-3
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078, T1098
 - **Splunk Pillar:** Security
 - **Regulations:** ISO 27001
 - **Value:** Captures group membership changes (on-prem AD or Entra ID) for access recertification evidence and detective alerting on privileged group churn.
@@ -2087,6 +2379,134 @@ index=azure sourcetype="mscs:azure:auditlog"
 - **Implementation:** (1) Install Splunk_TA_windows on DCs or use Windows Event Collector; enable Advanced Audit Policy for Security Group Management; (2) for cloud, configure Microsoft Cloud Services TA for Entra ID audit events; (3) maintain `privileged_ad_groups.csv` keyed on `Group_Name` and `lookup` to flag high-risk groups; (4) feed quarterly CSV to IAM recertification; (5) alert on changes to privileged groups outside CAB windows.
 - **Visualization:** Table (evidence export), Time chart (changes per day), Bar chart (changes by Group_Name).
 - **CIM Models:** Authentication, Change
+
+---
+
+### UC-22.6.4 · ISO 27001 Information Labelling and Media Handling via DLP (A.8.2.3)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1005, T1048
+- **Splunk Pillar:** Security
+- **Regulations:** ISO 27001
+- **Value:** Annex A expects procedures for labelling information according to protection needs and handling removable media and transfers consistently. Microsoft 365 DLP events evidence that confidentiality labels and policies are enforced in practice, not only in the ISMS manual.
+- **App/TA:** Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)
+- **Data Sources:** `index=o365` `sourcetype="ms:o365:management"` (Workload, PolicyName, Operation, UserPrincipalName, SensitiveInfoType, FileName, Severity)
+- **SPL:**
+```spl
+index=o365 sourcetype="ms:o365:management" Workload="Dlp" earliest=-7d
+| where Operation IN ("DlpRuleMatch","DlpRuleUndo") OR match(PolicyName,"(?i)label|confidential|restricted")
+| stats count by PolicyName, Operation, SensitiveInfoType, Severity
+| sort - count
+```
+- **Implementation:** (1) Map `PolicyName` to your classification scheme in `info_classification_lookup.csv`; (2) exclude benign test accounts; (3) alert on high-severity outbound matches to personal domains if field present; (4) align retention with A.18.1 legal holds; (5) include panel in annual internal audit evidence pack.
+- **Visualization:** Heatmap (PolicyName x SensitiveInfoType), Table (top users optional via `stats by UserPrincipalName`), Bar chart (count by Severity).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.6.5 · ISO 27001 Cryptographic Key and Certificate Lifecycle Monitoring (A.10.1.2)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1098, T1562
+- **Splunk Pillar:** Security
+- **Regulations:** ISO 27001
+- **Value:** Key management requires defined lifecycles and protection of secret keys. Tracking upcoming TLS certificate expirations and vault key-rotation events demonstrates operational control over cryptography supporting confidentiality and integrity commitments.
+- **App/TA:** Splunk Add-on for OpenTelemetry (Splunkbase 6238) or certificate scan TA, Splunk HTTP Event Collector (core platform)
+- **Data Sources:** `index=security` `sourcetype="cert:inventory"` (cn, san, not_after, issuer, host); `index=secrets` `sourcetype="_json"` `source="http:vault_audit"` (path, operation, _time) for asymmetric key rotations
+- **SPL:**
+```spl
+index=security sourcetype="cert:inventory" earliest=-1d
+| eval exp_epoch=coalesce(
+    strptime(not_after,"%Y-%m-%dT%H:%M:%SZ"),
+    strptime(not_after,"%Y-%m-%d %H:%M:%S"))
+| eval days_to_exp=round((exp_epoch-now())/86400,1)
+| where isnotnull(days_to_exp) AND days_to_exp<45
+| stats values(host) as hosts, min(days_to_exp) as min_days by cn, issuer
+| sort min_days
+```
+```spl
+index=secrets sourcetype="_json" source="http:vault_audit" operation="rotate" earliest=-30d
+| stats count as rotations by path
+| sort - rotations
+```
+- **Implementation:** (1) Ingest nightly cert inventory from ACM or Venafi with `not_after` in consistent UTC format; (2) forward HashiCorp Vault audit or cloud KMS rotation webhooks to `index=secrets` for signing keys; (3) alert at 30/14/7 days on TLS `min_days`; (4) document owners in lookup `cert_owner.csv`; (5) tie renewals to change tickets for A.12.1.
+- **Visualization:** Table (expiring certs), Timeline (rotation events), Single value (count expiring <14 days).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.6.6 · ISO 27001 Network Security — Segmentation and Firewall Deny Baseline (A.13.1.1)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1562.007
+- **Splunk Pillar:** Security
+- **Regulations:** ISO 27001
+- **Value:** Networks must be segregated and filtered according to business requirements. Trending denied flows against approved baselines highlights misconfigurations or lateral movement precursors, supporting Annex A evidence for technical network controls.
+- **App/TA:** Splunk Add-on for Palo Alto Networks (Splunkbase 2757) or vendor firewall TA
+- **Data Sources:** `index=network` `sourcetype="pan:traffic"` (action, src, dest, dest_port, rule, app)
+- **SPL:**
+```spl
+index=network sourcetype="pan:traffic" action=deny earliest=-24h
+| stats count as denies, dc(src) as sources, values(dest_port) as ports by dest, rule
+| lookup expected_perimeter_denies.csv dest dest_port OUTPUT is_expected
+| where isnull(is_expected) OR is_expected="false"
+| sort - denies
+```
+- **Implementation:** (1) Normalize firewall CIM or vendor fields to `action`, `src`, `dest`, `dest_port`; (2) seed `expected_perimeter_denies.csv` with known scanner noise; (3) alert on sudden `denies` spikes vs 30-day baseline using `anomalydetection` optional; (4) map `rule` to change records; (5) monthly review with network architecture team.
+- **Visualization:** Map or table (top denied dest), Timechart (denies by rule), Bar chart (sources).
+- **CIM Models:** Network_Traffic
+
+---
+
+### UC-22.6.7 · ISO 27001 Supplier IAM and SaaS Integration Change Surveillance (A.15.1.2)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1098, T1078
+- **Splunk Pillar:** Security
+- **Regulations:** ISO 27001
+- **Value:** Supplier relationships must address information security in agreements and monitor service changes. Cloud IAM audit logs for OAuth app consent and service principal changes surface high-risk supplier integrations that could bypass on-prem controls.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)
+- **Data Sources:** `index=azure` `sourcetype="mscs:azure:auditlog"` (activityDisplayName, initiatedBy, targetResources, result, _time)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:auditlog" earliest=-30d
+    (activityDisplayName="*consent*" OR activityDisplayName="*Add app*" OR activityDisplayName="*service principal*")
+| eval actor=coalesce(initiatedBy.user.userPrincipalName, initiatedBy.app.displayName, "unknown")
+| stats count by activityDisplayName, actor, result
+| sort - count
+```
+- **Implementation:** (1) Scope to tenant IDs for production directories; (2) enrich with `saas_vendor_risk.csv` keyed on `targetResources{}.displayName`; (3) alert on failed `result` spikes or new high-risk vendors; (4) require CAB reference in ServiceNow optional via lookup; (5) quarterly supplier review slide export.
+- **Visualization:** Table (activity x actor), Bar chart (consent events by vendor), Single value (distinct actors).
+- **CIM Models:** Change
+
+---
+
+### UC-22.6.8 · ISO 27001 Segregation of Duties — Privileged Splunk Knowledge Object Changes (A.5.3)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1098, T1078
+- **Splunk Pillar:** Security
+- **Regulations:** ISO 27001
+- **Value:** Conflicting duties must be separated to reduce fraud and error. Auditing edits to high-risk Splunk objects by the same accounts that can execute destructive searches evidences compensating detective controls where native SoD is limited.
+- **App/TA:** Splunk Enterprise core auditing (`_audit` index)
+- **Data Sources:** `index=_audit` (object_type, action, user, object, info)
+- **SPL:**
+```spl
+index=_audit object_type IN ("savedsearch","alert_actions","transforms","props","authorize") action IN ("create","update","delete") earliest=-30d
+| eval object_name=coalesce(object, info)
+| stats count as changes, values(action) as actions, dc(object_type) as object_types by user
+| lookup splunk_privileged_users.csv user OUTPUT is_breakglass
+| where is_breakglass="true" OR changes>25
+| sort - changes
+```
+- **Implementation:** (1) Maintain `splunk_privileged_users.csv` for admin and break-glass IDs; (2) forward `_audit` from all search heads in the cluster; (3) alert on deletes to `authorize` or `props`; (4) pair with change tickets via `user`→`snow_sys_id` lookup; (5) include in role recertification for A.9.2.5.
+- **Visualization:** Table (user, changes, actions), Timeline (edits by object_type), Single value (delete actions count).
+- **CIM Models:** N/A
 
 ---
 
@@ -2166,6 +2586,139 @@ index=azure sourcetype="mscs:azure:auditlog"
 
 ---
 
+### UC-22.7.3 · NIST CSF Identify — Asset Inventory Coverage and Shadow SaaS Signals (ID.AM-2)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** NIST CSF
+- **Value:** The Identify function requires software platforms and applications to be inventoried. Comparing cloud audit OAuth consent events against an approved SaaS catalog highlights shadow applications that consume corporate identity before they appear in the CMDB.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)
+- **Data Sources:** `index=azure` `sourcetype="mscs:azure:auditlog"` (activityDisplayName, targetResources, initiatedBy, _time); `approved_saas_apps.csv` lookup (app_display_name, approved_tier)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:auditlog" earliest=-30d activityDisplayName="Add OAuth2PermissionGrant"
+| eval app=mvindex(targetResources{}.displayName,0)
+| lookup approved_saas_apps.csv app AS app_display_name OUTPUT approved_tier
+| eval shadow=if(isnull(approved_tier), 1, 0)
+| stats count as grants, sum(shadow) as unapproved_app_hits by app, approved_tier
+| sort - unapproved_app_hits
+```
+- **Implementation:** (1) Build `approved_saas_apps.csv` from enterprise architecture; (2) tune `activityDisplayName` for your IdP (Google Workspace equivalent sourcetype optional); (3) alert when `unapproved_app_hits>0` for production tenants; (4) feed discoveries into asset intake workflow; (5) refresh catalog monthly.
+- **Visualization:** Table (app, grants, approved_tier), Bar chart (shadow vs approved), Pie chart (grant volume).
+- **CIM Models:** Change
+
+---
+
+### UC-22.7.4 · NIST CSF Protect — Identity Authentication Hardening and MFA Gaps (PR.AC-1)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1078, T1556
+- **Splunk Pillar:** Security
+- **Regulations:** NIST CSF
+- **Value:** PR.AC-1 expects identities and credentials to be managed for authorized devices and users. Surfacing interactive logons without MFA claim presence from Windows or Entra sign-in logs supports remediation of weak authentication before credential attacks succeed.
+- **App/TA:** Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)
+- **Data Sources:** `index=windows` `sourcetype="WinEventLog:Security"` (EventCode, TargetUserName, WorkstationName, AuthenticationPackageName); `index=azure` `sourcetype="mscs:azure:signinlog"` (userPrincipalName, authenticationRequirement, conditionalAccessStatus, appDisplayName, status.errorCode)
+- **SPL:**
+```spl
+index=azure sourcetype="mscs:azure:signinlog" earliest=-24h status.errorCode=0
+| where isnull(authenticationRequirement) OR lower(authenticationRequirement)!="multifactorauthentication"
+| stats count by userPrincipalName, authenticationRequirement, conditionalAccessStatus, appDisplayName
+| sort - count
+```
+- **Implementation:** (1) Ingest Entra ID sign-in logs with Microsoft Cloud Services TA; (2) exclude break-glass accounts via lookup; (3) correlate with Conditional Access policy changes; (4) drive remediation tickets to IAM; (5) track rolling MFA coverage percent in executive dashboard.
+- **Visualization:** Table (users and apps lacking MFA), Bar chart (count by appDisplayName), Single value (events last 24h).
+- **CIM Models:** Authentication
+
+---
+
+### UC-22.7.5 · NIST CSF Detect — Continuous Vulnerability Exposure Drift on Critical Servers (DE.CM-7)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1562
+- **Splunk Pillar:** Security
+- **Regulations:** NIST CSF
+- **Value:** DE.CM-7 expects monitoring that surfaces unauthorized or risky software and configuration states, including exploitable weaknesses. Tracking critical and high CVE counts on in-scope assets over time demonstrates that vulnerability findings are continuously visible—not only during annual scan windows—and drives timely remediation aligned to risk tolerance.
+- **App/TA:** Tenable Add-On for Splunk (Splunkbase 4060)
+- **Data Sources:** `index=vuln` `sourcetype="tenable:vuln"` (host, plugin_id, severity, first_seen, last_seen, cve)
+- **SPL:**
+```spl
+index=vuln sourcetype="tenable:vuln" earliest=-14d severity IN ("Critical","High")
+| lookup pci_in_scope_hosts.csv host OUTPUT in_scope
+| where in_scope="true"
+| stats dc(cve) as distinct_cves, dc(plugin_id) as distinct_plugins, values(severity) as severities by host
+| sort - distinct_cves
+```
+- **Implementation:** (1) Maintain `pci_in_scope_hosts.csv` or generic `critical_asset_hosts.csv`; (2) normalize `host` to FQDN used in CMDB; (3) alert when `distinct_cves` increases week over week; (4) join patch tickets from ServiceNow optional; (5) document SLAs in CSF tier narrative.
+- **Visualization:** Table (host exposure), Column chart (distinct_cves), Line chart (weekly trend via appendcols or summary index).
+- **CIM Models:** Vulnerabilities
+
+---
+
+### UC-22.7.6 · NIST CSF Respond — Incident Response Playbook Execution and Stage Timestamps (RS.RP-1)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1048, T1070
+- **Splunk Pillar:** Security
+- **Regulations:** NIST CSF
+- **Value:** RS.RP-1 requires response processes to be executed during and after an incident. Measuring Splunk SOAR incident-response playbook success rates alongside ServiceNow security-incident stage timing proves that documented response procedures actually run and that closure timelines are measurable for after-action review.
+- **App/TA:** Splunk SOAR, Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=soar` `sourcetype="phantom:playbook_run"` (playbook_name, status, _time); `index=itsm` `sourcetype="snow:incident"` (number, u_ir_stage, state, work_start, resolved_at, short_description)
+- **SPL:**
+```spl
+index=soar sourcetype="phantom:playbook_run" earliest=-90d playbook_name="*IR*"
+| stats count as runs,
+        count(eval(status="success")) as successes,
+        count(eval(status="failed")) as failures
+    by playbook_name
+| eval success_pct=if(runs>0, round(100*successes/runs,1), null())
+| where failures>0 OR success_pct<95
+| sort playbook_name
+```
+```spl
+index=itsm sourcetype="snow:incident" earliest=-90d short_description="*security incident*"
+| eval start_epoch=strptime(work_start, "%Y-%m-%d %H:%M:%S")
+| eval end_epoch=strptime(resolved_at, "%Y-%m-%d %H:%M:%S")
+| eval duration_sec=if(isnotnull(start_epoch) AND isnotnull(end_epoch), end_epoch-start_epoch, null())
+| stats count as incidents, median(duration_sec) as median_duration_sec by u_ir_stage, state
+| eval median_duration_h=round(median_duration_sec/3600,2)
+| sort - incidents
+```
+- **Implementation:** (1) Standardize Splunk SOAR playbook names for major incident classes and map `status` vocabulary to success/failed; (2) if using ServiceNow, map `u_ir_stage` values to NIST IR phases and require `work_start`/`resolved_at` for MTTR; (3) alert on SOAR `status` failure spikes; (4) exclude test containers with non-prod labels; (5) quarterly export for tabletop lessons learned.
+- **Visualization:** Table (playbook_name, runs, successes, failures, success_pct), Bar chart (failures by playbook), Table (ServiceNow stages with median_duration_h).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.7.7 · NIST CSF Recover — Backup Job Success and RTO Readiness for Critical Databases (RC.RP-1)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** NIST CSF
+- **Value:** RC.RP-1 expects recovery planning and improvements after incidents. Monitoring backup completion for databases tied to RTO tiers evidences that restoration inputs are healthy and flags silent failures that would block ransomware recovery.
+- **App/TA:** Splunk Add-on for NetBackup (Splunkbase 2185) or Commvault/Cohesity TA, Splunk DB Connect (Splunkbase 1556) optional
+- **Data Sources:** `index=backup` `sourcetype="netbackup:job"` (client_name, policy_name, status, kb_written, _time); `rto_tier_lookup.csv` (client_name, rto_hours)
+- **SPL:**
+```spl
+index=backup sourcetype="netbackup:job" earliest=-7d
+| lookup rto_tier_lookup.csv client_name OUTPUT rto_hours
+| where isnotnull(rto_hours)
+| eval failed=if(match(status,"(?i)fail|error|partial"),1,0)
+| stats count as jobs, sum(failed) as failed_jobs by client_name, policy_name, rto_hours
+| eval fail_pct=round(100*failed_jobs/jobs,2)
+| where fail_pct>0 OR failed_jobs>0
+| sort - failed_jobs
+```
+- **Implementation:** (1) Ingest backup product logs with stable `status` vocabulary; (2) align `client_name` to database hostnames; (3) alert on any failed job for tier-0; (4) validate against storage dedupe errors in secondary sourcetype; (5) tie to BC/DR test calendar for RC.IM improvements.
+- **Visualization:** Table (client, fail_pct), Single value (failed_jobs), Timechart (daily success rate by tier).
+- **CIM Models:** N/A
+
+---
+
 ### 22.8 SOC 2
 
 **Primary App/TA:** Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110).
@@ -2240,6 +2793,7 @@ index=itsi_summary is_service_in_maintenance=0 is_entity_in_maintenance=0
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1005, T1048
 - **Splunk Pillar:** Security
 - **Regulations:** SOC 2
 - **Value:** Audits Microsoft 365 DLP policy matches with actor, policy, and sensitive information types for confidentiality control testing and breach-readiness reporting.
@@ -2259,6 +2813,142 @@ index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 - **Implementation:** (1) Enable Office 365 Management Activity inputs in TA 4055 and confirm `Workload="Dlp"` events are ingested; (2) map `SensitiveInfoType` values to your data classification scheme via lookup `classification_tier.csv`; (3) alert on high-severity or high-volume exfil patterns; (4) retain per legal hold requirements; (5) optionally route to ES as correlation-search input.
 - **Visualization:** Bar chart (events by PolicyName), Heatmap (user x SensitiveInfoType), Line chart (daily volume by Severity), Table (sample evidence).
 - **CIM Models:** N/A
+
+---
+
+### UC-22.8.4 · SOC 2 Control Environment and Board-Level Attestation Workflow (CC1.2, CC2.1)
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** SOC 2
+- **Value:** CC1 and CC2 require communication and information about roles, responsibilities, and performance to support functioning of internal control. Tracking completion of quarterly control-owner attestations in ITSM demonstrates tone-at-the-top processes are operationalized with timestamps.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` `sourcetype="snow:sc_req_item"` (number, cat_item, state, closed_at, opened_at, assigned_to, u_control_id)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:sc_req_item" earliest=-120d (cat_item="*SOC2*Attestation*" OR short_description="*control owner attestation*")
+| eval is_closed=if(match(state,"(?i)closed|resolved|complete"),1,0)
+| stats count as tasks, sum(is_closed) as completed, dc(assigned_to) as owners by u_control_id, cat_item
+| eval completion_pct=round(100*completed/tasks,1)
+| where completion_pct<100
+| sort u_control_id
+```
+- **Implementation:** (1) Create catalog items per SOC2 control family with `u_control_id` matching your CCM matrix; (2) schedule quarterly auto-open tasks; (3) escalate open items after 14 days; (4) export CSV for external auditors; (5) map `assigned_to` to job titles for CC1.3 HR evidence optional.
+- **Visualization:** Table (control completion), Bar chart (open vs closed), Single value (tasks past due).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.8.5 · SOC 2 Risk Assessment — Change-Induced Emergency Pattern Monitoring (CC3.2, CC3.3)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Security
+- **Splunk Pillar:** Security
+- **Regulations:** SOC 2
+- **Value:** CC3 expects risk identification and analysis, including changes that significantly affect the system. Correlating production emergency changes with recent deployments highlights process breakdowns where velocity outpaces risk assessment.
+- **App/TA:** Splunk Add-on for ServiceNow (Splunkbase 1928)
+- **Data Sources:** `index=itsm` `sourcetype="snow:change_request"` (number, type, risk, start_date, end_date, state, short_description, u_emergency_flag)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" earliest=-90d state="Closed"
+| eval emergency=coalesce(u_emergency_flag, if(match(type,"(?i)emergency"),"true","false"))
+| where emergency="true"
+| eval duration_h=(strptime(end_date,"%Y-%m-%d %H:%M:%S")-strptime(start_date,"%Y-%m-%d %H:%M:%S"))/3600
+| stats count as emergency_changes, median(duration_h) as median_duration by risk, cmdb_ci
+| sort - emergency_changes
+```
+- **Implementation:** (1) Ensure `u_emergency_flag` or `type` differentiates emergencies; (2) join `cmdb_ci` to service tier lookup; (3) alert when `emergency_changes` spikes vs baseline; (4) require post-implementation review field completeness; (5) feed results into quarterly risk committee deck.
+- **Visualization:** Bar chart (emergency_changes by service), Table (risk, median_duration), Timechart (weekly emergency volume).
+- **CIM Models:** Change
+
+---
+
+### UC-22.8.6 · SOC 2 Processing Integrity — Financial Batch Job Reconciliation Exceptions (PI1.3)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1565
+- **Splunk Pillar:** Security
+- **Regulations:** SOC 2
+- **Value:** Processing integrity criteria require system processing to be complete, valid, accurate, timely, and authorized. Monitoring ETL or billing batch exception counts versus totals provides continuous evidence that automated controls detect and surface out-of-balance conditions.
+- **App/TA:** Splunk HTTP Event Collector (core platform), Splunk DB Connect (Splunkbase 1556) optional
+- **Data Sources:** `index=finance` `sourcetype="_json"` `source="http:batch_recon"` (batch_id, records_total, records_failed, amount_total, amount_exception, pipeline, _time)
+- **SPL:**
+```spl
+index=finance sourcetype="_json" source="http:batch_recon" earliest=-7d
+| eval fail_rate=round(100*records_failed/records_total,4)
+| eval amt_exc_rate=if(amount_total>0, round(100*amount_exception/amount_total,4), 0)
+| stats sum(records_total) as rows, sum(records_failed) as failed_rows, max(fail_rate) as peak_fail_rate by pipeline, batch_id
+| where failed_rows>0 OR peak_fail_rate>0.01
+| sort - failed_rows
+```
+- **Implementation:** (1) Publish one JSON event per batch completion from orchestration (Airflow, Control-M, mainframe bridge); (2) define materiality thresholds per `pipeline`; (3) alert on `peak_fail_rate` breaches; (4) retain hash of source file name for audit trail; (5) map `pipeline` to SOC subservice description in the system description.
+- **Visualization:** Table (batch exceptions), Line chart (fail_rate over time by pipeline), Single value (failed_rows).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.8.7 · SOC 2 Privacy — Consent Log Integrity and Downstream Propagation Checks (P4.2, P4.3)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1565, T1005
+- **Splunk Pillar:** Security
+- **Regulations:** SOC 2
+- **Value:** Privacy criteria expect notices about processing and consent to be accurate and current. Comparing consent-store updates to marketing execution logs detects cases where email or SMS campaigns run after withdrawal timestamps—an integrity failure with reputational and regulatory impact.
+- **App/TA:** Splunk HTTP Event Collector (core platform)
+- **Data Sources:** `index=privacy` `sourcetype="_json"` `source="http:consent_store"` (profile_id, consent_email_marketing, updated_epoch_ms); `index=marketing` `sourcetype="_json"` `source="http:campaign_send"` (profile_id, channel, send_epoch_ms, campaign_id)
+- **SPL:**
+```spl
+index=marketing sourcetype="_json" source="http:campaign_send" earliest=-7d channel IN ("email","sms")
+| join type=left profile_id [
+    search index=privacy sourcetype="_json" source="http:consent_store" earliest=-30d
+    | eval withdraw=if(consent_email_marketing="false", updated_epoch_ms, null())
+    | stats latest(withdraw) as last_withdraw_ms by profile_id
+  ]
+| eval send_ms=send_epoch_ms
+| where isnotnull(last_withdraw_ms) AND send_ms>last_withdraw_ms
+| stats count as sends_after_withdrawal by campaign_id, channel
+| sort - sends_after_withdrawal
+```
+- **Implementation:** (1) Ensure epoch fields share UTC basis; (2) use `profile_id` as stable key; (3) alert on any `sends_after_withdrawal>0`; (4) cap join window for performance using `subsearch` time range; (5) document corrective action in privacy incident register.
+- **Visualization:** Table (violating campaigns), Bar chart (sends_after_withdrawal), Single value (distinct profiles affected).
+- **CIM Models:** N/A
+
+---
+
+### UC-22.8.8 · SOC 2 Fraud Risk and Anomalous Privileged Activity Correlation (CC9.2)
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1078, T1048
+- **Splunk Pillar:** Security
+- **Regulations:** SOC 2
+- **Value:** CC9.2 addresses risks of fraud, including fraud due to management override. Correlating after-hours privileged logons with Splunk `_audit` searches touching high-sensitivity indexes surfaces potential override paths for investigator review without presuming guilt.
+- **App/TA:** Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Enterprise core auditing (`_audit` index)
+- **Data Sources:** `index=windows` `sourcetype="WinEventLog:Security"` (EventCode, TargetUserName, _time, LogonType); `index=_audit` `action=search` (user, search, _time)
+- **SPL:**
+```spl
+index=windows sourcetype="WinEventLog:Security" EventCode=4624 LogonType=10 earliest=-7d
+| eval hour=strftime(_time,"%H")
+| where hour<6 OR hour>22
+| lookup domain_admins.csv TargetUserName OUTPUT is_privileged
+| where is_privileged="true"
+| stats earliest(_time) as first_priv, latest(_time) as last_priv by TargetUserName
+| join type=left max=0 TargetUserName [
+    search index=_audit action=search info=completed earliest=-7d
+    | where match(search, "(?i)index\\s*=\\s*(pci|hr|finance)")
+    | stats earliest(_time) as first_search by user
+    | rename user as TargetUserName
+  ]
+| eval suspicious=if(isnotnull(first_search) AND first_search>=first_priv AND first_search<=relative_time(last_priv,"+2h"), 1, 0)
+| where suspicious=1
+| table TargetUserName, first_priv, first_search, suspicious
+```
+- **Implementation:** (1) Tune RDP (`LogonType=10`) vs your jump host patterns; (2) maintain `domain_admins.csv`; (3) adjust sensitive index regex to your taxonomy; (4) route hits to SOC insider-threat queue; (5) document investigation outcomes for CC4 monitoring activities.
+- **Visualization:** Table (correlated events), Timeline (first_priv vs first_search), Single value (suspicious sessions).
+- **CIM Models:** Authentication
 
 ---
 
@@ -2382,6 +3072,7 @@ index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1048, T1562
 - **Value:** Mean time to resolve compliance-tagged incidents by quarter proves that regulatory and policy breaches are handled with discipline—supporting supervisory expectations and internal KPIs beyond generic IT MTTR.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263)
 - **Data Sources:** `` `notable` `` — filter with `tag`/`category`/`rule_name` for compliance/regulatory work; fields `closed_time`, `_time`
@@ -2407,6 +3098,7 @@ index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1078, T1562
 - **Value:** Quarterly violation counts by category—data handling, access, encryption—show whether policy drift, training gaps, or technical misconfigurations are improving or worsening, which steers awareness campaigns and control investments.
 - **App/TA:** Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for Windows (Splunkbase 742), Enterprise Security data models
 - **Data Sources:** `index=compliance` OR `index=sec` `sourcetype IN ("dlp:violation","policy:enforcement","ms:o365:management")` — `violation_category`, `PolicyName`, `Workload`; optional `sourcetype="qualys:*"` / `sourcetype="nessus:*"` for encryption posture drift correlated to policy

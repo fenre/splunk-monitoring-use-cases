@@ -151,6 +151,7 @@ index=nac sourcetype="cisco:ise:byod"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1200
 - **Value:** MAB devices bypass 802.1X and rely on MAC address only. Monitoring for unauthorized MACs prevents rogue device access.
 - **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
@@ -270,6 +271,7 @@ index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth" OR sourcetype
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1090
 - **Value:** Start/stop mismatches indicating dropped sessions or potential abuse. Accounting discrepancies can hide unauthorized access, session hijacking, or billing/audit gaps.
 - **App/TA:** `Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, RADIUS accounting TA
 - **Equipment Models:** Cisco ISE, Windows NPS, FreeRADIUS
@@ -335,6 +337,7 @@ index=nac sourcetype="cisco:ise:posture" earliest=-30d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1200
 - **Value:** Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.
 - **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog
 - **Equipment Models:** Cisco ISE, switch/WLC syslog
@@ -396,6 +399,7 @@ index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth") earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1048
 - **Value:** Flags excessive concurrent guest sessions, high bandwidth, or repeated sponsor abuse — beyond simple guest usage volume (UC-17.1.4).
 - **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, firewall logs
 - **Equipment Models:** Cisco ISE guest, WLC
@@ -426,6 +430,7 @@ index=nac sourcetype="cisco:ise:guest" earliest=-24h
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1090.003
 - **Value:** Complements UC-17.1.10 by flagging duplicate session IDs or mismatched NAS-IP between Start/Interim/Stop for the same `Acct-Session-Id` — catching replication and proxy issues.
 - **App/TA:** `Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, RADIUS accounting TA
 - **Equipment Models:** Cisco ISE, NPS, FreeRADIUS
@@ -456,6 +461,7 @@ index=nac sourcetype="radius:accounting" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1200
 - **Value:** Complements UC-17.1.6 whitelist checks with **volume and velocity** anomalies (sudden MAB spikes per port or site) that may indicate MAC spoofing or policy gaps.
 - **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog
 - **Equipment Models:** Cisco ISE, access switches
@@ -667,6 +673,7 @@ index=vpn sourcetype="cisco:asa"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Repeated VPN auth failures indicate credential attacks against the remote access perimeter, a primary attack vector.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -697,6 +704,7 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1219
 - **Value:** VPN connections from unexpected countries may indicate compromised credentials being used from attacker infrastructure.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`, GeoIP lookup
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -727,6 +735,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1572, T1048
 - **Value:** Split-tunnel configurations affect security visibility. Ensuring compliance with tunnel policy maintains security posture.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -789,6 +798,7 @@ index=vpn sourcetype="cisco:asa"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1219
 - **Value:** VPN access at unusual hours may indicate compromised credentials or unauthorized activity. Alerting supports investigation.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`, user context
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -821,6 +831,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1048, T1041
 - **Value:** Per-user bandwidth tracking identifies heavy users, guides capacity planning, and detects potential data exfiltration.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`, RADIUS accounting
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -852,6 +863,7 @@ index=vpn sourcetype="cisco:asa"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1219
 - **Value:** A single user with simultaneous VPN sessions from different locations strongly indicates credential compromise.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -881,6 +893,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1572, T1048
 - **Value:** Verifying split-tunnel vs. full-tunnel adherence per user/group policy. Full-tunnel ensures all traffic is inspected; split-tunnel may bypass security controls for internet-bound traffic.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`
 - **Equipment Models:** Cisco ASA/AnyConnect, Palo Alto GlobalProtect, FortiGate SSL-VPN
@@ -916,6 +929,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect")
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Availability
+- **MITRE ATT&CK:** T1573.001, T1573.002
 - **Value:** Mutual TLS certificates approaching expiry in zero-trust architectures (service-to-service auth). Expired certs cause service outages and authentication failures.
 - **App/TA:** Custom (certificate inventory, service mesh telemetry)
 - **Data Sources:** Certificate inventory scan (serial, subject, expiry), Istio/Linkerd cert rotation logs
@@ -939,6 +953,7 @@ index=certs (sourcetype="cert:inventory" OR sourcetype="istio:cert" OR sourcetyp
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1572, T1048.001
 - **Value:** Flags sessions where observed routing or client flags indicate split tunnel when group policy mandates full tunnel — complements UC-17.2.4/17.2.9 with explicit **violation** logic.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA/AnyConnect, GlobalProtect
@@ -988,6 +1003,7 @@ index=snmp sourcetype="snmp:cpu" host="vpn-headend-*" earliest=-24h
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity, Security
+- **MITRE ATT&CK:** T1021
 - **Value:** Alerts when simultaneous sessions approach licensed or configured caps — same user or aggregate.
 - **App/TA:** Splunk_TA_cisco-asa
 - **Equipment Models:** Cisco ASA
@@ -1014,6 +1030,7 @@ index=vpn sourcetype="cisco:asa" earliest=-4h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1219
 - **Value:** Detects logins from two distant countries faster than plausible travel — complements static geo allowlists (UC-17.2.3).
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), GeoIP
 - **Equipment Models:** Cisco ASA, GlobalProtect
@@ -1067,6 +1084,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1021.001
 - **Value:** Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers.
 - **App/TA:** Windows TA, IIS TA
 - **Equipment Models:** Windows Server RD Gateway
@@ -1149,6 +1167,7 @@ index=vpn sourcetype="cisco:asa" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1572, T1048
 - **Value:** Identifies corporate assets connecting without Always-On (pre-login) VPN when policy requires it.
 - **App/TA:** Splunk_TA_cisco-asa, endpoint inventory
 - **Equipment Models:** AnyConnect with Always-On
@@ -1199,6 +1218,7 @@ index=vpn sourcetype="cisco:asa" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Availability
+- **MITRE ATT&CK:** T1573
 - **Value:** Tracks server certificate expiry and chain errors on SSL VPN / GlobalProtect portals from TLS handshake logs.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`
 - **Equipment Models:** ASA, Palo Alto
@@ -1220,6 +1240,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-30d
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1219
 - **Value:** Statistical outliers in VPN session length — unusually short (brute probe) or long (unattended tunnel) vs UC-17.3.8 fixed thresholds.
 - **App/TA:** VPN TA
 - **Equipment Models:** Cisco ASA
@@ -1244,6 +1265,7 @@ index=vpn sourcetype="vpn:session" earliest=-7d
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1021
 - **Value:** Anomalously long or short VPN sessions may indicate abuse or connectivity issues. Monitoring supports policy tuning and security review.
 - **App/TA:** VPN gateway logs, RADIUS accounting
 - **Data Sources:** Session start/end, duration, idle time
@@ -1271,6 +1293,7 @@ index=vpn sourcetype="vpn:session"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1071.001
 - **Value:** A spike in policy blocks for a single application after a policy publish suggests a rule-order or identity claim error. Gradual deny-rate growth across multiple apps indicates posture drift or certificate expiry across a device cohort. Both patterns require different response workflows.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293), `Splunk_TA_microsoft-cloudservices` (Entra ID)
 - **Data Sources:** SASE/ZT policy decision logs
@@ -1298,6 +1321,7 @@ index=zt sourcetype="zscaler:zpa"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1200
 - **Value:** Device trust scores drive access decisions in zero-trust architecture. Monitoring ensures devices maintain compliance.
 - **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune), `TA-crowdstrike-falcon`
 - **Data Sources:** ZT device compliance/trust data
@@ -1325,6 +1349,7 @@ index=zt sourcetype="zscaler:device_posture"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1021, T1570
 - **Value:** Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.
 - **App/TA:** VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
 - **Data Sources:** Micro-segmentation policy logs (allow/deny events)
@@ -1353,6 +1378,7 @@ index=zt sourcetype="microseg:policy"
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1021, T1071.001
 - **Value:** Per-application access patterns in ZTNA reveal usage trends, security risks, and application performance issues.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
 - **Data Sources:** ZTNA access logs (application, user, device, action)
@@ -1434,6 +1460,7 @@ index=zt sourcetype="zt:admin_audit"
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1573.002
 - **Value:** Expired device certificates break ZTNA and VPN access. Monitoring expiration and renewal success ensures continuous access and avoids outages.
 - **App/TA:** PKI/certificate inventory, `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access)
 - **Data Sources:** Certificate validity, renewal requests, enrollment events
@@ -1455,6 +1482,7 @@ index=zt sourcetype="device:cert"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1071.001, T1046
 - **Value:** High denial rates may indicate policy misconfiguration or attacker probing. Trending supports tuning and security analysis.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
 - **Data Sources:** Access decision logs (allow/deny), user, app, reason
@@ -1476,6 +1504,7 @@ index=zt sourcetype="zt:access"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1570, T1018
 - **Value:** New or unexpected traffic between segments may indicate lateral movement or misconfiguration. Anomaly detection supports Zero Trust enforcement.
 - **App/TA:** Network flow logs, VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
 - **Data Sources:** East-west traffic, segment IDs, flow counts
@@ -1497,6 +1526,7 @@ index=flows sourcetype="netflow"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Time-series of blocked violations per URL category and rule — tunes SWG policy and spots sudden policy drift.
 - **App/TA:** Zscaler TA
 - **Data Sources:** `sourcetype=zscaler:web` or `zscaler:zia`
@@ -1550,6 +1580,7 @@ index=zt sourcetype="zscaler:zpa" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1071.004, T1568
 - **Value:** Top blocked domains, identities, and policy hits for DNS-layer security tuning and threat hunting.
 - **App/TA:** Cisco Umbrella TA
 - **Data Sources:** `sourcetype=umbrella:dns`
@@ -1598,6 +1629,7 @@ index=sase sourcetype="sase:tunnel" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1090, T1071.001, T1021
 - **Value:** Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.
 - **App/TA:** Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808)
 - **Data Sources:** `sourcetype=iap:access`, `zscaler:zpa`
@@ -1626,6 +1658,7 @@ index=zt sourcetype="zscaler:zpa" earliest=-30d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1046
 - **Value:** Ratio of expected denies vs allows for critical segments — validates that “default deny” is actually enforced.
 - **App/TA:** VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA
 - **Data Sources:** `microseg:policy`
@@ -1656,6 +1689,7 @@ index=zt sourcetype="microseg:policy" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1200
 - **Value:** Fleet-level and cohort trend of device trust scores — extends point-in-time UC-17.3.2.
 - **App/TA:** `Splunk_TA_zscaler`, `Splunk_TA_microsoft-cloudservices` (Entra ID), `TA-crowdstrike-falcon`
 - **Data Sources:** `zscaler:device_posture`, `zt:device_trust`
@@ -1680,6 +1714,7 @@ index=zt sourcetype="zscaler:device_posture" earliest=-30d
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1021
 - **Value:** Tracks step-up auth, re-auth, and session risk evaluation outcomes for policies requiring continuous verification.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices` (Entra ID Protection), `Splunk_TA_okta`, Zscaler ZPA TA
 - **Data Sources:** `sourcetype=azure:signin`, `okta:system`
@@ -1727,6 +1762,7 @@ index=zt sourcetype="rbi:session" earliest=-30d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1572, T1090, T1048, T1573
 - **Value:** Detects attempts to reach direct IPs, misuse PAC files, or tunnel out of SWG inspection.
 - **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk
 - **Data Sources:** `zscaler:web`, endpoint proxy logs
@@ -1801,6 +1837,7 @@ index=sase sourcetype="prisma:access:tunnel" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1021
 - **Value:** Volume of grants vs blocks per named CA policy — complements generic UC-17.3.1 with Microsoft-specific policy dimension.
 - **App/TA:** Azure / Entra TA
 - **Data Sources:** `sourcetype=azure:signin` with `conditional_access_status`
@@ -1828,6 +1865,7 @@ index=identity sourcetype="azure:signin" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1071.001, T1048
 - **Value:** Cato's cloud-native security stack generates IPS, anti-malware, and NGFW events from a single pass inspection of all WAN and internet traffic. Unlike on-premises firewalls, every branch and remote user traverses the same cloud inspection plane. Monitoring detection volume, severity distribution, and threat categories across sites and identities reveals coordinated campaigns, noisy rules, and coverage gaps before incidents escalate.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration) (syslog to TCP 1514) as an alternative to the app’s API pull.
 - **Equipment Models:** Cato Socket (physical edge), Cato vSocket (virtual edge), Cato SDP Client (ZTNA endpoint software) — no discrete on-premises firewall appliances; enforcement is cloud-delivered at Cato PoPs.
@@ -1888,6 +1926,7 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Cato IPS blends machine learning and signatures inline on all traversing traffic. Because enforcement runs at Cato PoPs, IPS coverage is uniform for every site and remote user without shipping appliances to each location. Tracking blocked threats, source context, targeted services, and attack patterns supports incident triage, threat hunting, and validation that prevention is active everywhere.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
 - **Equipment Models:** Cato Socket, Cato vSocket, Cato SDP Client — threats are seen and acted on at the PoP; edge devices tunnel traffic into that inspection path.
@@ -1979,6 +2018,7 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Availability
+- **MITRE ATT&CK:** T1021, T1219, T1071.001
 - **Value:** The Cato SDP client delivers ZTNA access for remote users. Connection, authentication, posture, and disconnect-reason events show who cannot reach applications and why — distinguishing client bugs, credential issues, MFA failures, and policy blocks without guessing from help-desk anecdotes.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); Cato Events API (client / ZTNA-related event families)
 - **Equipment Models:** Cato SDP Client on laptops and mobile devices; enforcement still occurs through Cato cloud policy — correlate with Cato Socket sites for hybrid users when applicable.
@@ -2011,6 +2051,7 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1048.001, T1102
 - **Value:** Inline CASB and DLP inspect cloud application traffic for unsanctioned SaaS, sensitive data movement, and policy violations in one SASE pass. Aggregating these events highlights shadow IT growth, risky uploads, and repeat offenders before data leaves the organization’s control.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); Cato SWG/CASB/DLP event categories via Events API
 - **Equipment Models:** Cato Socket, Cato vSocket, Cato SDP Client — all user and site traffic eligible for CASB/DLP inspection at the PoP.
@@ -2043,6 +2084,7 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1102
 - **Value:** Netskope assigns Cloud Confidence Index (CCI) scores to SaaS applications. Tracking high-risk (low CCI) app usage reveals shadow IT and data exposure. Trending CCI across the organization supports SaaS governance and vendor risk management.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
 - **Equipment Models:** Netskope Security Cloud (cloud-delivered), Netskope Client (endpoint agent)
@@ -2072,6 +2114,7 @@ index=casb sourcetype="netskope:events" earliest=-7d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1048.001
 - **Value:** Netskope inline DLP inspects uploads, downloads, and cloud-to-cloud sharing for sensitive data (PII, PCI, PHI, IP). Tracking violations by policy, user, and destination app identifies repeat offenders, miscategorized data, and policy gaps before a breach.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
 - **Equipment Models:** Netskope Security Cloud, Netskope Client
@@ -2099,6 +2142,7 @@ index=casb sourcetype="netskope:alert" alert_type="DLP" earliest=-7d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1071.001, T1568.002
 - **Value:** Netskope inspects web and cloud traffic for malware, phishing, and exploits inline. Threat events reveal attack vectors targeting users through sanctioned and unsanctioned cloud apps — a blind spot for traditional perimeter firewalls.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
 - **Equipment Models:** Netskope Security Cloud, Netskope Client
@@ -2126,6 +2170,7 @@ index=casb sourcetype="netskope:alert" alert_type IN ("Malware", "malsite", "Com
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Tracks blocked web requests by URL category across the Netskope SWG — tunes real-time policy and validates acceptable-use enforcement for remote and office users alike.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
 - **Equipment Models:** Netskope Security Cloud, Netskope Client
@@ -2184,6 +2229,7 @@ index=casb sourcetype="netskope:connection" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1048, T1041
 - **Value:** Netskope CASB enforces activity-level policies on sanctioned SaaS apps (block upload, read-only, quarantine). Monitoring enforcement actions validates that cloud governance policies are working and identifies gaps.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
 - **Equipment Models:** Netskope Security Cloud, Netskope Client
@@ -2238,6 +2284,7 @@ index=casb sourcetype="netskope:audit" earliest=-30d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** FortiSASE cloud-delivered SWG enforces web filtering for remote and branch users through FortiGate NGFW policies in the cloud. Trending blocked categories and rules identifies policy drift and shadow IT.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE logs use FortiGate syslog format)
 - **Equipment Models:** FortiSASE (cloud), FortiClient (endpoint agent), FortiGate (on-prem with SASE integration)
@@ -2266,6 +2313,7 @@ index=proxy sourcetype="fgt_utm" subtype="webfilter" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1021, T1071.001
 - **Value:** FortiSASE ZTNA tags replace traditional VPN by granting per-application access based on device posture and identity. Monitoring ZTNA tag matches and application access patterns validates zero-trust enforcement.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE ZTNA logs)
 - **Equipment Models:** FortiSASE (cloud), FortiClient (EMS-managed endpoint), FortiGate ZTNA proxy
@@ -2401,6 +2449,7 @@ index=checkpoint sourcetype="cp_log" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Harmony SASE Internet Access (formerly Perimeter 81) enforces URL filtering, application control, and content inspection. Tracking policy actions validates acceptable-use enforcement and identifies shadow IT.
 - **App/TA:** Check Point App for Splunk (Splunkbase 4293)
 - **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Connect Client
@@ -2486,6 +2535,7 @@ index=checkpoint sourcetype="cp_log" product="SmartConsole" earliest=-30d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1048, T1048.001
 - **Value:** Harmony SASE inline DLP inspects uploads and downloads for sensitive data patterns (credit cards, SSNs, health records, source code). Detection events identify data exposure risks across cloud and private application access.
 - **App/TA:** Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Connect Client
@@ -2512,6 +2562,7 @@ index=dlp sourcetype="cp_log" product="DLP" earliest=-7d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1570
 - **Value:** Akamai Guardicore enforces microsegmentation at the workload level across on-prem, cloud, and hybrid environments. Policy violation events (blocked lateral movement) validate that default-deny segmentation is enforced and detect attempted east-west attacks.
 - **App/TA:** Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
 - **Equipment Models:** Akamai Guardicore Centra (management), Guardicore Agents (workload), Guardicore Aggregators
@@ -2540,6 +2591,7 @@ index=microseg sourcetype="guardicore:network" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1018, T1046
 - **Value:** Guardicore's Reveal feature maps all process-level communication between workloads. New or unexpected connections that deviate from the learned application dependency map may indicate lateral movement, compromised workloads, or configuration drift.
 - **App/TA:** Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
 - **Equipment Models:** Akamai Guardicore Centra, Guardicore Agents
@@ -2593,6 +2645,7 @@ index=microseg sourcetype="guardicore:agent" earliest=-4h
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1046
 - **Value:** Guardicore generates security incidents when patterns of blocked connections, deception (honeypot) triggers, or policy violations suggest active threats. Incident-level correlation in Splunk supports rapid investigation with full process and network context.
 - **App/TA:** Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
 - **Equipment Models:** Akamai Guardicore Centra, Guardicore Agents, Guardicore Deception
@@ -2619,6 +2672,7 @@ index=microseg sourcetype="guardicore:incident" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Broadcom Symantec Cloud SWG (formerly WSS) provides cloud-delivered web security with URL filtering, threat protection, and SSL inspection for all users. Tracking policy violations and threat blocks validates security posture.
 - **App/TA:** Symantec WSS Add-on for Splunk (Splunkbase 3856)
 - **Equipment Models:** Symantec Cloud SWG (cloud), Symantec Web Security Service Edge, Symantec Endpoint Agent
@@ -2647,6 +2701,7 @@ index=proxy sourcetype="symantec:wss:accesslog" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1102
 - **Value:** Symantec CloudSOC CASB detects unsanctioned cloud application usage by analyzing web proxy and firewall logs. Shadow IT visibility identifies data exposure risks and supports SaaS governance.
 - **App/TA:** Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934)
 - **Equipment Models:** Symantec CloudSOC (cloud), Cloud SWG
@@ -2676,6 +2731,7 @@ index=proxy sourcetype="symantec:wss:accesslog" earliest=-30d
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1071.001, T1568.002
 - **Value:** Cloud SWG detects malware, phishing, and zero-day threats via URL reputation, content analysis, and sandboxing. Threat events in Splunk enable incident response and threat hunting.
 - **App/TA:** Symantec WSS Add-on for Splunk (Splunkbase 3856)
 - **Equipment Models:** Symantec Cloud SWG (cloud), Symantec Endpoint Agent
@@ -2703,6 +2759,7 @@ index=proxy sourcetype="symantec:wss:accesslog" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1021, T1071.001
 - **Value:** Cloudflare Access replaces VPN with per-application zero-trust access policies based on identity, device posture, and network context. Tracking allow/block decisions validates that access policies are correctly enforced.
 - **App/TA:** Cloudflare App for Splunk (Splunkbase 4501)
 - **Equipment Models:** Cloudflare Zero Trust (cloud), Cloudflare WARP client (endpoint), Cloudflare Tunnel (connector)
@@ -2729,6 +2786,7 @@ index=zt sourcetype="cloudflare:access" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1071.001, T1071.004
 - **Value:** Cloudflare Gateway provides DNS-layer and HTTP-layer filtering for all users. DNS blocks stop threats before connections are established; HTTP inspection enforces content and application policies.
 - **App/TA:** Cloudflare App for Splunk (Splunkbase 4501)
 - **Equipment Models:** Cloudflare Zero Trust (cloud), Cloudflare WARP client
@@ -2779,6 +2837,7 @@ index=zt sourcetype="cloudflare:tunnel" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Forcepoint ONE SSE delivers cloud-native SWG, CASB, and ZTNA from a unified platform. Web security events reveal policy violations, threat blocks, and shadow IT usage across all users.
 - **App/TA:** Forcepoint Insights SIEM App (Splunkbase 8053)
 - **Equipment Models:** Forcepoint ONE (cloud), Forcepoint ONE Smart Edge Agent (endpoint)
@@ -2837,6 +2896,7 @@ index=zt sourcetype="forcepoint:one" earliest=-24h
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1071.001, T1021
 - **Value:** SonicWall Cloud SWG and Secure Mobile Access (SMA) provide cloud-delivered web security and ZTNA for remote and branch users. Tracking blocked connections, authentication events, and policy actions validates secure access enforcement.
 - **App/TA:** SonicWall SMA 1000 TA (Splunkbase 6670), `dell:sonicwall:firewall` syslog
 - **Equipment Models:** SonicWall SMA 1000 series, SonicWall Cloud SWG, SonicWall NSa/NSsp (with SASE), SonicWall Cloud Edge
@@ -2865,6 +2925,7 @@ index=proxy sourcetype="dell:sonicwall:firewall" earliest=-7d
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1071.001
 - **Value:** Versa SASE unifies SD-WAN, SWG, CASB, ZTNA, and FWaaS in a single platform. Security event analysis across these functions provides unified threat visibility and policy enforcement validation.
 - **App/TA:** Versa Networks Splunk App (via Versa Analytics syslog integration)
 - **Equipment Models:** Versa FlexVNF (branch CPE), Versa Director (management), Versa SASE Cloud Gateways

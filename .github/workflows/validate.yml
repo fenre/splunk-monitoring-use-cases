@@ -1,0 +1,60 @@
+name: Validate catalog
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "use-cases/**"
+      - "build.py"
+      - "non-technical-view.js"
+      - "scripts/audit_*.py"
+      - "CHANGELOG.md"
+      - "index.html"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: UC ID uniqueness and ordering
+        run: python3 scripts/audit_uc_ids.py
+
+      - name: UC structure validation
+        run: python3 scripts/audit_uc_structure.py
+
+      - name: Non-technical view sync
+        run: python3 scripts/audit_non_technical_sync.py
+
+      - name: CHANGELOG and cross-references
+        run: python3 scripts/audit_changelog_uc_refs.py
+
+      - name: Repository consistency
+        run: python3 scripts/audit_repo_consistency.py
+
+      - name: Non-technical view JS syntax
+        run: |
+          node -e "
+            const window = {};
+            eval(require('fs').readFileSync('non-technical-view.js','utf8'));
+            const n = Object.keys(window.NON_TECHNICAL).length;
+            if (n < 1) { console.error('No categories found'); process.exit(1); }
+            console.log(n + ' categories OK');
+          "
+
+      - name: Build check (catalog regeneration)
+        run: |
+          python3 build.py
+          if git diff --name-only | grep -q 'data.js\|catalog.json'; then
+            echo "::warning::data.js or catalog.json is out of date — run build.py and commit"
+          fi

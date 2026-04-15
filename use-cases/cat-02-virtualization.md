@@ -1,6 +1,6 @@
-# 2. Virtualization
+## 2. Virtualization
 
-## 2.1 VMware vSphere
+### 2.1 VMware vSphere
 
 **Primary App/TA:** Splunk Add-on for VMware (`Splunk_TA_vmware`, Splunkbase 3215) — Free on Splunkbase; Splunk App for VMware (optional, provides dashboards)
 
@@ -21,9 +21,6 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
 | where avg_ready > 5
 | sort -avg_ready
 ```
-- **References:** [Splunk Add-on for VMware](https://splunkbase.splunk.com/app/2913), [vSphere API](https://developer.vmware.com/)
-- **Known false positives:** Short CPU ready spikes during boot or cloning; tune threshold or use rolling average.
-
 - **Implementation:** Install `Splunk_TA_vmware` (Splunkbase 3215) on a Heavy Forwarder. Create a read-only vCenter service account with `System.View` and `VirtualMachine.Interact.ConsoleInteract` privileges. Configure collection intervals in the TA setup UI: 300s for performance metrics, 600s for inventory, 3600s for events. Set the `host_segment` to resolve ESXi hostnames. Verify data flow with `index=vmware sourcetype=vmware:perf:cpu | head 5`. Alert when CPU ready exceeds 5% per VM.
 - **Visualization:** Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).
 - **CIM Models:** Performance
@@ -34,6 +31,8 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
   by Performance.host span=1h
 | where avg_cpu > 90
 ```
+- **References:** [Splunk Add-on for VMware](https://splunkbase.splunk.com/app/2913), [vSphere API](https://developer.vmware.com/)
+- **Known false positives:** Short CPU ready spikes during boot or cloning; tune threshold or use rolling average.
 
 ---
 
@@ -1072,7 +1071,7 @@ index=vmware sourcetype="vmware:events" (event_type="DrsVmMigratedEvent" OR even
 
 ---
 
-## 2.2 Microsoft Hyper-V
+### 2.2 Microsoft Hyper-V
 
 **Primary App/TA:** Splunk Add-on for Microsoft Hyper-V, `Splunk_TA_windows` — Free on Splunkbase
 
@@ -1409,7 +1408,7 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Hyper-V-VMMS*"
 
 ---
 
-## 2.3 KVM / Proxmox / oVirt
+### 2.3 KVM / Proxmox / oVirt
 
 **Primary App/TA:** Custom inputs via libvirt API, syslog
 
@@ -1768,7 +1767,7 @@ index=virtualization sourcetype="proxmox_cluster_status"
 
 ---
 
-## 2.4 Cross-Platform Virtualization
+### 2.4 Cross-Platform Virtualization
 
 **Primary App/TA:** Multiple — combines data from VMware, Hyper-V, KVM sources with CMDB/asset lookups
 
@@ -1936,7 +1935,7 @@ index=virtualization sourcetype="ovirt_datacenter"
 
 ---
 
-## 2.5 End-User Computing / VDI Endpoints
+### 2.5 End-User Computing / VDI Endpoints
 
 **Primary App/TA:** Custom scripted inputs polling IGEL UMS REST API (IMI v3), Splunk Universal Forwarder monitoring UMS security log files, IGEL OS rsyslog forwarding via TLS
 
@@ -2184,7 +2183,7 @@ index=endpoint sourcetype="igel:ums:security" source_tag="UMS-Webapp" OR source_
 
 ---
 
-## 2.6 Citrix Virtual Apps & Desktops
+### 2.6 Citrix Virtual Apps & Desktops
 
 **Primary App/TA:** uberAgent UXM for Splunk (Splunkbase 1448, searchhead app) + uberAgent indexer app (Splunkbase 2998), Template for Citrix XenDesktop 7 (`TA-XD7-Broker`, `TA-XD7-VDA`), Splunk Add-on for Microsoft Windows, Splunk Add-on for Microsoft IIS (StoreFront), Citrix Monitor Service OData API scripted inputs
 

@@ -2,7 +2,7 @@
 
 ### 19.1 Cisco UCS
 
-**Splunk Add-on:** Cisco UCS TA, UCS Manager syslog
+**Primary App/TA:** Cisco UCS TA, UCS Manager syslog
 
 ### UC-19.1.1 · Blade/Rack Server Health (Cisco UCS)
 
@@ -332,7 +332,7 @@ index=cisco_ucs sourcetype="cisco:ucs_central:domain" earliest=-24h
 
 #### 19.1 Cisco Intersight
 
-**Splunk Add-on:** Cisco Intersight Add-on for Splunk (Splunkbase 7828) — alarms, audit logs, inventory, metrics
+**Primary App/TA:** Cisco Intersight Add-on for Splunk (Splunkbase 7828) — alarms, audit logs, inventory, metrics
 
 ### UC-19.1.19 · Intersight Server Alarm Monitoring
 
@@ -568,9 +568,191 @@ index=nutanix sourcetype="nutanix:protection_domains:snapshots"
 
 ---
 
+### UC-19.1.29 · Blade Server ECC Memory Error Rate (Cisco UCS)
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** Correctable ECC errors often precede uncorrectable failures and guest crashes. Trending per-blade memory error rates lets you schedule DIMM replacement during maintenance windows instead of reacting to sudden hardware loss.
+- **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager faults and SEL
+- **Data Sources:** `index=cisco_ucs` `sourcetype="cisco:ucs:faults"` with fields `dn`, `cause`, `code`, `severity`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:faults" earliest=-24h
+| search dn="sys/chassis-*/blade-*" AND (like(lower(cause),"%ecc%") OR like(lower(cause),"%memory%") OR like(lower(cause),"%dimm%"))
+| stats count as fault_events by dn, code, severity
+| sort -fault_events
+```
+- **Implementation:** (1) Ensure UCS Manager faults or CIMC memory events forward to Splunk with consistent `dn` naming; (2) baseline normal correctable rates per chassis; (3) alert when per-blade counts exceed baseline or severity is major/critical.
+- **Visualization:** Bar chart (faults by blade), Table (top DIMM-related codes), Timechart (ECC-related fault rate).
+- **CIM Models:** N/A
+- **Equipment Models:** Cisco UCS B200 M6/M7, UCS X210c M6/M7, UCS X410c M6
+
+---
+
+### UC-19.1.30 · Rack Server PSU N+1 Redundancy (Cisco UCS C-Series)
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Fault, Availability
+- **Value:** A single failed PSU on a rack server without redundant feed leaves no margin before power loss. Tracking redundancy state across C-Series nodes preserves uptime for standalone HCI and database workloads.
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Data Sources:** `index=cisco_ucs` `sourcetype="cisco:ucs:environmental"` with fields `rack_unit_id`, `psu_slot`, `oper_state`, `redundancy_state`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:environmental" metric_type="psu" earliest=-1h
+| search rack_unit_id=*
+| where oper_state!="ok" OR redundancy_state!="redundant" OR input_voltage_state!="good"
+| stats latest(oper_state) as psu_state, latest(redundancy_state) as red by rack_unit_id, psu_slot
+| sort rack_unit_id, psu_slot
+```
+- **Implementation:** (1) Map PSU inventory fields from UCSM API poll; (2) page when redundancy drops from redundant to non-redundant; (3) correlate with facility PDU events in Splunk for root cause.
+- **Visualization:** Status grid (rack unit × PSU slot), Table (non-redundant servers), Single value (servers at risk).
+- **CIM Models:** N/A
+- **Equipment Models:** Cisco UCS C220 M6/M7, UCS C240 M6/M7, UCS C480 M5
+
+---
+
+### UC-19.1.31 · Fabric Interconnect HA Cluster State
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** FI pairs provide control-plane and northbound redundancy. Loss of subordinate or split state risks asymmetric forwarding and prolonged change freezes until the fabric is healed.
+- **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager syslog
+- **Data Sources:** `index=cisco_ucs` `sourcetype="cisco:ucs:fi_stats"` with fields `fi_id`, `ha_state`, `oper_state`, `cluster_state`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:fi_stats" object_type="fi_cluster" earliest=-4h
+| stats latest(ha_state) as ha, latest(oper_state) as op, latest(cluster_state) as cl by fi_id
+| where ha!="up" OR op!="up" OR cl!="healthy"
+| table fi_id, ha, op, cl
+```
+- **Implementation:** (1) Ingest FI cluster state from periodic API or structured syslog; (2) alert on any FI not `up` or cluster not `healthy`; (3) runbook to verify L1/L2 links and UCSM primary/ subordinate roles.
+- **Visualization:** Table (FI cluster state), Timeline (state transitions), Single value (unhealthy FI count).
+- **CIM Models:** N/A
+- **Equipment Models:** Cisco UCS 6454 FI, UCS 6536 FI
+
+---
+
+### UC-19.1.32 · CNA / vNIC Adapter Firmware Drift (Cisco UCS)
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Adapter firmware out of sync with the approved bundle can cause intermittent FCoE/NVMe-oF or driver mismatches after OS upgrades. Per-adapter tracking closes gaps that aggregate inventory views miss.
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Data Sources:** `index=cisco_ucs` `sourcetype="cisco:ucs:inventory"` with fields `server_dn`, `adapter_slot`, `running_fw`, `adapter_model`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:inventory" object_type="adapter" earliest=-24h
+| stats latest(running_fw) as fw by server_dn, adapter_slot, adapter_model
+| lookup ucs_adapter_fw_baseline.csv adapter_model OUTPUT approved_fw
+| where isnotnull(approved_fw) AND fw!=approved_fw
+| table server_dn, adapter_slot, adapter_model, fw, approved_fw
+```
+- **Implementation:** (1) Export adapter inventory including model and firmware; (2) maintain baseline lookup per adapter model; (3) weekly report and alert on production org drift before change windows.
+- **Visualization:** Table (non-compliant adapters), Bar chart (count by model), Pie chart (compliant vs drift).
+- **CIM Models:** N/A
+- **Equipment Models:** Cisco UCS VIC 1440/1480/1540, UCS X-Series mLOM adapters
+
+---
+
+### UC-19.1.33 · Intersight Device Connector / Tunnel Health
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability
+- **Value:** If the secure connector or cloud tunnel is down, alarms and inventory stop updating while hardware may still be failing. Early detection preserves single-pane visibility before the operations team loses trust in the portal.
+- **App/TA:** `Cisco Intersight Add-on`
+- **Data Sources:** `index=cisco_intersight` `sourcetype="cisco:intersight:appliance"` with fields `appliance_name`, `tunnel_state`, `last_sync_epoch`
+- **SPL:**
+```spl
+index=cisco_intersight sourcetype="cisco:intersight:appliance" earliest=-24h
+| eval lag_sec=now()-last_sync_epoch
+| where tunnel_state!="connected" OR lag_sec>900
+| stats latest(tunnel_state) as tunnel, max(lag_sec) as max_lag_sec by appliance_name
+| sort -max_lag_sec
+```
+- **Implementation:** (1) Ingest appliance health from Intersight add-on or automation hitting the appliance API; (2) alert when tunnel is not connected or sync lag exceeds 15 minutes; (3) correlate with firewall change tickets.
+- **Visualization:** Table (appliance status), Single value (appliances out of sync), Timechart (sync lag).
+- **CIM Models:** N/A
+- **Equipment Models:** Cisco Intersight Assist / connected UCS domains
+
+---
+
+### UC-19.1.34 · Chassis Thermal Runaway Risk (Blade Enclosures)
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Performance
+- **Value:** Rising inlet temperatures or falling fan speeds across a chassis precede thermal shutdown of multiple blades. Acting on enclosure-level trends protects dense compute before throttling spreads to tenant VMs.
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Data Sources:** `index=cisco_ucs` `sourcetype="cisco:ucs:environmental"` with fields `chassis_id`, `stat_name`, `value`, `unit`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:environmental" earliest=-6h
+| where like(lower(stat_name),"%inlet%temp%") OR like(lower(stat_name),"%exhaust%temp%")
+| stats max(value) as peak_temp_c by chassis_id, stat_name
+| where peak_temp_c>70
+| sort -peak_temp_c
+```
+- **Implementation:** (1) Normalize temperature stat names per UCSM release; (2) set per-datacenter thresholds aligned with ASHRAE class; (3) alert and open facilities ticket when chassis peak exceeds policy for two consecutive polls.
+- **Visualization:** Heatmap (chassis × time), Gauge (peak inlet), Table (hot chassis).
+- **CIM Models:** Performance
+- **Equipment Models:** Cisco UCS 5108, UCS X9508 chassis
+
+---
+
+### UC-19.1.35 · IOM / FEX to FI Link Flap Events
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Repeated link flaps between IOM/FEX and FI cause micro-outages for blade traffic and complicate troubleshooting with intermittent CRCs. Counting flaps per uplink highlights bad optics or mis-seated cables before full path loss.
+- **App/TA:** `Splunk_TA_cisco-ucs`, UCS Manager syslog
+- **Data Sources:** `index=cisco_ucs` `sourcetype="cisco:ucs:syslog"` with fields `chassis_id`, `port`, `message_id`, `severity`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:syslog" earliest=-24h
+| search (link DOWN OR "link down" OR "LOS" OR "SFP" OR flap) AND (iom OR fex OR "eth uplink")
+| stats count as flap_events by chassis_id, port, severity
+| where flap_events>=5
+| sort -flap_events
+```
+- **Implementation:** (1) Forward UCSM FI and FEX syslog with UTC timestamps; (2) tune keywords for your transceiver vendor messages; (3) alert on sustained flap count and create cable/optics work order.
+- **Visualization:** Bar chart (flaps by port), Table (top noisy links), Timeline (flap bursts).
+- **CIM Models:** N/A
+- **Equipment Models:** Cisco UCS IOM 2200/2300, UCS 6454/6536 FI
+
+---
+
+### UC-19.1.36 · Service Profile vNIC Redundancy and Failover Audit
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Availability
+- **Value:** A service profile with a single active vNIC or mismatched failover policy removes network redundancy for VMs. Auditing template-derived settings reduces surprise outages during single-path failures.
+- **App/TA:** `Splunk_TA_cisco-ucs`
+- **Data Sources:** `index=cisco_ucs` `sourcetype="cisco:ucs:config"` with fields `sp_name`, `vnic_name`, `redundancy_pair`, `peer_vnic`, `switch_id`
+- **SPL:**
+```spl
+index=cisco_ucs sourcetype="cisco:ucs:config" object_type="vnic" earliest=-24h
+| stats dc(vnic_name) as vnic_count, values(redundancy_pair) as pairs by sp_name
+| eval has_pair=if(vnic_count>=2 OR mvcount(pairs)>0, "Yes", "No")
+| where has_pair=="No"
+| table sp_name, vnic_count, pairs, has_pair
+```
+- **Implementation:** (1) Poll vNIC objects for each production service profile; (2) flag profiles with fewer than two data vNICs or empty redundancy pair; (3) integrate with CMDB to exclude intentionally single-NIC appliance profiles via lookup.
+- **Visualization:** Table (profiles lacking redundancy), Pie chart (redundant vs single-path), Bar chart (by org).
+- **CIM Models:** N/A
+- **Equipment Models:** Cisco UCS B-Series, X-Series compute
+
+---
+
 ### 19.2 Hyper-Converged Infrastructure (HCI)
 
-**Splunk Add-on:** Nutanix TA, VMware vSAN (via vCenter TA), vendor APIs
+**Primary App/TA:** Nutanix TA, VMware vSAN (via vCenter TA), vendor APIs
 
 ### UC-19.2.1 · Cluster Health Monitoring
 
@@ -1066,6 +1248,366 @@ index=hci sourcetype="hci:storage_efficiency" earliest=-24h
 - **Implementation:** Define `baseline_ratio` from lookup or 30-day rolling mean. Alert on >15% drop week-over-week.
 - **Visualization:** Line chart (dedupe ratio trend), Single value (fleet average), Table (regressions).
 - **CIM Models:** N/A
+
+---
+
+### UC-19.2.25 · Nutanix Cluster Health Score and Critical Services
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** A single degraded critical service (Stargate, Cassandra, Curator) can silently erode I/O quality before user-visible alerts fire. Tracking cluster health score and service map together shortens time to stabilize the control plane.
+- **App/TA:** `TA-nutanix`, Prism Element API
+- **Data Sources:** `index=hci` `sourcetype="nutanix:cluster_health"` with fields `cluster`, `health_score`, `service_name`, `service_status`
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:cluster_health" earliest=-2h
+| stats latest(health_score) as score by cluster
+| join type=left cluster [
+    search index=hci sourcetype="nutanix:cluster_health" earliest=-2h service_name=*
+    | where service_status!="UP" AND service_status!="up"
+    | stats values(service_name) as bad_services by cluster
+  ]
+| where score<90 OR isnotnull(bad_services)
+| table cluster, score, bad_services
+| sort score
+```
+- **Implementation:** (1) Ingest Prism cluster health JSON on a 1–5 minute cadence; (2) normalize service status casing; (3) alert when score drops below SLO or any core service is not up; (4) link to Nutanix support bundle collection runbook.
+- **Visualization:** Status grid (cluster × health), Table (down services), Single value (clusters below SLO).
+- **CIM Models:** N/A
+- **Equipment Models:** Nutanix NX, Dell XC, Lenovo HX nodes
+
+---
+
+### UC-19.2.26 · VxRail LCM Compliance and Staged Bundle Drift
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Configuration
+- **Value:** VxRail lifecycle compliance determines VMware and hardware driver supportability. Drift between staged bundles and installed release sets increases risk during one-click upgrades and delays security patching.
+- **App/TA:** Custom (VxRail Manager REST API)
+- **Data Sources:** `index=vxrail` `sourcetype="vxrail:lcm"` with fields `cluster_id`, `current_release`, `staged_release`, `compliance_state`
+- **SPL:**
+```spl
+index=vxrail sourcetype="vxrail:lcm" earliest=-24h
+| stats latest(current_release) as cur, latest(staged_release) as staged, latest(compliance_state) as comp by cluster_id
+| where comp!="Compliant" OR (isnotnull(staged_release) AND cur!=staged)
+| table cluster_id, cur, staged, comp
+| sort cluster_id
+```
+- **Implementation:** (1) Poll VxRail LCM inventory endpoints after each maintenance window; (2) alert on non-compliant or partially staged clusters; (3) export weekly compliance for VMware TAM reviews.
+- **Visualization:** Table (non-compliant clusters), Bar chart (releases in fleet), Timeline (LCM state changes).
+- **CIM Models:** N/A
+- **Equipment Models:** Dell VxRail P/V/E-series
+
+---
+
+### UC-19.2.27 · vSAN Disk Group Capacity Headroom and Mount State
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Availability
+- **Value:** Disk groups nearing full capacity slow resyncs and increase rebuild time, which extends windows of reduced fault tolerance. Monitoring per–disk group free space and mount state prevents surprise admission control during failures.
+- **App/TA:** VMware vSAN health via vCenter TA or custom API collector
+- **Data Sources:** `index=hci` `sourcetype="vsan:diskgroup"` with fields `cluster`, `host`, `dg_name`, `used_pct`, `state`
+- **SPL:**
+```spl
+index=hci sourcetype="vsan:diskgroup" earliest=-1h
+| stats latest(used_pct) as used_pct, latest(state) as st by cluster, host, dg_name
+| where used_pct>80 OR st!="mounted"
+| sort -used_pct
+| table cluster, host, dg_name, used_pct, st
+```
+- **Implementation:** (1) Ingest vSAN disk group metrics from RVC or vSAN SDK exporter; (2) warn at 80% used and critical at 90%; (3) page on any disk group not mounted; (4) correlate with physical disk SMART (UC-19.2.5).
+- **Visualization:** Gauge (used % per DG), Table (critical disk groups), Heatmap (host × DG utilization).
+- **CIM Models:** Performance
+- **Equipment Models:** vSAN ReadyNodes, Dell VxRail with vSAN
+
+---
+
+### UC-19.2.28 · Nutanix Storage Pool Erasure Coding vs RF Footprint
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Capacity, Performance
+- **Value:** Erasure coding reduces physical footprint but increases rebuild amplification on dense clusters. Tracking EC-enabled containers versus replication factor helps right-size policies and avoid capacity cliffs during failure events.
+- **App/TA:** `TA-nutanix`, Prism storage summary
+- **Data Sources:** `index=hci` `sourcetype="nutanix:storage_pool"` with fields `cluster`, `storage_pool`, `ec_enabled`, `rf`, `used_logical_tb`, `used_physical_tb`
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:storage_pool" earliest=-4h
+| stats latest(ec_enabled) as ec, latest(rf) as rf, latest(used_logical_tb) as log_tb, latest(used_physical_tb) as phys_tb by cluster, storage_pool
+| eval overhead_ratio=round(phys_tb/nullif(log_tb,0), 2)
+| where ec=="true" OR ec=="1"
+| table cluster, storage_pool, rf, log_tb, phys_tb, overhead_ratio
+| sort -overhead_ratio
+```
+- **Implementation:** (1) Poll storage pool summary including EC flags; (2) baseline overhead ratio per pool design; (3) alert when overhead spikes vs 30-day median indicating rebuild or mis-tuned EC stripe width.
+- **Visualization:** Bar chart (overhead by pool), Table (EC pools), Line chart (logical vs physical trend).
+- **CIM Models:** N/A
+- **Equipment Models:** Nutanix clusters with EC-enabled containers
+
+---
+
+### UC-19.2.29 · Nutanix Controller VM Storage Bandwidth Saturation
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** When CVM front-end bandwidth saturates, latency rises for every VM on the node regardless of guest CPU. Spotting sustained saturation drives rebalance, network uplink upgrades, or noisy-neighbor containment.
+- **App/TA:** `TA-nutanix`, Prism metrics
+- **Data Sources:** `index=hci` `sourcetype="nutanix:cvm:metrics"` with fields `node`, `read_mbps`, `write_mbps`, `link_speed_mbps`
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:cvm:metrics" earliest=-4h
+| eval total_mbps=read_mbps+write_mbps
+| eval util_pct=round(100*total_mbps/nullif(link_speed_mbps,0),1)
+| stats perc95(util_pct) as p95_util by node
+| where p95_util>75
+| sort -p95_util
+```
+- **Implementation:** (1) Collect per-CVM throughput and negotiated link speed; (2) alert when 95th percentile utilization exceeds 75% for one hour; (3) correlate with rebuild tasks (UC-19.2.9) and snapshot storms.
+- **Visualization:** Line chart (Mbps per node), Table (saturated CVMs), Gauge (peak utilization).
+- **CIM Models:** Performance
+- **Equipment Models:** Nutanix AOS nodes (10/25 GbE uplinks)
+
+---
+
+### UC-19.2.30 · vSAN Component Overhead and Resync Backlog Depth
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** Deep component resync backlogs extend exposure after disk or host loss. Monitoring active resync bytes and component counts helps prioritize maintenance and throttle non-critical workloads until the cluster is healthy again.
+- **App/TA:** vSAN health API, vCenter TA
+- **Data Sources:** `index=hci` `sourcetype="vsan:resync"` with fields `cluster`, `host`, `active_resync_bytes`, `components_resyncing`
+- **SPL:**
+```spl
+index=hci sourcetype="vsan:resync" earliest=-24h
+| stats latest(active_resync_bytes) as bytes, latest(components_resyncing) as comps by cluster, host
+| eval gb=round(bytes/1073741824,2)
+| where gb>0.5 OR comps>500
+| sort -gb
+| table cluster, host, gb, comps
+```
+- **Implementation:** (1) Export vSAN resync statistics to Splunk on 5-minute intervals; (2) alert when backlog exceeds operational thresholds; (3) overlay with adaptive resync policy changes; (4) report ETA from vSAN health where available.
+- **Visualization:** Area chart (resync GB over time), Table (hosts with largest backlog), Single value (total active resync GB).
+- **CIM Models:** Performance
+- **Equipment Models:** VMware vSAN stretched and standard clusters
+
+---
+
+### UC-19.2.31 · Nutanix Async Remote Site Replication Lag and RPO Risk
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Protection domain replication lag directly affects recovery point objectives for DR sites. Sustained lag beyond policy means a regional failure could lose more data than the business expects, and backlogs slow catch-up after link restoration.
+- **App/TA:** Custom (Nutanix Prism Element REST API)
+- **Data Sources:** `index=hci` `sourcetype="nutanix:remote_site"` with fields `cluster`, `remote_site`, `curator_repl_lag_sec`, `near_sync_status`, `last_successful_snapshot`
+- **SPL:**
+```spl
+index=hci sourcetype="nutanix:remote_site" earliest=-4h
+| eval snap_age_sec=now()-strptime(last_successful_snapshot,"%Y-%m-%dT%H:%M:%SZ")
+| where curator_repl_lag_sec>600 OR snap_age_sec>3600 OR lower(near_sync_status)!="active"
+| stats latest(curator_repl_lag_sec) as lag_sec, latest(snap_age_sec) as snap_age by cluster, remote_site
+| sort -lag_sec
+```
+- **Implementation:** (1) Poll remote site and protection domain replication metrics from Prism; (2) set lag and snapshot-age thresholds from documented RPO; (3) alert when NearSync falls out of active or async lag exceeds SLA; (4) correlate with WAN utilization and snapshot schedules.
+- **Visualization:** Table (sites over RPO), Line chart (replication lag), Single value (worst lag seconds).
+- **CIM Models:** N/A
+- **Equipment Models:** Nutanix clusters with remote-site replication
+
+---
+
+### UC-19.2.32 · VxRail vCenter Extension and Marvin Plugin Health
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** VxRail management extensions integrate cluster operations with vCenter. Plugin or API failures block LCM workflows and mask host issues from operators who rely on the VxRail UI.
+- **App/TA:** Custom (VxRail Manager REST API), vCenter logs
+- **Data Sources:** `index=vxrail` `sourcetype="vxrail:plugin"` with fields `cluster_id`, `plugin_state`, `last_heartbeat`, `api_error_count`
+- **SPL:**
+```spl
+index=vxrail sourcetype="vxrail:plugin" earliest=-24h
+| eval hb_age_sec=now()-last_heartbeat
+| where plugin_state!="healthy" OR hb_age_sec>600 OR api_error_count>0
+| stats latest(plugin_state) as st, max(hb_age_sec) as max_hb_lag, sum(api_error_count) as errs by cluster_id
+| sort -errs
+```
+- **Implementation:** (1) Collect plugin and internal API health from VxRail Manager or automation probes; (2) alert on unhealthy state, stale heartbeat, or rising API errors; (3) correlate with vCenter service restarts and SSO certificate rotations.
+- **Visualization:** Table (cluster plugin status), Single value (clusters with errors), Timeline (heartbeat gaps).
+- **CIM Models:** N/A
+- **Equipment Models:** Dell VxRail with integrated vCenter plugin
+
+---
+
+### 19.3 Azure Stack HCI
+
+**Primary App/TA:** Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Azure Monitor HEC integration, Windows Event Forwarding
+
+---
+
+### UC-19.3.1 · Azure Stack HCI Cluster Validation and Quorum Health
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Failed cluster validation or quorum issues can pause live migration and stretch failover. Centralizing validation results and witness reachability in Splunk reduces time to restore majority before a second fault impacts VMs.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services, Windows Event Forwarding
+- **Data Sources:** `index=azure_stack_hci` `sourcetype="azurestackhci:cluster"` with fields `cluster_name`, `validation_status`, `quorum_type`, `witness_reachable`
+- **SPL:**
+```spl
+index=azure_stack_hci sourcetype="azurestackhci:cluster" earliest=-24h
+| stats latest(validation_status) as val, latest(witness_reachable) as wit by cluster_name
+| where val!="Passed" OR wit="false" OR wit=0
+| table cluster_name, val, wit
+```
+- **Implementation:** (1) Ship Cluster-Witness and validation cmdlet output from automation to HEC or scripted input; (2) alert on any non-passed validation or witness unreachable; (3) document witness repair steps for file share vs cloud witness.
+- **Visualization:** Status grid (cluster validation), Table (failing checks), Single value (clusters at risk).
+- **CIM Models:** N/A
+- **Equipment Models:** Azure Stack HCI validated server catalog nodes
+
+---
+
+### UC-19.3.2 · Storage Spaces Direct Pool Utilization and Tier Imbalance
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** S2D pools that skew toward capacity tier without enough flash cache increase latency for tiered volumes. Tracking pool free space and cache/capacity ratio preserves predictable VM performance under burst workloads.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services, Azure Monitor metrics
+- **Data Sources:** `index=azure_stack_hci` `sourcetype="azurestackhci:s2d_pool"` with fields `cluster_name`, `pool_name`, `used_pct`, `cache_tb`, `capacity_tb`
+- **SPL:**
+```spl
+index=azure_stack_hci sourcetype="azurestackhci:s2d_pool" earliest=-2h
+| stats latest(used_pct) as used, latest(cache_tb) as cache_tb, latest(capacity_tb) as cap_tb by cluster_name, pool_name
+| eval cache_share=round(100*cache_tb/nullif(cache_tb+cap_tb,0),1)
+| where used>80 OR cache_share<15
+| table cluster_name, pool_name, used, cache_share, cache_tb, cap_tb
+| sort -used
+```
+- **Implementation:** (1) Ingest `Get-StoragePool` and tier capacity metrics on 15-minute cadence; (2) warn at 80% pool used and critical at 90%; (3) alert when cache share drops below policy for all-flash vs hybrid designs.
+- **Visualization:** Gauge (pool used %), Bar chart (cache vs capacity TB), Table (imbalanced pools).
+- **CIM Models:** Performance
+- **Equipment Models:** Azure Stack HCI with NVMe/SAS capacity tiers
+
+---
+
+### UC-19.3.3 · VM Placement and Live Migration Failure Rate
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Fault, Availability
+- **Value:** Failed live migrations strand VMs on stressed nodes and can interrupt maintenance. Trending Hyper-V migration failures by reason code highlights network, CSV, or CPU pressure before scheduled patching windows.
+- **App/TA:** Windows Event Forwarding, Splunk Add-on for Microsoft Windows
+- **Data Sources:** `index=wineventlog` `sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin"` with fields `host`, `EventCode`, `Message`
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-High-Availability/Admin" earliest=-24h EventCode=21111 OR EventCode=21110
+| stats count as mig_fail by host, EventCode
+| where mig_fail>=3
+| sort -mig_fail
+```
+- **Implementation:** (1) Enable WEF subscription for Hyper-V HA admin log on all HCI nodes; (2) map EventCode meanings in a lookup; (3) alert on repeated migration failures per host; (4) correlate with CSV disconnect events in the same time window.
+- **Visualization:** Bar chart (failures by host), Table (EventCode breakdown), Timeline (migration failures).
+- **CIM Models:** N/A
+- **Equipment Models:** Windows Server Azure Stack HCI hosts
+
+---
+
+### UC-19.3.4 · Azure Arc for Servers Heartbeat and Extension Inventory
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Compliance
+- **Value:** Arc is the control path for Azure Policy, Update Management, and hybrid monitoring on HCI nodes. Stale heartbeats or missing extensions mean patches and guest configuration are not enforced, increasing security and uptime risk.
+- **App/TA:** Splunk Add-on for Microsoft Cloud Services (Azure Monitor / Resource Graph export)
+- **Data Sources:** `index=azure_monitor` `sourcetype="azure:arc:vm"` with fields `resource_name`, `last_heartbeat_epoch`, `agent_version`, `extension_count`
+- **SPL:**
+```spl
+index=azure_monitor sourcetype="azure:arc:vm" earliest=-24h
+| eval hb_age_h=(now()-last_heartbeat_epoch)/3600
+| where hb_age_h>24 OR extension_count=0 OR isnull(extension_count)
+| stats max(hb_age_h) as max_offline_h by resource_name
+| sort -max_offline_h
+```
+- **Implementation:** (1) Export Arc-enabled machine inventory to Event Hub or blob and ingest via add-on; (2) normalize `last_status` to UTC; (3) alert when heartbeat older than 24h or expected extensions missing; (4) join with CMDB rack location for dispatch.
+- **Visualization:** Table (stale Arc agents), Single value (machines without extensions), Map (site by resource group).
+- **CIM Models:** Compute_Inventory
+- **Equipment Models:** Azure Arc–enabled HCI cluster nodes
+
+---
+
+### UC-19.3.5 · Windows Admin Center Connection and Gateway Audit Events
+
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Audit, Availability
+- **Value:** Windows Admin Center is often the break-glass console for HCI operations. Auditing gateway authentication failures and session spikes detects credential attacks or misconfigured smart-card rules before admins lose access during incidents.
+- **App/TA:** Splunk Add-on for Microsoft Windows, HEC JSON from WAC gateway
+- **Data Sources:** `index=wineventlog` `sourcetype="WinEventLog:Microsoft-Windows-Security-Auditing"` with fields `host`, `EventCode`, `user`, `src_ip`
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Security-Auditing" earliest=-24h EventCode=4625 Logon_Type IN (3,10)
+| lookup wac_gateway_hosts host OUTPUT is_gateway
+| where is_gateway="true" OR like(host,"%wac-gw%")
+| stats count as failed_logons by host, src_ip, user
+| where failed_logons>=8
+| sort -failed_logons
+```
+- **Implementation:** (1) Populate `wac_gateway_hosts` lookup with gateway computer names; (2) tune out known scanner subnets with `src_ip` exclusions; (3) alert on repeated 4625 failures to RDP/WinRM ports; (4) correlate with VPN and conditional access logs for investigations.
+- **Visualization:** Table (top failed logons), Timechart (4625 rate), Single value (unique sources).
+- **CIM Models:** N/A
+- **Equipment Models:** Windows Admin Center gateway VM or dedicated server
+
+---
+
+### UC-19.3.6 · Cluster-Aware Updating Run Status and Node Drain Failures
+
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Configuration, Fault
+- **Value:** Failed CAU runs leave nodes partially patched or stuck outside maintenance mode, which breaks uniform firmware and OS compliance. Tracking per-node CAU stages surfaces stuck updates before the next failure domain event.
+- **App/TA:** Windows Event Forwarding, PowerShell automation logs
+- **Data Sources:** `index=azure_stack_hci` `sourcetype="azurestackhci:cau"` with fields `cluster_name`, `run_id`, `node`, `stage`, `status`
+- **SPL:**
+```spl
+index=azure_stack_hci sourcetype="azurestackhci:cau" earliest=-7d
+| where status!="Succeeded" AND status!="InProgress"
+| stats latest(status) as st, latest(stage) as stage, values(node) as nodes by cluster_name, run_id
+| table cluster_name, run_id, stage, st, nodes
+| sort -run_id
+```
+- **Implementation:** (1) Emit structured JSON from `Get-CauRunHistory` after each CAU wave; (2) alert on failed or rolled-back runs; (3) join with Windows Update EventCode 19/20 success for cross-check; (4) attach remediation KB links in alert payload.
+- **Visualization:** Timeline (CAU runs), Table (failed nodes), Single value (open failed runs).
+- **CIM Models:** Change
+- **Equipment Models:** Azure Stack HCI clusters using Cluster-Aware Updating
+
+---
+
+### UC-19.3.7 · S2D Cache Device Health and Predictive Failure SMART Signals
+
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Fault, Performance
+- **Value:** Cache device loss on S2D sharply increases read latency and can stall resync. Surfacing predictive failure and wear indicators from physical disks lets you replace NVMe or SSD cache devices during business hours instead of during a double-fault scenario.
+- **App/TA:** Splunk Add-on for Microsoft Windows, Azure Monitor HEC integration
+- **Data Sources:** `index=wineventlog` `sourcetype="WinEventLog:Microsoft-Windows-Storage-Storport/Admin"` with fields `host`, `EventCode`, `Message`, `disk_serial`
+- **SPL:**
+```spl
+index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Storage-Storport/Admin" earliest=-24h
+| search predictive OR "Predictive Failure" OR "reallocated" OR "medium error"
+| rex field=Message "SerialNumber[^\w]*(?<serial>[^\s,]+)"
+| stats count as events by host, coalesce(disk_serial, serial) as disk_id
+| where events>=1
+| sort -events
+```
+- **Implementation:** (1) Collect Storport admin events from all HCI nodes; (2) normalize serial from message text where field extraction is incomplete; (3) alert on first predictive failure per disk; (4) open hardware RMA and plan cache evacuation per Microsoft guidance.
+- **Visualization:** Table (at-risk disks by host), Timeline (Storport errors), Single value (nodes with predictive failures).
+- **CIM Models:** N/A
+- **Equipment Models:** Azure Stack HCI S2D cache tier NVMe and SATA/SAS SSDs
 
 ---
 

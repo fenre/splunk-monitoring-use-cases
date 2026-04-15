@@ -521,6 +521,76 @@ index=itsi_grouped_alerts status!=5
 
 ---
 
+### UC-16.1.25 · First Response Time vs SLA Target
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Compliance
+- **Value:** First response time is a leading indicator of resolution SLA performance; trending FRT against targets aligns the service desk with ITIL service level practices and highlights queue starvation before resolution clocks run out.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`opened_at`, `first_response_time` or `responded_at`, `priority`, `assignment_group`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-30d
+| eval open_ts=coalesce(opened_at, strptime(opened_at,"%Y-%m-%d %H:%M:%S"))
+| eval resp_ts=coalesce(first_response_time, responded_at)
+| where isnotnull(resp_ts) AND isnotnull(open_ts)
+| eval frt_mins=round((resp_ts-open_ts)/60,1)
+| eval target_mins=case(priority=1,15, priority=2,30, priority=3,240, true(),480)
+| eval breach=if(frt_mins>target_mins,1,0)
+| stats count as tickets, sum(breach) as breaches, median(frt_mins) as med_frt by assignment_group
+| eval breach_pct=round(100*breaches/nullif(tickets,0),1)
+| sort -breach_pct
+```
+- **Implementation:** (1) Map ServiceNow response timestamps to `first_response_time`/`responded_at` in the TA props; (2) Align `target_mins` with your published response SLAs per priority; (3) Schedule the search daily and alert when `breach_pct` exceeds policy for two consecutive intervals for any `assignment_group`.
+- **Visualization:** Bar chart (breach % by assignment group), Table (group medians vs target), Line chart (weekly breach % trend).
+- **CIM Models:** Ticket_Management
+
+---
+
+### UC-16.1.26 · Catalog Request Item Backlog and WIP
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Performance
+- **Value:** A growing backlog of open request items signals fulfillment bottlenecks or catalog misconfiguration; monitoring WIP by catalog item supports request fulfilment SLAs and ITIL service request lifecycle discipline.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:sc_req_item"` (`state`, `cat_item`, `assignment_group`, `sys_created_on`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:sc_req_item" earliest=-14d
+| where match(lower(state),"(?i)open|work in progress|approved|sc_work|waiting for approval")
+| eval age_days=round((now()-sys_created_on)/86400,1)
+| stats count as wip, median(age_days) as med_age_days by cat_item, assignment_group
+| sort -wip
+| head 50
+```
+- **Implementation:** (1) Normalize `state` values to your catalog workflow; (2) Exclude cancelled/closed states via `where`; (3) Review top `wip` lines weekly with fulfillment owners and feed automation candidates back to the service catalog team.
+- **Visualization:** Bar chart (WIP by catalog item), Table (top queues with median age), Heatmap (assignment_group × cat_item).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.1.27 · On-Hold Time Impact on Resolution SLA
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Performance
+- **Value:** Excessive on-hold time often explains resolution SLA misses without reflecting true work effort; measuring hold hours by category supports ITIL incident lifecycle controls and customer communication quality.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`on_hold_duration`, `category`, `assignment_group`, `priority`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-30d state IN ("closed","resolved","6","7")
+| eval hold_hrs=round(coalesce(on_hold_duration,0)/3600,2)
+| eval resolve_hrs=round((resolved_at-opened_at)/3600,2)
+| stats sum(hold_hrs) as total_hold_hrs, sum(resolve_hrs) as total_resolve_hrs, count as tickets by category
+| eval hold_share_pct=round(100*total_hold_hrs/nullif(total_resolve_hrs,0),1)
+| sort -hold_share_pct
+```
+- **Implementation:** (1) Confirm whether `on_hold_duration` is seconds from ServiceNow or use `business_stc`/`calendar_stc` fields if your instance stores pause separately; (2) Exclude incidents with invalid timestamps; (3) Alert when `hold_share_pct` exceeds agreed thresholds for customer-facing categories.
+- **Visualization:** Bar chart (hold share % by category), Table (top categories), Line chart (weekly hold hours trend).
+- **CIM Models:** Ticket_Management
+
+---
+
 ### 16.2 Configuration Management (CMDB)
 
 **Primary App/TA:** ServiceNow CMDB integration, custom API inputs.
@@ -819,6 +889,96 @@ index=itsm sourcetype="snow:change_request" state="Closed" earliest=-30d
 ```
 - **Implementation:** Map `cmdb_ci` (or task CI list) from the change; normalize `install_status`/`operational_status` values to your CMDB. Optionally join inventory (`vmware:inv:vm`) on hostname to catch VMs still present. Drive cleanup when decom CHG is closed but CI not retired.
 - **Visualization:** Table (failed decom verification), Single value (open exceptions), Bar chart (by team).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.16 · Stale CI Discovery Freshness
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Performance
+- **Value:** Operational CIs without recent discovery updates inflate false confidence during impact analysis; freshness trending supports CMDB governance and ITIL configuration management objectives.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:cmdb_ci"` (`last_discovered`, `sys_updated_on`, `operational_status`, `name`, `ci_class`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_ci" operational_status="operational" earliest=-1d
+| eval last_seen=coalesce(last_discovered, sys_updated_on)
+| where isnotnull(last_seen) AND last_seen < relative_time(now(),"-90d@d")
+| eval stale_days=round((now()-last_seen)/86400,0)
+| stats count as stale_cis by ci_class, support_group
+| sort -stale_cis
+```
+- **Implementation:** (1) Tune the 90-day threshold to your discovery schedule; (2) Exclude classes intentionally not discovered (e.g., logical groups) via `where ci_class!=...`; (3) Publish a weekly remediation list to CMDB owners with `stale_days` for prioritization.
+- **Visualization:** Bar chart (stale count by CI class), Table (stale CIs with stale_days), Single value (total stale operational CIs).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.17 · Duplicate CI Name Detection
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance
+- **Value:** Duplicate names break joins between incidents, changes, and monitoring; detecting duplicates early restores CMDB accuracy and reduces routing errors across ITSM processes.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:cmdb_ci"` (`name`, `sys_id`, `ci_class`, `serial_number`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_ci" earliest=-1d
+| eval norm_name=lower(trim(name))
+| where norm_name!="" AND isnotnull(norm_name)
+| stats values(sys_id) as sys_ids, dc(sys_id) as distinct_ids, values(ci_class) as classes by norm_name
+| where distinct_ids>1
+| table norm_name, distinct_ids, classes, sys_ids
+| sort -distinct_ids
+```
+- **Implementation:** (1) Extend normalization if your naming standard strips domains (`mvindex(split(name,"."),0)`); (2) Enrich with `serial_number` when names collide legitimately; (3) Feed results into a CMDB merge workflow and track `distinct_ids` trend monthly.
+- **Visualization:** Table (duplicate name clusters), Single value (duplicate name count), Bar chart (duplicates by CI class).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.18 · Application CI Business Service Coverage
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance
+- **Value:** Applications without a business service mapping weaken BIA-driven prioritization and incident impact statements; coverage metrics align the CMDB with ITIL service asset and configuration practices.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:cmdb_ci"` (`ci_class`, `business_service`, `u_business_service`, `name`, `support_group`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_ci" earliest=-1d
+| where match(lower(ci_class),"(?i)cmdb_ci_appl|application")
+| eval bs=coalesce(business_service, u_business_service)
+| eval mapped=if(isnotnull(bs) AND bs!="",1,0)
+| stats count as apps, sum(mapped) as mapped_apps by support_group
+| eval coverage_pct=round(100*mapped_apps/nullif(apps,0),1)
+| sort coverage_pct
+```
+- **Implementation:** (1) Adjust `ci_class` filters to your CMDB application table set; (2) Map whichever field holds the business service reference; (3) Set a minimum `apps` threshold before flagging low `coverage_pct` groups to avoid noise from tiny teams.
+- **Visualization:** Bar chart (coverage % by support group), Table (unmapped application CIs), Gauge (overall coverage %).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.2.19 · CMDB Mandatory Attribute Completeness by Class
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Compliance
+- **Value:** Class-specific mandatory fields (owner, environment, support group) drive automation and reporting; completeness scoring by `ci_class` gives CMDB stewards actionable ITIL-aligned quality targets.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:cmdb_ci"` (`ci_class`, `assigned_to`, `support_group`, `environment`, `location`, `company`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:cmdb_ci" earliest=-1d
+| eval core_ok=if(isnotnull(support_group) AND support_group!="" AND isnotnull(environment) AND environment!="",1,0)
+| stats avg(core_ok) as completeness_ratio, count as total by ci_class
+| eval completeness_pct=round(100*completeness_ratio,1)
+| sort completeness_pct
+| head 30
+```
+- **Implementation:** (1) Expand `core_ok` with `assigned_to` or `company` if those are mandatory in your data model; (2) Exclude retired CIs with `install_status`; (3) Publish monthly scorecards and alert when any major `ci_class` drops below the governance threshold two months in a row.
+- **Visualization:** Bar chart (completeness % by CI class), Table (worst classes), Line chart (completeness trend from summary index).
 - **CIM Models:** N/A
 
 ---
@@ -1123,6 +1283,99 @@ index=cicd sourcetype="controlm:job"
 
 ---
 
+### UC-16.3.13 · Service Request Item Fulfillment Cycle Time
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance
+- **Value:** Cycle time for catalog line items reflects fulfillment team capacity and automation maturity; tracking medians by item aligns operations with ITIL request fulfilment metrics and customer-facing SLAs.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:sc_req_item"` (`sys_created_on`, `closed_at`, `cat_item`, `state`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:sc_req_item" earliest=-30d
+| where match(lower(state),"(?i)closed|complete|fulfilled")
+| eval cycle_hrs=round((closed_at-sys_created_on)/3600,2)
+| where cycle_hrs>=0 AND cycle_hrs<720
+| stats median(cycle_hrs) as med_hrs, perc90(cycle_hrs) as p90_hrs, count as fulfilled by cat_item
+| sort -p90_hrs
+| head 40
+```
+- **Implementation:** (1) Map `closed_at`/`sys_updated_on` per your TA field extractions; (2) Filter cancelled rows via `close_code` if present; (3) Pair slow `cat_item` values with fulfillment runbooks and automation backlog reviews.
+- **Visualization:** Bar chart (p90 cycle hours by catalog item), Table (top slow items), Line chart (weekly median cycle time).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.14 · Priority 1–2 First-Assignment Latency
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Compliance
+- **Value:** Time-to-first-assignment for urgent incidents measures triage discipline and major-incident readiness; reducing latency supports ITIL event-to-incident handling and response SLA guardrails.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`priority`, `opened_at`, `assigned_at`, `assignment_group`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-30d priority IN (1,2)
+| eval open_ts=coalesce(opened_at, strptime(opened_at,"%Y-%m-%d %H:%M:%S"))
+| eval assign_ts=coalesce(assigned_at, first_response_time)
+| where isnotnull(assign_ts) AND isnotnull(open_ts)
+| eval assign_lag_mins=round((assign_ts-open_ts)/60,1)
+| where assign_lag_mins>=0 AND assign_lag_mins<10080
+| stats median(assign_lag_mins) as med_lag_mins, perc90(assign_lag_mins) as p90_lag_mins by assignment_group
+| sort -p90_lag_mins
+```
+- **Implementation:** (1) Confirm which timestamp represents first assignment in your instance; (2) Exclude bot-created tickets with `caller_id` filters if needed; (3) Alert when `p90_lag_mins` exceeds the response playbook target for two rolling weeks for any group supporting P1/P2.
+- **Visualization:** Bar chart (p90 first-assignment minutes by group), Table (group medians), Line chart (weekly p90 trend).
+- **CIM Models:** Ticket_Management
+
+---
+
+### UC-16.3.15 · Open Problem Record Aging
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Performance, Compliance
+- **Value:** Aging open problems indicate stalled root-cause work and undermine permanent corrective actions; backlog visibility strengthens ITIL problem management cadence with incident and change stakeholders.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:problem"` (`state`, `sys_created_on`, `assignment_group`, `category`, `number`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:problem" earliest=-180d
+| where NOT match(lower(state),"(?i)closed|resolved")
+| eval age_days=round((now()-sys_created_on)/86400,0)
+| stats count as open_pr, median(age_days) as med_age, max(age_days) as max_age by assignment_group, category
+| sort -open_pr
+```
+- **Implementation:** (1) Map `state` values for your problem workflow; (2) Add filters for known backlog categories excluded from SLA; (3) Weekly review of `max_age` with problem managers and link to related `snow:incident` volume via `problem_id` in a companion panel.
+- **Visualization:** Table (open problem aging by group), Bar chart (open count by category), Single value (total open problems).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.3.16 · Knowledge Article Effectiveness on Incidents
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance
+- **Value:** Comparing incidents that reference knowledge articles versus those that do not shows whether the knowledge base reduces handle time and repeat contacts—core ITIL knowledge management feedback.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`knowledge`, `u_knowledge_article`, `resolved_at`, `opened_at`, `category`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-90d state IN ("closed","resolved","6","7")
+| eval has_kb=if(isnotnull(u_knowledge_article) AND u_knowledge_article!="" OR match(lower(coalesce(knowledge,"")),"true|yes|1"),1,0)
+| eval mttr_hrs=round((resolved_at-opened_at)/3600,2)
+| where mttr_hrs>=0
+| stats median(mttr_hrs) as med_mttr, count as tickets by category, has_kb
+| xyseries category has_kb med_mttr
+| rename "0" as mttr_no_kb, "1" as mttr_with_kb
+| eval delta_hrs=round(mttr_no_kb-mttr_with_kb,2)
+| sort -delta_hrs
+```
+- **Implementation:** (1) Map the fields your instance uses for article linkage (`task_knowledge`, related lists ingested as multivalue); (2) If `xyseries` is sparse, pivot with `chart median(mttr_hrs) over category by has_kb` instead; (3) Share findings with knowledge coaches when `delta_hrs` is negligible for high-volume categories.
+- **Visualization:** Grouped bar chart (median MTTR with vs without KB by category), Table (delta hours), Line chart (deflection-linked MTTR trend).
+- **CIM Models:** N/A
+
+---
+
 ### 16.4 Change & Release Management
 
 **Primary App/TA:** Splunk Add-on for ServiceNow (`Splunk_TA_snow`), Splunk Add-on for Jira Service Management (release data), optional CI/CD webhook correlation.
@@ -1311,6 +1564,107 @@ index=itsm sourcetype="snow:change_request" state="Closed"
 
 ---
 
+### UC-16.4.9 · Change Backout and Rollback Rate
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Change, Performance
+- **Value:** Backouts indicate customer-impacting defects or planning gaps; trending rollback rates informs ITIL change evaluation and release quality gates before the next deployment wave.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:change_request"` (`close_code`, `close_notes`, `u_outcome`, `type`, `assignment_group`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" state="Closed" earliest=-90d
+| eval backed_out=if(match(lower(close_notes),"(?i)backout|rollback|revert|rolled back") OR match(lower(close_code),"(?i)backed|rollback") OR match(lower(u_outcome),"(?i)backed|rollback"),1,0)
+| timechart span=1w sum(backed_out) as backouts count as total
+| eval backout_pct=round(100*backouts/nullif(total,0),2)
+| sort _time
+```
+- **Implementation:** (1) Normalize vendor-specific `close_code` values into the `backed_out` logic; (2) Exclude duplicate closure events by `dedup number` if replays occur; (3) Alert when `backout_pct` exceeds the rolling baseline by 50% for two consecutive weeks.
+- **Visualization:** Line chart (weekly backout %), Single value (90-day backout %), Bar chart (backouts by assignment group from `stats` panel).
+- **CIM Models:** Change
+
+---
+
+### UC-16.4.10 · Change Implementation Duration vs Plan
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Compliance
+- **Value:** Overruns against the approved implementation window increase collision risk and customer impact; comparing actual versus planned duration reinforces ITIL change scheduling and CAB commitments.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:change_request"` (`start_date`, `end_date`, `planned_start`, `planned_end`, `number`, `assignment_group`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" state IN ("Closed","Implemented") earliest=-60d
+| eval actual_hrs=round((end_date-start_date)/3600,2)
+| eval planned_hrs=round((planned_end-planned_start)/3600,2)
+| where planned_hrs>0 AND actual_hrs>=0
+| eval overrun_hrs=round(actual_hrs-planned_hrs,2)
+| eval overrun_pct=round(100*overrun_hrs/planned_hrs,1)
+| where overrun_pct>25
+| table number, short_description, assignment_group, planned_hrs, actual_hrs, overrun_pct
+| sort -overrun_pct
+```
+- **Implementation:** (1) Convert string timestamps with `strptime` if your TA stores strings instead of epoch—mirror UC-16.4.2 field mappings; (2) Exclude emergency changes with documented extensions via a lookup; (3) Feed chronic overruns into release planning retrospectives.
+- **Visualization:** Table (top overruns), Bar chart (overrun % by assignment group), Histogram (overrun distribution).
+- **CIM Models:** Change
+
+---
+
+### UC-16.4.11 · Same-CI Concurrent Scheduled Changes
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Configuration, Compliance
+- **Value:** Multiple overlapping implementations against one CI amplify outage risk; detecting concurrent schedules supports ITIL change coordination and collision analysis ahead of CAB approval.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:change_request"` (`cmdb_ci`, `start_date`, `end_date`, `state`, `number`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" earliest=-14d
+| where match(lower(state),"(?i)scheduled|implement|work in progress")
+| where isnotnull(cmdb_ci) AND cmdb_ci!=""
+| rename number as chg_a, start_date as a_start, end_date as a_end
+| join type=inner max=50 cmdb_ci [
+  search index=itsm sourcetype="snow:change_request" earliest=-14d
+  | where match(lower(state),"(?i)scheduled|implement|work in progress")
+  | rename number as chg_b, start_date as b_start, end_date as b_end
+  | fields cmdb_ci, chg_b, b_start, b_end
+]
+| where chg_a!=chg_b AND isnotnull(a_start) AND isnotnull(b_start) AND a_start < b_end AND a_end > b_start
+| stats values(chg_b) as overlapping_changes, dc(chg_b) as overlap_count by cmdb_ci, chg_a
+| where overlap_count>0
+| sort -overlap_count
+```
+- **Implementation:** (1) If changes link multiple CIs, pivot from `snow:task_ci` or your m2m table before this join; (2) Keep `max=` tuned (for example 20–100) so the join stays bounded on busy CMDBs; (3) Alert CAB when `overlap_count` exceeds zero for production CIs in the next 72 hours.
+- **Visualization:** Table (CI with overlapping CHG numbers), Timeline (overlapping windows), Single value (collision pairs detected).
+- **CIM Models:** Change
+
+---
+
+### UC-16.4.12 · Standard Change Volume and Mix Guardrail
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Operational
+- **Value:** A sudden spike in standard changes may indicate bypassing normal scrutiny; monitoring volume and mix supports ITIL delegated authority models without eroding risk controls.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:change_request"` (`type`, `category`, `assignment_group`, `opened_at`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:change_request" earliest=-90d
+| eval is_standard=if(match(lower(type),"(?i)standard"),1,0)
+| eval _time=coalesce(opened_at, sys_created_on, _time)
+| bin _time span=1w
+| stats count as chg_total, sum(is_standard) as std_total by _time, assignment_group
+| eval std_mix_pct=round(100*std_total/nullif(chg_total,0),1)
+| eventstats median(std_mix_pct) as med_mix by assignment_group
+| where std_mix_pct > med_mix*1.4 AND chg_total>=10
+| sort -std_mix_pct
+```
+- **Implementation:** (1) Align `type` values with your change models; (2) Tune the 1.4 multiplier to your risk appetite; (3) Pair with UC-16.4.5 emergency trends to distinguish healthy pre-approval uptake from policy drift.
+- **Visualization:** Line chart (standard % by week), Table (groups exceeding mix guardrail), Stacked bar (change type mix).
+- **CIM Models:** Change
+
+---
+
 ### 16.5 ITSM Trending
 
 **Primary App/TA:** Splunk Add-on for ServiceNow (`Splunk_TA_snow`), Splunk Add-on for Jira Service Management, optional scheduled export jobs that post daily aggregates to HEC.
@@ -1431,6 +1785,80 @@ index=itsm sourcetype="snow:incident" earliest=-90d@d
 - **Implementation:** Define “escalation” consistently—for example, reassignment to a major-incident queue counts, but simple handoffs within L1 may not. Ingest assignment history if escalation is inferred from group changes. Exclude mass-test records. When `spike=1` for two weeks, trigger a problem review with service owners.
 - **Visualization:** Line chart (escalation % of incidents with trendline), Stacked bar (escalations versus total), Table (assignment groups with highest esc_rate_pct).
 - **CIM Models:** N/A
+
+---
+
+### UC-16.5.6 · First Response SLA Compliance Trending
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Compliance, Performance
+- **Value:** Trending first-response compliance shows whether the desk keeps pace with contractual response SLAs before resolution work begins; sustained dips trigger ITIL service level review and staffing adjustments.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`opened_at`, `first_response_time`, `responded_at`, `priority`, `closed_at`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-180d@d
+| eval open_ts=coalesce(opened_at, strptime(opened_at,"%Y-%m-%d %H:%M:%S"))
+| eval resp_ts=coalesce(first_response_time, responded_at)
+| where isnotnull(resp_ts) AND isnotnull(open_ts)
+| eval frt_mins=(resp_ts-open_ts)/60
+| eval target_mins=case(priority=1,15, priority=2,30, priority=3,240, true(),480)
+| eval met=if(frt_mins<=target_mins,1,0)
+| eval _time=resp_ts
+| bin _time span=1w
+| stats sum(met) as met_count, count as total by _time
+| eval frt_compliance_pct=round(100*met_count/nullif(total,0),1)
+| trendline sma6(frt_compliance_pct) as frt_trend
+| sort _time
+```
+- **Implementation:** (1) Align `target_mins` with contractual priorities; (2) Use `close_ts` instead of `resp_ts` for `_time` if you measure compliance at closure in your KPI model; (3) Alert when `frt_compliance_pct` drops more than 8 points below the trailing 8-week average for two consecutive weeks.
+- **Visualization:** Line chart (weekly first-response compliance % with trendline), Single value (last week compliance), Table (weekly totals).
+- **CIM Models:** Ticket_Management
+
+---
+
+### UC-16.5.7 · Incident Channel Mix Trending
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Capacity, Operational
+- **Value:** Channel mix (portal, phone, chat, email) influences staffing models and self-service ROI; trending aligns workforce management with ITIL service desk strategy and digital adoption goals.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`contact_type`, `channel`, `u_channel`, `opened_at`)
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:incident" earliest=-180d@d
+| eval ch=lower(coalesce(contact_type, channel, u_channel, "unknown"))
+| eval _time=coalesce(opened_at, _time)
+| bin _time span=1w
+| stats count by _time, ch
+| eventstats sum(count) as week_total by _time
+| eval share_pct=round(100*count/nullif(week_total,0),1)
+| sort _time ch
+```
+- **Implementation:** (1) Normalize `ch` with a lookup for legacy values; (2) Exclude automated monitoring tickets via `caller_id` or `category` filters; (3) Review rising phone share weekly with service owners when portal adoption programs are active.
+- **Visualization:** Stacked area chart (channel share % over weeks), Line chart (portal % trend), Table (raw counts by channel).
+- **CIM Models:** N/A
+
+---
+
+### UC-16.5.8 · Open Incident WIP Trending by Priority
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Performance
+- **Value:** Work-in-progress counts by priority show whether urgent queues are accumulating independent of new volume; trending WIP supports ITIL capacity management for the service desk and early escalation to leadership.
+- **App/TA:** `Splunk_TA_snow`
+- **Data Sources:** `index=itsm` `sourcetype="snow:backlog_daily"` (`snapshot_date`, `priority`, `open_count`) from a nightly ServiceNow export or Splunk summary; optional parity with UC-16.5.1 snapshot pipeline
+- **SPL:**
+```spl
+index=itsm sourcetype="snow:backlog_daily" earliest=-90d@d
+| eval _time=strptime(snapshot_date,"%Y-%m-%d")
+| eval pri=case(priority=1 OR lower(priority)="p1","P1", priority=2 OR lower(priority)="p2","P2", priority=3 OR lower(priority)="p3","P3", priority=4 OR lower(priority)="p4","P4", true(),"Other")
+| timechart span=1d sum(open_count) by pri
+| fillnull value=0
+```
+- **Implementation:** (1) Publish a daily aggregate with `snapshot_date`, `priority`, and `open_count` (open incidents at end of day) to match UC-16.5.1; (2) Normalize `priority` labels from ServiceNow display values; (3) Alert when P1 or P2 `open_count` exceeds a static threshold or 2× the trailing 30-day median for three consecutive snapshots.
+- **Visualization:** Multi-series line chart (P1/P2/P3 WIP per day), Single value (latest P1 WIP), Table (daily snapshot rows).
+- **CIM Models:** Ticket_Management
 
 ---
 
