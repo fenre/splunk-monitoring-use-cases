@@ -10,7 +10,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [3.26] - 2026-04-14
+## [4.1] - 2026-04-14
 
 ### Content Expansion
 
@@ -34,7 +34,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [3.25.1] - 2026-04-02
+## [4.0.1] - 2026-04-02
 
 ### Cisco Network Intelligence UI
 
@@ -50,7 +50,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [3.25] - 2026-04-01
+## [4.0] - 2026-04-01
 
 ### Data Sizing Assessment Tool
 
