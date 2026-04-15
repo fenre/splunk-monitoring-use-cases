@@ -10,6 +10,30 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [3.26] - 2026-04-14
+
+### Content Expansion
+
+- **136 new use cases** — Expanded 6 thin categories past targets: ITSM (cat-16), Data Center Fabric & SDN (cat-18), Compute Infrastructure & HCI (cat-19 incl. new Azure Stack HCI subcategory), Cost & Capacity Management (cat-20), Regulatory Compliance (cat-22), and Business Analytics (cat-23). Total catalog now at 5,241 use cases.
+- **265 MITRE ATT&CK mappings** — Added technique references across Identity & Access Management (cat-09), Network Security & Zero Trust (cat-17), Cloud Infrastructure (cat-04), and Regulatory Compliance (cat-22).
+- **Structural normalization** — Heading levels standardized to ##/### convention across cat-01 through cat-05. Bullet ordering and label consistency fixed across multiple files.
+
+### UI Features
+
+- **Recently Added tab** — New overview tab showing use cases added since the last catalog build. Backed by a `RECENTLY_ADDED` set in data.js.
+- **CSV/JSON export** — Export buttons in the overview tab bar let you download filtered use case results as CSV or JSON.
+
+### CI/CD
+
+- **PR validation workflow** — New GitHub Actions workflow (`.github/workflows/validate.yml`) runs UC ID audits, structure checks, non-technical sync validation, changelog references, and build checks on pull requests.
+
+### Maintenance
+
+- **Entity escaping fix** — Fixed 31 double-encoded `&mdash;` entities in release notes HTML; build.py now handles em dashes correctly.
+- **Repository cleanup** — Removed Splunk dashboard files and generation/deployment scripts from version control (not part of the use case catalog).
+
+---
+
 ## [3.25.1] - 2026-04-02
 
 ### Cisco Network Intelligence UI
