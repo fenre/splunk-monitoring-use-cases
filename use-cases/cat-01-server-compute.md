@@ -112,10 +112,11 @@ index=os sourcetype=iostat host=*
 - **CIM Models:** Performance
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` avg(Performance.read_latency) as read_ms avg(Performance.write_latency) as write_ms
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+  by Performance.host Performance.mount span=5m
+| eval worst_ms=max(read_ms, write_ms)
+| where worst_ms > 20
 ```
 
 ---
@@ -142,10 +143,10 @@ index=os sourcetype=vmstat host=*
 - **CIM Models:** Performance
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` latest(Performance.uptime) as uptime_sec
-  from datamodel=Performance where nodename=Performance.Uptime
-  by Performance.host
-| eval uptime_days = round(uptime_sec / 86400, 1)
+| tstats `summariesonly` avg(Performance.cpu_load_percent) as cpu_pct
+  from datamodel=Performance where nodename=Performance.CPU
+  by Performance.host span=5m
+| where cpu_pct > 90
 ```
 
 ---
@@ -380,10 +381,10 @@ index=os sourcetype=interfaces host=*
 - **CIM Models:** Performance
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` sum(Performance.bytes_in) as bytes_in
-                        sum(Performance.bytes_out) as bytes_out
+| tstats `summariesonly` avg(Performance.thruput) as thruput_bps
   from datamodel=Performance where nodename=Performance.Network
   by Performance.host Performance.interface span=5m
+| where thruput_bps > 0
 ```
 
 ---

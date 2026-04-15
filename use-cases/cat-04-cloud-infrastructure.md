@@ -28,12 +28,13 @@ index=aws sourcetype="aws:cloudtrail" errorCode="AccessDenied" OR errorCode="Una
 
 - **Implementation:** Configure CloudTrail to send logs to an S3 bucket. Set up the Splunk_TA_aws with an SQS-based S3 input for CloudTrail. Alert when a single principal gets >5 access denied errors in 10 minutes.
 - **Visualization:** Table (principal, API call, source IP, count), Bar chart by principal, Map (source IP GeoIP).
-- **CIM Models:** Change
+- **CIM Models:** Authentication
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  from datamodel=Authentication.Authentication
+  where Authentication.action="failure"
+  by Authentication.user Authentication.src Authentication.app span=1h
 | sort -count
 ```
 
@@ -55,12 +56,13 @@ index=aws sourcetype="aws:cloudtrail" userIdentity.type="Root"
 ```
 - **Implementation:** CloudTrail must be enabled in all regions. Create a critical real-time alert on any event where `userIdentity.type=Root`. Exclude expected events (e.g., automated billing).
 - **Visualization:** Events list (critical alert), Single value (root events last 30d), Timeline.
-- **CIM Models:** Change
+- **CIM Models:** Authentication
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  from datamodel=Authentication.Authentication
+  where Authentication.user="root" OR Authentication.user="Root"
+  by Authentication.src Authentication.action Authentication.app span=1h
 | sort -count
 ```
 
@@ -88,7 +90,8 @@ index=aws sourcetype="aws:cloudtrail" eventName="AuthorizeSecurityGroupIngress" 
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where All_Changes.object_category="security_group" OR match(All_Changes.object, "(?i)SecurityGroup")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -115,7 +118,8 @@ index=aws sourcetype="aws:cloudtrail" (eventName="CreatePolicy" OR eventName="At
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where All_Changes.object_category="policy" OR match(All_Changes.object, "(?i)IAMPolicy|iam:policy")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -139,12 +143,14 @@ index=aws sourcetype="aws:cloudtrail" eventName="ConsoleLogin" responseElements.
 ```
 - **Implementation:** Monitor ConsoleLogin events. Alert on successful console logins where MFA is not used. Exclude service accounts that authenticate via SSO (which has its own MFA).
 - **Visualization:** Table (user, source IP, MFA status), Pie chart (MFA vs. no-MFA), Single value.
-- **CIM Models:** Change
+- **CIM Models:** Authentication
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  from datamodel=Authentication.Authentication
+  where Authentication.action="success" AND (match(Authentication.signature, "(?i)ConsoleLogin|AwsConsoleSignIn") OR match(Authentication.app, "(?i)signin\\.amazonaws"))
+  AND NOT (Authentication.mfa="true" OR lower(Authentication.authentication_method)="mfa")
+  by Authentication.user Authentication.src Authentication.app span=1h
 | sort -count
 ```
 
@@ -171,7 +177,8 @@ index=aws sourcetype="aws:cloudtrail" (eventName="RunInstances" OR eventName="Te
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where All_Changes.object_category="instance" OR match(All_Changes.object, "(?i)ec2:|i-[0-9a-f]{8,17}")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -198,7 +205,8 @@ index=aws sourcetype="aws:cloudtrail" (eventName="PutBucketPolicy" OR eventName=
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where All_Changes.object_category="bucket" OR match(All_Changes.object, "(?i)s3:|arn:aws:s3:::")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -382,7 +390,8 @@ index=aws sourcetype="aws:cloudtrail" (eventName="Decrypt" OR eventName="Encrypt
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where match(All_Changes.app, "(?i)kms\\.amazonaws") OR match(All_Changes.object, "(?i)kms:|key/")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -408,7 +417,8 @@ index=aws sourcetype="aws:cloudtrail" (eventName="AllocateAddress" OR eventName=
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where match(All_Changes.action, "(?i)AllocateAddress|AssociateAddress|DisassociateAddress|ReleaseAddress") OR match(All_Changes.object, "(?i)eipalloc|elastic.?ip")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -436,7 +446,8 @@ index=aws sourcetype="aws:cloudtrail" eventName="DetectStackDrift" OR eventName=
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where match(All_Changes.action, "(?i)DetectStackDrift|DetectStackResourceDrift|CreateStack|UpdateStack|DeleteStack") OR match(All_Changes.object, "(?i)cloudformation|stack:")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -674,7 +685,8 @@ index=aws sourcetype="aws:cloudtrail" eventName="DeleteTrail" OR eventName="PutB
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where match(All_Changes.action, "(?i)DeleteTrail|StopLogging|UpdateTrail|PutBucketPolicy|PutEventSelectors") OR match(All_Changes.object, "(?i)cloudtrail|trail")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -757,7 +769,8 @@ index=aws sourcetype="aws:cloudtrail" (eventName="AttachPolicy" OR eventName="De
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where match(All_Changes.action, "(?i)AttachPolicy|DetachPolicy|CreateOrganizationalUnit|MoveAccount|CreateAccount|CloseAccount") OR match(All_Changes.object, "(?i)organizations|scp|ou-")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 
@@ -1167,7 +1180,8 @@ index=aws sourcetype="aws:cloudtrail" eventSource="secretsmanager.amazonaws.com"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Change.All_Changes
-  by All_Changes.user All_Changes.object_category All_Changes.action span=1h
+  where match(All_Changes.app, "(?i)secretsmanager\\.amazonaws") OR match(All_Changes.object, "(?i)secret:")
+  by All_Changes.user All_Changes.object All_Changes.action span=1h
 | sort -count
 ```
 

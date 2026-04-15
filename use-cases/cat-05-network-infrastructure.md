@@ -79,14 +79,13 @@ index=network sourcetype="snmp:interface"
 ```
 - **Implementation:** Poll 64-bit counters every 300s. Alert at 80% sustained. Use `predict` for capacity planning.
 - **Visualization:** Line chart, Gauge per critical link, Table sorted by utilization.
-- **CIM Models:** Network_Traffic
+- **CIM Models:** Performance
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
-  from datamodel=Network_Traffic.All_Traffic
-  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
-| eval bytes=bytes_in+bytes_out
-| sort -bytes
+| tstats `summariesonly` avg(Performance.thruput) as thruput_bps
+  from datamodel=Performance where nodename=Performance.Network
+  by Performance.host Performance.interface span=5m
+| where thruput_bps > 0
 ```
 
 ---

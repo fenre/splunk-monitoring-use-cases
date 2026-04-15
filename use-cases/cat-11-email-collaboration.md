@@ -25,7 +25,8 @@ index=o365 sourcetype="ms:o365:messageTrace"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Email.All_Email
-  by All_Email.src_user All_Email.recipient All_Email.action span=1h
+  where All_Email.action IN ("deferred", "failed", "bounced", "rejected")
+  by All_Email.src_user All_Email.recipient span=1h
 | sort -count
 ```
 
@@ -296,7 +297,7 @@ index=gws sourcetype="gws:gmail"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Email.All_Email
-  by All_Email.src_user All_Email.recipient All_Email.action span=1h
+  by All_Email.src_user All_Email.action All_Email.recipient span=1h
 | sort -count
 ```
 

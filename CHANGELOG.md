@@ -10,6 +10,37 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [4.2] - 2026-04-15
+
+### Content Quality
+
+- **CIM SPL audit and fix** — Fixed ~60 copy-paste CIM SPL errors across 9 category files (cat-01, cat-02, cat-04, cat-05, cat-08, cat-09, cat-10, cat-11, cat-17). Replaced generic/duplicated tstats blocks with queries that match each UC's actual monitoring intent. Set CIM Models to N/A where no faithful CIM equivalent exists.
+
+### CI/CD Improvements
+
+- **Build check now fails** — `validate.yml` exits 1 (not just warns) when `data.js` or `catalog.json` are out of date after rebuild.
+- **Full structure scan** — `audit_uc_structure.py` now runs with `--full` in CI (was sampling 200 of 5,241 UCs).
+- **Catalog schema validation** — New `audit_catalog_schema.py` validates catalog.json structure, UC ID format, and required fields.
+- **Portable version check** — Replaced GNU-only `grep -oP` with Python for cross-platform compatibility.
+- **Broader path triggers** — CI now runs on changes to `scripts/**`, `tools/**`, and `custom-text.js`.
+
+### UI Features
+
+- **Non-technical search** — Keyword search bar in the non-technical/executive view filters outcome cards by text match across outcomes, area descriptions, and UC summaries.
+- **Export empty-state toast** — CSV/JSON export buttons now show a toast notification when no use cases match the current filters instead of silently doing nothing.
+
+### Build System
+
+- **Pretty-printed catalog.json** — JSON output now uses `indent=2` for reviewable git diffs (was single-line minified).
+- **Per-category JSON API** — `build.py` generates `api/cat-N.json` files and `api/index.json` for lightweight integrations.
+
+### Documentation
+
+- **CONTRIBUTING.md** — New contributing guide covering UC template, CIM SPL guidelines, audit scripts, version management, and CI workflow.
+- **Link checker** — New `scripts/audit_links.py` for manual reference URL validation (2,000+ URLs across the catalog).
+
+---
+
 ## [4.1] - 2026-04-14
 
 ### Content Expansion

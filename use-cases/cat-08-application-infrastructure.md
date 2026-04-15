@@ -55,10 +55,10 @@ index=web sourcetype="access_combined"
 - **CIM Models:** Web
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count as request_count
+| tstats `summariesonly` perc95(Web.duration) as p95_ms avg(Web.duration) as avg_ms
   from datamodel=Web.Web
-  by Web.uri_path Web.status span=5m
-| sort -request_count
+  by Web.dest Web.uri_path span=5m
+| where p95_ms > 2000
 ```
 
 ---
@@ -134,14 +134,7 @@ index=certificates sourcetype="cert_check"
 ```
 - **Implementation:** Deploy scripted input that runs `openssl s_client` against all HTTPS endpoints daily. Parse certificate details (CN, SAN, expiry, issuer). Alert at 30, 14, and 7 days before expiry. Maintain endpoint inventory via lookup.
 - **Visualization:** Table (certificates with expiry dates), Single value (certs expiring within 30d), Status grid (endpoint × cert status).
-- **CIM Models:** Web
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count sum(Web.bytes) as total_bytes
-  from datamodel=Web.Web
-  by Web.src Web.dest Web.uri_path Web.status span=1h
-| sort -count
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -164,9 +157,10 @@ index=web sourcetype="nginx:error"
 - **CIM Models:** Web
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count sum(Web.bytes) as total_bytes
+| tstats `summariesonly` count
   from datamodel=Web.Web
-  by Web.src Web.dest Web.uri_path Web.status span=1h
+  where Web.status>=502 AND Web.status<=504
+  by Web.dest Web.uri_path span=5m
 | sort -count
 ```
 
@@ -192,9 +186,9 @@ index=web sourcetype="access_combined"
 - **CIM Models:** Web
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count sum(Web.bytes) as total_bytes
+| tstats `summariesonly` count
   from datamodel=Web.Web
-  by Web.src Web.dest Web.uri_path Web.status span=1h
+  by Web.http_user_agent Web.src span=1h
 | sort -count
 ```
 
@@ -216,14 +210,7 @@ index=web sourcetype="apache:server_status"
 ```
 - **Implementation:** Enable Apache `mod_status` or NGINX `stub_status` module. Poll via scripted input every minute. Alert when busy workers exceed 80% of total. Correlate with request rate to distinguish capacity limits from slow backends.
 - **Visualization:** Gauge (% workers busy), Line chart (worker utilization over time), Table (hosts at capacity).
-- **CIM Models:** Web
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count sum(Web.bytes) as total_bytes
-  from datamodel=Web.Web
-  by Web.src Web.dest Web.uri_path Web.status span=1h
-| sort -count
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -246,10 +233,11 @@ index=web sourcetype="access_combined" method=POST
 - **CIM Models:** Web
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` avg(Web.bytes) as avg_bytes count
+| tstats `summariesonly` perc95(Web.duration) as p95_ms count
   from datamodel=Web.Web
-  by Web.uri_path Web.status span=5m
-| sort -avg_bytes
+  where Web.http_method="POST"
+  by Web.uri_path span=5m
+| where p95_ms > 5000
 ```
 
 ---
@@ -269,14 +257,7 @@ index=web sourcetype="nginx:error" OR sourcetype="apache:error"
 ```
 - **Implementation:** Forward error/event logs from web servers. Parse reload/restart messages. Correlate with deployment events and change management tickets. Alert on unexpected restarts outside maintenance windows.
 - **Visualization:** Timeline (reload events), Table (reload history with correlation), Single value (reloads this week).
-- **CIM Models:** Web
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count sum(Web.bytes) as total_bytes
-  from datamodel=Web.Web
-  by Web.src Web.dest Web.uri_path Web.status span=1h
-| sort -count
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -440,13 +421,14 @@ index=wineventlog sourcetype="WinEventLog:System" Source="WAS"
 ```
 - **Implementation:** WAS (Windows Activation Service) events log automatically on IIS servers. EventCode 5002=worker process crashed, 5011=pool auto-disabled due to rapid failures (5 in 5 minutes default), 5012=rapid failure protection triggered. Alert on any 5011 event (pool disabled = site down). Track recycling frequency per pool. Correlate with WER EventCode 1000 for crash details including the faulting module.
 - **Visualization:** Table (app pool events), Timechart (recycling frequency), Status grid (pool × health), Single value (disabled pools — target: 0).
-- **CIM Models:** Endpoint
+- **CIM Models:** Change
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Endpoint.Services
-  by Services.dest Services.name Services.status span=5m
-| search Services.status!="running"
+  from datamodel=Change.All_Changes
+  where match(All_Changes.object, "(?i)W3SVC|WAS|AppPool")
+  by All_Changes.dest All_Changes.user span=1h
+| sort -count
 ```
 
 ---
@@ -1332,14 +1314,7 @@ index=perfmon source="Perfmon:MSMQ Service" counter="Total Messages in all Queue
 ```
 - **Implementation:** Configure Perfmon input for MSMQ Service counters: Total Messages in all Queues, Total Bytes in all Queues, Sessions. Also monitor individual queue counters via `MSMQ Queue` object. Alert when queue depth exceeds baseline (messages accumulating). Monitor journal queue size for message delivery confirmations. Track dead-letter queue growth for undeliverable messages.
 - **Visualization:** Timechart (queue depth trend), Single value (current depth), Alert on queue growth exceeding threshold.
-- **CIM Models:** Performance
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
-  from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1398,10 +1373,10 @@ index=api sourcetype="kong:access"
 - **CIM Models:** Web
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` avg(Web.bytes) as avg_bytes count
+| tstats `summariesonly` perc50(Web.duration) as p50 perc95(Web.duration) as p95 perc99(Web.duration) as p99
   from datamodel=Web.Web
-  by Web.uri_path Web.status span=5m
-| sort -avg_bytes
+  by Web.uri_path span=5m
+| where p95 > 1000
 ```
 
 ---

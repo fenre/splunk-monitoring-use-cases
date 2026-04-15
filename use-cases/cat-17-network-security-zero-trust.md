@@ -27,9 +27,8 @@ index=nac sourcetype="cisco:ise:auth"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  by Authentication.action Authentication.src span=1h
+| sort -count
 ```
 
 ---
@@ -56,9 +55,9 @@ index=nac sourcetype="cisco:ise:posture"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src span=1h
-| where count > 10
+  where Authentication.action="failure" AND match(Authentication.vendor_action, "(?i)posture|compliance")
+  by Authentication.src Authentication.signature span=1h
+| sort -count
 ```
 
 ---
@@ -79,14 +78,13 @@ index=nac sourcetype="cisco:ise:auth"
 ```
 - **Implementation:** Track VLAN assignments per endpoint. Maintain expected VLAN lookup by user role/device type. Alert on unexpected VLAN placements. Audit authorization policy effectiveness.
 - **Visualization:** Table (VLAN assignments), Pie chart (assignments by VLAN), Bar chart (unexpected placements).
-- **CIM Models:** Authentication, Network_Sessions
+- **CIM Models:** Network_Sessions
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user All_Sessions.src All_Sessions.dest span=1h
+| sort -count
 ```
 
 ---
@@ -107,14 +105,13 @@ index=nac sourcetype="cisco:ise:guest"
 ```
 - **Implementation:** Track guest portal registrations, sponsor activity, and session durations. Alert on excessive guest registrations from single sponsors. Monitor guest bandwidth usage. Report on guest network utilization.
 - **Visualization:** Bar chart (guest registrations by sponsor), Line chart (guest sessions trend), Table (active guests).
-- **CIM Models:** Authentication, Network_Sessions
+- **CIM Models:** Network_Sessions
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+| tstats `summariesonly` count sum(All_Sessions.bytes_in) as bytes_in sum(All_Sessions.bytes_out) as bytes_out
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user All_Sessions.src span=1h
+| sort -count
 ```
 
 ---
@@ -140,9 +137,9 @@ index=nac sourcetype="cisco:ise:byod"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where Authentication.action="success"
+  by Authentication.user Authentication.src Authentication.app span=1h
+| sort -count
 ```
 
 ---
@@ -170,9 +167,9 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where match(Authentication.authentication_method, "(?i)MAB|mac")
+  by Authentication.src Authentication.dest Authentication.action span=1h
+| sort -count
 ```
 
 ---
@@ -194,15 +191,7 @@ index=nac sourcetype="cisco:ise:profiler"
 ```
 - **Implementation:** Monitor profiling events and profile changes. Track devices that are frequently re-profiled (indicates ambiguous profiling rules). Validate profiling accuracy against known device inventory. Tune profiling policies.
 - **Visualization:** Table (profiling changes), Sankey diagram (old→new profiles), Bar chart (re-profiling frequency).
-- **CIM Models:** Authentication, Network_Sessions
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -222,14 +211,14 @@ index=nac sourcetype="cisco:ise:admin"
 ```
 - **Implementation:** Forward ISE admin audit logs. Alert on any policy change. Track changes by administrator. Correlate with change management tickets. Report on policy change frequency.
 - **Visualization:** Table (policy changes), Timeline (change events), Bar chart (changes by admin).
-- **CIM Models:** Authentication, Network_Sessions
+- **CIM Models:** Change
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Change.All_Changes
+  where match(All_Changes.object, "(?i)ISE|NAC|policy")
+  by All_Changes.user All_Changes.object span=1h
+| sort -count
 ```
 
 ---
@@ -295,14 +284,7 @@ index=nac sourcetype="radius:accounting"
 ```
 - **Implementation:** Ingest RADIUS accounting logs with Acct-Session-Id, Acct-Status-Type, User-Name, NAS-IP-Address. Build session state table: each Start should have exactly one Stop. Alert on sessions with Start but no Stop (orphaned sessions) or Stop without Start (potential replay). Report on discrepancy rate and top NAS/users. Use Interim-Update to validate long-running sessions.
 - **Visualization:** Table (sessions with discrepancies), Bar chart (discrepancy count by NAS), Single value (orphaned sessions), Line chart (discrepancy trend).
-- **CIM Models:** Network_Sessions
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Sessions.All_Sessions
-  by All_Sessions.src All_Sessions.user All_Sessions.dest span=1h
-| where count > 10
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -415,13 +397,14 @@ index=nac sourcetype="cisco:ise:guest" earliest=-24h
 ```
 - **Implementation:** Map `bytes` from ISE or join firewall `src` for guest VLAN. Thresholds per org. Alert on sponsor accounts with many parallel guests.
 - **Visualization:** Table (abuse candidates), Bar chart (bytes by sponsor), Single value (guests over threshold).
-- **CIM Models:** Authentication, Network_Sessions
+- **CIM Models:** Network_Sessions
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  by Authentication.user span=1h
-| where count > 100
+| tstats `summariesonly` sum(All_Sessions.bytes_in) as bytes_in sum(All_Sessions.bytes_out) as bytes_out dc(All_Sessions.session_id) as sessions
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user span=1h
+| eval total_bytes=bytes_in+bytes_out
+| where sessions > 5 OR total_bytes > 10737418240
 ```
 
 ---
@@ -446,14 +429,7 @@ index=nac sourcetype="radius:accounting" earliest=-24h
 ```
 - **Implementation:** A given RADIUS session should map to one NAS-IP unless mobility events are logged; multiple NAS for one session ID often indicates misconfiguration or log duplication.
 - **Visualization:** Table (conflicting sessions), Single value (conflict count).
-- **CIM Models:** Network_Sessions
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Sessions.All_Sessions
-  by All_Sessions.dest span=1h
-| where count > 50
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -482,8 +458,9 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB" earliest=-7d
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  by Authentication.dest span=1h
-| where count > 500
+  where match(Authentication.authentication_method, "(?i)MAB|mac")
+  by Authentication.src Authentication.dest span=1h
+| where count > 10
 ```
 
 ---
@@ -532,8 +509,8 @@ index=nac sourcetype="cisco:ise:auth" earliest=-30d
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.action span=1d
+  by Authentication.action Authentication.vendor_action span=1d
+| sort -count
 ```
 
 ---
@@ -2102,10 +2079,10 @@ index=casb sourcetype="netskope:events" earliest=-7d
 - **CIM Models:** Network_Traffic, Web
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Web.Web
-  by Web.url Web.user span=1d
-| where count > 10
+| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes dc(All_Traffic.user) as users
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.app span=1d
+| sort -bytes
 ```
 
 ---
@@ -2131,9 +2108,9 @@ index=casb sourcetype="netskope:alert" alert_type="DLP" earliest=-7d
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Data_Loss_Prevention
-  by DLP.user DLP.src span=1d
-| where count > 3
+  from datamodel=Data_Loss_Prevention.Incident
+  by Incident.user Incident.dest Incident.signature span=1d
+| sort -count
 ```
 
 ---
@@ -2214,14 +2191,7 @@ index=casb sourcetype="netskope:connection" earliest=-24h
 ```
 - **Implementation:** Map `publisher_name` to datacenter/region. Alert when any publisher shows >10% error rate or latency p95 exceeds 2s. Report on NPA adoption vs legacy VPN.
 - **Visualization:** Table (unhealthy publishers), Single value (publishers in error), Line chart (error rate trend), Bar chart (latency by app).
-- **CIM Models:** Network_Traffic, Network_Sessions
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Sessions.All_Sessions
-  by All_Sessions.dest span=1h
-| where count > 0
-```
+- **CIM Models:** N/A
 
 ---
 

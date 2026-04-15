@@ -56,9 +56,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
+  where match(Authentication.signature, "4740") OR match(Authentication.vendor_action, "(?i)lockout")
   by Authentication.user Authentication.src span=1h
-| where count > 10
+| sort -count
 ```
 
 ---
@@ -79,14 +79,14 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4728,4732,4756
 ```
 - **Implementation:** Forward DC Security logs. Create alert for any membership change to privileged groups (Domain Admins, Enterprise Admins, Schema Admins, Backup Operators). Integrate with change management for validation.
 - **Visualization:** Table (membership changes), Timeline (change events), Single value (changes this week).
-- **CIM Models:** Authentication
+- **CIM Models:** Change
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+  from datamodel=Change.All_Changes
+  where match(All_Changes.object_category, "(?i)group") OR match(All_Changes.result, "(?i)4728|4732|4756")
+  by All_Changes.user All_Changes.object span=1h
+| sort -count
 ```
 
 ---
@@ -113,9 +113,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where Authentication.action="success" AND match(Authentication.user, "(?i)svc|service|_sa$")
+  by Authentication.user Authentication.src Authentication.app span=1h
+| sort -count
 ```
 
 ---
@@ -142,9 +142,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769 Ticket_Encryp
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where match(Authentication.signature, "4768|4769|4771")
+  by Authentication.user Authentication.src Authentication.action span=1h
+| sort -count
 ```
 
 ---
@@ -169,9 +169,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4723, 4724)
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where match(Authentication.signature, "4723|4724|4725") OR match(Authentication.vendor_action, "(?i)password")
+  by Authentication.user Authentication.action span=1h
+| sort -count
 ```
 
 ---
@@ -192,14 +192,14 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 ```
 - **Implementation:** Enable "Audit Directory Service Changes" via GPO. Forward DC Security logs. Alert on any GPO modification. Correlate with change management tickets. Track which GPOs are modified most frequently.
 - **Visualization:** Table (GPO changes with details), Timeline (modification events), Bar chart (changes by admin).
-- **CIM Models:** Authentication
+- **CIM Models:** Change
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Change.All_Changes
+  where match(All_Changes.object, "(?i)groupPolicyContainer|Policies|GPO")
+  by All_Changes.user All_Changes.object span=1h
+| sort -count
 ```
 
 ---
@@ -219,15 +219,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode IN (1864,
 ```
 - **Implementation:** Forward Directory Service event logs from DCs. Run `repadmin /showrepl` via scripted input daily. Alert on replication failures (Event IDs 1864, 2042, 2087). Track replication latency between sites.
 - **Visualization:** Table (replication status by DC pair), Status grid (DC × replication health), Timeline (failure events).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -247,15 +239,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=1644
 ```
 - **Implementation:** Enable LDAP search diagnostics (registry key: "15 Field Engineering" value "Expensive Search Results Threshold" = 10000). Forward Directory Service logs. Alert on queries visiting >10K entries. Identify and optimize expensive applications.
 - **Visualization:** Table (expensive queries), Bar chart (queries by source application), Line chart (expensive query frequency).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -277,15 +261,7 @@ index=ad sourcetype="ad:accounts"
 ```
 - **Implementation:** Run PowerShell script querying AD for lastLogonTimestamp weekly. Export to CSV/JSON and ingest. Flag accounts inactive >90 days. Cross-reference with HR systems for departed employees. Report for access review.
 - **Visualization:** Table (stale accounts), Bar chart (stale accounts by OU), Single value (total stale accounts), Pie chart (by account type).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -311,9 +287,9 @@ index=azure sourcetype="azure:aad:signin"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where Authentication.action="success" AND match(Authentication.app, "(?i)azure|entra|aad")
+  by Authentication.user Authentication.src Authentication.app span=1h
+| sort -count
 ```
 
 ---
@@ -744,15 +720,7 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 ```
 - **Implementation:** Enable LDAP access logging with timing information. Parse search operations with duration. Alert on searches exceeding 1 second. Identify expensive filters (unindexed attributes, broad base DN). Recommend index creation.
 - **Visualization:** Table (slow searches), Bar chart (avg duration by filter), Line chart (search latency trend).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -772,14 +740,14 @@ index=ldap sourcetype="openldap:audit"
 ```
 - **Implementation:** Enable LDAP audit logging (overlay in OpenLDAP, audit log in 389 DS). Forward to Splunk. Alert on any schema modification. These should be extremely rare and always correlated with change tickets.
 - **Visualization:** Timeline (schema changes), Table (change details), Single value (schema changes this month).
-- **CIM Models:** Authentication
+- **CIM Models:** Change
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  from datamodel=Change.All_Changes
+  where match(All_Changes.object, "(?i)cn=schema")
+  by All_Changes.user All_Changes.object span=1d
+| sort -count
 ```
 
 ---
@@ -800,15 +768,7 @@ index=ldap sourcetype="openldap:syncrepl"
 ```
 - **Implementation:** Monitor LDAP replication status via scripted input querying contextCSN or replication agreements. Forward syncrepl logs. Alert on replication failures or increasing lag between providers and consumers.
 - **Visualization:** Status grid (provider × consumer health), Table (replication status), Timeline (failure events).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1039,11 +999,11 @@ index=okta sourcetype="OktaIM2:log" eventType="user.session.start"
 - **CIM Models:** Authentication
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
+| tstats `summariesonly` count dc(Authentication.src) as src_count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where Authentication.action="success"
+  by Authentication.user span=1h
+| where src_count > 2
 ```
 
 ---
@@ -1067,11 +1027,11 @@ index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
 - **CIM Models:** Authentication
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
+| tstats `summariesonly` count dc(Authentication.src) as src_count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where Authentication.action="success"
+  by Authentication.user Authentication.app span=1h
+| where src_count > 3
 ```
 
 ---
@@ -1094,11 +1054,11 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
 - **CIM Models:** Authentication
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
+| tstats `summariesonly` count dc(Authentication.user) as user_count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where Authentication.action="success"
+  by Authentication.app span=1h
+| sort -count
 ```
 
 ---
@@ -1118,15 +1078,7 @@ index=synthetic sourcetype="http_check" target="*.okta.com"
 ```
 - **Implementation:** Set up synthetic HTTP checks against IdP login endpoints every minute. Track response time and availability. Alert on response time >5 seconds or any 5xx errors. Subscribe to vendor status page updates as secondary source.
 - **Visualization:** Single value (IdP uptime %), Line chart (response time), Status indicator (available/degraded/down).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1146,15 +1098,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
 ```
 - **Implementation:** Track MFA factor types used in authentication events. Classify as phishing-resistant (FIDO2, WebAuthn) vs phishable (SMS, voice, email). Report adoption percentages. Set organizational targets for phishing-resistant adoption.
 - **Visualization:** Pie chart (factor type distribution), Line chart (phishing-resistant adoption trend), Table (users still on SMS).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1178,11 +1122,11 @@ index=okta sourcetype="OktaIM2:log"
 - **CIM Models:** Authentication
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
+| tstats `summariesonly` dc(Authentication.src) as src_count
   from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
+  where Authentication.action="success"
+  by Authentication.user span=1h
+| where src_count > 3
 ```
 
 ---
@@ -1411,9 +1355,9 @@ index=pam sourcetype="cyberark:session"
 ```spl
 | tstats `summariesonly` count
   from datamodel=Authentication.Authentication
-  where Authentication.action=success
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| search Authentication.user=*admin* OR Authentication.user=root
+  where Authentication.action="success" AND match(Authentication.app, "(?i)pam|cyberark|beyondtrust|delinea")
+  by Authentication.user Authentication.dest Authentication.src span=1h
+| sort -count
 ```
 
 ---
@@ -1436,15 +1380,7 @@ index=pam sourcetype="cyberark:vault"
 ```
 - **Implementation:** Track password checkout and checkin events. Calculate checkout duration. Alert on checkouts exceeding policy limits (e.g., >4 hours). Flag accounts checked out but never checked in (hoarding). Report on checkout frequency per user.
 - **Visualization:** Table (active checkouts), Bar chart (checkout duration by user), Line chart (checkout frequency trend).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1465,15 +1401,7 @@ index=pam sourcetype="cyberark:vault"
 ```
 - **Implementation:** Tag break-glass accounts in PAM. Create critical alert for any break-glass access. Require documented reason within 24 hours. Send notifications to security team and management. Track usage frequency for trend reporting.
 - **Visualization:** Single value (break-glass uses this month — target: 0), Table (usage history), Timeline (break-glass events).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1495,15 +1423,7 @@ index=pam sourcetype="cyberark:account_inventory"
 ```
 - **Implementation:** Export credential inventory from PAM periodically. Calculate days since last rotation vs policy requirement. Alert on overdue rotations. Track compliance percentage over time. Report to management monthly.
 - **Visualization:** Table (overdue credentials), Single value (compliance %), Gauge (% compliant), Bar chart (overdue by platform).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1523,15 +1443,7 @@ index=pam sourcetype="cyberark:psm_transcript"
 ```
 - **Implementation:** Enable PAM session recording and command logging. Parse keystroke transcripts. Alert immediately on high-risk commands (rm -rf, format, DROP DATABASE, etc.). Integrate with SOAR for automated session termination on critical detections.
 - **Visualization:** Table (suspicious commands), Timeline (command events), Single value (high-risk commands today).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 
@@ -1550,15 +1462,7 @@ index=pam sourcetype="cyberark:vault_health"
 ```
 - **Implementation:** Monitor PAM vault components (vault server, PVWA, PSM, CPM). Track service availability, replication between primary/DR vault, and component health. Alert on any component failure or replication lag >5 minutes.
 - **Visualization:** Status grid (component × health), Single value (vault uptime %), Table (unhealthy components), Line chart (replication lag).
-- **CIM Models:** Authentication
-- **CIM SPL:**
-```spl
-| tstats `summariesonly` count
-  from datamodel=Authentication.Authentication
-  where Authentication.action=failure
-  by Authentication.user Authentication.src Authentication.dest span=1h
-| where count > 5
-```
+- **CIM Models:** N/A
 
 ---
 

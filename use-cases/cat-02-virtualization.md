@@ -114,10 +114,11 @@ index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.totalReadLat
 - **CIM Models:** Performance
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` avg(Performance.read_latency) as read_ms avg(Performance.write_latency) as write_ms
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+  by Performance.host Performance.mount span=5m
+| eval worst_ms=max(read_ms, write_ms)
+| where worst_ms > 20
 ```
 
 ---
@@ -286,8 +287,8 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.usage.average"
 ```spl
 | tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu
   from datamodel=Performance where nodename=Performance.CPU
-  by Performance.host span=1h
-| where avg_cpu > 90
+  by Performance.host span=1d
+| where avg_cpu < 20
 ```
 
 ---
@@ -396,10 +397,11 @@ index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.numberReadAv
 - **CIM Models:** Performance
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
+| tstats `summariesonly` sum(Performance.read_ops) as read_ops sum(Performance.write_ops) as write_ops
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
-| where disk_pct > 85
+  by Performance.host Performance.mount span=15m
+| eval total_iops=read_ops + write_ops
+| where total_iops > 500
 ```
 
 ---

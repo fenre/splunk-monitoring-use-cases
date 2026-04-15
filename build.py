@@ -28,6 +28,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 UC_DIR = os.path.join(SCRIPT_DIR, "use-cases")
 OUTPUT = os.path.join(SCRIPT_DIR, "data.js")
 OUTPUT_CATALOG_JSON = os.path.join(SCRIPT_DIR, "catalog.json")
+OUTPUT_API_DIR = os.path.join(SCRIPT_DIR, "api")
 OUTPUT_LLMS_TXT = os.path.join(SCRIPT_DIR, "llms.txt")
 OUTPUT_LLM_TXT = os.path.join(SCRIPT_DIR, "llm.txt")
 OUTPUT_LLMS_FULL_TXT = os.path.join(SCRIPT_DIR, "llms-full.txt")
@@ -3153,8 +3154,26 @@ def main():
         "EQUIPMENT": EQUIPMENT,
     }
     with open(OUTPUT_CATALOG_JSON, "w", encoding="utf-8") as f:
-        json.dump(catalog, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump(catalog, f, ensure_ascii=False, indent=2)
     print(f"Wrote {OUTPUT_CATALOG_JSON} ({os.path.getsize(OUTPUT_CATALOG_JSON) / 1024:.0f} KB)")
+
+    os.makedirs(OUTPUT_API_DIR, exist_ok=True)
+    for cat in data:
+        cat_path = os.path.join(OUTPUT_API_DIR, "cat-{0}.json".format(cat["i"]))
+        with open(cat_path, "w", encoding="utf-8") as f:
+            json.dump(cat, f, ensure_ascii=False, indent=2)
+    index_rows = []
+    for cat in data:
+        uc_count = sum(len(s.get("u", [])) for s in cat.get("s", []))
+        index_rows.append({
+            "number": cat["i"],
+            "name": cat["n"],
+            "subcategory_count": len(cat.get("s", [])),
+            "uc_count": uc_count,
+        })
+    with open(os.path.join(OUTPUT_API_DIR, "index.json"), "w", encoding="utf-8") as f:
+        json.dump(index_rows, f, ensure_ascii=False, indent=2)
+    print("Wrote api/ ({0} category files + index)".format(len(data)))
 
     # Write llms.txt and llms-full.txt for AI agent discoverability
     llms_kb = write_llms_txt(data, cat_meta, files, total_uc)
