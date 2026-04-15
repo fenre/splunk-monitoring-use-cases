@@ -10,6 +10,7 @@ on:
       - "scripts/audit_*.py"
       - "CHANGELOG.md"
       - "index.html"
+      - "VERSION"
   workflow_dispatch:
 
 permissions:
@@ -51,6 +52,25 @@ jobs:
             if (n < 1) { console.error('No categories found'); process.exit(1); }
             console.log(n + ' categories OK');
           "
+
+      - name: Version consistency
+        run: |
+          VER=$(cat VERSION | tr -d '[:space:]')
+          CL_VER=$(grep -m1 '^## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
+          RN_VER=$(grep -oP 'rn-version-tag[^>]*>\K[^<]+' index.html | head -1)
+          echo "VERSION file: $VER"
+          echo "CHANGELOG top: $CL_VER"
+          echo "Release notes top: $RN_VER"
+          FAIL=0
+          if [ "$VER" != "$CL_VER" ]; then
+            echo "::error::VERSION ($VER) does not match CHANGELOG top entry ($CL_VER)"
+            FAIL=1
+          fi
+          if [ "$VER" != "$RN_VER" ]; then
+            echo "::error::VERSION ($VER) does not match release notes top entry ($RN_VER)"
+            FAIL=1
+          fi
+          exit $FAIL
 
       - name: Build check (catalog regeneration)
         run: |
