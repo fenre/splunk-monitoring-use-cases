@@ -10,6 +10,30 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [5.0] - 2026-04-15
+
+### Regulatory Compliance Expansion
+
+- **1,063 new regulatory use cases** — Expanded cat-22 from 104 to 1,167 UCs across 34 subcategories (was 9). The largest single content expansion in the catalog's history.
+- **5 major frameworks added** — PCI DSS v4.0 (90 UCs), NIST 800-53 Rev. 5 (80 UCs), NERC CIP (70 UCs), HIPAA (55 UCs), IEC 62443 (55 UCs).
+- **9 existing regulations expanded** — NIST CSF 2.0 (+43), ISO 27001:2022 (+37), GDPR (+30), NIS2 (+25), SOC 2 (+22), DORA (+20), MiFID II (+17), CCPA/CPRA (+17), Compliance Trending (+5).
+- **6 US & OT regulations added** — SOX/ITGC (35 UCs), API 1164 Pipeline SCADA (35 UCs), TSA Pipeline Security (30 UCs), FDA 21 CFR Part 11 (25 UCs), FISMA/FedRAMP (25 UCs), CMMC 2.0 (20 UCs).
+- **5 EU regulations added** — AML/CFT (35 UCs), PSD2/Payment Services (30 UCs), EU AI Act (25 UCs), EU Cyber Resilience Act (20 UCs), eIDAS 2.0 (15 UCs).
+- **9 regional frameworks added** — UK NIS+FCA/PRA (30 UCs), APAC Data Protection (30 UCs), Americas/LGPD/FISMA/CMMC/CJIS (25 UCs), APAC Financial/MAS/HKMA/RBI/APRA (25 UCs), Norwegian/Sikkerhetsloven/Kraftberedskap/Petroleum (20 UCs), German KRITIS/BSI (20 UCs), Australia & New Zealand/Essential Eight (20 UCs), Middle East/NESA/SAMA/PDPL/QCB (20 UCs), SWIFT CSP (12 UCs).
+- **Cross-references added** — Regulation-specific UCs in cat-10 and cat-14 now point to comprehensive coverage in cat-22.
+
+### Full Quality Review
+
+- **Splunkbase ID audit** — Verified 78 Splunkbase IDs across all categories. Fixed 4 incorrect IDs: 1556 (404), 2963 (wrong Qualys ID), 5765 (wrong product), 4516 (archived app). 73 occurrences corrected.
+- **CIM Model audit** — Verified all CIM Model references against official Splunk CIM 5.x. Fixed 47 incorrect references across 7 files: DNS→Network_Resolution (14), Inventory→Compute_Inventory (7), VPN→Network_Sessions (4), Audit→Splunk_Audit (6), Threat_Intelligence→N/A (4), Risk→N/A (9), Data_Loss_Prevention→DLP (2), IDS_Attacks→Intrusion_Detection (1).
+- **SPL syntax audit** — Audited SPL across all 6,304 UCs. Fixed 5 syntax errors: invalid stats functions (mean→avg, p50→median, p99→perc99), missing eval wrappers in sum(case()), invalid eventstats where clause.
+- **Regulation reference audit** — Verified article/section numbers against actual regulatory texts (GDPR, NIS2, DORA, HIPAA, PCI DSS, NIST 800-53, NERC CIP, EU AI Act, PSD2). Fixed 16 errors: 2 invalid GDPR notations, 7 wrong NIS2 Art. 21(2) sub-letters, 3 wrong EU AI Act articles, 1 wrong PSD2 RTS article, 1 wrong HIPAA subsection.
+- **MITRE ATT&CK audit** — Verified all technique IDs and their contextual accuracy. Fixed 6 incorrect mappings: removed T1485/T1496 from non-attack UCs, corrected T1040→T1557, T1531→T1078.
+
+### Total catalog: 6,304 UCs across 23 categories.
+
+---
+
 ## [4.2] - 2026-04-15
 
 ### Content Quality

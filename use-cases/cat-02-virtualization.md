@@ -1913,7 +1913,7 @@ index=vmware sourcetype="vmware:inv:vm"
 ```
 - **Implementation:** Normalize VM inventory fields across all hypervisor platforms into a common schema (vm_name, platform, host, vcpus, mem_gb, power_state, guest_os). Use a scheduled search to populate a summary index or KV store for fast lookups. Enrich with CMDB data (owner, department, environment) via lookup. Generate weekly fleet reports showing total VM count, resource allocation, and platform distribution.
 - **Visualization:** Table (unified VM inventory), Pie chart (VMs by platform), Bar chart (resource allocation by platform), Treemap (VMs by department and platform).
-- **CIM Models:** Inventory
+- **CIM Models:** Compute_Inventory
 
 ---
 

@@ -1860,7 +1860,7 @@ index=pexip sourcetype="pexip:media_stream"
     avg(packet_loss) as avg_loss,
     avg(jitter) as avg_jitter,
     perc95(packet_loss) as p95_loss,
-    sum(case(quality_rating="Bad" OR quality_rating="Terrible", 1, 0)) as poor_streams
+    sum(eval(case(quality_rating="Bad" OR quality_rating="Terrible", 1, 0))) as poor_streams
     by participant_alias, conference_name, stream_type
 | eval poor_pct=round(poor_streams*100/streams, 1)
 | where poor_pct > 5
@@ -1973,7 +1973,7 @@ index=pexip sourcetype="pexip:conference_history"
     protocol="webrtc", "WebRTC",
     1==1, "Other")
 | stats count as calls, avg(duration) as avg_duration_sec,
-    sum(case(disconnect_reason!="OK" AND disconnect_reason!="Otherendclearedcall", 1, 0)) as failed_calls
+    sum(eval(case(disconnect_reason!="OK" AND disconnect_reason!="Otherendclearedcall", 1, 0))) as failed_calls
     by call_direction, destination_alias
 | eval failure_pct=round(failed_calls*100/calls, 1)
 | where calls > 5

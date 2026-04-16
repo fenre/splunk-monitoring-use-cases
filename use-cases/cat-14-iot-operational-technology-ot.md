@@ -1249,6 +1249,7 @@ index=ot sourcetype="ics:protocol"
 ---
 
 ### UC-14.2.11 · NERC CIP Compliance Checks
+- **Cross-reference:** For comprehensive NERC CIP coverage (70 UCs across CIP-002 through CIP-014), see subcategory **22.13**.
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Compliance
@@ -4697,7 +4698,7 @@ index=nozomi sourcetype="nozomi:nn_asset"
 ```
 - **Implementation:** **Cyber Vision:** Configure Splunk Add-On with API token from Cyber Vision Center; add "Devices" input with polling interval (e.g. 3600s). **Nozomi:** Configure Universal Add-on with Guardian/Vantage API credentials; enable the `nn_asset` data input. Both platforms passively discover assets — use device data as the authoritative OT asset inventory for compliance and security programs.
 - **Visualization:** Asset count single value; vendor breakdown pie chart; device table with firmware versions; site comparison bar chart.
-- **CIM Models:** Asset Inventory
+- **CIM Models:** Compute_Inventory
 
 ---
 
@@ -4787,7 +4788,7 @@ index=nozomi sourcetype="nozomi:nn_asset" risk=*
 ```
 - **Implementation:** Both platforms calculate composite risk scores per device. Track score changes over time. Alert on assets crossing risk thresholds. Use risk scores to prioritize patching and segmentation efforts. Report on overall risk posture trends for management.
 - **Visualization:** Risk distribution gauge; high-risk asset table; risk trend line per site; risk heatmap by asset group.
-- **CIM Models:** Asset Inventory
+- **CIM Models:** Compute_Inventory
 
 ---
 
@@ -5294,6 +5295,7 @@ index=nozomi sourcetype="nozomi:health" log_type="audit"
 ---
 
 ### UC-14.9.22 · IEC 62443 Zone and Conduit Compliance Monitoring
+- **Cross-reference:** For comprehensive IEC 62443 coverage (55 UCs), see subcategory **22.15**.
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Compliance

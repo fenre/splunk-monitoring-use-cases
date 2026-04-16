@@ -1016,7 +1016,7 @@ index=main sourcetype=access_combined
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Capacity
 - **Value:** Horizontal Pod Autoscaler (HPA) replica counts reflect traffic load. Unexpected spikes in replicas without corresponding traffic increases may indicate resource leaks, crash loops, or misconfigured scaling policies. Anomaly detection on replica counts relative to traffic volume catches autoscaler misbehavior before it exhausts cluster capacity.
-- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for Kubernetes (Splunkbase 5765)
+- **App/TA:** Splunk Machine Learning Toolkit (MLTK), Splunk Connect for Kubernetes (Helm chart, github.com/splunk/splunk-connect-for-kubernetes)
 - **Data Sources:** `index=k8s sourcetype=kube:objects:hpa`, `index=k8s sourcetype=kube:metrics`
 - **SPL:**
 ```spl
@@ -1030,7 +1030,7 @@ index=k8s sourcetype="kube:objects:hpa"
 | table _time, metadata.namespace, metadata.name, replicas, avg_cpu
 | sort -replicas
 ```
-- **Implementation:** Collect HPA status objects from the Kubernetes API via the Splunk Add-on for Kubernetes. Model the joint distribution of replica count and CPU utilization per HPA target. Outliers where replica count spikes without proportional CPU increase indicate scaling misbehavior. Correlate with pod restart events and OOMKill signals from `kube:events`. Alert the platform engineering team and include the HPA configuration (min/max replicas, target utilization) for rapid triage. Retrain the model weekly.
+- **Implementation:** Collect HPA status objects from the Kubernetes API via Splunk Connect for Kubernetes. Model the joint distribution of replica count and CPU utilization per HPA target. Outliers where replica count spikes without proportional CPU increase indicate scaling misbehavior. Correlate with pod restart events and OOMKill signals from `kube:events`. Alert the platform engineering team and include the HPA configuration (min/max replicas, target utilization) for rapid triage. Retrain the model weekly.
 - **Visualization:** Dual-axis line chart (replicas vs CPU), Table (anomalous HPAs), Bar chart (replica count distribution by namespace).
 - **CIM Models:** N/A
 

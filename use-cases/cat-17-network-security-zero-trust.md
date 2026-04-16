@@ -1570,7 +1570,7 @@ index=dns sourcetype="umbrella:dns" earliest=-7d
 ```
 - **Implementation:** Enrich with ASN or threat feed for rare domains. Alert on spike in blocks from single identity (possible compromise).
 - **Visualization:** Bar chart (top domains), Table (identity × domain), Pie chart (categories).
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -2104,7 +2104,7 @@ index=casb sourcetype="netskope:alert" alert_type="DLP" earliest=-7d
 ```
 - **Implementation:** Configure the Netskope Add-on iterator input for alerts. Map `dlp_profile` names to data classification. Alert on block actions against critical data categories. Feed repeat offender reports to HR/compliance. Correlate with file hash for forensics.
 - **Visualization:** Bar chart (violations by DLP profile), Table (top users × apps), Stacked bar (actions: block/alert/allow), Line chart (violations/day trend).
-- **CIM Models:** Data_Loss_Prevention
+- **CIM Models:** DLP
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -2518,7 +2518,7 @@ index=dlp sourcetype="cp_log" product="DLP" earliest=-7d
 ```
 - **Implementation:** Map `data_type` to your data classification scheme. Alert on any DLP blocks for PCI/PHI data. Report on repeat offenders. Correlate with CASB events if using Harmony Email & Collaboration.
 - **Visualization:** Bar chart (violations by rule), Table (top users), Stacked bar (actions), Line chart (violations/day).
-- **CIM Models:** Data_Loss_Prevention
+- **CIM Models:** DLP
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -2770,7 +2770,7 @@ index=proxy sourcetype="cloudflare:gateway" earliest=-7d
 ```
 - **Implementation:** Configure Logpush for Gateway logs. Map categories to your acceptable-use policy. Alert on DNS blocks for known-malicious categories. Report on filtering effectiveness and policy coverage.
 - **Visualization:** Bar chart (blocks by category), Table (top blocked domains), Line chart (daily blocks), Pie chart (DNS vs HTTP blocks).
-- **CIM Models:** Web, DNS, Network_Traffic
+- **CIM Models:** Web, Network_Resolution, Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count

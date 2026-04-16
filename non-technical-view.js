@@ -946,45 +946,171 @@ window.NON_TECHNICAL = {
   },
   "22": {
     outcomes: [
-      "See how well you meet the requirements of regulations like GDPR, NIS2, DORA, and more.",
-      "Get evidence for auditors and compliance reviews automatically.",
-      "Spot compliance gaps before regulators or auditors find them."
+      "We monitor compliance with 30+ regulations across GDPR, HIPAA, PCI DSS, NERC CIP, NIST, SOX, DORA, NIS2, and regional frameworks worldwide.",
+      "We automatically collect and organise evidence for auditors, assessors, and regulators — saving weeks of manual preparation.",
+      "We spot compliance gaps, missed deadlines, and control failures before regulators or auditors find them.",
+      "We cover sector-specific requirements for healthcare, finance, energy, critical infrastructure, and government — each with regulation-specific monitoring."
     ],
     areas: [
-      { name: "GDPR compliance", description: "EU General Data Protection Regulation — personal data detection, breach notification, data subject rights, processor oversight, DPIA tracking, consent enforcement, and audit log integrity across all key GDPR articles.", ucs: [
-        { id: "22.1.7", why: "Monitor encryption and pseudonymisation of systems processing personal data — Article 32 requires appropriate security measures." },
-        { id: "22.1.11", why: "Verify that personal data is actually deleted after an erasure request — catching incomplete right-to-be-forgotten execution." },
-        { id: "22.1.12", why: "Automatically estimate how many people are affected by a breach — required for the 72-hour notification to the data protection authority." }
+      { name: "GDPR compliance", description: "EU General Data Protection Regulation — personal data detection, breach notification, data subject rights, processor oversight, DPIA tracking, consent enforcement, international transfers, and privacy-by-design evidence across all key GDPR articles.", ucs: [
+        { id: "22.1.7", why: "We monitor encryption and pseudonymisation of systems processing personal data — Article 32 requires appropriate security measures." },
+        { id: "22.1.11", why: "We verify that personal data is actually deleted after an erasure request — catching incomplete right-to-be-forgotten execution." },
+        { id: "22.1.30", why: "We detect unauthorised cloud services processing personal data — shadow IT that bypasses your GDPR controls." }
       ]},
-      { name: "CCPA privacy", description: "California Consumer Privacy Act — consumer data requests, opt-out tracking, and sale-of-data monitoring.", ucs: [
-        { id: "22.4.1", why: "Track CCPA consumer data requests — access and deletion requests must be handled on time." },
-        { id: "22.1.1", why: "Detect personal data appearing in application logs where it shouldn't be." },
-        { id: "22.1.4", why: "Monitor data retention policy enforcement — storage limitation applies across privacy regulations." }
+      { name: "CCPA privacy", description: "California Consumer Privacy Act — consumer data requests, opt-out tracking, sensitive PI categories, automated decision profiling, dark pattern detection, and sale-of-data monitoring.", ucs: [
+        { id: "22.4.1", why: "We track CCPA consumer data requests — access and deletion requests must be handled on time." },
+        { id: "22.4.12", why: "We monitor automated decision-making systems for bias and profiling — consumers have the right to opt out." },
+        { id: "22.4.20", why: "We detect dark pattern designs in consent flows — deceptive UI that undermines genuine consumer choice." }
       ]},
-      { name: "NIS2 compliance", description: "EU NIS2 directive — incident reporting timelines, supply chain risk, encryption monitoring, MFA enforcement, training tracking, and board-level governance evidence across all ten Article 21 measures.", ucs: [
-        { id: "22.2.1", why: "Track NIS2 incident detection and 24-hour early warning reporting obligations." },
-        { id: "22.2.9", why: "Dashboard the effectiveness of all cybersecurity measures — MFA, patching, backups, training — as Article 21(2)(f) requires." },
-        { id: "22.2.12", why: "Monitor multi-factor authentication enforcement and secure communications across critical systems." }
+      { name: "NIS2 compliance", description: "EU NIS2 directive — incident reporting timelines, supply chain risk, encryption monitoring, MFA enforcement, training tracking, OT-specific requirements, and board-level governance evidence.", ucs: [
+        { id: "22.2.1", why: "We track NIS2 incident detection and 24-hour early warning reporting obligations." },
+        { id: "22.2.9", why: "We dashboard the effectiveness of all cybersecurity measures — MFA, patching, backups, training — as Article 21 requires." },
+        { id: "22.2.35", why: "We validate OT network segmentation for essential entities — industrial control systems have specific NIS2 requirements." }
       ]},
-      { name: "Cybersecurity frameworks", description: "ISO 27001 and NIST CSF — measuring your security posture against recognised standards.", ucs: [
-        { id: "22.6.1", why: "Monitor how well your ISO 27001 security controls are working across the board." },
-        { id: "22.7.1", why: "Dashboard your NIST CSF maturity across all five functions — Identify, Protect, Detect, Respond, Recover." },
-        { id: "22.2.6", why: "Track risk analysis and security policy evidence — a requirement shared across NIS2, ISO 27001, and NIST." }
+      { name: "ISO 27001 & NIST CSF", description: "Measuring your security posture against ISO 27001:2022 Annex A controls and all six NIST CSF 2.0 functions — Govern, Identify, Protect, Detect, Respond, Recover.", ucs: [
+        { id: "22.6.1", why: "We monitor how well your ISO 27001 security controls are working across the board." },
+        { id: "22.7.1", why: "We dashboard your NIST CSF maturity across all six functions — including the new Govern function." },
+        { id: "22.6.20", why: "We track Annex A.8 technological controls — privileged access, logging, network segmentation, and cryptography." }
       ]},
-      { name: "DORA digital resilience", description: "EU Digital Operational Resilience Act for financial services — ICT risk management, incident reporting timelines, third-party provider oversight, backup testing, resilience testing, and management body governance evidence.", ucs: [
-        { id: "22.3.11", why: "Automatically classify incidents as major using DORA's seven criteria — triggering the 4-hour reporting deadline." },
-        { id: "22.3.14", why: "Monitor ICT provider SLA performance — ensuring third-party services meet contractual resilience targets." },
-        { id: "22.3.19", why: "Track management body ICT governance evidence — board briefings, training, and risk framework approval." }
+      { name: "DORA digital resilience", description: "EU Digital Operational Resilience Act for financial services — ICT risk management, incident reporting, third-party oversight, TLPT testing, concentration risk, information sharing, and exit strategies.", ucs: [
+        { id: "22.3.11", why: "We automatically classify incidents as major using DORA's seven criteria — triggering the 4-hour reporting deadline." },
+        { id: "22.3.25", why: "We track threat-led penetration testing (TLPT) lifecycle — from scoping through execution to remediation evidence." },
+        { id: "22.3.21", why: "We monitor ICT concentration risk — how dependent you are on a single cloud or service provider." }
       ]},
-      { name: "Financial regulation", description: "MiFID II and SOC 2 — transaction reporting and trust service compliance for financial services.", ucs: [
-        { id: "22.5.1", why: "Monitor MiFID II trade reporting completeness — missing reports mean regulatory fines." },
-        { id: "22.8.1", why: "Continuous monitoring of SOC 2 trust service criteria — evidence collection for auditors." },
-        { id: "22.3.1", why: "ICT risk management dashboard — track residual risk across business entities." }
+      { name: "MiFID II & SOC 2", description: "MiFID II algorithmic trading controls, best execution, market abuse detection, and SOC 2 Trust Services Criteria across all CC categories, availability, confidentiality, and processing integrity.", ucs: [
+        { id: "22.5.1", why: "We monitor MiFID II trade reporting completeness — missing reports mean regulatory fines." },
+        { id: "22.8.1", why: "We continuously monitor SOC 2 trust service criteria — collecting evidence for auditors." },
+        { id: "22.5.10", why: "We detect algorithmic trading circuit breaker events — required controls to prevent market disruption." }
+      ]},
+      { name: "HIPAA healthcare", description: "We monitor ePHI access, security safeguards, breach notification timelines, business associate oversight, and privacy rule compliance across Administrative, Technical, and Physical safeguards.", ucs: [
+        { id: "22.10.1", why: "We track risk analysis completion and risk management plans — the foundation of HIPAA Security Rule compliance." },
+        { id: "22.10.33", why: "We detect when staff access patient records they are not treating — preventing snooping and privacy violations." },
+        { id: "22.10.43", why: "We track breach discovery timelines — ensuring the 60-day notification requirement is met." }
+      ]},
+      { name: "PCI DSS v4.0", description: "All 12 PCI DSS v4.0 requirements — network security, secure configurations, data protection, encryption, malware defence, secure development, access control, authentication, physical security, logging, testing, and security policies.", ucs: [
+        { id: "22.11.1", why: "We review network security controls around payment systems — so assessors see active governance of card data boundaries." },
+        { id: "22.11.14", why: "We detect payment card numbers in logs — so stored data stays within retention and masking rules." },
+        { id: "22.11.67", why: "We track all access to payment systems — reconstructing who did what for investigations and audits." }
+      ]},
+      { name: "SOX / ITGC", description: "Sarbanes-Oxley IT General Controls — logical access, change management, computer operations, financial system controls, and audit evidence for financial reporting integrity.", ucs: [
+        { id: "22.12.1", why: "We track user provisioning and deprovisioning for financial systems — access must match job responsibilities." },
+        { id: "22.12.8", why: "We monitor emergency changes to production financial systems — each must be retrospectively approved." },
+        { id: "22.12.22", why: "We verify financial close process controls — ensuring data integrity during period-end processing." }
+      ]},
+      { name: "NERC CIP power grid", description: "North American Electric Reliability Corporation Critical Infrastructure Protection — CIP-002 through CIP-014 covering BES Cyber Systems, electronic security perimeters, physical security, personnel, change management, incident reporting, and supply chain.", ucs: [
+        { id: "22.13.1", why: "We validate BES Cyber System categorisation — ensuring all critical assets are properly identified and classified." },
+        { id: "22.13.15", why: "We monitor Electronic Security Perimeter boundaries — detecting unauthorised traffic traversal into control system networks." },
+        { id: "22.13.38", why: "We track cyber security incident identification and classification — supporting CIP-008 reporting requirements." }
+      ]},
+      { name: "NIST 800-53", description: "Comprehensive NIST 800-53 Rev. 5 control monitoring across Audit, Access Control, Identification, System Integrity, Incident Response, Configuration, Assessment, Communications, Risk, and Contingency families.", ucs: [
+        { id: "22.14.1", why: "We verify that all required events are being logged per AU-2 — the foundation of any audit programme." },
+        { id: "22.14.16", why: "We monitor account management lifecycle — creation, modification, disabling, and removal per AC-2." },
+        { id: "22.14.41", why: "We track system monitoring activities per SI-4 — detecting anomalies and unauthorized access attempts." }
+      ]},
+      { name: "IEC 62443 industrial", description: "Industrial automation and control system security — zones and conduits, security requirements from SR 1.1 through SR 5.4, component security, and IACS programme evidence.", ucs: [
+        { id: "22.15.1", why: "We verify the security programme covers all industrial automation systems — not just IT-connected ones." },
+        { id: "22.15.46", why: "We monitor zone boundary traffic — ensuring only approved protocols cross between security zones." },
+        { id: "22.15.11", why: "We track human user identification and authentication on control systems — SR 1.1 requires this for all IACS users." }
+      ]},
+      { name: "TSA Pipeline security", description: "Post-Colonial Pipeline TSA Security Directives — network segmentation, access control, incident response, architecture reviews, and continuous monitoring for pipeline SCADA systems.", ucs: [
+        { id: "22.16.1", why: "We validate IT/OT segmentation for pipeline control systems — the core TSA security directive requirement." },
+        { id: "22.16.7", why: "We track OT incident detection and TSA reporting compliance — pipeline incidents must be reported promptly." },
+        { id: "22.16.19", why: "We monitor pipeline SCADA system availability — ensuring continuous operation of critical control systems." }
+      ]},
+      { name: "FDA Part 11 pharma", description: "Electronic records and signatures for regulated pharmaceutical and medical device environments — audit trails, operator attribution, data integrity (ALCOA+), and GxP system validation.", ucs: [
+        { id: "22.17.1", why: "We verify audit trail completeness for all electronic records — every change must be captured with who, what, when." },
+        { id: "22.17.11", why: "We track operator attribution for all system actions — Part 11 requires knowing exactly who performed each step." },
+        { id: "22.17.16", why: "We monitor ALCOA+ data integrity principles — ensuring records are Attributable, Legible, Contemporaneous, Original, and Accurate." }
+      ]},
+      { name: "API 1164 pipeline SCADA", description: "American Petroleum Institute standard for SCADA security — RTU/HMI access, command authentication, field device integrity, network segmentation, and pipeline cybersecurity compliance.", ucs: [
+        { id: "22.18.1", why: "We monitor operator authentication on SCADA systems — only authorised personnel should control pipeline operations." },
+        { id: "22.18.8", why: "We verify SCADA command authentication — critical control commands must be authorised before execution." },
+        { id: "22.18.22", why: "We track firmware versions and configuration changes on field devices — detecting unauthorised modifications to PLCs and RTUs." }
+      ]},
+      { name: "FISMA / FedRAMP", description: "US Federal information security — continuous monitoring, authorisation to operate, POA&M management, PIV authentication, and federal incident reporting.", ucs: [
+        { id: "22.19.1", why: "We track ISCM dashboard metrics — the continuous monitoring programme that underpins every federal ATO." },
+        { id: "22.19.6", why: "We manage Plan of Action and Milestones — tracking known weaknesses and remediation commitments." },
+        { id: "22.19.11", why: "We ensure federal incident reporting timelines are met — US-CERT notification within required timeframes." }
+      ]},
+      { name: "CMMC defence", description: "Cybersecurity Maturity Model Certification — protecting Controlled Unclassified Information in the defence supply chain with Level 2 and Level 3 practices.", ucs: [
+        { id: "22.20.1", why: "We track CUI identification and marking — the starting point for protecting defence information." },
+        { id: "22.20.11", why: "We monitor for advanced persistent threats targeting CUI environments — Level 3 enhanced detection." },
+        { id: "22.20.16", why: "We collect self-assessment evidence and practice implementation scores — readiness for CMMC certification." }
+      ]},
+      { name: "EU AI Act", description: "High-risk AI system logging, traceability, human oversight, conformity assessment, and post-market monitoring under the EU Artificial Intelligence Act.", ucs: [
+        { id: "22.21.1", why: "We ensure high-risk AI systems maintain automatic recording of events — Article 12 requires comprehensive logging." },
+        { id: "22.21.6", why: "We track model version history and training data lineage — traceability is mandatory for high-risk AI." },
+        { id: "22.21.11", why: "We log human override actions on AI decisions — Article 14 requires meaningful human oversight capability." }
+      ]},
+      { name: "PSD2 payments", description: "EU Payment Services Directive — strong customer authentication, fraud monitoring, Open Banking API security, transaction integrity, and incident reporting to national authorities.", ucs: [
+        { id: "22.22.1", why: "We monitor strong customer authentication challenge rates — ensuring SCA is applied where required." },
+        { id: "22.22.7", why: "We detect transaction fraud patterns — real-time scoring and unusual payment behaviour." },
+        { id: "22.22.13", why: "We track third-party provider API access — monitoring who uses your Open Banking interfaces and how." }
+      ]},
+      { name: "EU Cyber Resilience Act", description: "Product security requirements — security-by-default evidence, vulnerability handling, SBOM maintenance, incident reporting to ENISA, and secure development lifecycle.", ucs: [
+        { id: "22.23.1", why: "We verify security-by-default configurations in products — the CRA requires products to ship secure out of the box." },
+        { id: "22.23.6", why: "We track coordinated vulnerability disclosure — handling reported vulnerabilities within required timelines." },
+        { id: "22.23.11", why: "We maintain and monitor Software Bills of Materials — tracking component vulnerabilities across your product portfolio." }
+      ]},
+      { name: "eIDAS 2.0 trust services", description: "EU electronic identification — qualified trust service audit trails, EU Digital Identity Wallet security, timestamping integrity, and certificate lifecycle management.", ucs: [
+        { id: "22.24.1", why: "We audit certificate issuance and revocation — qualified trust services must maintain complete audit trails." },
+        { id: "22.24.5", why: "We track EU Digital Identity Wallet issuance and credential presentations — monitoring the security of wallet operations." },
+        { id: "22.24.9", why: "We verify qualified timestamp accuracy — timestamps must be traceable to coordinated universal time." }
+      ]},
+      { name: "AML / CFT", description: "Anti-money laundering and counter-terrorist financing — transaction monitoring, suspicious activity reports, KYC lifecycle, sanctions screening, PEP monitoring, and institution-wide risk assessment.", ucs: [
+        { id: "22.25.1", why: "We detect structuring and smurfing patterns — transactions deliberately kept below reporting thresholds." },
+        { id: "22.25.8", why: "We track SAR filing timelines — suspicious activity reports must be filed within regulatory deadlines." },
+        { id: "22.25.18", why: "We perform real-time sanctions screening — every transaction checked against current sanctions lists." }
+      ]},
+      { name: "Norwegian regulations", description: "Sikkerhetsloven national security, Kraftberedskapsforskriften power preparedness, Petroleumsforskriften oil and gas HSE, and Personopplysningsloven data protection specific to Norway.", ucs: [
+        { id: "22.26.1", why: "We monitor classified information systems per Sikkerhetsloven — protecting national security information." },
+        { id: "22.26.6", why: "We track power system availability and SCADA access — NVE requires preparedness evidence for grid operators." },
+        { id: "22.26.11", why: "We monitor offshore platform control systems — PSA requires safety-critical system integrity monitoring." }
+      ]},
+      { name: "UK NIS & FCA/PRA", description: "UK NIS Regulations for essential services, FCA operational resilience, PRA outsourcing requirements, Senior Managers and Certification Regime, and Cyber Essentials certification.", ucs: [
+        { id: "22.27.1", why: "We monitor security measures for operators of essential services — UK NIS requires demonstrable security." },
+        { id: "22.27.11", why: "We track important business service resilience — FCA requires firms to set and test impact tolerances." },
+        { id: "22.27.19", why: "We monitor material outsourcing registers — PRA requires oversight of third-party dependencies." }
+      ]},
+      { name: "German KRITIS / BSI", description: "IT-Sicherheitsgesetz 2.0 critical infrastructure, BSI-KritisV sector thresholds, BSI IT-Grundschutz methodology, and BAIT/KAIT banking and insurance IT governance.", ucs: [
+        { id: "22.28.1", why: "We track critical infrastructure operator reporting to BSI — incidents must be reported within 24 hours." },
+        { id: "22.28.6", why: "We monitor KRITIS asset inventory and sector threshold compliance — operators must know what they protect." },
+        { id: "22.28.11", why: "We track BSI IT-Grundschutz module compliance — the German standard for baseline security." }
+      ]},
+      { name: "APAC data protection", description: "Data protection across Asia-Pacific — China PIPL, Singapore PDPA, Japan APPI, Thailand PDPA, and Korea K-ISMS — covering cross-border transfers, breach notification, security safeguards, and consent management.", ucs: [
+        { id: "22.29.1", why: "We enforce data localisation requirements under China PIPL Article 38 — personal data must stay within borders unless transfer conditions are met." },
+        { id: "22.29.7", why: "We track breach notification timelines by jurisdiction — each APAC country has different requirements." },
+        { id: "22.29.19", why: "We monitor DPO appointment compliance — several APAC laws require designated data protection officers." }
+      ]},
+      { name: "APAC financial regulation", description: "Financial sector technology risk across Asia-Pacific — MAS TRM Singapore, HKMA Hong Kong, RBI India, and APRA CPS 234 Australia.", ucs: [
+        { id: "22.30.1", why: "We monitor technology risk management per MAS guidelines — Singapore financial institutions must demonstrate IT governance." },
+        { id: "22.30.8", why: "We track cybersecurity assessments per HKMA requirements — Hong Kong banks must regularly test their defences." },
+        { id: "22.30.20", why: "We verify APRA CPS 234 information security capability — Australian financial institutions must maintain and test controls." }
+      ]},
+      { name: "Australia & New Zealand", description: "Privacy Act and Notifiable Data Breaches scheme, ASD Essential Eight maturity, APRA CPS 234 detail, and New Zealand ISM compliance.", ucs: [
+        { id: "22.31.1", why: "We assess notifiable data breaches under Australian law — determining if a breach is likely to cause serious harm." },
+        { id: "22.31.6", why: "We monitor ASD Essential Eight controls — application control, patching, MFA, and admin privilege restriction." },
+        { id: "22.31.14", why: "We track CPS 234 information security roles and control testing — Australian prudential requirements for financial institutions." }
+      ]},
+      { name: "Americas regulations", description: "LGPD Brazil data protection, FISMA/FedRAMP federal compliance, CMMC defence supply chain, and CJIS criminal justice information security.", ucs: [
+        { id: "22.32.1", why: "We track LGPD consent management — Brazilian data protection requires documented legal basis for processing." },
+        { id: "22.32.9", why: "We monitor continuous monitoring metrics for FedRAMP — federal cloud authorisations require ongoing compliance evidence." },
+        { id: "22.32.22", why: "We log access to criminal justice information — CJIS requires advanced authentication and complete audit trails." }
+      ]},
+      { name: "Middle East cybersecurity", description: "National cybersecurity frameworks — UAE NESA, Saudi Arabia SAMA and PDPL, Qatar QCB — covering critical infrastructure, financial services, and data protection requirements.", ucs: [
+        { id: "22.33.1", why: "We track UAE national cybersecurity standard compliance — NESA requires critical infrastructure operators to demonstrate security." },
+        { id: "22.33.6", why: "We monitor SAMA cybersecurity framework compliance — Saudi financial institutions must meet specific security controls." },
+        { id: "22.33.11", why: "We enforce Saudi PDPL data protection — personal data processing must comply with the new privacy law." }
+      ]},
+      { name: "SWIFT CSP", description: "SWIFT Customer Security Programme — secure zone protection, operator account control, system hardening, intrusion detection, and annual attestation evidence.", ucs: [
+        { id: "22.34.1", why: "We monitor the SWIFT secure zone environment — protecting the infrastructure that processes financial messages." },
+        { id: "22.34.4", why: "We track operator authentication and session integrity — every SWIFT operator action must be attributable." },
+        { id: "22.34.10", why: "We collect annual KYC-SA attestation evidence — demonstrating compliance to counterparties." }
       ]},
       { name: "Compliance trending", description: "We chart posture scores, audit closure, control tests, incident response time, and policy violations over time so you see direction, not a single snapshot.", ucs: [
         { id: "22.9.1", why: "We track how overall compliance scores move across major frameworks quarter by quarter — so leadership sees whether posture is improving." },
         { id: "22.9.2", why: "We watch open versus closed audit findings and how long fixes take — so backlogs and slow remediation surface before the next audit." },
-        { id: "22.9.3", why: "We monitor pass rates by control domain — so weak domains get attention before an assessment finds them first." }
+        { id: "22.9.6", why: "We trend framework-specific compliance over time — so you see which regulation is improving and which needs attention." }
       ]}
     ]
   },

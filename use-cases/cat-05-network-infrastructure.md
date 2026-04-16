@@ -4583,7 +4583,7 @@ index=dns sourcetype="infoblox:dns" OR sourcetype="MSAD:NT6:DNS"
 ```
 - **Implementation:** Forward DNS query logs. For Windows DNS: enable analytical logging. For Infoblox: configure syslog output. Track queries per second over time.
 - **Visualization:** Line chart (QPS over time), Single value (current QPS), Table.
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -4610,7 +4610,7 @@ index=dns reply_code="NXDOMAIN" OR rcode="3"
 ```
 - **Implementation:** Monitor DNS response codes. Baseline NXDOMAIN rates. Alert when exceeding 3 standard deviations. Investigate the querying clients and domain patterns.
 - **Visualization:** Line chart with threshold, Table (top NXDOMAIN clients), Bar chart (top queried NX domains).
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -4657,7 +4657,7 @@ index=dns
 ```
 - **Implementation:** Monitor for anomalously long DNS queries (>50 chars), high query volumes to single domains, and TXT record queries. Baseline normal DNS patterns.
 - **Visualization:** Table (client, domain, query length, volume), Scatter plot, Bar chart.
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count dc(DNS.query) as unique_queries
@@ -4720,7 +4720,7 @@ index=dns sourcetype="infoblox:audit" ("Added" OR "Deleted" OR "Modified") AND (
 ```
 - **Implementation:** Forward DNS server audit logs. Alert on changes to critical domains. Correlate with change tickets.
 - **Visualization:** Table (record, action, who, when), Timeline, Single value.
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -4746,7 +4746,7 @@ index=dns sourcetype="dns:latency"
 ```
 - **Implementation:** Use scripted input running `dig` queries against DNS servers measuring response time. Or enable DNS analytical logging with timing. Alert when average latency >50ms.
 - **Visualization:** Line chart per server, Gauge, Table.
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -4773,7 +4773,7 @@ index=network sourcetype="infoblox:dns"
 ```
 - **Implementation:** Enable query logging on DNS resolvers. Track cache hit vs. miss ratio. Alert when hit ratio drops below 70%. Investigate top domains causing misses.
 - **Visualization:** Line chart (hit ratio over time), Single value (current ratio), Table (top miss domains).
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -4799,7 +4799,7 @@ index=network sourcetype="named" "DNSSEC" ("validation failure" OR "SERVFAIL" OR
 ```
 - **Implementation:** Enable DNSSEC validation logging. Monitor for validation failures by domain. Cross-reference with known domain registrations. Alert on spikes in DNSSEC failures.
 - **Visualization:** Table (domain, failure count), Timechart (failure rate), Bar chart.
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count
@@ -4848,7 +4848,7 @@ index=network sourcetype="stream:dns"
 ```
 - **Implementation:** Capture DNS query types via Splunk Stream or DNS server logs. Baseline normal distribution (typically >80% A/AAAA). Alert on abnormal increases in TXT, NULL, or ANY queries.
 - **Visualization:** Pie chart (query type distribution), Timechart (by type), Table.
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 - **CIM SPL:**
 ```spl
 | tstats `summariesonly` count

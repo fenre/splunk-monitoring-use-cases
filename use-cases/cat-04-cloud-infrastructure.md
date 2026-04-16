@@ -2489,7 +2489,7 @@ index=network sourcetype="dns:query" zone_type="private"
 ```
 - **Implementation:** Forward DNS resolver logs from VNet-linked zones or Azure Firewall DNS proxy. Alert on high NXDOMAIN for PE FQDNs. Validate zone links and auto-registration on new NICs.
 - **Visualization:** Table (fqdn, fail %), Timeline (DNS errors), Map (source subnet).
-- **CIM Models:** DNS
+- **CIM Models:** Network_Resolution
 
 ---
 
