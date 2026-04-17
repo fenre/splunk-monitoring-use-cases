@@ -80,7 +80,41 @@ jobs:
       - name: Build check (catalog regeneration)
         run: |
           python3 build.py
-          if git diff --name-only | grep -q 'data.js\|catalog.json'; then
-            echo "::error::data.js or catalog.json is out of date — run build.py and commit"
+          CHANGED=$(git diff --name-only -- data.js catalog.json llms.txt llm.txt llms-full.txt sitemap.xml 'api/*.json' provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::Generated files are out of date — run build.py and commit: $CHANGED"
             exit 1
           fi
+
+      - name: Quality metadata coverage (warn-only)
+        # Reports coverage of References, Known false positives, Status,
+        # Last reviewed, Splunk versions and Reviewer fields.  Runs after
+        # `build.py` so catalog.json is fresh.  Currently warn-only;
+        # switch to --strict once the non-mandatory fields are broadly
+        # populated (tracked by the Gold Standard roadmap, v5.2).
+        run: python3 scripts/audit_quality_metadata.py
+
+      - name: Splunk Cloud compatibility audit
+        # Scans every UC's SPL and every packaged .conf for patterns that
+        # fail Splunk Cloud vetting (custom commands, scripted inputs,
+        # deprecated SPL, etc.).  Regenerates docs/splunk-cloud-compat.md
+        # and test-results/splunk-cloud-compat.json.  Fails on any
+        # severity=fail; warn-only results are surfaced in the job log.
+        run: python3 scripts/audit_splunk_cloud_compat.py
+
+      - name: Splunk Cloud audit — generated report is committed
+        run: |
+          CHANGED=$(git diff --name-only -- docs/splunk-cloud-compat.md)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::docs/splunk-cloud-compat.md is out of date — run scripts/audit_splunk_cloud_compat.py and commit"
+            git --no-pager diff --stat -- docs/splunk-cloud-compat.md
+            exit 1
+          fi
+
+      - name: Upload Splunk Cloud audit JSON
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: splunk-cloud-compat
+          path: test-results/splunk-cloud-compat.json
+          if-no-files-found: ignore

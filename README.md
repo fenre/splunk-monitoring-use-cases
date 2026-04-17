@@ -8,6 +8,8 @@ Browse them in the **interactive dashboard** or use the **machine-readable catal
 
 **Feedback:** In the dashboard, open any use case (technical or plain-language view) and click **Report issue on GitHub** to open a new issue with the UC id, source markdown link, and current page URL pre-filled. Forks can set `window.SITE_CUSTOM.siteRepoUrl` in `index.html` to point at their repository.
 
+**Want to replicate this product** for another vendor, query language, or content domain? Start at **[docs/DESIGN.md](docs/DESIGN.md)** — the full product design document — and the minimum-viable fork under **[templates/replication-starter/](templates/replication-starter/)**. See also the [replication guide](docs/replication-guide.md) and [architecture decision records](docs/adr/).
+
 ---
 
 ## Getting Started
@@ -50,7 +52,7 @@ Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over
 
 ### Splunk Dashboard Studio (optional)
 
-The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which has **one labeled chart per** Quick-Start use case (**44** panels = top 2 × 22 categories from `use-cases/INDEX.md`). See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`). Regenerate the JSON with **`scripts/generate_catalog_dashboard.py`** after changing Quick Start lists.
+The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which has **one labeled chart per** Quick-Start use case (**46** panels = top 2 × 23 categories from `use-cases/INDEX.md`). See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`). Regenerate the JSON with **`scripts/generate_catalog_dashboard.py`** after changing Quick Start lists.
 
 ### Data Sizing Assessment Tool
 
@@ -186,7 +188,7 @@ Additional fields are available for security use cases (MITRE ATT&CK, detection 
 
 ## Machine-Readable Catalog
 
-`catalog.json` contains all use case data in JSON format for scripting and integrations. See [docs/catalog-schema.md](docs/catalog-schema.md) for the schema and usage examples.
+`catalog.json` contains all use case data in JSON format for scripting and integrations. See [docs/catalog-schema.md](docs/catalog-schema.md) for the schema and usage examples. Read-only HTTP access is documented in [`openapi.yaml`](openapi.yaml) and rendered interactively at [`/api-docs.html`](api-docs.html).
 
 ```python
 import json
@@ -198,6 +200,29 @@ for cat in catalog["DATA"]:
     for sub in cat["s"]:
         for uc in sub["u"]:
             print(f"UC-{uc['i']}: {uc['n']} ({uc.get('c', 'N/A')})")
+```
+
+---
+
+## Splunk Content Packs
+
+Every release ships three self-contained Splunk apps built from the same `catalog.json`:
+
+| Pack | File | Contents |
+|------|------|----------|
+| Technology Add-on | `TA-splunk-use-cases-<ver>.spl` | ~115 Quick-Start saved searches, per-category index macros, eventtype aliases |
+| ITSI content pack | `DA-ITSI-monitoring-use-cases-<ver>.spl` | 6 KPI base searches, 3 threshold templates, 4 KPI templates, 3 service templates |
+| ES content pack | `DA-ESS-monitoring-use-cases-<ver>.spl` | 650 correlation searches, MITRE ATT&CK governance, analytic stories, CIM eventtypes/tags |
+
+All three are **disabled by default**, pass AppInspect cloud vetting, and are published as assets on each GitHub Release. See [docs/enterprise-deployment.md](docs/enterprise-deployment.md) for prerequisites, SHC install, macro tuning and upgrade / rollback procedures.
+
+Build the packs locally:
+
+```bash
+python3 build.py            # regenerate catalog.json + api/
+scripts/package_ta.sh dist/
+scripts/package_itsi.sh dist/
+scripts/package_es.sh dist/
 ```
 
 ---
@@ -227,7 +252,22 @@ A GitHub Actions workflow (`.github/workflows/pages.yml`) is included for automa
 2. Update `use-cases/INDEX.md` if adding quick-start entries or changing category metadata
 3. Run `python3 build.py` to regenerate `data.js` and `catalog.json`
 4. Run `python3 validate_md.py` to verify structure
-5. Open a pull request
+5. Open a pull request — the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) walks you through the checklist
+
+See also:
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — more detailed contribution guidance
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community expectations
+- [`GOVERNANCE.md`](GOVERNANCE.md) — how decisions are made
+- [`SECURITY.md`](SECURITY.md) — how to report security vulnerabilities
+- [`ROADMAP.md`](ROADMAP.md) — what's next for the project
+- [`samples/README.md`](samples/README.md) — sample-event fixtures and how to contribute new ones
+- [`docs/samples-coverage.md`](docs/samples-coverage.md) — current test-fixture coverage per UC
+- [`docs/splunk-cloud-compat.md`](docs/splunk-cloud-compat.md) — Splunk Cloud compatibility audit (auto-generated)
+- [`docs/provenance-coverage.md`](docs/provenance-coverage.md) — per-UC source classification (auto-generated)
+- [`docs/scorecard.md`](docs/scorecard.md) — per-category quality grade sheet (auto-generated)
+
+If you use this catalog in research or production, please cite it — metadata is in [`CITATION.cff`](CITATION.cff).
 
 ---
 
@@ -243,7 +283,12 @@ A GitHub Actions workflow (`.github/workflows/pages.yml`) is included for automa
 | [Catalog Schema](docs/catalog-schema.md) | catalog.json structure and scripting examples |
 | [GitHub Pages Setup](docs/github-pages-setup.md) | Step-by-step hosting instructions |
 | [Splunk Apps Comparison](docs/splunk-apps-use-cases-comparison.md) | How this repo relates to IT Essentials, ITSI content packs, and ESCU |
+| [Enterprise Deployment](docs/enterprise-deployment.md) | Install the TA / ITSI / ES content packs in production Splunk environments |
+| [Product Design](docs/DESIGN.md) | Full product design document describing architecture and replication targets |
+| [Replication Guide](docs/replication-guide.md) | Step-by-step guide to porting the platform to another stack |
+| [Architecture Decisions](docs/adr/) | ADRs capturing static-site, catalog.json and transcript-log choices |
 | [Architecture Diagrams](CODEBASE-DIAGRAM.md) | Mermaid diagrams of the build pipeline and data flow |
+| [Catalog API (OpenAPI 3.1)](openapi.yaml) &nbsp;/&nbsp; [Swagger UI](api-docs.html) | Interactive API reference for the JSON endpoints |
 
 ---
 

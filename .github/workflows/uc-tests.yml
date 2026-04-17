@@ -1,0 +1,178 @@
+name: UC Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "samples/**"
+      - "catalog.json"
+      - "scripts/run_uc_tests.py"
+      - "scripts/samples_index.py"
+      - ".github/workflows/uc-tests.yml"
+  pull_request:
+    paths:
+      - "samples/**"
+      - "catalog.json"
+      - "scripts/run_uc_tests.py"
+      - "scripts/samples_index.py"
+      - ".github/workflows/uc-tests.yml"
+  workflow_dispatch:
+    inputs:
+      uc_filter:
+        description: 'Glob on UC directory names (e.g. "UC-1.*"). Empty = run all with positive.log.'
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  # Quick pre-flight that runs on every push/PR and does NOT require a Splunk
+  # instance. Validates manifests and does a dry-run of the test runner.
+  validate:
+    name: Validate fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install --quiet "pyyaml>=6.0"
+
+      - name: Validate sample manifests
+        run: python3 scripts/samples_index.py --strict
+
+      - name: Dry-run test runner
+        run: python3 scripts/run_uc_tests.py --dry-run
+
+      - name: Upload dry-run JUnit artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-dry-run
+          path: test-results/
+
+  # End-to-end job that spins up Splunk Enterprise and runs every eligible
+  # UC against its sample fixture. Gated behind `workflow_dispatch` and
+  # `main` pushes to control runner cost.
+  splunk-e2e:
+    name: Run against Splunk Enterprise
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      splunk:
+        # Pinned digest is updated by Dependabot via the
+        # docker ecosystem entry in .github/dependabot.yml.
+        image: splunk/splunk:9.4.1
+        env:
+          SPLUNK_START_ARGS: --accept-license
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.UC_TEST_HEC_TOKEN }}
+        ports:
+          - 8000:8000
+          - 8088:8088
+          - 8089:8089
+        options: >-
+          --health-cmd "curl -ksSf https://localhost:8089/services/server/info --user admin:$SPLUNK_PASSWORD || exit 1"
+          --health-interval 15s
+          --health-timeout 5s
+          --health-retries 40
+          --health-start-period 120s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install --quiet "pyyaml>=6.0"
+
+      - name: Wait for Splunk
+        env:
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+        run: |
+          for i in {1..60}; do
+            if curl -ksSf -u "admin:${SPLUNK_PASSWORD}" \
+                 https://localhost:8089/services/server/info >/dev/null 2>&1; then
+              echo "Splunk is up."
+              exit 0
+            fi
+            echo "  waiting ($i)..."
+            sleep 10
+          done
+          echo "Splunk did not become healthy in time."
+          exit 1
+
+      - name: Create indexes referenced by manifests
+        env:
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+        run: |
+          INDEXES=$(python3 -c "
+          import glob, os, sys
+          sys.path.insert(0, 'scripts')
+          from samples_index import _load_yaml
+          names = set()
+          for m in glob.glob('samples/UC-*/manifest.yaml'):
+              try:
+                  names.add(_load_yaml(__import__('pathlib').Path(m)).get('index'))
+              except Exception:
+                  pass
+          print(' '.join(sorted(n for n in names if n and not n.startswith('_'))))
+          ")
+          for IDX in $INDEXES; do
+            echo "Creating index $IDX"
+            curl -ksS -u "admin:${SPLUNK_PASSWORD}" \
+              -d "name=${IDX}" \
+              https://localhost:8089/services/data/indexes >/dev/null || true
+          done
+
+      - name: Enable HEC
+        env:
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.UC_TEST_HEC_TOKEN }}
+        run: |
+          curl -ksS -u "admin:${SPLUNK_PASSWORD}" \
+            -X POST \
+            -d "disabled=0" \
+            -d "enableSSL=1" \
+            https://localhost:8089/services/data/inputs/http/http >/dev/null
+          curl -ksS -u "admin:${SPLUNK_PASSWORD}" \
+            -X POST \
+            -d "name=uc-tests" \
+            -d "token=${SPLUNK_HEC_TOKEN}" \
+            -d "index=main" \
+            -d "indexes=main,os,wineventlog,aws,k8s,network,firewall,ids,devops,_internal" \
+            -d "disabled=0" \
+            https://localhost:8089/servicesNS/admin/splunk_httpinput/data/inputs/http >/dev/null \
+            || echo "(HEC token may already exist)"
+
+      - name: Run UC tests
+        env:
+          SPLUNK_URL: https://localhost:8089
+          SPLUNK_HEC_URL: https://localhost:8088
+          SPLUNK_HEC_TOKEN: ${{ secrets.UC_TEST_HEC_TOKEN }}
+          SPLUNK_USER: admin
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+          SPLUNK_VERIFY_TLS: "0"
+        run: |
+          FILTER='${{ github.event.inputs.uc_filter }}'
+          if [ -n "$FILTER" ]; then
+            python3 scripts/run_uc_tests.py --filter "$FILTER"
+          else
+            python3 scripts/run_uc_tests.py
+          fi
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-splunk-e2e
+          path: test-results/

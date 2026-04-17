@@ -2015,6 +2015,10 @@ def parse_category_file(filepath):
                 "hw": "",       # Equipment Models — specific hardware models (searchable)
                 "dma": "",    # data model acceleration note (e.g. "Enable for Performance, Network_Traffic")
                 "schema": "", # schema context: CIM, OCSF, or e.g. "OCSF: authentication"
+                "status": "",   # quality status: verified | community | draft (v5.1+)
+                "reviewed": "", # last reviewed date, YYYY-MM-DD (v5.1+)
+                "sver": "",     # Splunk versions, e.g. "9.2+" or "Cloud" (v5.1+)
+                "rby": "",      # Reviewer handle or "N/A" (v5.1+)
             }
             if current_sub is not None:
                 current_sub["u"].append(current_uc)
@@ -2138,6 +2142,19 @@ def parse_category_file(filepath):
                     regs = [r.strip() for r in field_value.split(",") if r.strip()]
                     if regs:
                         current_uc["regs"] = regs
+                elif field_name == "status":
+                    val = field_value.lower().strip()
+                    if val in ("verified", "community", "draft"):
+                        current_uc["status"] = val
+                elif field_name in ("last reviewed", "last-reviewed", "reviewed"):
+                    val = field_value.strip()
+                    # Accept YYYY-MM-DD only
+                    if re.match(r"^\d{4}-\d{2}-\d{2}$", val):
+                        current_uc["reviewed"] = val
+                elif field_name in ("splunk versions", "splunk version"):
+                    current_uc["sver"] = field_value.strip()
+                elif field_name == "reviewer":
+                    current_uc["rby"] = field_value.strip()
 
                 i += 1
                 continue
@@ -3189,9 +3206,13 @@ def main():
     sitemap_path = os.path.join(SCRIPT_DIR, "sitemap.xml")
     sitemap_urls = [
         f"{SITE_BASE_URL}/",
+        f"{SITE_BASE_URL}/api-docs.html",
+        f"{SITE_BASE_URL}/openapi.yaml",
         f"{SITE_BASE_URL}/llms.txt",
         f"{SITE_BASE_URL}/llms-full.txt",
         f"{SITE_BASE_URL}/catalog.json",
+        f"{SITE_BASE_URL}/provenance.json",
+        f"{SITE_BASE_URL}/scorecard.json",
         f"{SITE_BASE_URL}/use-cases/INDEX.md",
     ]
     for cat in data:
@@ -3201,6 +3222,8 @@ def main():
     for doc in [
         "catalog-schema.md", "implementation-guide.md", "cim-and-data-models.md",
         "use-case-fields.md", "equipment-table.md", "splunk-apps-use-cases-comparison.md",
+        "provenance-coverage.md", "samples-coverage.md", "splunk-cloud-compat.md",
+        "scorecard.md",
     ]:
         sitemap_urls.append(f"{SITE_BASE_URL}/docs/{doc}")
     with open(sitemap_path, "w", encoding="utf-8") as sf:
@@ -3215,6 +3238,39 @@ def main():
     print("\nSyncing release notes and counts...")
     sync_release_notes()
     sync_uc_counts(total_uc)
+
+    # Regenerate the provenance ledger (provenance.json + coverage doc) so
+    # that the dashboard origin badges stay in sync with `catalog.json`.
+    # This is a best-effort step — if scripts/ isn't available or the script
+    # crashes, the build still completes.  CI re-runs the script directly
+    # to catch any drift.
+    try:
+        import subprocess
+        prov_script = os.path.join(os.path.dirname(__file__), "scripts",
+                                   "build_provenance.py")
+        if os.path.exists(prov_script):
+            print("\nRegenerating provenance ledger...")
+            # Executable path is a trusted file under the repo root; no shell
+            # required, argv is fully controlled.
+            subprocess.run([sys.executable, prov_script],
+                           check=False, cwd=os.path.dirname(__file__))
+    except Exception as e:
+        print(f"  (provenance refresh skipped: {e})")
+
+    # Regenerate the quality scorecard (docs/scorecard.md + scorecard.json)
+    # so every build publishes an up-to-date per-category grade sheet.
+    # Runs after provenance so the provenance-authority dimension uses the
+    # fresh ledger.  Best-effort — CI re-runs the script directly.
+    try:
+        import subprocess
+        sc_script = os.path.join(os.path.dirname(__file__), "scripts",
+                                 "generate_scorecard.py")
+        if os.path.exists(sc_script):
+            print("\nRegenerating quality scorecard...")
+            subprocess.run([sys.executable, sc_script],
+                           check=False, cwd=os.path.dirname(__file__))
+    except Exception as e:
+        print(f"  (scorecard refresh skipped: {e})")
 
 
 if __name__ == "__main__":
