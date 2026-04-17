@@ -32,7 +32,7 @@ index=web sourcetype="access_combined"
   by Web.src Web.uri_path Web.status span=5m
 | sort -count
 ```
-- **References:** [Splunk Add-on for Apache](https://splunkbase.splunk.com/app/830), [Splunk Add-on for NGINX](https://splunkbase.splunk.com/app/3178), [Web CIM](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+- **References:** [Splunk Add-on for Apache](https://splunkbase.splunk.com/app/3186), [Splunk Add-on for NGINX](https://splunkbase.splunk.com/app/3258), [Web CIM](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 - **Known false positives:** Client errors (4xx) from bots or invalid requests; consider separate thresholds for 4xx vs 5xx.
 
 ---
@@ -61,6 +61,8 @@ index=web sourcetype="access_combined"
 | where p95_ms > 2000
 ```
 
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-8.1.3 · Request Rate Trending
@@ -86,6 +88,8 @@ index=web sourcetype="access_combined"
   by Web.src Web.dest Web.uri_path Web.status span=1h
 | sort -count
 ```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -115,6 +119,8 @@ index=web sourcetype="access_combined" status>=400
 | sort -count
 ```
 
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-8.1.5 · SSL Certificate Monitoring
@@ -135,6 +141,8 @@ index=certificates sourcetype="cert_check"
 - **Implementation:** Deploy scripted input that runs `openssl s_client` against all HTTPS endpoints daily. Parse certificate details (CN, SAN, expiry, issuer). Alert at 30, 14, and 7 days before expiry. Maintain endpoint inventory via lookup.
 - **Visualization:** Table (certificates with expiry dates), Single value (certs expiring within 30d), Status grid (endpoint × cert status).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -164,6 +172,8 @@ index=web sourcetype="nginx:error"
 | sort -count
 ```
 
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-8.1.7 · Bot and Crawler Detection
@@ -192,6 +202,8 @@ index=web sourcetype="access_combined"
 | sort -count
 ```
 
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-8.1.8 · Connection Pool Saturation
@@ -211,6 +223,8 @@ index=web sourcetype="apache:server_status"
 - **Implementation:** Enable Apache `mod_status` or NGINX `stub_status` module. Poll via scripted input every minute. Alert when busy workers exceed 80% of total. Correlate with request rate to distinguish capacity limits from slow backends.
 - **Visualization:** Gauge (% workers busy), Line chart (worker utilization over time), Table (hosts at capacity).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -240,6 +254,8 @@ index=web sourcetype="access_combined" method=POST
 | where p95_ms > 5000
 ```
 
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-8.1.10 · Configuration Reload Tracking
@@ -258,6 +274,8 @@ index=web sourcetype="nginx:error" OR sourcetype="apache:error"
 - **Implementation:** Forward error/event logs from web servers. Parse reload/restart messages. Correlate with deployment events and change management tickets. Alert on unexpected restarts outside maintenance windows.
 - **Visualization:** Timeline (reload events), Table (reload history with correlation), Single value (reloads this week).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -279,6 +297,12 @@ index=web sourcetype="nginx:access" OR sourcetype="access_combined"
 - **Implementation:** Enable `upstream_status` and `upstream_addr` in log_format. Alert on upstream error rate >2% for 5m. Correlate with backend pool health.
 - **Visualization:** Line chart (upstream error rate), Table (upstream_addr, errors), Bar chart (5xx by upstream).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -300,6 +324,12 @@ index=web sourcetype="apache:modsec"
 - **Implementation:** Ingest JSON or native ModSecurity audit format. Extract `rule_id`, `msg`. Alert on spike in unique IPs or new rule_id firing at high volume.
 - **Visualization:** Table (rule, URI, count), Bar chart (blocks by rule), Map (src).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.src | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -320,6 +350,12 @@ index=wineventlog sourcetype="WinEventLog:System" SourceName=WAS EventCode=5074
 - **Implementation:** Enable WAS/W3SVC auditing. Alert when recycles per app pool exceed baseline. Correlate with private bytes and GC from perfmon.
 - **Visualization:** Timeline (recycle events), Table (app pool, recycle count), Line chart (recycles per hour).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count
+```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -341,6 +377,12 @@ index=certificates sourcetype="cert_check"
 - **Implementation:** Daily collection. Alert tiers at 45/30/14/7 days. Include chain validation failures as severity 1.
 - **Visualization:** Table (host, port, days_left), Single value (minimum days_left fleet-wide), Column chart (certs by expiry bucket).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -361,6 +403,12 @@ index=haproxy sourcetype="haproxy:stats" type=server
 - **Implementation:** Poll stats every 30s. Alert on any backend DOWN not in maintenance window. Track flapping (status changes >3 in 10m).
 - **Visualization:** Status grid (backend × UP/DOWN), Table (DOWN servers), Timeline (state changes).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t sum(Web.status) as agg_value from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - agg_value
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -381,6 +429,12 @@ index=web (sourcetype="nginx:stub_status" OR sourcetype="apache:server_status" O
 - **Implementation:** Normalize field names at ingest. Alert when util >85% for 10m or IIS request queue length sustained high. Correlate with CPU and backend latency.
 - **Visualization:** Gauge (util %), Line chart (util and queue), Table (hosts over threshold).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.dest span=5m | sort - count
+```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -401,6 +455,8 @@ index=web sourcetype="ms:iis:auto"
 - **Implementation:** Configure IIS to use W3C Extended Log Format with time-taken field. Forward IIS logs from `%SystemDrive%\inetpub\logs\LogFiles`. Use the Microsoft IIS TA for field extraction. Create alerts on 5xx error rate >5%.
 - **Visualization:** Line chart (requests by status code), Single value (error rate %), Table of top error URIs.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -431,6 +487,8 @@ index=wineventlog sourcetype="WinEventLog:System" Source="WAS"
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### 8.2 Application Servers & Runtimes
@@ -457,6 +515,8 @@ index=jmx sourcetype="jmx:memory"
 - **Visualization:** Line chart (heap usage over time), Gauge (current heap %), Area chart (heap used vs max).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.2 · Garbage Collection Impact
@@ -476,6 +536,8 @@ index=jvm sourcetype="jvm:gc"
 - **Implementation:** Enable GC logging on all JVM-based app servers (`-Xlog:gc*` for Java 11+). Forward logs via UF. Parse pause duration, type, and cause. Alert on pauses >200ms or total pause time >5% of wall clock time.
 - **Visualization:** Line chart (GC pause duration), Histogram (pause distribution), Single value (total pause time per hour).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -497,6 +559,8 @@ index=jmx sourcetype="jmx:threading"
 - **Visualization:** Gauge (% threads busy), Line chart (thread utilization over time), Table (servers approaching capacity).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.4 · Application Error Rate
@@ -516,6 +580,8 @@ index=application sourcetype="log4j" log_level=ERROR
 - **Visualization:** Line chart (error rate with baseline), Table (top error types), Bar chart (errors by component).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.5 · Deployment Tracking
@@ -534,6 +600,8 @@ index=deployments sourcetype="deployment_event"
 - **Implementation:** Configure CI/CD pipeline to send deployment events to Splunk HEC (JSON payload with app, version, environment, deployer). Annotate timecharts with deployment markers. Correlate deployment times with error rate and latency changes.
 - **Visualization:** Timeline (deployment events overlaid on performance charts), Table (recent deployments), Annotation layer on dashboards.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -555,6 +623,8 @@ index=jmx sourcetype="jmx:datasource"
 - **Visualization:** Gauge (% pool used), Line chart (pool utilization over time), Table (pools approaching limits).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.7 · Session Count Trending
@@ -573,6 +643,8 @@ index=jmx sourcetype="jmx:manager"
 - **Implementation:** Poll session manager MBeans via JMX. Track active sessions per server. Correlate with user authentication events for validation. Use `predict` for capacity forecasting.
 - **Visualization:** Line chart (session count with prediction), Single value (current active sessions), Area chart (sessions over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -593,6 +665,8 @@ index=perfmon sourcetype="Perfmon:CLR_Memory"
 - **Visualization:** Line chart (GC % over time), Multi-metric chart (CLR counters), Table (instances with high GC).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-8.2.9 · Node.js Event Loop Lag
@@ -611,6 +685,8 @@ index=application sourcetype="nodejs:metrics"
 - **Implementation:** Instrument Node.js apps with `prom-client` or OpenTelemetry SDK. Export event loop lag, heap stats, and active handles/requests. Forward to Splunk via HEC or Prometheus remote write. Alert when lag exceeds 100ms.
 - **Visualization:** Line chart (event loop lag), Dual-axis (lag + heap usage), Single value (current lag ms).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -632,6 +708,8 @@ index=application sourcetype="log4j" log_level=ERROR
 - **Visualization:** Table (class loading errors with details), Bar chart (errors by type), Timeline (error occurrences).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.11 · PHP-FPM Pool Monitoring
@@ -651,6 +729,8 @@ index=php sourcetype="phpfpm:status"
 - **Implementation:** Enable PHP-FPM status via `pm.status_path = /status` and `pm.status_listen` in pool config. Add `fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name`; protect with auth. Poll `/status?json` via scripted input every minute. Parse active_processes, idle_processes, listen_queue, max_listen_queue, slow_requests. Forward to Splunk via HEC. Alert when pool_util >80% or listen_queue >5. Track slow_requests for endpoints needing optimization.
 - **Visualization:** Gauge (% pool used), Line chart (pool utilization and queue depth), Table (pools with high utilization), Single value (slow requests).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -672,6 +752,8 @@ index=jmx sourcetype="jmx:tomcat:threadpool"
 - **Visualization:** Gauge (% threads busy), Line chart (thread utilization over time), Table (connectors with rejections), Single value (rejected connections).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.13 · WildFly / JBoss Datasource Pool Usage
@@ -691,6 +773,8 @@ index=jmx sourcetype="jmx:wildfly:datasource"
 - **Implementation:** Deploy Jolokia on WildFly/JBoss. Poll `jboss.as:subsystem=datasources,data-source=*` for AvailableCount, InUseCount, WaitingCount, MaxUsedCount. Poll every 5 minutes. Alert when pool availability drops below 20% or WaitingCount >0 (indicating connection starvation). Track MaxUsedCount for capacity planning.
 - **Visualization:** Gauge (% pool available), Line chart (active vs idle over time), Table (datasources with waiting connections), Single value (total waiting).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -712,6 +796,8 @@ index=jvm sourcetype="jvm:gc"
 - **Visualization:** Line chart (p95/max pause), Histogram (pause distribution), Table (worst hosts).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.15 · .NET CLR Memory Pressure
@@ -731,6 +817,8 @@ index=perfmon sourcetype="Perfmon:CLR_Memory"
 - **Visualization:** Dual-axis (heap vs GC %), Line chart (Gen 2 size), Table (instances over threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-8.2.16 · Node.js Event Loop Lag (High Resolution)
@@ -749,6 +837,8 @@ index=application sourcetype="nodejs:metrics"
 - **Implementation:** Export p50/p99 lag. Alert on p99 >50ms for 5m. Correlate with blocking `fs` or `dns` calls from traces.
 - **Visualization:** Line chart (p99 event loop lag), Table (hosts breaching SLO), Single value (current p99).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -770,6 +860,8 @@ index=application sourcetype="gunicorn:json"
 - **Visualization:** Line chart (backlog and active workers), Table (apps with timeouts), Single value (total worker timeouts 1h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.18 · Tomcat Active Session Count
@@ -789,6 +881,8 @@ index=jmx sourcetype="jmx:tomcat:manager"
 - **Implementation:** Baseline sessions per context. Alert on 3× baseline or absolute cap. Correlate with marketing events or attacks.
 - **Visualization:** Line chart (sessions over time), Table (context, sessions), Single value (peak sessions).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -810,6 +904,8 @@ index=application sourcetype="weblogic:server"
 - **Visualization:** Table (domain, server, stuck count), Timeline (stuck events), Single value (stuck threads now).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.20 · JBoss / WildFly Deployment Failures
@@ -829,6 +925,8 @@ index=application sourcetype="jboss:server"
 - **Implementation:** Parse deployment name from log line. Alert on any FAILURE during CI/CD window or outside window (rogue deploy). Correlate with Git commit from pipeline ID if present.
 - **Visualization:** Timeline (deployment outcomes), Table (failed deployment, error), Single value (failures 24h).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -851,6 +949,8 @@ index=application sourcetype="spring:actuator" OR path="/actuator/health"
 - **Visualization:** Status grid (app × component), Table (DOWN components), Timeline (health flaps).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.2.22 · .NET Exception Rate Trending
@@ -870,6 +970,8 @@ index=perfmon sourcetype="Perfmon:CLR_Exceptions"
 - **Implementation:** Baseline per process. Alert on 5× baseline. Join with deployment markers from UC-8.2.5.
 - **Visualization:** Line chart (exception rate), Table (process, spike factor), Single value (total exceptions/sec).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -894,6 +996,8 @@ index=jira sourcetype="jira:jmx"
 - **Implementation:** Deploy Jolokia agent on Jira application nodes and configure Splunk to poll JMX MBeans (java.lang:type=Memory, java.lang:type=Threading, com.atlassian.jira:type=RequestMetrics). Poll every 60 seconds. Ingest Jira access logs for request duration percentiles. Optionally poll /rest/api/2/serverInfo for version and build. Alert on heap >85%, thread count >500, or P95 request duration >3 seconds. Track attachment storage via JMX or filesystem metrics. Correlate with database and disk I/O.
 - **Visualization:** Line chart (heap usage, thread count, P95 latency), Gauge (heap %), Table (performance metrics by node), Bar chart (request duration by endpoint).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Connect for Kafka](https://splunkbase.splunk.com/app/3862)
 
 ---
 
@@ -920,6 +1024,8 @@ index=kafka sourcetype="kafka:consumer_lag"
 - **Visualization:** Line chart (lag per consumer group), Heatmap (topic × partition lag), Single value (max lag), Table (lagging consumers).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 3862](https://splunkbase.splunk.com/app/3862)
+
 ---
 
 ### UC-8.3.2 · Queue Depth Trending
@@ -939,6 +1045,8 @@ index=messaging sourcetype="rabbitmq:queue"
 - **Visualization:** Line chart (queue depth over time), Bar chart (top queues by depth), Table (queues exceeding threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.3 · Broker Health Monitoring
@@ -957,6 +1065,8 @@ index=kafka sourcetype="kafka:broker"
 - **Implementation:** Poll broker health metrics via JMX every minute. Track disk usage, CPU, memory, network I/O. Alert on broker offline, under-replicated partitions, or controller election. Monitor ISR (In-Sync Replica) shrink rate.
 - **Visualization:** Status grid (broker × health), Single value (under-replicated partitions), Table (broker metrics), Line chart (broker resource usage).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -978,6 +1088,8 @@ index=kafka sourcetype="kafka:broker"
 - **Visualization:** Single value (under-replicated count — target: 0), Line chart (under-replicated over time), Table (affected topics/partitions).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 3862](https://splunkbase.splunk.com/app/3862)
+
 ---
 
 ### UC-8.3.5 · Dead Letter Queue Monitoring
@@ -998,6 +1110,8 @@ index=messaging sourcetype="rabbitmq:queue"
 - **Visualization:** Single value (total DLQ messages), Table (DLQs with counts), Line chart (DLQ growth over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.6 · Message Throughput Trending
@@ -1015,6 +1129,8 @@ index=kafka sourcetype="kafka:broker"
 - **Implementation:** Poll broker throughput metrics via JMX. Track messages and bytes in/out per broker and per topic. Baseline normal patterns. Alert on sudden throughput drops (possible producer failure).
 - **Visualization:** Line chart (throughput over time), Stacked area (throughput by topic), Dual-axis (messages + bytes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1034,6 +1150,8 @@ index=kafka sourcetype="kafka:authorizer"
 - **Implementation:** Enable Kafka authorizer logging or audit log. Forward broker logs to Splunk. Parse topic/queue creation events. Alert on creation of topics matching naming convention violations. Report on topic inventory growth.
 - **Visualization:** Table (created topics with details), Timeline (creation events), Bar chart (topics created per week).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1056,6 +1174,8 @@ index=kafka sourcetype="kafka:server"
 - **Visualization:** Bar chart (rebalances per consumer group), Timeline (rebalance events), Line chart (rebalance frequency trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.9 · Partition Leader Elections
@@ -1075,6 +1195,8 @@ index=kafka sourcetype="kafka:controller"
 - **Implementation:** Monitor Kafka controller logs and JMX metrics. Track leader election rate and duration. Alert on elevated election rates. Correlate with broker restarts, network events, and ZooKeeper/KRaft issues.
 - **Visualization:** Line chart (elections over time), Single value (elections per hour), Table (affected topics/partitions).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1097,6 +1219,8 @@ index=messaging sourcetype="rabbitmq:queue"
 - **Visualization:** Table (queues with old messages), Bar chart (message age by queue), Single value (max message age).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.11 · RabbitMQ Queue Monitoring
@@ -1117,6 +1241,8 @@ index=messaging sourcetype="rabbitmq:queue"
 - **Visualization:** Line chart (queue depth and unacked over time), Table (queues with high depth), Single value (queues with no consumers), Bar chart (message rate by queue).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.12 · ZooKeeper Ensemble Health
@@ -1135,6 +1261,8 @@ index=zookeeper sourcetype="zookeeper:mntr"
 - **Implementation:** Enable ZooKeeper AdminServer or use 4-letter commands (`echo mntr | nc localhost 2181`). Poll mntr output every minute via scripted input. Parse mode (leader/follower/standalone), outstanding_requests, num_alive_connections, watch_count, zk_approximate_data_size. Forward to Splunk via HEC. Alert when outstanding_requests exceeds 100 or num_alive_connections drops (ensemble partition). Track leader changes via mode transitions.
 - **Visualization:** Status grid (node × mode), Line chart (outstanding requests over time), Single value (leader node), Table (ensemble health summary).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1156,6 +1284,8 @@ index=kafka sourcetype="kafka:consumer_lag"
 - **Visualization:** Line chart (lag by group/topic), Heatmap (partition lag), Single value (worst consumer group).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.14 · RabbitMQ Queue Depth Alerts
@@ -1175,6 +1305,8 @@ index=messaging sourcetype="rabbitmq:queue"
 - **Implementation:** Maintain SLA lookup per queue. Page on critical queue depth. Auto-scale consumers from orchestrator if integrated.
 - **Visualization:** Line chart (depth vs threshold), Table (breached queues), Single value (queues in alert).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1196,6 +1328,8 @@ index=azure sourcetype="azure:servicebus:metrics"
 - **Visualization:** Line chart (DLQ count), Table (entity, subscription, count), Single value (total DLQ messages).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.16 · Kafka Connect Task Failures
@@ -1215,6 +1349,8 @@ index=kafka sourcetype="kafka_connect:status"
 - **Implementation:** Poll `/connectors/*/status` every 2m. Alert on any FAILED. Include stack trace first line only for indexing size.
 - **Visualization:** Table (failed connectors/tasks), Timeline (state changes), Single value (open failures).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1237,6 +1373,8 @@ index=kafka sourcetype="kafka:partition_skew"
 - **Visualization:** Bar chart (skew % by partition), Table (top skewed topics), Heatmap (broker × partition size).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.18 · RabbitMQ Memory Alarm
@@ -1255,6 +1393,8 @@ index=messaging sourcetype="rabbitmq:node"
 - **Implementation:** Poll nodes every minute. Alert at 75% memory or alarm true. Flow control from alarm requires immediate consumer scale-up or queue purge policy.
 - **Visualization:** Gauge (memory % per node), Line chart (mem_used trend), Table (nodes in alarm).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1276,6 +1416,8 @@ index=messaging sourcetype="activemq:broker"
 - **Visualization:** Gauge (store %), Line chart (store usage), Table (brokers over threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.3.20 · NATS JetStream Consumer Ack Lag
@@ -1296,6 +1438,8 @@ index=messaging sourcetype="nats:jetstream"
 - **Visualization:** Line chart (ack pending), Table (stream, consumer, lag), Single value (max redelivered).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -1315,6 +1459,8 @@ index=perfmon source="Perfmon:MSMQ Service" counter="Total Messages in all Queue
 - **Implementation:** Configure Perfmon input for MSMQ Service counters: Total Messages in all Queues, Total Bytes in all Queues, Sessions. Also monitor individual queue counters via `MSMQ Queue` object. Alert when queue depth exceeds baseline (messages accumulating). Monitor journal queue size for message delivery confirmations. Track dead-letter queue growth for undeliverable messages.
 - **Visualization:** Timechart (queue depth trend), Single value (current depth), Alert on queue growth exceeding threshold.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1352,6 +1498,8 @@ index=api sourcetype="kong:access"
 | sort -count
 ```
 
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-8.4.2 · API Latency Percentiles
@@ -1379,6 +1527,8 @@ index=api sourcetype="kong:access"
 | where p95 > 1000
 ```
 
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-8.4.3 · Rate Limiting Events
@@ -1397,6 +1547,8 @@ index=api sourcetype="kong:access" status=429
 - **Implementation:** Track 429 responses from API gateway. Identify rate-limited consumers and endpoints. Alert on sustained rate limiting for critical consumers. Review quota configuration if legitimate traffic is being limited.
 - **Visualization:** Bar chart (rate-limited consumers), Line chart (429 rate over time), Table (rate limit events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1418,6 +1570,8 @@ index=api sourcetype="kong:access" status IN (401, 403)
 - **Visualization:** Table (auth failures by consumer/IP), Line chart (failure rate over time), Geo map (failures by source location).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.4.5 · Service-to-Service Call Failures
@@ -1437,6 +1591,8 @@ index=mesh sourcetype="envoy:access"
 - **Implementation:** Configure Envoy/Istio to export access logs to Splunk. Parse source service, destination service, status code, and latency. Build service dependency map. Alert on inter-service error rate spikes. Track per-service error budgets.
 - **Visualization:** Service dependency map (with error highlighting), Table (failing service pairs), Heatmap (service × service error rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1458,6 +1614,8 @@ index=mesh sourcetype="envoy:stats"
 - **Visualization:** Status grid (service × circuit breaker state), Timeline (circuit breaker events), Table (active circuit breakers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.4.7 · API Consumer Usage Tracking
@@ -1476,6 +1634,8 @@ index=api sourcetype="kong:access"
 - **Implementation:** Ensure API gateway logs include consumer identity. Aggregate usage by consumer, endpoint, and time period. Create monthly usage reports for billing/chargeback. Track usage trends per consumer for capacity planning.
 - **Visualization:** Table (consumer usage summary), Bar chart (top consumers), Line chart (usage trends per consumer), Pie chart (traffic by consumer).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1498,6 +1658,8 @@ index=mesh sourcetype="istio:cert_status"
 - **Visualization:** Table (certs with expiry), Single value (certs expiring within 7d), Timeline (cert rotation events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.4.9 · HAProxy Backend and Frontend Health
@@ -1519,6 +1681,8 @@ index=haproxy sourcetype="haproxy:stats"
 - **Visualization:** Status grid (backend × health), Table (backends with queue depth), Line chart (queue depth over time), Single value (DOWN backends count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.4.10 · Kong Rate Limit Violations
@@ -1538,6 +1702,12 @@ index=api sourcetype="kong:access" status=429
 - **Implementation:** Enable plugin logging. Baseline 429s per consumer. Alert on spike vs baseline or new consumer_id hitting limit.
 - **Visualization:** Bar chart (429 by consumer), Line chart (429 rate), Table (top limited routes).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1557,6 +1727,12 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/ApiGateway" metric_name IN 
 - **Implementation:** Enable detailed metrics per stage. Alert on 5XX >0 sustained or 4XX spike vs baseline. Join with Lambda logs for root cause.
 - **Visualization:** Stacked area (4xx vs 5xx), Line chart (error rate), Table (API, stage, errors).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=5m | sort - count
+```
+
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1577,6 +1753,12 @@ index=api sourcetype="apigee:analytics"
 - **Implementation:** Ingest nightly or hourly analytics. Alert on new fault_policy or high `SpikeArrest` counts. Tune policies vs false positives.
 - **Visualization:** Bar chart (faults by policy), Table (proxy, policy, count), Line chart (policy violations over time).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1598,6 +1780,12 @@ index=api sourcetype="kong:access"
 - **Implementation:** Maintain SLA lookup per route. Run every 15m. Alert on breach for 3 consecutive windows. Exclude OPTIONS from stats.
 - **Visualization:** Line chart (p95 vs SLA), Table (breached routes), Heatmap (route × hour).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1618,6 +1806,12 @@ index=api sourcetype="kong:access"
 - **Implementation:** Never log raw API keys. Use hashed id. Baseline per credential. Alert on volume or IP diversity anomaly. Integrate with IP reputation.
 - **Visualization:** Table (credential, count, ips), Map (src), Timeline (abuse spikes).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t dc(Web.src) as agg_value from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - agg_value
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1638,6 +1832,12 @@ index=application sourcetype="graphql:server"
 - **Implementation:** Log structured rejection reason. Alert on high rejection rate from single client or operation. Tune limits for legitimate mobile apps.
 - **Visualization:** Table (operation, depth, count), Bar chart (rejections by client), Line chart (depth violations over time).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1660,6 +1860,12 @@ index=api sourcetype="kong:access"
 - **Implementation:** Maintain deprecation calendar lookup. Weekly report of traffic still on old versions. Alert on any `/v1/*` usage after sunset date.
 - **Visualization:** Pie chart (traffic by version), Line chart (v1 traffic trend), Table (routes still on deprecated version).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1687,6 +1893,8 @@ index=cache sourcetype="redis:info"
 - **Visualization:** Gauge (hit ratio %), Line chart (hit ratio over time), Single value (current hit ratio).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.5.2 · Memory Utilization
@@ -1707,6 +1915,8 @@ index=cache sourcetype="redis:info"
 - **Visualization:** Gauge (% memory used), Line chart (memory usage over time), Table (instances approaching limit).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.5.3 · Eviction Rate Trending
@@ -1725,6 +1935,8 @@ index=cache sourcetype="redis:info"
 - **Implementation:** Track evicted_keys counter over time. Calculate eviction rate per second. Alert when eviction rate exceeds threshold. Correlate with memory usage — evictions with memory below max indicates maxmemory-policy is active.
 - **Visualization:** Line chart (eviction rate over time), Single value (current eviction rate), Dual-axis (evictions + memory usage).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1746,6 +1958,8 @@ index=cache sourcetype="redis:info"
 - **Visualization:** Line chart (connections over time), Gauge (% of max), Single value (current connections).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.5.5 · Replication Lag (Redis)
@@ -1765,6 +1979,8 @@ index=cache sourcetype="redis:info" role="slave"
 - **Implementation:** Poll Redis INFO replication from replicas every minute. Calculate byte offset lag. Alert when lag exceeds threshold (e.g., >1MB or growing). Monitor replication link status (master_link_status).
 - **Visualization:** Line chart (replication lag over time), Single value (current lag), Table (replica status).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1786,6 +2002,8 @@ index=cache sourcetype="redis:slowlog"
 - **Visualization:** Table (slow commands with details), Bar chart (slow commands by type), Line chart (slow command frequency).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.5.7 · Key Expiration Trending
@@ -1804,6 +2022,8 @@ index=cache sourcetype="redis:info"
 - **Implementation:** Track keys with TTL vs total keys. Monitor expiration rate. Alert if expire_pct drops significantly (new code not setting TTL on keys). Track expired_stale_perc for lazy expiration health.
 - **Visualization:** Line chart (expiration rate), Dual-axis (keys with TTL % + expiration rate), Single value (% keys with TTL).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1824,6 +2044,8 @@ index=cache sourcetype="memcached:stats"
 - **Implementation:** Run `echo stats | nc localhost 11211` (or memcached stats protocol) via scripted input every minute. Parse get_hits, get_misses, evictions, bytes, bytes_read, bytes_written. Forward to Splunk via HEC. Calculate hit ratio; alert when below 85%. Track eviction rate; alert when evictions per second exceed 5. Correlate with memory usage (limit_maxbytes).
 - **Visualization:** Gauge (hit ratio %), Line chart (hit ratio and eviction rate over time), Single value (current eviction rate), Table (instances with low hit ratio).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1846,6 +2068,12 @@ index=proxy sourcetype="squid:access"
 - **Implementation:** Configure Squid to log cache result codes (TCP_HIT, TCP_MISS, TCP_DENIED, TCP_REFRESH) in access.log. Forward via Universal Forwarder. Parse cache_result field. Alternatively poll Squid SNMP cacheHitRatio if available. Calculate hit ratio per 5-minute window. Alert when MISS rate exceeds 30%. Correlate with request rate for capacity planning.
 - **Visualization:** Pie chart (HIT vs MISS vs DENY), Line chart (hit ratio over time), Table (cache result distribution), Single value (hit ratio %).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1866,6 +2094,8 @@ index=cache sourcetype="varnish:stats"
 - **Implementation:** Run `varnishstat -j` via scripted input every minute. Parse MAIN.cache_hit, MAIN.cache_miss, MAIN.backend_fail, MAIN.backend_busy, MAIN.backend_unhealthy. Forward to Splunk via HEC. Alert when hit ratio drops below 80% or backend failures occur. Correlate backend_fail with backend health probes.
 - **Visualization:** Gauge (hit ratio %), Line chart (hit ratio and backend failures), Table (backend health status), Single value (backend failures).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1888,6 +2118,8 @@ index=synthetic sourcetype="synthetic:test"
 - **Visualization:** Timeline (test runs with pass/fail), Table (slow steps by test), Line chart (step duration trend), Single value (failed tests).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.5.12 · Website Page Load Time Breakdown
@@ -1907,6 +2139,12 @@ index=rum sourcetype="rum:timing"
 - **Implementation:** Instrument frontend with RUM (Splunk RUM, Boomerang, or custom beacon) to capture Navigation Timing API fields. Alternatively run curl with `-w` format for key endpoints. Parse domainLookupEnd-domainLookupStart (DNS), connectEnd-connectStart (connect), responseStart-requestStart (TTFB). Forward to Splunk via HEC. Alert when p95 TTFB exceeds 1s. Correlate with backend latency and CDN metrics.
 - **Visualization:** Waterfall (timing breakdown by resource), Line chart (p95 TTFB/DNS/connect over time), Table (slowest pages), Single value (p95 page load).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=5m | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1936,6 +2174,8 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 - **Visualization:** Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-8.6.2 · FTP / SFTP Service Availability Monitoring
@@ -1958,6 +2198,8 @@ Covers Nagios-style active connectivity checks (check_ssh, check_ftp, check_smtp
 - **Visualization:** Table (host, port, status, last event), Single value (unavailable FTP hosts), Line chart (event rate over time per host), Alert timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.6.10 · Envoy Proxy Upstream Health
@@ -1979,6 +2221,8 @@ index=mesh sourcetype="envoy:stats"
 - **Visualization:** Status grid (cluster × health), Line chart (retry rate over time), Table (clusters with circuit breaker trips), Single value (active circuit breakers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.6.11 · HashiCorp Vault Seal Status and Token Count
@@ -1997,6 +2241,8 @@ index=vault sourcetype="vault:health"
 - **Implementation:** Poll Vault `/v1/sys/health` via scripted input every minute. Parse sealed, standby, version, replication_performance_mode. Forward to Splunk via HEC. Enable Vault audit log; forward audit events for token creation and auth attempts. Alert immediately when sealed==true. Track token creation rate; alert on anomalies. Correlate unseal events with operator actions.
 - **Visualization:** Single value (sealed status — target: false), Table (Vault cluster health), Line chart (token creation rate), Timeline (unseal events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2018,6 +2264,8 @@ index=consul sourcetype="consul:health"
 - **Visualization:** Status grid (service × health), Table (critical services), Single value (critical check count), Timeline (health transitions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.6.13 · HashiCorp Nomad Job and Allocation Status
@@ -2037,6 +2285,8 @@ index=nomad sourcetype="nomad:allocations"
 - **Implementation:** Poll Nomad `/v1/jobs` and `/v1/allocations` via scripted input every 5 minutes. Parse JobID, TaskGroup, ClientStatus, DesiredStatus, CreateIndex. Forward to Splunk via HEC. Alert when ClientStatus==failed or allocations are pending/running when desired is stop. Track deployment status (job version, allocation placement). Correlate with node availability.
 - **Visualization:** Table (failed allocations by job), Single value (failed allocation count), Status grid (job × allocation status), Timeline (allocation events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2059,6 +2309,8 @@ index=asterisk sourcetype="asterisk:cdr"
 - **Visualization:** Line chart (ASR and ACD over time), Table (trunk status), Single value (calls per hour), Bar chart (call volume by trunk).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.6.16 · NTP Stratum Drift
@@ -2077,6 +2329,8 @@ index=os sourcetype="ntp:peer"
 - **Implementation:** Poll `chronyc tracking` or `ntpq -pn` every 5m. Alert when stratum >4 or |offset| >100ms sustained. Correlate with VM time sync settings.
 - **Visualization:** Line chart (offset and stratum), Table (hosts with bad clock), Single value (max |offset|).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -2100,6 +2354,8 @@ index=dns sourcetype="bind:query" OR sourcetype="dns:query"
 - **Visualization:** Line chart (recursive QPS), Table (top clients), Bar chart (query types).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.6.18 · TFTP Unauthorized Access
@@ -2121,6 +2377,8 @@ index=network sourcetype="tftp:log" OR sourcetype="syslog" process=tftpd
 - **Visualization:** Timeline (TFTP events), Table (unauthorized attempts), Single value (blocked attempts).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.6.19 · SNMP Community String Audit
@@ -2140,6 +2398,8 @@ index=network sourcetype="snmp:audit" OR (sourcetype=syslog process=snmpd)
 - **Implementation:** Forward snmpd auth failures. Alert on default community strings in use or brute-force patterns. Migrate devices to SNMPv3.
 - **Visualization:** Table (src, device, community), Bar chart (failures by device), Line chart (auth failure rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2167,6 +2427,12 @@ index=web OR index=app (sourcetype=access_combined OR sourcetype="tomcat:access"
 - **Implementation:** Prefer application-native session metrics if available (Spring session registry, .NET session state). Deduplicate proxies and bots with a known crawler user-agent lookup. For stateless APIs, substitute `dc(client_ip)` or OAuth `sub` as a proxy with documented caveats. Align time zones with business reporting.
 - **Visualization:** Line chart (daily sessions), column chart (week-over-week), single value (rolling 7-day average).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=1d | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -2187,6 +2453,12 @@ index=web OR index=app sourcetype=access_combined earliest=-30d
 - **Implementation:** Normalize time units (seconds vs milliseconds) at ingest. Filter to API paths only; exclude static assets. Tag `service_name` for microservice drilldowns. Compare against canary or blue-green cohorts with a `deployment` field when available. Store weekly aggregates in `sourcetype=stash` for long retention.
 - **Visualization:** Line chart (p50/p95/p99 over time), heatmap (endpoint × day for p95), table (worst endpoints).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=1d | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -2210,6 +2482,8 @@ index=app sourcetype=stash source="*error_budget*" OR index=middleware sourcetyp
 - **Visualization:** Area chart (budget remaining %), line chart with release annotations, single value (days of budget left at current burn).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.7.4 · Cache Hit Ratio Trending
@@ -2231,6 +2505,8 @@ index=middleware (sourcetype="redis:info" OR sourcetype="memcached:stats" OR sou
 - **Visualization:** Line chart (hit ratio %), dual axis (hits and misses counts), single value (30-day min hit ratio).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-8.7.5 · Message Queue Backlog Trending
@@ -2250,6 +2526,8 @@ index=middleware earliest=-30d (sourcetype="kafka:consumer" OR sourcetype="rabbi
 - **Implementation:** Align Kafka lag with consumer group and partition; use `max` across partitions for worst-case visibility. Exclude retry/DLQ topics from primary charts or show separately. Set thresholds from peak business hours using historical baselines. For cloud queues, map metric dimensions to the same `qname` namespace.
 - **Visualization:** Line chart (max depth by queue), area chart (7d vs 30d overlay using `timewrap`), table (top queues by growth rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 

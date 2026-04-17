@@ -22,6 +22,8 @@ index=devops sourcetype="github:webhook" event="push"
 - **Visualization:** Line chart (commits over time), Bar chart (commits by repo), Stacked area (commits by team).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.2 · Branch Protection Bypasses
@@ -39,6 +41,8 @@ index=devops sourcetype="github:audit" action="protected_branch.policy_override"
 - **Implementation:** Ingest GitHub/GitLab audit logs. Alert on any push to protected branches (main, release) without PR merge. Alert on branch protection rule changes. Correlate with deployment events.
 - **Visualization:** Table (bypass events), Timeline (protection violations), Single value (bypasses this month — target: 0).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -60,6 +64,8 @@ index=devops sourcetype="github:pull_request" action="closed" merged="true"
 - **Visualization:** Bar chart (avg cycle time by repo), Line chart (PR metrics trend), Table (PR summary), Histogram (cycle time distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.4 · Secret Exposure Detection
@@ -79,6 +85,8 @@ index=devops sourcetype="github:secret_scanning" OR sourcetype="gitguardian:aler
 - **Visualization:** Table (exposed secrets), Single value (unresolved secrets — target: 0), Bar chart (secrets by type), Timeline (detection events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.5 · Repository Access Audit
@@ -97,6 +105,8 @@ index=devops sourcetype="github:audit" action IN ("repo.add_member","repo.remove
 - **Visualization:** Table (access changes), Timeline (permission events), Bar chart (changes by actor).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.6 · Force Push Detection
@@ -114,6 +124,8 @@ index=devops sourcetype="github:webhook" event="push" forced="true"
 - **Implementation:** Parse force push flag from webhook events. Alert on any force push to shared branches. Whitelist expected force pushes (e.g., squash-merge workflows on feature branches). Track frequency per developer.
 - **Visualization:** Table (force push events), Timeline (force pushes), Single value (force pushes this week).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -135,6 +147,8 @@ index=devops sourcetype="github:actions_run"
 - **Visualization:** Line chart (workflow duration trend by workflow), Bar chart (avg duration by workflow), Table (slowest workflows this week), Single value (p95 duration).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.8 · GitHub Actions Billing Usage
@@ -155,6 +169,8 @@ index=devops sourcetype="github:actions_billing"
 - **Visualization:** Gauge (% of included minutes used), Single value (minutes remaining), Line chart (usage trend over billing cycle), Table (top consuming repos).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.9 · Branch Protection Bypass Detection
@@ -173,6 +189,8 @@ index=devops sourcetype="github:audit" action="protected_branch.policy_override"
 - **Implementation:** Require GitHub Advanced Security audit stream. Alert on any override; require VP approval ticket in lookup. Weekly report of overrides vs zero target.
 - **Visualization:** Table (overrides), Timeline, Single value (count — target 0).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -194,6 +212,8 @@ index=devops sourcetype="github:webhook" event="push" forced="true"
 - **Visualization:** Table (force pushes), Timeline, Bar chart (by branch).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.11 · Sensitive File Commit Detection
@@ -214,6 +234,8 @@ index=devops sourcetype="github:webhook" event="push"
 - **Visualization:** Table (sensitive paths), Bar chart (repos), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.12 · Repository Permission Changes
@@ -232,6 +254,8 @@ index=devops sourcetype="github:audit" action IN ("repo.update","team.add_reposi
 - **Implementation:** Alert on public visibility toggles and admin grants. Quarterly access review export.
 - **Visualization:** Table (high-risk changes), Timeline, Single value (public repos).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -252,6 +276,8 @@ index=devops sourcetype="github:pull_request" action="closed" merged="true"
 - **Implementation:** Ingest PR merged payload with review tally from API enrichment. Exclude bots via label. Alert in Splunk as backstop to branch protection.
 - **Visualization:** Table (bypass merges), Bar chart (by author), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -274,6 +300,8 @@ index=devops sourcetype="github:meta" event_type IN ("ForkEvent","WatchEvent")
 - **Visualization:** Line chart (fork/star rate), Table (spikes), Geo map (actor country).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.15 · CODEOWNERS File Modification Monitoring
@@ -292,6 +320,8 @@ index=devops sourcetype="github:pull_request" action IN ("opened","synchronize")
 - **Implementation:** Parse file lists from PR payloads. Require CODEOWNER approval for CODEOWNERS changes via branch rules; alert on any edit pending rule rollout.
 - **Visualization:** Table (PRs touching CODEOWNERS), Timeline, Single value (changes per quarter).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -312,6 +342,8 @@ index=devops sourcetype="github:webhook" event="push"
 - **Visualization:** Table (large commits), Bar chart (by repo), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.17 · Signed Commit Enforcement
@@ -331,6 +363,8 @@ index=devops sourcetype="github:commit_status"
 - **Implementation:** Enrich push SHAs via API in pipeline. Alert on unverified commits after enforcement date. Whitelist bots with documented keys.
 - **Visualization:** Table (unsigned commits), Line chart (compliance %), Pie chart (verified vs not).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -353,6 +387,8 @@ index=devops sourcetype="github:branch_inventory"
 - **Visualization:** Table (stale branches), Bar chart (count by repo), Single value (branches >180d).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.19 · Repository Webhook Health
@@ -374,6 +410,8 @@ index=devops sourcetype="github:webhook_delivery"
 - **Visualization:** Table (failing hooks), Line chart (failure rate), Single value (open incidents).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.1.20 · Code Scanning Alert Trends
@@ -392,6 +430,8 @@ index=devops sourcetype="github:code_scanning"
 - **Implementation:** Ingest SARIF-related alert events. Track MTTR for Critical. Executive dashboard: net debt per language.
 - **Visualization:** Line chart (opened vs fixed), Bar chart (by severity), Single value (open Critical alerts).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -419,6 +459,8 @@ index=cicd sourcetype="jenkins:build"
 - **Visualization:** Bar chart (success rate by pipeline), Line chart (success rate trend), Table (failing builds), Single value (overall success rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.2 · Build Duration Monitoring
@@ -438,6 +480,8 @@ index=cicd sourcetype="jenkins:build" result="SUCCESS"
 - **Visualization:** Line chart (build duration trend), Bar chart (avg duration by pipeline), Table (slowest builds today).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.3 · Deployment Frequency (DORA)
@@ -455,6 +499,8 @@ index=cicd sourcetype="deployment_event" environment="production"
 - **Implementation:** Emit deployment events from CI/CD pipelines to Splunk HEC. Track production deployments per team/application per week. Calculate DORA deployment frequency category (daily, weekly, monthly). Report to engineering leadership.
 - **Visualization:** Line chart (deployment frequency trend), Bar chart (deployments by team), Single value (deployments this week).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -475,6 +521,8 @@ index=cicd sourcetype="deployment_event" environment="production"
 - **Visualization:** Bar chart (lead time by application), Line chart (lead time trend), Histogram (lead time distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.5 · Failed Deployment Tracking
@@ -493,6 +541,8 @@ index=cicd sourcetype="deployment_event" status="failed"
 - **Implementation:** Track all deployment outcomes including failures and rollbacks. Alert immediately on production deployment failures. Calculate change failure rate (DORA metric). Correlate with application error rate to measure deployment impact.
 - **Visualization:** Table (failed deployments), Single value (change failure rate %), Line chart (failure rate trend), Timeline (deployment events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -513,6 +563,8 @@ index=cicd sourcetype="jenkins:queue"
 - **Visualization:** Line chart (queue time trend), Bar chart (queue time by pipeline), Single value (current queue length).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.7 · Test Coverage Trending
@@ -531,6 +583,8 @@ index=cicd sourcetype="test_coverage"
 - **Implementation:** Parse test coverage reports from CI/CD pipelines. Send to Splunk via HEC. Track coverage per project. Alert when coverage drops below minimum (e.g., <80%). Block merges when coverage decreases (enforce in CI).
 - **Visualization:** Line chart (coverage trend per project), Bar chart (coverage by project), Single value (avg coverage %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -552,6 +606,8 @@ index=cicd sourcetype="security_scan"
 - **Visualization:** Bar chart (findings by severity), Table (critical findings), Line chart (findings trend), Stacked bar (by scan type).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.9 · Jenkins Executor Utilization
@@ -571,6 +627,8 @@ index=cicd sourcetype="jenkins:metrics"
 - **Implementation:** Poll Jenkins /metrics (Prometheus format) or /computer/api/json for executor counts. Ingest busyExecutors, totalExecutors, and queue wait time. Calculate utilization per node. Alert when utilization >85% sustained for 15 min or queue wait >5 min. Correlate with build duration to right-size capacity.
 - **Visualization:** Gauge (current utilization %), Line chart (utilization and queue wait trend), Bar chart (utilization by node), Single value (avg queue wait sec).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -592,6 +650,8 @@ index=cicd sourcetype="jenkins:computer"
 - **Visualization:** Table (offline nodes), Single value (offline node count — target: 0), Status grid (node × online/offline), Timeline (offline events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.11 · GitLab CI Runner Availability
@@ -612,6 +672,8 @@ index=cicd sourcetype="gitlab:runners"
 - **Visualization:** Table (inactive/paused runners), Single value (available runners), Status grid (runner × status), Line chart (job queue time trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.12 · GitLab Pipeline Duration Trending
@@ -631,6 +693,8 @@ index=cicd sourcetype="gitlab:pipeline"
 - **Implementation:** Poll GitLab pipelines API per project. Ingest id, ref, status, duration, created_at. Calculate duration for completed pipelines. Track 7-day rolling average. Alert when avg duration increases >25% week-over-week. Correlate with runner capacity and stage-level timings.
 - **Visualization:** Line chart (pipeline duration trend by branch), Bar chart (avg duration by project), Table (slowest pipelines this week), Single value (p95 duration).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -653,6 +717,8 @@ index=cicd sourcetype="jenkins:computer" (offline="true" OR offline=true)
 - **Visualization:** Table (offline prod agents), Single value (count), Status grid (agent × tier).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.15 · Pipeline Stage Duration Regression
@@ -674,6 +740,8 @@ index=cicd sourcetype="cicd:stage"
 - **Visualization:** Line chart (stage duration trend), Table (regressions), Heatmap (stage × pipeline).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.16 · Build Artifact Integrity Verification
@@ -692,6 +760,8 @@ index=cicd sourcetype="artifact:integrity"
 - **Implementation:** CI stores expected hash in Splunk; registry poll compares. Alert on any mismatch before prod promotion.
 - **Visualization:** Table (mismatches — target empty), Timeline, Single value (failed verifications).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -712,6 +782,8 @@ index=cicd sourcetype="deployment_event" environment="production"
 - **Implementation:** Enforce required fields in CD templates. Alert on nulls. Correlate with Entra/Okta for human actors.
 - **Visualization:** Table (unapproved deploys), Timeline, Single value (violations 30d).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -734,6 +806,8 @@ index=cicd sourcetype="jenkins:metrics"
 - **Visualization:** Line chart (utilization vs build time), Table (contention windows), Bar chart (by node pool).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.19 · Flaky Test Detection
@@ -755,6 +829,8 @@ index=cicd sourcetype="junit:result"
 - **Visualization:** Table (flaky tests), Bar chart (flake rate), Line chart (trend after fix).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.20 · Deployment Frequency Tracking
@@ -774,6 +850,8 @@ index=cicd sourcetype="deployment_event" environment="production"
 - **Implementation:** Tag all deploy pipelines. Weekly report to leadership. Compare to DORA elite thresholds (on-demand per day).
 - **Visualization:** Line chart (deploys per day by team), Bar chart (by service), Single value (deploys 7d).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -796,6 +874,8 @@ index=cicd sourcetype="deployment_event" environment="production"
 - **Visualization:** Histogram (lead time), Table (p95 by app), Line chart (p95 trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.22 · Mean Time to Recovery (MTTR)
@@ -816,6 +896,8 @@ index=itsm sourcetype="pagerduty:incident"
 - **Implementation:** Correlate PD incidents with service. For deploy failures, measure time to healthy deploy. Executive review monthly.
 - **Visualization:** Table (MTTR by service), Line chart (avg MTTR trend), Gauge (vs SLA).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -839,6 +921,8 @@ index=cicd sourcetype="deployment_event" environment="production"
 - **Visualization:** Bar chart (CFR by app), Line chart (CFR trend), Single value (org CFR).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.24 · Pipeline Secret Rotation Compliance
@@ -860,6 +944,8 @@ index=secrets sourcetype="vault:audit" OR sourcetype="ci:credential_inventory"
 - **Visualization:** Table (expiring secrets), Gauge (compliance %), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.25 · Build Queue Wait Time SLA
@@ -880,6 +966,8 @@ index=cicd sourcetype="jenkins:build"
 - **Implementation:** Emit wait time per build. Alert if >10% of builds exceed 5 min queue in 1h window. Scale agents.
 - **Visualization:** Line chart (p95 wait time), Histogram (wait distribution), Single value (% >5min).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -903,6 +991,8 @@ index=cicd sourcetype="test_coverage" branch=main
 - **Visualization:** Table (regressions), Bar chart (delta by project), Line chart (main coverage trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.2.27 · Pipeline Resource Utilization
@@ -923,6 +1013,8 @@ index=infra sourcetype="kube:pod_metrics" label_app="ci-runner"
 - **Implementation:** Correlate runner pods with jobs. Identify over-provisioned runners. Recommend requests/limits tuning.
 - **Visualization:** Table (utilization by runner), Bar chart (avg CPU per job type), Line chart (efficiency trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -950,6 +1042,8 @@ index=devops sourcetype="artifactory:storage"
 - **Visualization:** Gauge (% capacity used), Bar chart (storage by repository), Line chart (storage trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.3.2 · Dependency Vulnerability Alerts
@@ -969,6 +1063,8 @@ index=devops sourcetype="snyk:vulnerability"
 - **Implementation:** Ingest SCA scan results. Track vulnerable dependencies by project, severity, and package. Alert on new critical/high findings. Track remediation time. Report on dependency health per team.
 - **Visualization:** Table (vulnerable dependencies), Bar chart (vulns by project), Line chart (vulnerability trend), Single value (critical vulns count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -990,6 +1086,8 @@ index=devops sourcetype="artifactory:access"
 - **Visualization:** Table (anomalous downloads), Bar chart (top downloaded packages), Line chart (download volume trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.3.4 · License Compliance Tracking
@@ -1009,6 +1107,8 @@ index=devops sourcetype="sca:license"
 - **Implementation:** Ingest SCA license scan results. Track license types across all projects. Alert on copyleft licenses in commercial products. Report on license distribution for legal review. Block deployments with policy violations.
 - **Visualization:** Table (license risks), Pie chart (license distribution), Bar chart (risks by project).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1031,6 +1131,8 @@ index=iac sourcetype="terraform:plan_json"
 - **Visualization:** Table (drift events with resource details), Single value (workspaces with drift), Bar chart (add/change/destroy by workspace), Timeline (drift detection events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.3.6 · Container Image Vulnerability Scan Failures
@@ -1051,6 +1153,8 @@ index=devops sourcetype="container:scan"
 - **Visualization:** Table (failed scans), Line chart (failure rate), Single value (open scan errors).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.3.7 · Package Dependency Audit Alerts
@@ -1070,6 +1174,8 @@ index=devops sourcetype="sca:policy"
 - **Implementation:** Map policies to Splunk alerts. Weekly license review for new copyleft in commercial products.
 - **Visualization:** Table (violations), Bar chart (by policy), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1092,6 +1198,8 @@ index=devops sourcetype="artifactory:artifact_age"
 - **Visualization:** Table (over-retained artifacts), Bar chart (by repo), Single value (non-compliant count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.3.9 · SBOM Generation Compliance
@@ -1112,6 +1220,8 @@ index=cicd sourcetype="release:build"
 - **Visualization:** Table (missing SBOM), Single value (compliance %), Line chart (trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.3.10 · Artifact Signing Verification
@@ -1130,6 +1240,8 @@ index=cicd sourcetype="cosign:verify"
 - **Implementation:** Ingest verification from CD pipeline. Block deploy on false. Rotate keys per runbook.
 - **Visualization:** Table (failed verifications), Timeline, Single value (failed count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1150,6 +1262,8 @@ index=cicd sourcetype="slsa:provenance"
 - **Visualization:** Table (mismatches), Bar chart (by builder), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.3.12 · Registry Storage Growth
@@ -1168,6 +1282,8 @@ index=devops sourcetype="registry:storage"
 - **Implementation:** Alert when weekly growth >20% or forecast crosses 85% capacity in <90 days. Recommend GC tuning.
 - **Visualization:** Line chart (storage growth), Area chart (by project), Single value (days to full).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1194,6 +1310,8 @@ index=iac sourcetype="terraform:run"
 - **Visualization:** Table (recent Terraform runs), Timeline (apply events), Bar chart (resource changes by workspace), Single value (applies today).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.2 · Configuration Drift Detection
@@ -1214,6 +1332,8 @@ index=iac sourcetype="terraform:plan"
 - **Visualization:** Table (drifted resources), Single value (resources with drift), Bar chart (drift by workspace), Timeline (drift events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.3 · Ansible Playbook Outcomes
@@ -1232,6 +1352,8 @@ index=iac sourcetype="ansible:result"
 - **Implementation:** Configure Ansible Splunk callback plugin to send results to HEC. Track ok/changed/failed/unreachable counts per playbook and host. Alert on failed or unreachable hosts. Report on configuration management coverage.
 - **Visualization:** Table (playbook results), Status grid (host × playbook status), Bar chart (failures by playbook), Single value (success rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1252,6 +1374,8 @@ index=iac sourcetype="puppet:report"
 - **Visualization:** Single value (compliance %), Table (non-compliant nodes), Pie chart (status distribution), Line chart (compliance trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.5 · IaC Policy Violations
@@ -1271,6 +1395,8 @@ index=iac sourcetype="policy_check"
 - **Implementation:** Ingest policy check results from CI/CD pipelines. Track denied provisions by policy and team. Alert on repeated violations (may indicate training need). Report on policy effectiveness and most-violated rules.
 - **Visualization:** Bar chart (violations by policy), Table (denied provisions), Line chart (violation trend), Pie chart (by resource type).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1293,6 +1419,8 @@ index=cicd sourcetype="jenkins:build"
 - **Visualization:** Bar chart (failures by cause), Table (job × cause), Line chart (failure rate trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.7 · Container Image Build and Push Audit
@@ -1312,6 +1440,8 @@ index=registry sourcetype="registry:audit"
 - **Implementation:** Ingest registry audit and CI build events. Alert on push from unexpected identity or to production repo without tag policy. Report on image provenance and push frequency.
 - **Visualization:** Table (push events), Timeline (pushes by image), Bar chart (pushes by actor).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1333,6 +1463,8 @@ index=cicd sourcetype="release:gate"
 - **Visualization:** Bar chart (wait time by stage), Table (slow gates), Line chart (approval latency trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.9 · Feature Flag and Experiment Rollout Monitoring
@@ -1352,6 +1484,8 @@ index=app sourcetype="feature_flag:eval"
 - **Implementation:** Ingest flag evaluation and error data. Track rollout % and error rate per flag/variant. Alert on error rate spike after rollout. Report on flag adoption and performance by variant.
 - **Visualization:** Line chart (error rate by flag), Table (flags with high errors), Bar chart (rollout % by variant).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1373,6 +1507,8 @@ index=k8s sourcetype="kube:deployment"
 - **Visualization:** Table (rollback events), Single value (rollbacks this week), Line chart (canary success rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.11 · ArgoCD Application Sync Status
@@ -1392,6 +1528,8 @@ index=devops sourcetype="argocd:application"
 - **Implementation:** Poll ArgoCD API /api/v1/applications for application list. Ingest sync.status, health.status, revision, message. Alert when sync_status is OutOfSync or health_status is Degraded/Progressing for >5 min. Track sync and health history. Correlate with Git commits and cluster events. Report on application sync health and remediation time.
 - **Visualization:** Table (out-of-sync/degraded apps), Single value (synced apps %), Status grid (app × sync/health), Timeline (sync status changes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1413,6 +1551,8 @@ index=iac sourcetype="terraform:plan_ci"
 - **Visualization:** Table (drift plans), Timeline, Bar chart (by workspace).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.13 · CloudFormation Stack Drift
@@ -1432,6 +1572,12 @@ index=aws sourcetype="aws:cloudformation:drift"
 - **Implementation:** Schedule drift detection after stack updates. Alert on DRIFTED. Optionally ingest full drift detail JSON.
 - **Visualization:** Table (drifted stacks), Bar chart (by account), Timeline.
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1454,6 +1600,8 @@ index=iac sourcetype="ansible:result"
 - **Visualization:** Line chart (fail rate trend), Table (worst playbooks), Bar chart (by team).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.4.15 · Policy-as-Code Violation Trending
@@ -1472,6 +1620,8 @@ index=iac sourcetype="opa:decision"
 - **Implementation:** Baseline failures per policy. Alert on 3× week-over-week spike. Run education before switching to hard-fail.
 - **Visualization:** Line chart (violations over time), Bar chart (by policy), Table (top namespaces).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1492,6 +1642,8 @@ index=iac sourcetype="terraform:modules"
 - **Implementation:** Weekly compliance report. Enforce minimum via Sentinel/OPA in pipeline. Pair with private registry pinning.
 - **Visualization:** Table (non-compliant modules), Bar chart (version lag), Line chart (compliance %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1519,6 +1671,8 @@ index=devops (sourcetype="argocd:application" OR sourcetype="argocd:audit")
 - **Visualization:** Table (failed apps), Single value (apps in failed sync), Timeline (sync operations), Status grid by project.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.5.2 · ArgoCD Drift Detection
@@ -1540,6 +1694,8 @@ index=devops sourcetype="argocd:application"
 - **Visualization:** Table (drifted apps), Bar chart (drift by cluster/namespace), Line chart (drift count over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.5.3 · Flux Reconciliation Health
@@ -1559,6 +1715,8 @@ index=devops (sourcetype="fluxcd:controller" OR sourcetype="kube:container_flux"
 - **Implementation:** Forward Flux source-controller, kustomize-controller, and helm-controller logs (or scrape status conditions from CRDs) into Splunk. Parse Ready=False conditions and error strings. Alert on reconciliation failures or backlog growth. Group by cluster and tenant.
 - **Visualization:** Table (failed resources), Single value (failed reconciliations), Timeline (controller errors), Bar chart (failures by kind).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1581,6 +1739,8 @@ index=devops sourcetype="github:workflow_run"
 - **Visualization:** Line chart (failure rate), Stacked bar (conclusions), Single value (last 24h failure %), Table (top failing workflows).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.5.5 · GitHub Actions Runner Queue Depth
@@ -1601,6 +1761,8 @@ index=devops (sourcetype="github:workflow_job" OR sourcetype="github:runner_metr
 - **Implementation:** Emit periodic queue depth from self-hosted runner APIs or poll workflow jobs in `queued` state. For hosted runners, approximate backlog using queued job counts and wait times. Alert when queued_jobs or wait time p95 exceeds SLO. Plan runner pool scaling from trends.
 - **Visualization:** Area chart (queued jobs), Line chart (queue wait p95), Single value (current queue depth), Table (repos with longest waits).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1625,6 +1787,8 @@ index=devops sourcetype="gitlab:pipeline" status="success"
 - **Visualization:** Line chart (median duration trend), Table (regression events), Box plot (duration distribution by pipeline).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.5.7 · Deployment Rollback Frequency Tracking
@@ -1643,6 +1807,8 @@ index=devops (sourcetype="kube:events" OR sourcetype="argocd:application")
 - **Implementation:** Tag rollback events from Argo Rollouts/Flagger, deployment controllers, or GitOps sync history. Deduplicate by deployment and revision. Report rollbacks per service and environment. Correlate with failed health checks or error spikes.
 - **Visualization:** Line chart (rollbacks per day), Bar chart (rollbacks by service), Table (recent rollbacks with revision).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1664,6 +1830,8 @@ index=devops (sourcetype="helm:release" OR (sourcetype="fluxcd:controller" AND k
 - **Visualization:** Table (unhealthy releases), Single value (non-deployed count), Timeline (release operations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.5.9 · Kustomize Build Error Tracking
@@ -1684,6 +1852,8 @@ index=devops (sourcetype="fluxcd:controller" OR sourcetype="gitlab:job" OR sourc
 - **Implementation:** Capture stderr from CI jobs and Flux kustomize-controller when `kustomize build` runs. Extract file paths and duplicate key errors. Alert on any build failure on protected branches or for production overlays. Feed counts back to repo owners.
 - **Visualization:** Table (build errors), Bar chart (errors by repo), Timeline (failure events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1709,6 +1879,8 @@ index=devops (sourcetype="github:webhook" OR sourcetype="argocd:application")
 - **Implementation:** Correlate Git merge or push timestamps with Argo CD successful sync or Flux `LastAppliedRevision` time for the same revision. Use lookup or transaction across indexes if needed. Report p50/p95 lead time by team and service. Exclude hotfix channels with tags if required.
 - **Visualization:** Histogram (lead time distribution), Line chart (p95 lead time trend), Bar chart (lead time by service).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1763,6 +1935,8 @@ index=devops sourcetype="github:issues" earliest=-180d@d (label="incident" OR pr
 - **Visualization:** Four-panel executive dashboard (line charts per metric), Optional radar chart for normalized month scores, Table (monthly KPI table export).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.6.2 · Security Scan Finding Trending
@@ -1784,6 +1958,8 @@ index=devops sourcetype IN ("github:dependabot_alert","gitlab:vulnerability") ea
 - **Implementation:** Ingest Dependabot and SARIF or code-scanning webhooks with stable `alert_id`. For GitLab, map `state` transitions over time or snapshot daily open counts via API. Tag by `repository` and `severity`. Exclude informational severities if policy dictates. Review sprints where `open_findings` rises while merges are flat—often a supply-chain or license scan change.
 - **Visualization:** Stacked bar (new versus closed per sprint), Line chart (open backlog trend), Treemap (findings by repo).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1809,6 +1985,8 @@ index=devops (sourcetype="jenkins:build" OR sourcetype="gitlab:job") earliest=-3
 - **Visualization:** Line chart (average and p95 wait in minutes), Area chart (wait distribution bands), Single value (current p95 wait).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-12.6.4 · Container Image Build Time Trending
@@ -1833,6 +2011,8 @@ index=devops sourcetype IN ("gitlab:job","github:workflow_job") earliest=-90d@d
 - **Implementation:** Standardize job naming so filters stay reliable; alternatively maintain a lookup of pipeline IDs that produce images. Strip cache-hit jobs if duration is near-zero noise. Compare medians per repo against its own 8-sprint baseline to reduce cross-team skew. Pair with container registry pull latency dashboards when build times spike only in certain regions.
 - **Visualization:** Line chart (average image build minutes by sprint), Bar chart (top regressing projects), Table (sprint, project, avg, median).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 

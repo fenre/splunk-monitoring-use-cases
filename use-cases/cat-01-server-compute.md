@@ -33,6 +33,10 @@ index=os sourcetype=cpu host=*
 ```
 - **References:** [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833), [inputs.conf](https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf)
 - **Known false positives:** Sustained high CPU during backups, batch jobs, or maintenance; correlate with change windows.
+- **Status:** verified
+- **Last reviewed:** 2026-04-16
+- **Splunk versions:** 9.2+, Cloud
+- **Reviewer:** @splunk-monitoring-use-cases
 
 ---
 
@@ -60,6 +64,8 @@ index=os sourcetype=vmstat host=*
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.3 · Disk Capacity Forecasting (Linux)
@@ -69,14 +75,15 @@ index=os sourcetype=vmstat host=*
 - **Value:** Prevents outages caused by full filesystems. A full /var or / can bring down services, databases, and logging. Enables proactive storage procurement.
 - **App/TA:** `Splunk_TA_nix`
 - **Data Sources:** `sourcetype=df`
-- **SPL:**
+- **SPL (utilization vs threshold):**
 ```spl
 index=os sourcetype=df host=*
 | stats latest(UsePct) as current_pct by host, Filesystem, MountedOn
 | where current_pct > 85
 | sort -current_pct
-
-| comment "Forecasting version (optional)"
+```
+- **SPL (30-day forecast for a single mount):**
+```spl
 index=os sourcetype=df host=myserver Filesystem="/dev/sda1"
 | timechart span=1d avg(UsePct) as disk_pct
 | predict disk_pct as predicted future_timespan=30
@@ -88,9 +95,11 @@ index=os sourcetype=df host=myserver Filesystem="/dev/sda1"
 ```spl
 | tstats `summariesonly` avg(Performance.storage_used_percent) as disk_pct
   from datamodel=Performance where nodename=Performance.Storage
-  by Performance.host Performance.mount span=1h
+  by Performance.host, Performance.mount span=1h
 | where disk_pct > 85
 ```
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -118,6 +127,8 @@ index=os sourcetype=iostat host=*
 | eval worst_ms=max(read_ms, write_ms)
 | where worst_ms > 20
 ```
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -149,6 +160,8 @@ index=os sourcetype=vmstat host=*
 | where cpu_pct > 90
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.6 · Process Crash Detection (Linux)
@@ -176,6 +189,8 @@ index=os sourcetype=syslog ("segfault" OR "killed process" OR "core dumped" OR "
 | sort -count
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.1.7 · OOM Killer Events
@@ -196,6 +211,8 @@ index=os sourcetype=syslog "Out of memory" OR "oom-killer" OR "Killed process"
 - **Implementation:** Forward syslog and dmesg output. Create a real-time alert on `oom-killer` or `Out of memory` keywords. Consider setting up a triggered action to also capture current process list via scripted input when OOM occurs.
 - **Visualization:** Events timeline, Single value panel (count of OOM events last 24h), Table with affected hosts and processes.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -227,6 +244,8 @@ index=os sourcetype=linux_secure "Failed password"
 | where count > 10
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.1.9 · Unauthorized Sudo Usage
@@ -256,6 +275,8 @@ index=os sourcetype=linux_secure "sudo:" ("NOT in sudoers" OR "authentication fa
 | search Authentication.user=*admin* OR Authentication.user=root
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.1.10 · Cron Job Failure Monitoring
@@ -277,6 +298,8 @@ index=os (sourcetype=cron OR source="/var/log/cron") ("error" OR "failed" OR "EX
 - **Visualization:** Table of failed cron jobs, Single value panel (failures last 24h), Missing job detection table.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.11 · Kernel Panic Detection
@@ -295,6 +318,8 @@ index=os sourcetype=syslog ("kernel panic" OR "Kernel panic" OR "BUG:" OR "Oops:
 - **Implementation:** Forward syslog and enable dmesg scripted input. Create critical alert on `kernel panic` or `Oops:` keywords. Correlate with hardware health data (IPMI) for root cause.
 - **Visualization:** Events timeline, Count by host, Alert panel (critical).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -316,6 +341,8 @@ index=os sourcetype=ntp host=*
 - **Implementation:** Enable the `ntp` scripted input in Splunk_TA_nix (interval=300). It runs `ntpq -pn` and outputs peer data. The `offset` field is in milliseconds. Alert when offset exceeds 100ms or stratum exceeds 5.
 - **Visualization:** Line chart (drift over time by host), Table of hosts with excessive drift.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -339,6 +366,8 @@ index=os sourcetype=ps host=*
 - **Visualization:** Single value panel, Table of hosts with zombie counts.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.14 · File Descriptor Exhaustion
@@ -359,6 +388,8 @@ index=os sourcetype=openfiles host=*
 - **Implementation:** Create scripted input: `cat /proc/sys/fs/file-nr` (system-wide) or `ls /proc/<pid>/fd | wc -l` for per-process tracking. Alert at 80% of system or per-process limit.
 - **Visualization:** Gauge (system-wide), Table per process, Line chart trend.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -387,6 +418,8 @@ index=os sourcetype=interfaces host=*
 | where thruput_bps > 0
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.16 · Package Vulnerability Tracking
@@ -408,6 +441,8 @@ index=os sourcetype=package host=*
 - **Visualization:** Table (host, package, CVE, severity), Stats panel of critical/high vuln counts, Bar chart by severity.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.17 · Service Availability Monitoring
@@ -427,6 +462,8 @@ index=os sourcetype=service_status host=*
 - **Implementation:** Create a scripted input that checks key service statuses: `systemctl is-active httpd sshd mysqld | paste - - -`. Run every 60 seconds. Alert immediately when critical services stop. Maintain a lookup of expected services per host role.
 - **Visualization:** Status indicator panels (green/red per service), Table of down services, Icon grid.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -456,6 +493,8 @@ index=os sourcetype=linux_secure ("useradd" OR "userdel" OR "usermod" OR "groupa
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.1.19 · Filesystem Read-Only Detection
@@ -474,6 +513,8 @@ index=os sourcetype=syslog ("Remounting filesystem read-only" OR "EXT4-fs error"
 - **Implementation:** Forward syslog and dmesg. Create critical alert on read-only remount messages. Also add a scripted input: `mount | grep "ro,"` to periodically verify all expected read-write mounts.
 - **Visualization:** Alert panel (critical), Events list, Host status table.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -498,6 +539,8 @@ index=os sourcetype=syslog ("Initializing cgroup subsys" OR "Linux version" OR "
 - **Visualization:** Table (host, last boot, planned/unplanned), Timeline of reboots, Single value panel (unexpected reboots last 7d).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 
@@ -520,6 +563,8 @@ index=os sourcetype=linux_audit action=* syscall=init_module OR syscall=finit_mo
 - **Visualization:** Table of module name, executable path, and loading user sorted by time; timechart of module load counts per host to spot anomalous spikes; single-value panel showing new (first-seen) modules in the last 24 hours for SOC triage.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.22 · Sysctl Parameter Changes Detection
@@ -538,6 +583,8 @@ index=os sourcetype=linux_audit action=modified path=/proc/sys/*
 - **Implementation:** Set up auditctl rules to monitor changes to /proc/sys and /etc/sysctl.conf. Create alerts for unexpected sysctl modifications, especially those affecting network (ip_forward, tcp_syncookies) or IPC parameters.
 - **Visualization:** Table, Timeline
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -558,6 +605,8 @@ index=os sourcetype=syslog "segfault at" OR "general protection fault" OR "doubl
 - **Visualization:** Alert, Stats Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.24 · Kernel Ring Buffer Error Rate
@@ -576,6 +625,8 @@ index=os sourcetype=syslog "kernel:" "error" OR "warning" OR "BUG"
 - **Implementation:** Create a scripted input that periodically parses dmesg output and forwards errors to Splunk. Build a dashboard that shows error trends over time. Set thresholds for alerting on sustained error rates.
 - **Visualization:** Timechart, Line Chart
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -597,6 +648,8 @@ index=os sourcetype=custom:numa_stats
 - **Visualization:** Single Value, Gauge
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.26 · CPU Frequency Scaling Events
@@ -615,6 +668,8 @@ index=os sourcetype=linux_audit path="/sys/devices/system/cpu/cpu*/cpufreq/*" ac
 - **Implementation:** Monitor /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq for rapid changes. Create alerts when frequency scaling events occur frequently, indicating thermal or power issues.
 - **Visualization:** Table, Timeline
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -643,6 +698,8 @@ index=os sourcetype=vmstat host=*
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.28 · IRQ Imbalance Across CPU Cores
@@ -662,6 +719,8 @@ index=os sourcetype=custom:irq_stats
 - **Implementation:** Create a scripted input that parses /proc/interrupts and calculates the coefficient of variation (stdev/mean) of IRQ distribution across CPUs. Alert when imbalance is detected; use irqbalance daemon or kernel parameters to correct.
 - **Visualization:** Heatmap, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -693,6 +752,8 @@ index=os sourcetype=vmstat host=*
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.30 · Scheduler Latency and Run Queue Depth
@@ -721,6 +782,8 @@ index=os sourcetype=vmstat host=*
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.31 · Hugepage Allocation and Usage
@@ -741,6 +804,8 @@ index=os sourcetype=custom:hugepages host=*
 - **Visualization:** Gauge, Single Value
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.32 · Transparent Hugepage Compaction Stalls
@@ -759,6 +824,8 @@ index=os sourcetype=syslog "compact_stall" OR "collapses_alloc_failed"
 - **Implementation:** Monitor kernel logs for THP compaction failures. Enable debug logging on /sys/kernel/debug/thp* paths via custom input. Alert when compaction stalls occur during peak application hours, indicating need to tune THP settings.
 - **Visualization:** Alert, Stats Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -786,6 +853,8 @@ index=os sourcetype=df host=*
 | where disk_pct > 85
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.34 · RAID Array Degradation Detection
@@ -806,6 +875,8 @@ index=os sourcetype=custom:raid host=*
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.35 · LVM Thin Pool Capacity Monitoring
@@ -824,6 +895,8 @@ index=os sourcetype=custom:lvm_thin host=*
 - **Implementation:** Create a scripted input running 'lvs' to extract thin pool metrics. Monitor Data% and Metadata% separately. Alert at 80% capacity and again at 95%, with escalation at 99%.
 - **Visualization:** Gauge, Single Value
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -844,6 +917,8 @@ index=os sourcetype=syslog "multipathd" "failover" OR "path failed" OR "path rec
 - **Visualization:** Timechart, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.37 · NFS Mount Stale Handle Detection
@@ -862,6 +937,8 @@ index=os sourcetype=syslog "nfs" ("stale" OR "stale NFS file handle" OR "Stale N
 - **Implementation:** Monitor kernel logs and NFS client logs for stale handle errors. Create immediate alerts with escalation to storage team. Add search to identify affected processes and suggest remount or NFS server recovery.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -882,6 +959,8 @@ index=os sourcetype=syslog ("ext4" OR "xfs" OR "jbd2") ("error" OR "EIO" OR "met
 - **Visualization:** Alert, Timechart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.39 · Ext4 Filesystem Errors and Recovery
@@ -900,6 +979,8 @@ index=os sourcetype=syslog host=* ("ext4" AND ("error" OR "abort" OR "FS-error")
 - **Implementation:** Monitor for ext4-specific error messages in kernel logs. Create a baseline of expected errors and alert on increases. Correlate with disk smart data and I/O error rates to identify hardware vs. filesystem issues.
 - **Visualization:** Table, Timechart
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -920,6 +1001,8 @@ index=os sourcetype=syslog host=* ("XFS" OR "xfs_*" AND ("error" OR "IO Error" O
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.41 · Disk SMART Health Monitoring
@@ -938,6 +1021,8 @@ index=os sourcetype=custom:smartctl host=*
 - **Implementation:** Create a scripted input running 'smartctl' on all disks and parsing output. Monitor SMART attributes including reallocated sectors, pending sectors, and CRC errors. Alert on any non-PASSED status immediately.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -958,6 +1043,8 @@ index=os sourcetype=custom:nvme host=*
 - **Visualization:** Gauge, Single Value
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.43 · Fstrim and TRIM Command Monitoring
@@ -976,6 +1063,8 @@ index=os sourcetype=custom:fstrim_status host=*
 - **Implementation:** Create a cron job that runs fstrim -v and logs output to syslog. Create alerts for any failures. Track bytes discarded over time to ensure TRIM operations are completing successfully.
 - **Visualization:** Table, Timechart
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -997,6 +1086,8 @@ index=os sourcetype=top host=*
 - **Implementation:** Use Splunk_TA_nix top input to track RSS memory per process. Calculate linear regression or growth trends over 1-week windows. Alert on processes with sustained >20% RSS growth in a week, indicating memory leaks.
 - **Visualization:** Table, Scatter Chart
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1027,6 +1118,8 @@ index=os sourcetype=vmstat host=*
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.46 · Slab Cache Growth Monitoring
@@ -1049,6 +1142,8 @@ index=os sourcetype=syslog "slab"
 - **Visualization:** Timechart, Anomaly Chart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.47 · Page Cache Pressure and Reclaim Activity
@@ -1068,6 +1163,8 @@ index=os sourcetype=custom:meminfo_delta host=*
 - **Implementation:** Create a scripted input that parses /proc/vmstat delta between samples. Track pgscan_direct and pgsteal_direct rates. Alert when steal ratio exceeds 0.7, indicating aggressive memory reclaim.
 - **Visualization:** Timechart, Single Value
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1090,6 +1187,8 @@ index=os sourcetype=custom:numa_meminfo host=*
 - **Visualization:** Gauge, Heatmap
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.49 · Memory Cgroup Limit Enforcement
@@ -1109,6 +1208,8 @@ index=os sourcetype=syslog "memory.max_usage_in_bytes" OR "Out of memory" AND cg
 - **Visualization:** Table, Gauge
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.50 · Transparent Hugepage Defragmentation Stalls
@@ -1127,6 +1228,8 @@ index=os sourcetype=syslog ("thp_defrags" OR "khugepaged" OR "thp_collapse")
 - **Implementation:** Enable THP statistics logging via /sys/kernel/debug/thp*. Create alerts when defrag stalls occur during peak application hours. Recommend adjusting THP settings to madvise mode for latency-sensitive workloads.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1150,6 +1253,8 @@ index=os sourcetype=netstat host=*
 - **Visualization:** Timechart, Anomaly Chart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.52 · Connection Tracking Table Exhaustion
@@ -1170,6 +1275,8 @@ index=os sourcetype=custom:conntrack host=*
 - **Visualization:** Gauge, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.53 · Socket Buffer Overflow Detection
@@ -1188,6 +1295,8 @@ index=os sourcetype=custom:socket_stats host=*
 - **Implementation:** Create a scripted input parsing /proc/net/sockstat and monitor TCP_alloc, sockets_inuse, and TCP backlog. Also track netstat LISTEN state queue counts. Alert on backlog drops indicating insufficient buffer space.
 - **Visualization:** Table, Timechart
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1215,6 +1324,8 @@ index=os sourcetype=custom:netns host=*
   by Performance.host Performance.interface span=5m
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.55 · DNS Resolution Failure Rate
@@ -1235,6 +1346,8 @@ index=os sourcetype=syslog "systemd-resolved" ("SERVFAIL" OR "NXDOMAIN" OR "TIME
 - **Visualization:** Table, Timechart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.56 · Firewall Rule Hit Tracking (iptables/nftables)
@@ -1253,6 +1366,8 @@ index=os sourcetype=syslog "ufw" ("DENY" OR "REJECT" OR "DROP")
 - **Implementation:** Enable firewall logging in iptables/nftables. Configure kernel logging for denied traffic. Create alerts for spike in dropped packets to specific ports, and trending reports on top blocked IPs.
 - **Visualization:** Table, Bar Chart
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1273,6 +1388,8 @@ index=os sourcetype=custom:arp host=*
 - **Implementation:** Create a scripted input that counts /proc/net/arp entries and monitors /proc/sys/net/ipv4/neigh/*/gc_thresh* limits. Alert when ARP table approaches limits. Correlate with network scans or spoofing indicators.
 - **Visualization:** Gauge, Alert
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1300,6 +1417,8 @@ index=os sourcetype=syslog "bonding:" ("slave" OR "primary") ("failed" OR "recov
   by Performance.host Performance.interface span=5m
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.59 · Network Team Failover Detection (Linux)
@@ -1326,6 +1445,8 @@ index=os sourcetype=syslog "teamd" ("port" OR "link") ("down" OR "up" OR "enable
   by Performance.host Performance.interface span=5m
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.60 · MTU Mismatch Detection
@@ -1346,6 +1467,8 @@ index=os sourcetype=custom:mtu host=*
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.61 · TCP TIME_WAIT Accumulation
@@ -1365,6 +1488,8 @@ index=os sourcetype=custom:netstat host=*
 - **Implementation:** Create a scripted input that runs 'netstat -tan | grep TIME_WAIT | wc -l'. Alert when TIME_WAIT count exceeds 32K. Include recommendations to tune tcp_tw_reuse or tcp_tw_recycle on load-generation hosts.
 - **Visualization:** Gauge, Single Value
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1394,6 +1519,8 @@ index=os sourcetype=interfaces host=*
   by Performance.host Performance.interface span=5m
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.63 · Dropped Packets by Network Interface
@@ -1422,6 +1549,8 @@ index=os sourcetype=interfaces host=*
   by Performance.host Performance.interface span=5m
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.64 · Network Latency Monitoring (Ping RTT)
@@ -1449,6 +1578,8 @@ index=os sourcetype=custom:ping_rtt host=*
   by Performance.host Performance.interface span=5m
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.65 · Auditd Rule Violation Detection
@@ -1467,6 +1598,8 @@ index=os sourcetype=linux_audit type=AVC
 - **Implementation:** Configure comprehensive auditd rules covering file access, syscalls, and privilege escalation. Monitor AVC (Access Vector Cache) denials. Create alerts on violation patterns indicating potential compromise.
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -1487,6 +1620,8 @@ index=os sourcetype=syslog "SELinux" "denied"
 - **Visualization:** Table, Timechart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.67 · AppArmor Profile Violation Detection
@@ -1505,6 +1640,8 @@ index=os sourcetype=syslog "apparmor" ("DENIED" OR "ALLOWED" AND "mode=enforce")
 - **Implementation:** Enable AppArmor audit mode logging to syslog. Monitor for DENIED operations in enforce mode. Create alerts for violation spikes by profile. Include operation context to guide policy tuning.
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1525,6 +1662,8 @@ index=os sourcetype=custom:aide host=*
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.69 · SUID/SGID Binary Changes
@@ -1543,6 +1682,8 @@ index=os sourcetype=linux_audit type=EXECVE "suid" OR "sgid"
 - **Implementation:** Monitor /proc/fs/pstore or auditctl for SUID/SGID attribute changes. Create alerts on any changes to SUID/SGID binaries. Maintain a whitelist of expected SUID/SGID files for comparison.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1563,6 +1704,8 @@ index=os sourcetype=linux_audit path="/etc/passwd" action=modified
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.71 · /etc/shadow Modifications
@@ -1581,6 +1724,8 @@ index=os sourcetype=linux_audit path="/etc/shadow" action=modified
 - **Implementation:** Configure auditctl rules to monitor /etc/shadow modifications. Create immediate critical alerts. Include process context showing which application attempted the change.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1609,6 +1754,8 @@ index=os sourcetype=linux_audit path~="\.ssh/authorized_keys" action=modified
 | where count > 5
 ```
 
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.1.73 · PAM Authentication Failure Tracking
@@ -1635,6 +1782,8 @@ index=os sourcetype=linux_secure pam "authentication failure"
   by Authentication.user Authentication.src span=1h
 | where count > 10
 ```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1664,6 +1813,8 @@ index=os sourcetype=linux_secure "Accepted publickey" OR "Accepted password"
 | where count > 5
 ```
 
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.1.75 · Failed su Attempts
@@ -1690,6 +1841,8 @@ index=os sourcetype=linux_secure "su:" "FAILED" OR "su:" "authentication failure
   by Authentication.user Authentication.src span=1h
 | where count > 10
 ```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1718,6 +1871,8 @@ index=os sourcetype=linux_secure "sudo:" AND "command="
 | search Authentication.user=*admin* OR Authentication.user=root
 ```
 
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.1.77 · Unauthorized Cron Job Additions
@@ -1736,6 +1891,8 @@ index=os sourcetype=linux_audit path~="/var/spool/cron/crontabs/*" action=modifi
 - **Implementation:** Monitor /var/spool/cron/crontabs/ and /etc/cron.d/ for modifications via auditctl. Create alerts on any new cron job additions. Compare against known application cron jobs from baseline.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1757,6 +1914,8 @@ index=os sourcetype=openPorts host=*
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.79 · Setcap Binary Monitoring
@@ -1775,6 +1934,8 @@ index=os sourcetype=linux_audit type=CAPABILITY_CHANGE
 - **Implementation:** Monitor setcap changes via auditctl CAPABILITY_CHANGE events. Create alerts on any setcap modifications. Maintain whitelist of expected capability assignments by application.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1795,6 +1956,8 @@ index=os sourcetype=syslog "systemd" AND ("Failed" OR "ERROR" OR "not-found")
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.81 · Systemd Timer Missed Triggers
@@ -1813,6 +1976,8 @@ index=os sourcetype=syslog "systemd" "timer" ("cannot run" OR "Skipping")
 - **Implementation:** Monitor systemd timer logs for "cannot run" or skipped trigger messages. Create alerts when timers miss scheduled runs. Include impact assessment based on timer purpose.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1833,6 +1998,8 @@ index=os sourcetype=ps host=* state="D"
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.83 · Process CPU Affinity Changes
@@ -1851,6 +2018,8 @@ index=os sourcetype=linux_audit type=SCHED_SETAFFINITY
 - **Implementation:** Monitor sched_setaffinity syscalls via auditctl. Create alerts on unexpected CPU affinity changes. Correlate with application deployment or configuration management changes.
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1871,6 +2040,8 @@ index=os sourcetype=top host=*
 - **Visualization:** Table, Timechart
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.85 · Memory Hog Detection
@@ -1889,6 +2060,8 @@ index=os sourcetype=top host=*
 - **Implementation:** Monitor per-process memory percentage from top input. Create alerts for processes consistently exceeding 40% of system memory. Include growth trend and suggest right-sizing or memory limit enforcement.
 - **Visualization:** Table, Gauge
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -1909,6 +2082,8 @@ index=os sourcetype=custom:process_count host=*
 - **Visualization:** Alert, Anomaly Chart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.87 · Process Namespace Breakout Detection
@@ -1927,6 +2102,8 @@ index=os sourcetype=linux_audit type=CONTAINER_ESCAPE OR syscall=setns
 - **Implementation:** Monitor setns syscalls via auditctl. Create alerts on namespace escape attempts. Correlate with process name and user to identify unauthorized actors.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1947,6 +2124,8 @@ index=os sourcetype=syslog (AppArmor OR SELinux) "container" "denied"
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.89 · Syslog Flood Detection
@@ -1965,6 +2144,8 @@ index=os sourcetype=syslog host=*
 - **Implementation:** Monitor syslog event rate per host. Create alerts for rate spikes indicating syslog flood. Include source identification and recommend investigation of root cause or log source throttling.
 - **Visualization:** Timechart, Alert
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -1985,6 +2166,8 @@ index=os sourcetype=custom:journalctl_usage host=*
 - **Visualization:** Gauge, Single Value
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.91 · Log Rotation Failures
@@ -2003,6 +2186,8 @@ index=os sourcetype=syslog "logrotate" ("error" OR "failed" OR "ERROR")
 - **Implementation:** Monitor logrotate errors via syslog. Create alerts for rotation failures. Include recommended actions to fix permissions or free disk space blocking rotation.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2030,6 +2215,8 @@ index=os sourcetype=linux_audit host=*
 | sort -count
 ```
 
+- **References:** [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.1.93 · Rsyslog Queue Backlog Monitoring
@@ -2049,6 +2236,8 @@ index=os sourcetype=custom:rsyslog_stats host=*
 - **Visualization:** Gauge, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.94 · Failed Log Forwarding
@@ -2067,6 +2256,8 @@ index=os sourcetype=syslog ("rsyslog" OR "syslog-ng") ("error" OR "connection re
 - **Implementation:** Monitor rsyslog/syslog-ng logs for forwarding failures. Create alerts on connection or name resolution errors. Include impact assessment showing how many events are being dropped.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2088,6 +2279,8 @@ index=os sourcetype=custom:netstat_stats host=*
 - **Visualization:** Timechart, Anomaly Chart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.96 · NUMA Hit/Miss Ratio Tracking
@@ -2108,6 +2301,8 @@ index=os sourcetype=custom:numa_zone host=*
 - **Visualization:** Gauge, Timechart
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.97 · CPU C-State Residency Monitoring
@@ -2126,6 +2321,8 @@ index=os sourcetype=custom:cpuidle host=*
 - **Implementation:** Create a scripted input reading CPU idle state residency times. Track time spent in each C-state. Alert when C-state distribution changes unexpectedly, indicating power management changes.
 - **Visualization:** Pie Chart, Heatmap
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2146,6 +2343,8 @@ index=os sourcetype=custom:tlb_stats host=*
 - **Visualization:** Timechart, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.99 · Kernel Lock Contention Detection
@@ -2164,6 +2363,8 @@ index=os sourcetype=custom:lock_stats host=*
 - **Implementation:** Enable kernel lock statistics via /proc/lock_stat or perf tools. Monitor lock contention per lock. Create alerts for high-contention locks with recommendations for kernel/application tuning.
 - **Visualization:** Table, Bar Chart
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2191,6 +2392,8 @@ index=os sourcetype=vmstat host=*
   by Performance.host span=5m
 | where mem_pct > 95 OR swap_pct > 20
 ```
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2220,6 +2423,8 @@ index=os sourcetype=vmstat host=*
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.1.102 · EDAC Memory Error Tracking
@@ -2238,6 +2443,8 @@ index=os sourcetype=syslog "EDAC" OR "MCE" ("error" OR "correctable" OR "uncorre
 - **Implementation:** Monitor EDAC (Error Detection and Correction) and MCE (Machine Check Exception) logs. Create immediate alerts on memory errors with escalation to hardware team for memory replacement.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2258,6 +2465,8 @@ index=os sourcetype=custom:ipmi host=*
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.104 · Thermal Throttling Detection
@@ -2276,6 +2485,8 @@ index=os sourcetype=syslog "thermal" OR "CPU" AND "throttling"
 - **Implementation:** Monitor kernel thermal throttling messages. Create alerts on any throttling events. Include thermal zone temperatures and recommendations for cooling investigation.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2296,6 +2507,8 @@ index=os sourcetype=custom:ipmi host=* sensor_type=fan
 - **Visualization:** Gauge, Table
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.106 · Power Supply State Changes
@@ -2314,6 +2527,8 @@ index=os sourcetype=syslog ("PSU" OR "power supply") ("failed" OR "degraded" OR 
 - **Implementation:** Monitor power supply status via IPMI. Create immediate alerts on any PSU status changes. Include redundancy status and escalation to datacenter ops for physical inspection.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2334,6 +2549,8 @@ index=os sourcetype=time host=*
 - **Visualization:** Gauge, Timechart
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.108 · Password Policy Violation Detection
@@ -2353,6 +2570,8 @@ index=os sourcetype=linux_audit path="/etc/shadow"
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.109 · Account Expiry Monitoring
@@ -2371,6 +2590,8 @@ index=os sourcetype=custom:account_expiry host=*
 - **Implementation:** Create a scripted input that parses /etc/shadow and calculates days until account expiry. Alert 30 days before expiry with reminders. Track expired accounts on production systems.
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2400,6 +2621,8 @@ index=os sourcetype=linux_secure "Accepted"
 | where count > 5
 ```
 
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.1.111 · World-Writable File Detection
@@ -2420,6 +2643,8 @@ index=os sourcetype=custom:file_perms host=*
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.112 · Unowned File Detection
@@ -2438,6 +2663,8 @@ index=os sourcetype=custom:unowned_files host=*
 - **Implementation:** Create a scripted input running 'find / -nouser -o -nogroup' to identify unowned files. Alert on any findings. Include recommendations to investigate origin and correct ownership.
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2458,6 +2685,8 @@ index=os sourcetype=linux_audit type=EXECVE exe="*" AND suid
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.114 · Open File Handle Per-Process Monitoring
@@ -2476,6 +2705,8 @@ index=os sourcetype=lsof host=*
 - **Implementation:** Use Splunk_TA_nix lsof input to track open files per process. Create alerts for processes approaching system limit. Include breakdown of file types (sockets, regular files, pipes).
 - **Visualization:** Table, Gauge
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -2504,6 +2735,8 @@ index=os sourcetype=openPorts host=*
 | sort -count
 ```
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.1.116 · Installed Package Drift Detection
@@ -2524,6 +2757,8 @@ index=os sourcetype=package host=*
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.117 · Configuration File Change Tracking (/etc)
@@ -2542,6 +2777,8 @@ index=os sourcetype=linux_audit path="/etc/*" action=modified
 - **Implementation:** Configure auditctl rules to monitor all /etc/ modifications. Create alerts on unexpected config changes. Include before/after comparison using file integrity tools.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2562,6 +2799,8 @@ index=os sourcetype=syslog "Kernel panic" OR "reboot" OR "system shutdown"
 - **Visualization:** Timechart, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.119 · Defunct (Zombie) Process Accumulation
@@ -2580,6 +2819,8 @@ index=os sourcetype=ps host=* state="Z"
 - **Implementation:** Monitor ps output for Z (zombie) state processes. Create alerts when zombie count exceeds 10. Include parent process information to identify resource leak culprit.
 - **Visualization:** Gauge, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -2600,6 +2841,8 @@ index=os sourcetype=custom:symlink_scan host=*
 - **Visualization:** Table, Alert
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.1.121 · Bootloader Configuration Changes
@@ -2618,6 +2861,8 @@ index=os sourcetype=linux_audit path~="/boot/(grub|efi)" action=modified
 - **Implementation:** Monitor /boot/grub/ and UEFI boot directories via auditctl. Create immediate critical alerts on any bootloader modifications. Include file hash comparison to detect tampering.
 - **Visualization:** Alert, Table
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2646,6 +2891,8 @@ index=os sourcetype=systemd_units host=* NRestarts>0
 - **Visualization:** Table (failed/inactive units by host), Single value (count of failed units), Timechart of restart counts.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.123 · Linux Cgroup Resource Pressure (PSI)
@@ -2672,6 +2919,8 @@ index=os sourcetype=psi host=* cgroup=*
 - **Visualization:** Line chart (pressure over time by resource), Table of hosts with elevated pressure, Gauge per resource type.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.124 · Linux Entropy Pool Depletion
@@ -2697,6 +2946,8 @@ index=os sourcetype=entropy host=*
 - **Visualization:** Single value (entropy_avail), Line chart (entropy over time by host), Table of hosts below threshold.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.125 · Linux Journal / Journald Health
@@ -2720,6 +2971,8 @@ index=os sourcetype=journal_health host=*
 - **Implementation:** Create a scripted input that runs `journalctl --disk-usage` (parse "Archived and active: X.XG" or similar) and `journalctl --verify 2>&1` (check exit code and output for "corrupt" or "inconsistent"). For suppressed messages, parse `journalctl -u systemd-journald` for "Suppressed" or use `journalctl --output=short-full` rate stats. Run every 300 seconds. Alert on corruption; alert when journal exceeds 4GB or suppressed count is high.
 - **Visualization:** Table (host, size, corruption status), Line chart (journal size over time), Single value (corruption count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -2745,6 +2998,8 @@ index=os sourcetype=ntp_status host=*
 - **Implementation:** Create a scripted input that runs `chronyc tracking` (parse Last offset, Stratum, Leap status) or `ntpq -p` for ntpd. Extract offset_ms (convert to milliseconds), stratum, and reachability (octal 377 = all peers reachable). Run every 300 seconds. Alert when offset exceeds 100ms; alert when stratum > 10 or reachability indicates no peers.
 - **Visualization:** Line chart (offset over time by host), Table (host, offset, stratum), Single value (hosts with drift).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -2774,6 +3029,12 @@ index=os sourcetype=vmstat host=*
 - **Implementation:** Enable vmstat scripted input in Splunk_TA_nix (interval=60). Fields `si` (swap in) and `so` (swap out) represent pages per interval. Create baseline of normal swap rate per host; alert when swap I/O rate exceeds 2x baseline or exceeds 100 pages/sec sustained for 10 minutes.
 - **Visualization:** Line chart (swap in/out rates by host), Table of hosts with elevated swap I/O, Single value (current swap rate).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(Performance.mem_used) as agg_value from datamodel=Performance.Memory by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2801,6 +3062,8 @@ index=os sourcetype=df_inode host=*
 - **Visualization:** Table (filesystem, host, inode %), Gauge per critical mount, Line chart (inode % over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.1.129 · Linux Softirq / Hardirq Time
@@ -2825,6 +3088,12 @@ index=os sourcetype=irq_stats host=* cpu=*
 - **Implementation:** Create a scripted input that parses `/proc/softirqs` and `/proc/interrupts` (or use `mpstat -I SUM` for softirq/hardirq percentages). Calculate softirq and hardirq as percentage of CPU time. Run every 60 seconds. Alert when combined IRQ time exceeds 20% sustained for 10 minutes. Correlate with network/block device activity.
 - **Visualization:** Line chart (softirq/hardirq % over time), Table of hosts with elevated IRQ, Stacked area chart by IRQ type.
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host span=5m | sort - count
+```
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2850,6 +3119,8 @@ index=os sourcetype=tcp_states host=*
 - **Implementation:** Create a scripted input that runs `ss -s` (parse TCP: inuse X orphaned X tw X alloc X mem X) or `netstat -an | awk` to count by state. Parse ESTAB, TIME-WAIT, CLOSE-WAIT, SYN-RECV. Run every 60 seconds. Alert when CLOSE_WAIT exceeds 1000 (possible connection leak); alert when TIME_WAIT exceeds 10000 (port exhaustion risk).
 - **Visualization:** Stacked bar chart (state distribution by host), Line chart (CLOSE_WAIT over time), Table of hosts exceeding thresholds.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -2878,6 +3149,8 @@ index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
 - **Implementation:** Ensure kernel messages are forwarded via syslog or Splunk_TA_nix. The OOM killer logs to kernel ring buffer; rsyslog typically captures to kern.log. Use `dmesg -T` or journalctl for immediate capture. Create alert on any OOM event. Parse process name and PID for context. Correlate with memory metrics before the event.
 - **Visualization:** Alert (immediate on OOM), Table (host, process, count), Timeline of OOM events.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -2911,6 +3184,8 @@ index=perfmon sourcetype="Perfmon:CPU" counter="% Processor Time" instance="_Tot
 | where avg_cpu > 90
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.2 · Memory Utilization & Paging (Windows)
@@ -2936,6 +3211,8 @@ index=perfmon sourcetype="Perfmon:Memory" (counter="% Committed Bytes In Use" OR
   by Performance.host span=5m
 | where mem_pct > 95 OR swap_pct > 20
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2965,6 +3242,8 @@ index=perfmon sourcetype="Perfmon:LogicalDisk" counter="% Free Space" instance!=
 | where disk_pct > 85
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.4 · Windows Service Failures
@@ -2992,6 +3271,8 @@ index=wineventlog sourcetype="WinEventLog:System" (EventCode=7034 OR EventCode=7
 | search Services.status!="running"
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.5 · Event Log Flood Detection
@@ -3012,6 +3293,8 @@ index=wineventlog sourcetype="WinEventLog:*"
 - **Implementation:** Use `timechart` + standard deviation to baseline normal volumes. Alert when volume exceeds 3 standard deviations. Investigate the top EventCode contributing to the spike.
 - **Visualization:** Line chart with dynamic threshold overlay, Table of spike events.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3043,6 +3326,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
 | where count > 10
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.7 · Account Lockout Tracking
@@ -3069,6 +3354,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
   by Authentication.user Authentication.src span=1h
 | where count > 10
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -3098,6 +3385,8 @@ index=wineventlog sourcetype="WinEventLog:Security" (EventCode=4728 OR EventCode
 | search Authentication.user=*admin* OR Authentication.user=root
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.9 · Windows Update Compliance
@@ -3120,6 +3409,8 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=19
 - **Visualization:** Table (host, last update, days since), Bar chart (compliance %), Heatmap by team/location.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.10 · Scheduled Task Failures
@@ -3140,6 +3431,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-TaskScheduler/Operat
 - **Visualization:** Table of failures, Single value (failures last 24h), Bar chart by task name.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.11 · Blue Screen of Death (BSOD)
@@ -3159,6 +3452,8 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=1001 SourceName="Bug
 - **Implementation:** Enable System event log collection. Alert on EventCode 1001 from BugCheck source. Correlate bugcheck codes with known issues. Track frequency per host to identify chronic instability.
 - **Visualization:** Events timeline, Table per host, Single value (BSOD count last 30d).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3183,6 +3478,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSe
 - **Visualization:** Table (user, source IP, host, time), Choropleth map for source IPs, Session timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.13 · PowerShell Script Execution
@@ -3202,6 +3499,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 - **Implementation:** Enable PowerShell Script Block Logging via GPO: `Administrative Templates > Windows Components > Windows PowerShell > Turn on PowerShell Script Block Logging`. Forward the PowerShell Operational log. Create alerts on suspicious keywords (encoded commands, invoke-expression, web client downloads).
 - **Visualization:** Events list (full script block text), Table of suspicious commands, Volume timechart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3226,6 +3525,8 @@ index=dns sourcetype="MSAD:NT6:DNS"
 - **Visualization:** Line chart (query rate), Pie chart (query types), Single value (SERVFAIL count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.16 · DHCP Scope Exhaustion
@@ -3244,6 +3545,8 @@ index=dhcp sourcetype="DhcpSrvLog"
 - **Implementation:** Forward DHCP server audit logs from `%windir%\System32\Dhcp`. Create scripted input running `Get-DhcpServerv4ScopeStatistics` to get scope utilization. Alert when any scope exceeds 90% utilization.
 - **Visualization:** Gauge per scope, Table (scope, used, available, % full), Trend line.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3265,6 +3568,8 @@ index=os sourcetype=certificate_inventory host=*
 - **Implementation:** Create a PowerShell scripted input: `Get-ChildItem -Path Cert:\LocalMachine -Recurse | Select Subject, NotAfter, Issuer`. Run daily. Alert at 90/60/30/7 day thresholds.
 - **Visualization:** Table sorted by days to expiry, Single value (certs expiring within 30d), Status indicator (red/yellow/green).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3292,6 +3597,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-GroupPolicy/Operatio
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.20 · Print Spooler Issues
@@ -3310,6 +3617,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-PrintService/Operational
 - **Implementation:** Enable PrintService operational log on print servers. Alert on spooler crash (EventCode 372) and driver installation events (security relevance). Consider disabling the print spooler on servers that don't need it (attack surface reduction).
 - **Visualization:** Table, Events timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3336,6 +3645,8 @@ index=perfmon sourcetype="Perfmon:LogicalDisk" counter="Current Disk Queue Lengt
   by Performance.host Performance.mount span=1h
 | where disk_pct > 85
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -3365,6 +3676,8 @@ index=perfmon sourcetype="Perfmon:Process" counter="Handle Count" instance!="_To
 | where avg_cpu > 90
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.23 · Non-Paged Pool Exhaustion
@@ -3393,6 +3706,8 @@ index=perfmon sourcetype="Perfmon:Memory" counter="Pool Nonpaged Bytes"
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.24 · Network Interface Utilization (Windows)
@@ -3420,6 +3735,8 @@ index=perfmon sourcetype="Perfmon:Network_Interface" counter="Bytes Total/sec"
   by Performance.host Performance.interface span=5m
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.25 · Processor Queue Length
@@ -3446,6 +3763,8 @@ index=perfmon sourcetype="Perfmon:System" counter="Processor Queue Length"
 | where avg_cpu > 90
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.26 · Security Log Cleared
@@ -3464,6 +3783,8 @@ index=wineventlog (sourcetype="WinEventLog:Security" EventCode=1102) OR (sourcet
 - **Implementation:** EventCode 1102 fires when the Security log is cleared; EventCode 104 when any event log is cleared. These should never occur in production outside controlled maintenance windows. Set a real-time alert with critical priority. Enrich with user identity to track who performed the action.
 - **Visualization:** Timeline (clear events), Table (who cleared what), Single value (count — target: 0).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3491,6 +3812,8 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=7045
   by Services.dest Services.name Services.status span=5m
 | search Services.status!="running"
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
 
 ---
 
@@ -3520,6 +3843,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Firewall With Ad
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.29 · Registry Run Key Modification (Persistence)
@@ -3546,6 +3871,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
   by All_Changes.user All_Changes.object_category All_Changes.action span=1h
 | sort -count
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -3577,6 +3904,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.31 · Kerberos Authentication Failures
@@ -3606,6 +3935,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4771
 | where count > 10
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.32 · WMI Event Subscription Persistence
@@ -3626,6 +3957,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 - **Implementation:** Deploy Sysmon v10+ which logs WMI event filter (19), consumer (20), and binding (21) creation. Any new WMI subscription outside management tools (SCCM, monitoring agents) is suspicious. Alert on all new subscriptions. Legitimate ones are rare and well-known (e.g., SCCM client). Correlate consumer CommandLineTemplate with known malware signatures.
 - **Visualization:** Table (WMI subscriptions created), Timeline, Single value (new subscriptions — target: 0 outside SCCM).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3652,6 +3985,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4719
   by All_Changes.user All_Changes.object_category All_Changes.action span=1h
 | sort -count
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -3680,6 +4015,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-AppLocker*" EventCode IN
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.35 · Windows Defender Threat Detections
@@ -3700,6 +4037,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 - **Implementation:** Forward Windows Defender Operational log from all endpoints. EventCode 1116=threat detected, 1117=action taken, 1006/1007=malware detected/acted on. Alert immediately on detections with Severity "Severe" or "High". Track remediation success (1117 following 1116). Monitor for EventCode 5001 (real-time protection disabled) as a separate critical alert.
 - **Visualization:** Table (recent detections), Bar chart (threat categories), Single value (unresolved threats), Map (affected hosts).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3723,6 +4062,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4662
 - **Visualization:** Table (replication requests from non-DCs), Single value (count — target: 0), Alert with analyst playbook.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.37 · Kerberoasting Detection (SPN Ticket Requests)
@@ -3745,6 +4086,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769
 - **Visualization:** Table (suspicious requestors), Bar chart (TGS requests by encryption type), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.38 · AD Object Deletion Monitoring
@@ -3765,6 +4108,8 @@ index=wineventlog sourcetype="WinEventLog:Security"
 - **Implementation:** Enable DS Object Access auditing on domain controllers. EventCode 5141 catches all AD object deletions including OUs. 4726/4730/4743 catch specific account/group/computer deletions. Alert on OU deletions immediately (mass impact). Track deletion volume per admin — spikes indicate accidental bulk operations or insider threats. Ensure AD Recycle Bin is enabled.
 - **Visualization:** Table (deleted objects), Timeline, Bar chart (deletions by admin), Single value (OU deletions — target: 0).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3793,6 +4138,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706, 4707, 47
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.40 · WHEA Hardware Error Reporting
@@ -3812,6 +4159,8 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Microsoft-Windows-WHEA
 - **Implementation:** WHEA events are logged automatically by Windows on hardware error. EventCode 18=fatal (machine check, NMI), 19=corrected (ECC memory correction, CPU thermal), 47=informational. Track corrected error rates — rising counts predict imminent failure. Correlate with specific hardware component (CPU, memory DIMM, PCIe device) from ErrorSource field. Alert on any fatal errors and on corrected error rate >10/hour.
 - **Visualization:** Table (errors by host and component), Line chart (corrected error trend), Single value (fatal errors — target: 0).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3840,6 +4189,8 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="VSS" EventCode IN
 | search Services.status!="running"
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.42 · .NET CLR Performance Monitoring
@@ -3866,6 +4217,8 @@ index=perfmon sourcetype="Perfmon:dotNET_CLR_Memory" counter="% Time in GC" inst
 | where avg_cpu > 90
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.43 · Failover Cluster Event Monitoring
@@ -3887,6 +4240,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-FailoverClustering/Opera
 - **Visualization:** Timeline (failover events), Table (affected resources), Single value (failovers today), Status panel (cluster health).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.44 · SMB Share Access Anomalies
@@ -3906,6 +4261,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5140
 - **Implementation:** Enable "Audit File Share" and "Audit Detailed File Share" in Advanced Audit Policy. EventCode 5140=share accessed, 5145=detailed file access with access check results. Alert when a single user accesses many shares rapidly (lateral movement) or when write volume spikes (ransomware indicator). Baseline normal access patterns per user/role. Note: generates high volume — filter to sensitive shares or use summary indexing.
 - **Visualization:** Table (top share accessors), Timechart (access rate), Bar chart (shares accessed per user).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3935,6 +4292,8 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Microsoft-Windows-Time
 | search Services.status!="running"
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.46 · DFS-R Replication Backlog
@@ -3954,6 +4313,8 @@ index=wineventlog source="WinEventLog:DFS Replication" EventCode IN (4012, 4302,
 - **Implementation:** Forward DFS Replication event logs from all DFS members. EventCode 4304=backlog exceeds threshold (default 100 files), 5008=connection failure between partners. Alert on backlog thresholds and connection failures. Monitor EventCode 4012 (auto-recovery) — frequent occurrences indicate unstable replication. Use `dfsrdiag backlog` via scripted input for precise backlog counts.
 - **Visualization:** Table (replication issues), Line chart (backlog trend), Status grid (partner × status).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -3983,6 +4344,8 @@ index=wineventlog sourcetype="WinEventLog:Application" EventCode IN (1000, 1002)
 | search Services.status!="running"
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.48 · PowerShell Script Block Logging
@@ -4002,6 +4365,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 - **Implementation:** Enable Script Block Logging via GPO: Computer Configuration → Administrative Templates → Windows PowerShell → Turn on PowerShell Script Block Logging. EventCode 4104 logs the full script text, including auto-deobfuscation. Search for suspicious keywords: `Invoke-Expression`, `Net.WebClient`, `DownloadString`, `FromBase64String`, `Invoke-Mimikatz`. High volume — consider targeted alerting and summary indexing. Complements EventCode 4688 (process creation with command line).
 - **Visualization:** Table (suspicious scripts), Timeline, Bar chart (script execution by host), Search interface for threat hunting.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4033,6 +4398,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType IN 
 | where count > 5
 ```
 
+- **References:** [new hosts in an hour. Correlate with process creation](https://splunkbase.splunk.com/app/4688), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.50 · DNS Debug Query Logging
@@ -4052,6 +4419,8 @@ index=dns sourcetype="MSAD:NT6:DNS" query_type IN (TXT, NULL, CNAME)
 - **Implementation:** Enable DNS Analytical logging on Windows DNS servers or DNS debug logging to file (dnscmd /config /logfilepath). Forward via Splunk_TA_windows or Splunk Add-on for Microsoft DNS. Long TXT queries (>50 chars) and high-frequency CNAME lookups indicate DNS tunneling. Queries to recently registered domains or high-entropy names suggest DGA malware. Baseline normal query patterns, then alert on anomalies.
 - **Visualization:** Table (suspicious queries), Bar chart (query types), Timechart (query volume), Top domains.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4080,6 +4449,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4688
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.52 · NIC Teaming / LBFO Failover (Windows)
@@ -4100,6 +4471,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-NlbFo/Operational"
 - **Implementation:** NIC Teaming (LBFO) events log automatically. EventCode 101=team degraded (member lost), 105=member disconnected, 106=reconnected, 115=standby activated. Alert immediately when team degrades — the remaining NIC is now a single point of failure. Track flapping (repeated 105→106 cycles) which indicates cable, switch port, or driver issues.
 - **Visualization:** Status grid (team × member status), Timeline (failover events), Single value (degraded teams).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4122,6 +4495,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-BitLocker*"
 - **Visualization:** Table (recovery events), Timeline, Single value (unresolved recoveries).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.54 · Windows Event Forwarding (WEF) Health
@@ -4143,6 +4518,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Forwarding/Operational"
 - **Implementation:** Enable Forwarding/Operational log on WEF collectors and clients. EventCode 103=subscription-level error, 105=access denied (Kerberos/permission issue), 111=cannot reach collector. Monitor for expected forwarders going silent — compare against CMDB endpoint list. Alert when error rate exceeds 5% of clients. Use `wecutil gr <subscription>` via scripted input for precise subscription health.
 - **Visualization:** Status grid (subscription × host), Pie chart (healthy vs. error), Table (error details), Single value (connected clients).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4173,6 +4550,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4673, 4674)
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.56 · Sysmon Network Connection Monitoring
@@ -4194,6 +4573,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 - **Implementation:** Deploy Sysmon with network connection logging (EventCode 3, Initiated=true for outbound). Filter RFC1918 addresses to focus on external connections. High unique destination IPs from a single process suggest scanning or C2 beaconing. Alert on processes making external connections that normally shouldn't (e.g., winword.exe, excel.exe connecting outbound). Combine with DNS logs for full picture.
 - **Visualization:** Table (outbound connections by process), Network graph, Timechart (connection rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4222,6 +4603,8 @@ index=perfmon sourcetype="Perfmon:Process" counter="Thread Count" instance!="_To
 | where avg_cpu > 90
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.58 · Storage Spaces Health Monitoring
@@ -4242,6 +4625,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-StorageSpaces*" EventCod
 - **Visualization:** Status grid (pool × disk health), Timeline (degradation events), Single value (degraded pools — target: 0).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.59 · DCOM / COM+ Application Errors
@@ -4261,6 +4646,8 @@ index=wineventlog sourcetype="WinEventLog:System" Source="DCOM" EventCode IN (10
 - **Implementation:** EventCode 10016=permission error (most common — often benign for built-in COM objects), 10028=DCOM connection timed out, 10010=server did not register within timeout. Filter known benign 10016 errors (Windows built-in CLSIDs). Alert on 10028/10010 as these indicate application-impacting failures. Persistent 10010 errors for specific CLSIDs indicate broken COM registrations.
 - **Visualization:** Table (DCOM errors by CLSID), Bar chart (error types), Timechart (error frequency).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4283,6 +4670,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-CodeIntegrity/Operationa
 - **Visualization:** Table (integrity violations), Timeline, Bar chart (top unsigned files), Single value (blocked loads).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.61 · Data Deduplication Health
@@ -4303,6 +4692,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Deduplication*"
 - **Implementation:** Enable Deduplication Operational log on file servers with dedup enabled. EventCode 6155=optimization job failure, 12802=data corruption detected. Monitor savings rate trending — declining rates suggest changing data patterns or dedup overhead. Alert on any corruption detection (12802) immediately. Track optimization duration — increasing times indicate volume growth outpacing dedup capacity.
 - **Visualization:** Line chart (savings rate over time), Table (job results), Single value (current savings %), Alert on corruption.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4329,6 +4720,8 @@ index=perfmon sourcetype="Perfmon:TCPv4" counter IN ("Connections Established","
   by Performance.host span=1h
 | where avg_cpu > 90
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -4358,6 +4751,8 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="MsiInstaller" Eve
 | search Services.status!="running"
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.64 · Event Log Channel Size / Overflow
@@ -4382,6 +4777,8 @@ index=os sourcetype=windows:eventlog:size
 - **Implementation:** Deploy a scripted input that runs `wevtutil gl Security` (and other critical channels) every 15 minutes, parsing current size vs. max size. Default Security log is 20MB — often insufficient on DCs and servers with detailed auditing. Alert when any critical log exceeds 90% capacity. Alternatively, monitor EventCode 1101 (audit log full) in the System log. Recommended: increase Security log to 1GB+ on DCs.
 - **Visualization:** Gauge (log fill percentage), Table (logs near capacity), Bar chart (log sizes by channel).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4412,6 +4809,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType=3
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.66 · Sysmon File Creation in Suspicious Paths
@@ -4431,6 +4830,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 - **Implementation:** Deploy Sysmon with FileCreate (EventCode 11) monitoring, filtered to suspicious target paths: Temp, Startup, ProgramData, AppData. Executables (.exe, .dll, .bat, .ps1, .vbs) created in these paths by non-installer processes are suspicious. Exclude known deployment tools (SCCM client, Intune agent). Cross-reference with process creation events to build full attack chain.
 - **Visualization:** Table (suspicious file creations), Bar chart (top dropping processes), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4457,6 +4858,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4768 TicketEncrypt
 - **Visualization:** Table (anomalous ticket requests), Timeline, Single value (RC4 TGT count), Alert.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.68 · NTFS Corruption and Self-Healing
@@ -4476,6 +4879,8 @@ index=wineventlog sourcetype="WinEventLog:System" Source="Ntfs" EventCode IN (55
 - **Implementation:** NTFS events log automatically. EventCode 55=structure corruption on volume (critical), 98=volume marked dirty (chkdsk needed at boot), 137/140=self-healing activity. Any EventCode 55 requires immediate attention — indicates metadata corruption that may spread. Correlate with WHEA (hardware) and SMART events to determine if underlying disk is failing. Schedule chkdsk offline and plan disk replacement.
 - **Visualization:** Table (corruption events), Timeline, Single value (affected volumes — target: 0).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4504,6 +4909,8 @@ index=perfmon sourcetype="Perfmon:Paging_File" counter="% Usage" instance="_Tota
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.70 · Context Switch Rate Anomalies (Windows)
@@ -4531,6 +4938,8 @@ index=perfmon sourcetype="Perfmon:System" counter="Context Switches/sec"
   by Performance.host span=1h
 | where avg_cpu > 90
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -4561,6 +4970,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4698
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.72 · WinRM / Remote PowerShell Connections
@@ -4581,6 +4992,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-WinRM/Operational"
 - **Implementation:** Enable WinRM Operational log on all servers. EventCode 6/91=new WinRM session established, 161=authentication failure. Baseline expected WinRM sources (jump servers, SCCM, monitoring tools). Alert on WinRM sessions from non-authorized IPs or workstations. In restricted environments, consider disabling WinRM on servers that don't require it. Correlate with PowerShell Script Block Logging for full command visibility.
 - **Visualization:** Table (WinRM sessions by source), Network graph (source→dest), Timeline, Bar chart (sessions per host).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4606,6 +5019,8 @@ index=perfmon sourcetype="Perfmon:NTDS" counter IN ("LDAP Searches/sec","LDAP Su
   by Performance.host span=1h
 | where avg_cpu > 90
 ```
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -4635,6 +5050,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 | search Authentication.user=*admin* OR Authentication.user=root
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.77 · SPN Modification (Targeted Kerberoasting)
@@ -4663,6 +5080,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.78 · DSRM Account Usage
@@ -4683,6 +5102,8 @@ index=wineventlog sourcetype="WinEventLog:Security"
 - **Implementation:** EventCode 4794=DSRM password change (should only happen during planned maintenance). DSRM logons appear as local "Administrator" logons on the DC. Since Windows Server 2008 R2, registry key DsrmAdminLogonBehavior allows DSRM logon while AD is running (value=2). Alert on any DSRM password change and any local admin logon to a DC. Set DsrmAdminLogonBehavior=0 (default, deny DSRM logon while AD running).
 - **Visualization:** Table (DSRM events), Single value (count — target: 0 outside restore operations), Alert.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4705,6 +5126,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational" 
 - **Visualization:** Table (queries by process), Bar chart (top resolving processes), Sankey diagram (process→domain).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.81 · SMBv1 Usage Detection
@@ -4723,6 +5146,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-SMBServer/Audit" EventCo
 - **Implementation:** Enable SMB1 audit logging via `Set-SmbServerConfiguration -AuditSmb1Access $true`. EventCode 3000 logs each SMBv1 connection with the client name. Identify all clients still using SMBv1, then upgrade or remediate before disabling SMBv1 entirely. Alert on any new SMBv1 access after remediation is complete. MS17-010 (EternalBlue) affects unpatched SMBv1 systems.
 - **Visualization:** Table (SMBv1 clients), Bar chart (clients per server), Single value (total SMBv1 connections — target: 0).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4753,6 +5178,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-DeviceGuard*"
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.83 · Boot Configuration Changes (BCDEdit)
@@ -4781,6 +5208,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4688
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.84 · Sysmon Named Pipe Monitoring
@@ -4801,6 +5230,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 - **Implementation:** Deploy Sysmon with PipeCreated (17) and PipeConnected (18) monitoring. Known malicious pipe names: `MSSE-*` (Metasploit), `msagent_*` (Cobalt Strike), `postex_*` (Cobalt Strike post-exploitation), `status_*` (default Cobalt Strike). Also detect PsExec pipes (`PSEXESVC`). Baseline normal pipes per application role, then alert on anomalies.
 - **Visualization:** Table (pipe events), Bar chart (top pipe names), Timeline, Alert on known-bad patterns.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4830,6 +5261,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-NTLM/Operational"
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.87 · DPAPI Credential Backup (DC)
@@ -4858,6 +5291,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4692, 4693)
 | where count > 5
 ```
 
+- **References:** [indicates SharpDPAPI/Mimikatz DPAPI module usage. Correlate with DCSync events](https://splunkbase.splunk.com/app/4662), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.88 · Windows Search Indexer Issues
@@ -4879,6 +5314,8 @@ index=wineventlog sourcetype="WinEventLog:Application" Source="Windows Search Se
 - **Visualization:** Table (indexer events), Single value (index health status), Line chart (index size over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.89 · System Uptime & Unexpected Restarts (Windows)
@@ -4899,6 +5336,8 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode IN (6005, 6006, 6008
 - **Visualization:** Table (shutdown events), Line chart (uptime per host), Single value (hosts with unexpected restarts), Calendar view.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.90 · Shadow Copy Deletion (Ransomware Indicator)
@@ -4918,6 +5357,8 @@ index=wineventlog EventCode IN (4688, 1)
 - **Implementation:** Monitor process creation (EventCode 4688 or Sysmon 1) for commands: `vssadmin delete shadows`, `wmic shadowcopy delete`, `bcdedit /set {default} recoveryenabled no`, `wbadmin delete catalog`. Any of these commands executed outside backup maintenance is a near-certain indicator of ransomware or destructive attack. Alert with critical priority and trigger automated response (network isolation). MITRE ATT&CK T1490.
 - **Visualization:** Single value (count — target: 0), Table (events), Alert with automated containment trigger.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -4940,6 +5381,8 @@ index=wineventlog EventCode=6416
 - **Visualization:** Timeline (device connections over time), Table (device details), Alert on server USB connections.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.92 · Remote Desktop Gateway Session Monitoring
@@ -4959,6 +5402,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-Gateway
 - **Implementation:** Collect RD Gateway Operational logs. Track connection (300), disconnect (302), authentication failures (303), and authorization failures (304). Alert on brute-force patterns (multiple 303s from same IP), connections from unusual geolocations, and access to unauthorized resources. Monitor session duration for anomalies.
 - **Visualization:** Geo map (client IPs), Table (session details), Timechart (connections by hour).
 - **CIM Models:** N/A
+
+- **References:** [Collect RD Gateway Operational logs. Track connection](https://splunkbase.splunk.com/app/300)
 
 ---
 
@@ -4987,6 +5432,8 @@ index=wineventlog EventCode IN (5136, 5137) ObjectClass="groupPolicyContainer"
 | sort -count
 ```
 
+- **References:** [Enable Audit Directory Service Changes. Track GPO creation](https://splunkbase.splunk.com/app/5137), [and modification](https://splunkbase.splunk.com/app/5136), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.94 · Windows Subsystem for Linux (WSL) Activity
@@ -5006,6 +5453,8 @@ index=wineventlog (EventCode=1 OR EventCode=4688)
 - **Implementation:** Monitor for WSL process execution (wsl.exe, wslhost.exe, bash.exe from WindowsApps). Track what commands are executed inside WSL via Sysmon process creation. On servers, WSL should not be installed — alert on any WSL activity. On workstations, baseline normal usage and alert on anomalies like network tools (nmap, netcat) or credential access tools.
 - **Visualization:** Table (WSL commands), Timechart (usage patterns), Alert on server WSL usage.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5035,6 +5484,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Hyper-V-Compute-Operatio
 | where avg_cpu > 90
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.96 · DNS Server Zone Transfer Monitoring
@@ -5056,6 +5507,8 @@ index=wineventlog source="WinEventLog:DNS Server" EventCode IN (6001, 6002)
 - **Visualization:** Table (transfer details), Alert on unauthorized transfers, Geo map (requester IPs).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.97 · Print Spooler Vulnerability Monitoring (PrintNightmare)
@@ -5076,6 +5529,8 @@ index=wineventlog ((source="WinEventLog:Microsoft-Windows-PrintService/Operation
 - **Implementation:** Audit Print Service Operational log for driver installations (316), and Sysmon for DLL drops into spool\drivers directory (EventCode 11). On non-print servers, the Print Spooler service should be disabled — alert if running. On print servers, monitor for unsigned driver installations and remote driver additions. Alert on any spoolsv.exe spawning cmd.exe or powershell.exe.
 - **Visualization:** Table (events), Single value (spooler running on non-print servers), Alert on exploitation indicators.
 - **CIM Models:** N/A
+
+- **References:** [Audit Print Service Operational log for driver installations](https://splunkbase.splunk.com/app/316), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5106,6 +5561,8 @@ index=wineventlog EventCode IN (6272, 6273, 6274)
 | where count > 5
 ```
 
+- **References:** [NPS logs authentication events to the Security log. Track granted](https://splunkbase.splunk.com/app/6272), [denied](https://splunkbase.splunk.com/app/6273), [and discarded](https://splunkbase.splunk.com/app/6274), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.100 · PKI / Certificate Authority Health
@@ -5134,6 +5591,8 @@ index=wineventlog EventCode IN (4886, 4887, 4888, 4890, 4891, 4893)
 | where count > 5
 ```
 
+- **References:** [received](https://splunkbase.splunk.com/app/4886), [approved](https://splunkbase.splunk.com/app/4887), [denied](https://splunkbase.splunk.com/app/4888), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.101 · File Share Access Auditing (SMB)
@@ -5155,6 +5614,8 @@ index=wineventlog EventCode IN (5140, 5145)
 - **Visualization:** Timechart (access volume), Table (top users/shares), Alert on mass access patterns.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.102 · Software Restriction / AppLocker Bypass Detection
@@ -5174,6 +5635,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-AppLocker*" EventCode IN
 - **Implementation:** Collect all four AppLocker log channels (EXE/DLL, MSI/Script, Packaged app, Script). Track blocked executions (8004/8007/8022/8025) and audit-mode warnings (8003/8006). Alert on repeated blocks from same user (attempted bypass), blocks in admin paths, and execution of known LOLBins that bypass default rules (mshta.exe, regsvr32.exe, msbuild.exe). Correlate with Sysmon for parent process context.
 - **Visualization:** Bar chart (blocks by type), Table (blocked files), Timechart (block trends).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5195,6 +5658,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSe
 - **Implementation:** Collect TerminalServices-LocalSessionManager/Operational log for session lifecycle events. Track logon (21), logoff (23), disconnect (24), reconnect (25). Correlate with Security log 4624 Type 10 for source IP. Alert on RDP to servers from non-admin workstations, sessions during off-hours, and multiple concurrent sessions from different IPs for same user.
 - **Visualization:** Timeline (sessions), Table (session details), Alert on anomalous patterns.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5224,6 +5689,8 @@ index=perfmon source="Perfmon:LogicalDisk" counter IN ("Avg. Disk sec/Read", "Av
 | where disk_pct > 85
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-1.2.105 · Windows Defender Exclusion Monitoring
@@ -5244,6 +5711,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 - **Implementation:** Monitor Defender configuration changes (EventID 5007) and filter for exclusion modifications. Track path, extension, and process exclusions. Alert on any exclusion added outside of change management, especially for temp directories, user profiles, or common malware paths. Maintain a whitelist of approved exclusions and alert on deviations. Critical for detecting MITRE ATT&CK T1562.001 (Impair Defenses).
 - **Visualization:** Table (exclusion changes), Alert on unauthorized exclusions, Trend chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5273,6 +5742,8 @@ index=wineventlog EventCode IN (4732, 4733) TargetUserName="Administrators"
 | search Authentication.user=*admin* OR Authentication.user=root
 ```
 
+- **References:** [Enable Audit Security Group Management. Track additions](https://splunkbase.splunk.com/app/4732), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.107 · DFS Replication Health Monitoring
@@ -5292,6 +5763,8 @@ index=wineventlog source="WinEventLog:DFS Replication" EventCode IN (4012, 4302,
 - **Implementation:** Monitor DFS Replication event log for critical events. EventCode 4012 (DFSR stopped) and 5014 (USN journal wrap) require immediate attention — USN journal wrap can cause full resync. Track staging quota events (4302) to prevent replication stalls. Monitor SYSVOL replication specifically on domain controllers. Alert on replication backlog exceeding threshold via WMI/PowerShell scripted input collecting DFSR WMI counters.
 - **Visualization:** Table (replication errors), Timechart (error trend), Alert on critical events.
 - **CIM Models:** N/A
+
+- **References:** [USN journal wrap can cause full resync. Track staging quota events](https://splunkbase.splunk.com/app/4302), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5322,6 +5795,8 @@ index=wineventlog EventCode=4769 TransitionedServices!=""
 | where count > 5
 ```
 
+- **References:** [Track AD object modifications](https://splunkbase.splunk.com/app/5136), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.109 · Windows Time Service (W32Time) Drift
@@ -5349,6 +5824,8 @@ index=wineventlog source="WinEventLog:System" SourceName="Microsoft-Windows-Time
 | search Services.status!="running"
 ```
 
+- **References:** [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.110 · PowerShell Constrained Language Mode Bypass
@@ -5369,6 +5846,8 @@ index=wineventlog EventCode=4104
 - **Visualization:** Table (bypass attempts), Alert on detection, Single value (count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.111 · Windows Firewall Rule Tampering
@@ -5388,6 +5867,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Firewall With Ad
 - **Implementation:** Collect Windows Firewall With Advanced Security log. Track rule additions (2004), modifications (2005), deletions (2006), and bulk deletion (2033 — extremely suspicious). Alert on: allow-inbound rules for unusual ports, rules permitting all traffic, rules created by non-admin processes, and any rule changes on servers outside change windows. Correlate with process creation to identify the modifying application.
 - **Visualization:** Table (rule changes), Timeline (change frequency), Alert on suspicious modifications.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -5410,6 +5891,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Bits-Client/Operational"
 - **Visualization:** Table (BITS jobs), Timechart (transfer volume), Alert on non-standard URLs.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.113 · COM Object Hijacking Detection
@@ -5430,6 +5913,8 @@ index=wineventlog EventCode=13 TargetObject="*\\Classes\\CLSID\\*\\InprocServer3
 - **Implementation:** Monitor Sysmon registry value set events (EventCode 13) targeting CLSID InprocServer32 and LocalServer32 keys in HKCU and HKLM. Filter out legitimate installers (msiexec, TrustedInstaller). Alert on modifications pointing to unusual DLL paths (temp directories, user profiles, AppData). Maintain baseline of known-good CLSID registrations. MITRE ATT&CK T1546.015.
 - **Visualization:** Table (registry changes), Alert on suspicious CLSID modifications.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5452,6 +5937,8 @@ index=wineventlog EventCode=10 TargetImage="*\\lsass.exe"
 - **Implementation:** Sysmon EventCode 10 (ProcessAccess) targeting lsass.exe. Filter legitimate AV/EDR processes. Focus on suspicious access masks: 0x1010 (PROCESS_QUERY_LIMITED_INFORMATION + PROCESS_VM_READ), 0x1FFFFF (PROCESS_ALL_ACCESS), 0x143A (used by Mimikatz sekurlsa). Enable RunAsPPL for LSASS protection and monitor for its status. Alert on any non-whitelisted LSASS access. MITRE ATT&CK T1003.001.
 - **Visualization:** Table (access events), Alert on suspicious access masks, Single value (LSASS PPL status).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5482,6 +5969,8 @@ index=wineventlog EventCode=4624 Logon_Type=3
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.116 · WMI Persistence Detection
@@ -5502,6 +5991,8 @@ index=wineventlog EventCode IN (19, 20, 21)
 - **Implementation:** Sysmon EventCodes 19/20/21 track WMI event filter, consumer, and binding creation. Any new WMI subscription (especially CommandLineEventConsumer or ActiveScriptEventConsumer) is suspicious. Filter out known-good subscriptions (BVTFilter, TSLogonFilter). Alert on all new subscriptions and investigate the consumer action. Correlate EventCode 21 (binding) — a complete subscription requires filter + consumer + binding. MITRE ATT&CK T1546.003.
 - **Visualization:** Table (WMI subscriptions), Alert on creation, Timeline (events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5530,6 +6021,8 @@ index=wineventlog source="WinEventLog:System" SourceName IN ("Microsoft-Windows-
 | search Services.status!="running"
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.118 · ASR (Attack Surface Reduction) Rule Monitoring
@@ -5550,6 +6043,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Windows Defender/Operati
 - **Implementation:** Enable ASR rules in Block or Audit mode. EventCode 1121 (blocked) and 1122 (audit) log ASR triggers. Map rule GUIDs to names via lookup table (e.g., 75668C1F = "Block Office from creating executable content"). Track most-triggered rules for tuning. Alert on: high block counts (active attack), blocks suddenly stopping (rules disabled), and audit-mode triggers on sensitive rules that should be in block mode.
 - **Visualization:** Bar chart (blocks by rule), Timechart (block trends), Table (event details).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5579,6 +6074,8 @@ index=wineventlog EventCode=13
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.120 · BitLocker Recovery & Compliance Monitoring
@@ -5598,6 +6095,8 @@ index=wineventlog source="*BitLocker*" EventCode IN (770, 771, 773, 774, 775, 77
 - **Implementation:** Monitor BitLocker Management log for encryption status changes. Protection off (770) may indicate maintenance or attack — correlate with change tickets. Volume recovery (773) means the recovery key was needed — investigate hardware changes or TPM issues. Track recovery password backup to AD (776) for compliance. Run a scripted input querying `manage-bde -status` for real-time encryption state across all volumes. Alert on any protection suspension on servers.
 - **Visualization:** Dashboard (encryption compliance %), Table (events), Alert on protection suspension.
 - **CIM Models:** N/A
+
+- **References:** [Monitor BitLocker Management log for encryption status changes. Protection off](https://splunkbase.splunk.com/app/770), [correlate with change tickets. Volume recovery](https://splunkbase.splunk.com/app/773)
 
 ---
 
@@ -5622,6 +6121,8 @@ index=wineventlog EventCode=22
 - **Implementation:** Sysmon EventCode 22 logs DNS queries with the originating process. Detect DNS tunneling via long domain names (>50 chars), high label counts, and high-entropy subdomains. Identify DGA patterns: many unique NXDomain responses from a single process. Alert on processes making unusual DNS query volumes. Baseline per-process DNS behavior and alert on deviations.
 - **Visualization:** Timechart (query volume by process), Table (anomalous queries), Alert on tunneling indicators.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5649,6 +6150,8 @@ index=wineventlog EventCode IN (4720, 4722, 4724, 4738) NOT TargetDomainName IN 
   by All_Changes.user All_Changes.object_category All_Changes.action span=1h
 | sort -count
 ```
+
+- **References:** [Track local account creation](https://splunkbase.splunk.com/app/4720), [enabling](https://splunkbase.splunk.com/app/4722), [password reset](https://splunkbase.splunk.com/app/4724), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -5678,6 +6181,8 @@ index=wineventlog EventCode IN (4673, 4674) PrivilegeList IN ("SeImpersonatePriv
 | search Authentication.user=*admin* OR Authentication.user=root
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.124 · Process Injection Detection (Sysmon)
@@ -5700,6 +6205,8 @@ index=wineventlog EventCode=8
 - **Visualization:** Table (injection events), Network diagram (source→target), Alert on detection.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.125 · Cluster Shared Volume (CSV) Health
@@ -5720,6 +6227,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-FailoverClustering/Opera
 - **Implementation:** Monitor Failover Clustering Operational log for CSV state changes. CSV Offline (5121) is critical — VMs will fail. CSV Redirected (5140) means I/O is going through another node (degraded performance). CSV I/O Paused (5142) freezes all VMs on that volume. Alert immediately on offline and paused states. Monitor CSV latency via Perfmon: Cluster CSV File System counters. Track cluster node membership changes (1069/1070/1135).
 - **Visualization:** Status dashboard (CSV states), Timechart (state changes), Alert on failures.
 - **CIM Models:** N/A
+
+- **References:** [Monitor Failover Clustering Operational log for CSV state changes. CSV Offline](https://splunkbase.splunk.com/app/5121), [VMs will fail. CSV Redirected](https://splunkbase.splunk.com/app/5140), [CSV I/O Paused](https://splunkbase.splunk.com/app/5142)
 
 ---
 
@@ -5749,6 +6258,8 @@ index=wineventlog source="WinEventLog:System" EventCode=10016
 | search Services.status!="running"
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
+
 ---
 
 ### UC-1.2.127 · Automatic Windows Update Compliance
@@ -5770,6 +6281,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-WindowsUpdateClient/Oper
 - **Implementation:** Monitor Windows Update Client Operational log. Track successful installs (19), failed installs (20), restart required (25), download failures (31). Calculate days since last successful update for each host. Alert on: systems not updated in 30+ days, repeated installation failures, and systems stuck in "restart required" state. Supplement with `wmic qfe list` scripted input for installed KB inventory. Essential for vulnerability management and audit compliance.
 - **Visualization:** Table (compliance status), Single value (% compliant), Bar chart (days since update).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5802,6 +6315,8 @@ index=wineventlog EventCode=4624 Logon_Type IN (2, 10, 11)
 | where count > 5
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-1.2.129 · Sysmon Driver/Image Load Monitoring
@@ -5821,6 +6336,8 @@ index=wineventlog EventCode=6 Signed="false"
 - **Implementation:** Sysmon EventCode 6 (DriverLoad) monitors kernel driver loads. Alert on unsigned drivers — all legitimate drivers should be signed. EventCode 7 (ImageLoad) monitors DLL loads (high volume — use targeted config). Focus on unsigned DLLs loaded from unusual paths. Track BYOVD (Bring Your Own Vulnerable Driver) attacks by maintaining a list of known-vulnerable driver hashes. MITRE ATT&CK T1068, T1574.002.
 - **Visualization:** Table (unsigned loads), Alert on unsigned kernel drivers, Timechart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5850,6 +6367,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operationa
 | sort -count
 ```
 
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-1.2.131 · Windows Print Spooler Health
@@ -5875,6 +6394,8 @@ index=perfmon sourcetype=Perfmon:PrintQueue host=* counter="Jobs"
 - **Implementation:** Enable `WinEventLog:System` input for EventCode 7036 (service state change). Filter for ServiceName=Spooler. Configure Perfmon input for Print Queue object: counter=Jobs (queue depth). Run every 60 seconds. Alert when Spooler stops; alert when queue depth exceeds 50 for sustained period (stalled jobs).
 - **Visualization:** Table (host, spooler state, queue depth), Single value (failed spooler count), Line chart (queue depth over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5902,6 +6423,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operationa
 - **Visualization:** Table (task, host, result code), Alert on failed tasks, Bar chart (failed task count by task name).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-1.2.133 · Windows WMI Repository Health
@@ -5926,6 +6449,8 @@ index=os sourcetype=wmi_verify host=*
 - **Implementation:** Create a scripted input that runs `winmgmt /verifyrepository` and captures output. Parse for "repository is consistent" (success) vs "inconsistent" or "corrupt". Run daily or weekly. Alert immediately on inconsistent. Remediation: `winmgmt /resetrepository` (requires reboot). WMI issues often cause perfmon and other agent inputs to fail.
 - **Visualization:** Table (host, WMI status), Single value (hosts with WMI issues), Alert.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -5953,6 +6478,8 @@ index=os sourcetype=windows_pending_reboot host=*
 - **Visualization:** Table (host, pending, reason), Single value (pending reboot count), Pie chart (pending vs. current).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### 1.3 macOS Endpoints
@@ -5978,6 +6505,8 @@ index=os sourcetype=macos_top host=*
 - **Visualization:** Table of endpoints, Gauge panels, Line chart trending.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.3.2 · FileVault Encryption Status
@@ -5997,6 +6526,8 @@ index=os sourcetype=macos_filevault host=*
 - **Visualization:** Pie chart (encrypted vs. not), Table of non-compliant hosts, Single value (compliance %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.3.3 · Gatekeeper and SIP Status
@@ -6015,6 +6546,8 @@ index=os sourcetype=macos_security host=*
 - **Implementation:** Scripted inputs for `spctl --status` and `csrutil status`. Run daily. Dashboard showing fleet-wide compliance.
 - **Visualization:** Pie chart (compliant vs. not), Table of non-compliant endpoints.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -6036,6 +6569,8 @@ index=os sourcetype=macos_sw_vers host=*
 - **Visualization:** Table (host, OS version, pending updates), Pie chart (version distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.3.5 · Application Crash Monitoring
@@ -6055,6 +6590,8 @@ index=os sourcetype=macos_crash host=*
 - **Implementation:** Forward `~/Library/Logs/DiagnosticReports/` and `/Library/Logs/DiagnosticReports/`. Use `monitor` input in inputs.conf. Parse process name and exception type from crash reports.
 - **Visualization:** Table (process, host, count), Bar chart of top crashing apps.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -6081,6 +6618,8 @@ index=os sourcetype=macos_gatekeeper host=*
 - **Implementation:** Create a scripted input that runs `spctl --status` (expect "assessments enabled" for Gatekeeper on). For XProtect, run `system_profiler SPInstallHistoryDataType` and parse XProtect/XProtect Remediator entries, or check `/Library/Apple/System/Library/CoreServices/XProtect.bundle/Contents/version.plist`. Run daily. Alert when Gatekeeper is disabled; alert when XProtect definitions are older than 30 days.
 - **Visualization:** Table (host, Gatekeeper status, XProtect version), Single value (non-compliant count), Pie chart (enabled vs. disabled).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -6109,6 +6648,8 @@ index=hardware sourcetype=ipmi:sensor
 - **Visualization:** Table of critical sensors, Gauge per sensor type, Heatmap across hosts.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.4.2 · RAID Degradation Alerts
@@ -6129,6 +6670,8 @@ index=hardware sourcetype=raid_status
 - **Visualization:** Status indicator per array, Table, Alert panel (critical).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.4.3 · Power Supply Failure
@@ -6147,6 +6690,8 @@ index=hardware sourcetype=ipmi:sel ("Power Supply" OR "PS" OR "power_supply") ("
 - **Implementation:** Forward IPMI System Event Log data. Enable syslog forwarding from iLO/iDRAC to Splunk. Alert immediately on PSU failure events.
 - **Visualization:** Events timeline, Status indicator per host, Alert panel.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -6167,6 +6712,8 @@ index=hardware sourcetype=smart_data
 - **Implementation:** Install `smartmontools`. Scripted input: `smartctl -A /dev/sd[a-z]`. Run every 3600 seconds. Track key attributes: Reallocated Sector Count, Current Pending Sector, Offline Uncorrectable. Alert on any non-zero values.
 - **Visualization:** Table per disk, Trend line for sector counts, Heatmap of disk health.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -6189,6 +6736,8 @@ index=hardware sourcetype=firmware_inventory
 - **Visualization:** Table (host, model, current vs. expected), Pie chart (compliant %), Bar chart by model.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.4.6 · Memory ECC Error Trending
@@ -6210,6 +6759,8 @@ index=hardware sourcetype=ecc_errors
 - **Visualization:** Line chart (errors over time by host), Table (host, DIMM, error count), Trend chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.4.7 · BMC Out-of-Band Connectivity Health
@@ -6229,6 +6780,8 @@ index=hardware sourcetype=bmc_health host=*
 - **Implementation:** Create scripted input: `ipmitool lan print` or vendor-specific tools (racadm, hpasm) to verify BMC reachability and LAN channel. Run every 5 minutes. Alert when BMC becomes unreachable.
 - **Visualization:** Status grid (BMC up/down per host), Table of unreachable BMCs, Single value (count of healthy BMCs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -6251,6 +6804,8 @@ index=hardware sourcetype=pcie_link host=*
 - **Visualization:** Table (host, slot, current vs. expected), Bar chart of link widths.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-1.4.9 · Out-of-Band Sensor Threshold Breach (IPMI)
@@ -6272,6 +6827,8 @@ index=hardware sourcetype=ipmi_sdr host=*
 - **Visualization:** Gauges per sensor, Table of breached sensors, Timeline of SEL events.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-1.4.10 · Disk Controller and HBA Health
@@ -6291,6 +6848,8 @@ index=hardware sourcetype=raid_controller host=*
 - **Implementation:** Run vendor CLI (MegaCli, perccli, hpssacli) via scripted input every 15 minutes. Parse controller and virtual drive state. Alert when status is not Optimal or any array is degraded.
 - **Visualization:** Status panel (Optimal/Degraded/Failed), Table of degraded arrays.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -6313,6 +6872,8 @@ index=hardware sourcetype=boot_config host=*
 - **Implementation:** Use vendor APIs or scripts to export boot order and Secure Boot state. Compare to a lookup of expected configuration. Alert on drift. Run after changes or daily.
 - **Visualization:** Table (host, current vs. expected boot order), Compliance percentage.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 

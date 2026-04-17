@@ -1,0 +1,64 @@
+name: Link check
+
+on:
+  schedule:
+    # Run every Monday at 06:00 UTC. The audit tolerates transient outages
+    # because it ignores domains registered in .link-check-ignore.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit-references:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run link audit
+        id: audit
+        run: |
+          set +e
+          python3 scripts/audit_links.py 2>audit.err | tee audit.out
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload audit logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: link-audit-logs
+          path: |
+            audit.out
+            audit.err
+          retention-days: 14
+
+      - name: Open or update tracking issue on failure
+        if: steps.audit.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BROKEN_COUNT=$(grep -c '^BROKEN ' audit.err || true)
+          TITLE="[link-check] ${BROKEN_COUNT} broken references detected"
+          BODY=$'Automated weekly link audit found broken references.\n\nTop 20 entries:\n\n```\n'
+          BODY+=$(head -n 40 audit.err)
+          BODY+=$'\n```\n\nRe-run with `python3 scripts/audit_links.py` locally to reproduce.'
+          EXISTING=$(gh issue list --label link-check --state open --json number \
+            --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create \
+              --title "$TITLE" \
+              --label link-check \
+              --body "$BODY"
+          fi

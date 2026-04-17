@@ -39,6 +39,8 @@ index=web sourcetype="access_combined" status=200 earliest=-7d
 - **Visualization:** Funnel chart or stacked bar, Single value (overall conversion rate), Table (drop-off per stage), Line chart (daily conversion trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186)
+
 ---
 
 ### UC-23.1.2 · Shopping Cart Abandonment Rate and Recovery
@@ -70,6 +72,8 @@ index=app_events sourcetype="app:ecommerce" event_type IN ("cart_add","purchase_
 - **Implementation:** (1) Instrument your e-commerce platform to send cart_add and purchase_complete events via HEC with session_id, item_value, and item_sku; (2) alert when daily abandonment rate exceeds baseline by >10 percentage points — this often signals a payment gateway issue; (3) segment by device type (mobile vs desktop) and traffic source; (4) feed abandoned session data to marketing automation for recovery emails.
 - **Visualization:** Single value (abandonment rate + trend), Line chart (daily abandonment trend), Bar chart (abandonment by device/source), Single value (abandoned revenue).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186)
 
 ---
 
@@ -109,6 +113,8 @@ index=web sourcetype="access_combined" status=200 earliest=-30d
 - **Visualization:** Bar chart (conversion rate by speed bucket), Table (revenue per session by performance), Line chart (daily avg response time vs daily revenue), Single value (estimated revenue loss from slow pages).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186)
+
 ---
 
 ### UC-23.1.4 · Customer Satisfaction Score (CSAT/NPS) Trend Dashboard
@@ -136,6 +142,8 @@ index=business sourcetype="nps_survey" earliest=-90d
 - **Implementation:** (1) Ingest survey responses via HEC or DB Connect from your survey platform (Qualtrics, Medallia, SurveyMonkey); (2) include product/service and channel fields for segmentation; (3) schedule weekly NPS calculation; (4) alert when NPS drops below threshold or week-over-week decline exceeds 10 points; (5) add text analytics on verbatim comments using `rex` for common complaint themes.
 - **Visualization:** Line chart (NPS trend), Single value (current NPS), Pie chart (Promoter/Passive/Detractor split), Word cloud or bar chart (top complaint themes from verbatims).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -170,6 +178,8 @@ index=web sourcetype="access_combined" earliest=-30d
 - **Visualization:** Sankey diagram (channel flow), Bar chart (conversion contribution by channel), Table (customer journey paths), Single value (avg touchpoints before conversion).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186)
+
 ---
 
 ### UC-23.1.6 · Mobile App Crash Rate and User Impact
@@ -195,6 +205,8 @@ index=app_events sourcetype IN ("app:crash","app:session") earliest=-7d
 - **Implementation:** (1) Instrument your mobile app to send crash reports and session start events via HEC; (2) include app version, OS version, device model, and user ID; (3) alert when crash rate for any version exceeds 2%; (4) track crash rate trends after new releases; (5) correlate crash-affected users with churn data to quantify business impact.
 - **Visualization:** Line chart (crash rate by version over time), Bar chart (crashes by device/OS), Single value (current crash-free rate %), Table (top crash types with user impact).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -224,6 +236,8 @@ index=app_events sourcetype="site_search" earliest=-14d
 - **Visualization:** Bar chart (zero-result rate by term), Table (top problem searches), Line chart (overall zero-result trend), Single value (searches with no click percent).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186)
+
 ---
 
 ### UC-23.1.8 · Form Abandonment and Field-Level Drop-Off
@@ -247,6 +261,8 @@ index=app_events sourcetype="form_analytics" earliest=-30d
 - **Implementation:** (1) Instrument blur, focus, submit, and abandon events with field names and session identifiers through HEC; (2) define abandon as leaving the page without submit after interacting with the form; (3) prioritise redesign of the top three field-and-form pairs every sprint until abandon counts fall by the agreed target.
 - **Visualization:** Bar chart (abandons by last field), Table (form and field ranking), Funnel chart (started vs submitted), Single value (overall form completion rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -272,6 +288,8 @@ index=app_events sourcetype="rum:resource" initiator_type="script" earliest=-7d
 - **Implementation:** (1) Capture real user monitoring resource timings with host and initiator type via HEC; (2) map session identifiers consistently with commerce events; (3) review monthly with marketing technology owners and defer or replace any third-party host above the latency budget for two consecutive weeks.
 - **Visualization:** Bar chart (ninety-fifth percentile duration by host), Table (slow tag list), Scatter plot (loads vs latency), Single value (count of hosts over budget).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186), [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -314,6 +332,8 @@ index=business sourcetype="dbx:crm_opportunities" earliest=-90d
 - **Visualization:** Funnel (pipeline by stage), Single value (weighted pipeline, win rate, avg deal cycle), Bar chart (pipeline by forecast category), Line chart (pipeline trend over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.2.2 · Revenue Recognition and Booking Trend
@@ -344,6 +364,8 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-30d@d
 - **Implementation:** (1) Connect to ERP/billing system via DB Connect; (2) create `monthly_targets.csv` with month and target_revenue columns; (3) schedule every 4 hours for near-real-time visibility; (4) alert when run rate projects a miss of >10% against target; (5) segment by product line, region, and customer segment for management drill-down.
 - **Visualization:** Line chart (daily revenue + cumulative MTD), Single value (MTD revenue, % of target, run rate), Bar chart (daily revenue vs same day last month), Gauge (MTD progress to target).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -389,6 +411,8 @@ index=app_events sourcetype="app:login" earliest=-90d
 - **Visualization:** Table (at-risk customers sorted by churn score), Gauge (portfolio health — % low risk), Bar chart (churn risk distribution), Line chart (weekly churn score trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.2.4 · Subscription Renewal and Expansion Pipeline
@@ -415,6 +439,8 @@ index=business sourcetype="dbx:subscriptions" earliest=-1d@d latest=now()
 - **Implementation:** (1) Import subscription records via DB Connect including renewal dates, ARR, and product tier; (2) join with product usage data to calculate usage_pct against entitlement; (3) schedule daily and feed to CRM/account management tools; (4) alert when total ARR at risk in the 30-day window exceeds threshold; (5) create a detailed drill-down showing individual accounts with health scores.
 - **Visualization:** Table (renewals by urgency and signal), Single value (total ARR renewing in 30/60/90 days), Stacked bar (renewal pipeline by health), Timeline (renewal schedule).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -448,6 +474,8 @@ index=business sourcetype="dbx:crm_opportunities" stage IN ("Closed Won","Closed
 - **Visualization:** Bar chart (win rate by discount band), Table (discount effectiveness), Scatter plot (discount % vs deal size), Single value (overall average discount).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.2.6 · Quota Attainment and Capacity Coverage
@@ -475,6 +503,8 @@ index=business sourcetype="dbx:crm_opportunities" stage="Closed Won" earliest=-9
 - **Implementation:** (1) Export closed-won revenue and owner keys from your customer relationship management system on a nightly DB Connect schedule; (2) maintain `sales_quota.csv` with fiscal quarter and approved quota amounts; (3) email sales leadership each Monday with reps below eighty percent attainment entering the final month of the quarter.
 - **Visualization:** Bar chart (attainment by rep), Table (gap to quota), Heatmap (region × quarter), Single value (team blended attainment).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -505,6 +535,8 @@ index=business sourcetype="dbx:crm_opportunities" stage="Closed Won" deal_type="
 - **Visualization:** Stacked bar (revenue by deal band over time), Line chart (average contract value trend), Table (mix percentages), Single value (current quarter average contract value).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.2.8 · Win–Loss Reason Coding and Competitive Rate
@@ -530,6 +562,8 @@ index=business sourcetype="dbx:crm_opportunities" stage="Closed Lost" earliest=-
 - **Implementation:** (1) Enforce structured loss and competitor picklists in your customer relationship management close workflow; (2) replicate closed opportunity rows including reasons via DB Connect; (3) run a bi-weekly review with product marketing when any single loss reason exceeds ten percent of losses for two periods in a row.
 - **Visualization:** Bar chart (top loss reasons), Table (competitor × reason), Pie chart (loss reason mix), Single value (losses with competitor tagged percent).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186)
 
 ---
 
@@ -569,6 +603,8 @@ index=business sourcetype="dbx:crm_opportunities" earliest=-90d
 - **Visualization:** Bar chart (ROI by channel), Table (full metrics per channel), Bubble chart (spend vs revenue, bubble size = deals), Single value (blended ROI, total marketing-sourced revenue).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.3.2 · Lead-to-Revenue Funnel Conversion Rates
@@ -599,6 +635,8 @@ index=business sourcetype="dbx:crm_leads" earliest=-90d
 - **Implementation:** (1) Import lead and opportunity records via DB Connect; (2) map your CRM status values to the standard funnel stages; (3) schedule weekly; (4) alert when any stage conversion rate drops below historical baseline; (5) segment by lead source, geography, and product interest for actionable insights.
 - **Visualization:** Funnel chart, Single values (conversion rate per stage), Line chart (weekly conversion trends), Bar chart (conversion by lead source).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -632,6 +670,8 @@ index=business sourcetype="email_engagement" earliest=-30d
 - **Visualization:** Table (campaign metrics), Bar chart (open/click rates by campaign), Line chart (engagement trends over time), Single value (avg open rate, avg click rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-23.3.4 · Website Traffic Source and SEO Performance
@@ -664,6 +704,8 @@ index=web sourcetype="access_combined" status=200 NOT uri IN ("/favicon.ico","ro
 - **Visualization:** Pie chart (sessions by source), Bar chart (visitors by source), Table (quality metrics per source), Line chart (daily traffic by source).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186)
+
 ---
 
 ### UC-23.3.5 · Paid Media Cost Per Acquisition and Quality Score
@@ -694,6 +736,8 @@ index=business sourcetype="ad_spend" earliest=-30d
 - **Implementation:** (1) Land daily campaign cost and click files from your advertising APIs into Splunk using HEC; (2) join leads on a shared campaign identifier from your marketing automation or customer relationship management system; (3) alert marketing when cost per qualified lead doubles week over week for any active campaign.
 - **Visualization:** Scatter plot (spend vs qualified leads), Table (campaign efficiency), Bar chart (cost per qualified lead), Single value (blended cost per acquisition).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -726,6 +770,8 @@ index=web sourcetype="access_combined" status=200 uri="/blog/*" earliest=-30d
 - **Visualization:** Bar chart (views by article), Table (lead conversion proxy), Line chart (sessions vs leads), Single value (blog-sourced leads).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for Apache Web Server](https://splunkbase.splunk.com/app/3186), [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.3.7 · Webinar and Event Pipeline Contribution
@@ -756,6 +802,8 @@ index=business sourcetype="event_registration" earliest=-90d
 - **Implementation:** (1) Send registration and attendance webhooks from your event tool into Splunk with identifiers that match customer relationship management campaigns; (2) require opportunities to carry the originating programme code; (3) publish a quarterly event portfolio review sorted by won revenue and pipeline efficiency.
 - **Visualization:** Bar chart (won revenue by event), Table (attendance and pipeline), Single value (events-sourced pipeline), Line chart (attendance rate trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -797,6 +845,8 @@ index=business sourcetype="dbx:hris_employees" earliest=-365d
 - **Visualization:** Heatmap (department × tenure band), Bar chart (attrition by department), Line chart (monthly attrition trend), Single value (organisation-wide attrition rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.4.2 · Time-to-Hire and Recruiting Pipeline Health
@@ -828,6 +878,8 @@ index=business sourcetype="dbx:ats_requisitions" earliest=-180d
 - **Visualization:** Bar chart (avg time-to-fill by department), Table (stale requisitions), Line chart (monthly hiring velocity), Single value (overall median time-to-fill).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.4.3 · Diversity and Inclusion Metrics Dashboard
@@ -851,6 +903,8 @@ index=business sourcetype="dbx:hris_employees" status="active"
 - **Implementation:** (1) Import anonymised demographic data from HRIS; (2) handle self-reported data sensitively — include "Prefer not to say"; (3) schedule monthly; (4) track representation changes over time with timechart; (5) compare new hire diversity vs existing workforce diversity; (6) measure promotion rates by demographic group to identify glass ceiling patterns.
 - **Visualization:** Stacked bar (representation by role level), Line chart (diversity trend over quarters), Table (representation vs targets), Single value (% representation by group).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -883,6 +937,8 @@ index=business sourcetype="lms_completion" mandatory="yes"
 - **Visualization:** Stacked bar (completion status by course), Table (overdue employees), Single value (overall compliance rate %), Gauge (mandatory training completion).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.4.5 · Absence and Leave Pattern Monitoring
@@ -908,6 +964,8 @@ index=business sourcetype="dbx:time_attendance" absence_hours>0 earliest=-90d
 - **Implementation:** (1) Import anonymised time and attendance extracts without attaching medical reasons unless legally approved; (2) roll up to department and week by default; (3) alert human resources when any department exceeds twenty-five percent above the company average for two consecutive weeks.
 - **Visualization:** Line chart (absence hours trend by department), Table (outlier weeks), Heatmap (department × week), Single value (organisation absence hours).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -937,6 +995,8 @@ index=business sourcetype="dbx:hris_employees" earliest=-730d
 - **Visualization:** Bar chart (internal move rate by department), Table (promotion timing), Line chart (average months to promotion), Single value (company internal move rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.4.7 · Overtime Cost and Burnout Risk Indicator
@@ -963,6 +1023,8 @@ index=business sourcetype="dbx:time_attendance" overtime_hours>0 earliest=-56d
 - **Implementation:** (1) Load approved time cards with overtime and base rates through DB Connect using payroll rules your controller validates; (2) group by cost centre and pay week for privacy-preserving views; (3) trigger a fortnightly review when any cost centre repeatedly lands in the top decile of overtime pay.
 - **Visualization:** Bar chart (overtime pay by cost centre), Table (high-cost weeks), Line chart (total overtime hours trend), Single value (total overtime pay period).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -999,6 +1061,8 @@ index=business sourcetype="dbx:erp_orders" earliest=-90d
 - **Visualization:** Waterfall chart (time per stage), Bar chart (avg vs P95 by stage), Line chart (cycle time trend), Single value (overall avg order-to-cash days).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.5.2 · Inventory Level Monitoring and Stockout Risk
@@ -1028,6 +1092,8 @@ index=business sourcetype="dbx:inventory" earliest=-1d@d latest=now()
 - **Implementation:** (1) Import inventory snapshot via DB Connect daily from ERP/WMS; (2) calculate rolling average daily demand from sales history; (3) include supplier lead times in the lookup; (4) alert purchasing team immediately on STOCKOUT and CRITICAL items; (5) generate a weekly overstock report for markdown/clearance decisions; (6) integrate with demand forecasting model outputs for improved accuracy.
 - **Visualization:** Table (exception list), Single value (items in stockout, total revenue at risk), Gauge (% of SKUs at healthy levels), Bar chart (stockout risk by category).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -1060,6 +1126,8 @@ index=business sourcetype="dbx:purchase_orders" actual_delivery_date=* earliest=
 - **Visualization:** Table (supplier scorecard), Bar chart (OTIF by supplier), Line chart (OTIF trend over months), Single value (overall OTIF rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.5.4 · Delivery SLA Compliance and Last-Mile Performance
@@ -1086,6 +1154,8 @@ index=business sourcetype="dbx:shipments" actual_delivery=* earliest=-30d
 - **Implementation:** (1) Import shipment tracking data from TMS or carrier APIs via HEC; (2) map carrier service levels to your customer-facing delivery promises; (3) schedule daily for logistics team; (4) alert when any carrier/service_level combination drops below 95% compliance; (5) calculate financial impact of late deliveries (refunds, credits, lost customers).
 - **Visualization:** Bar chart (SLA compliance by carrier), Table (carrier scorecard), Heatmap (carrier × region), Single value (overall SLA compliance %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -1119,6 +1189,8 @@ index=business sourcetype="dbx:shipments" earliest=-30d
 - **Visualization:** Bar chart (perfect order rate by tier), Single value (overall perfect order %), Table (tier detail), Line chart (weekly trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.5.6 · Capacity Utilisation vs Demand Forecast
@@ -1147,6 +1219,8 @@ index=business sourcetype="mes:throughput" earliest=-14d
 - **Visualization:** Line chart (utilisation vs one hundred percent by line), Table (under and over capacity), Single value (lines out of band), Bar chart (gap units by line).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.5.7 · Returns Rate and Reverse Logistics Cost
@@ -1173,6 +1247,8 @@ index=business sourcetype="returns_log" earliest=-30d
 - **Implementation:** (1) Load returns authorisations and shipment facts from order management with a shared stock keeping unit key; (2) normalise reason codes to a small taxonomy for reporting; (3) schedule weekly and invite category managers when any stock keeping unit exceeds the agreed return rate.
 - **Visualization:** Bar chart (return rate by SKU), Table (reason code breakdown), Single value (portfolio return %), Pie chart (reason mix).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263)
 
 ---
 
@@ -1214,6 +1290,8 @@ index=business sourcetype="dbx:ar_invoices" status="open" earliest=-1y
 - **Visualization:** Stacked bar (AR by aging bucket), Table (top overdue customers), Single value (total overdue, DSO), Line chart (DSO trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.6.2 · Expense Report Anomaly Detection
@@ -1244,6 +1322,8 @@ index=business sourcetype="expense_reports" earliest=-90d
 - **Implementation:** (1) Import expense data from expense management system (Concur, Expensify, SAP) via DB Connect or HEC; (2) tune approval threshold amounts to match your policy (e.g., $500); (3) schedule weekly for finance review; (4) compare duplicate merchant/date/amount combinations across employees; (5) build a peer comparison model by role and department for more accurate outlier detection.
 - **Visualization:** Table (flagged employees with reasons), Bar chart (anomaly types), Single value (% of expenses flagged), Scatter plot (amount vs department average).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -1276,6 +1356,8 @@ index=business sourcetype="dbx:gl_transactions" earliest=-1mon@mon latest=@mon
 - **Visualization:** Bar chart (variance by cost centre), Table (over-budget items), Gauge (department spend vs budget), Line chart (cumulative spend vs budget over months).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.6.4 · Payment Processing Success Rate and Revenue Leakage
@@ -1306,6 +1388,8 @@ index=business sourcetype="payment_gateway" earliest=-24h
 - **Visualization:** Single value (overall success rate, revenue lost today), Line chart (success rate over time), Bar chart (decline reasons), Table (performance by payment method).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-23.6.5 · Purchase Order Cycle Time and Maverick Spend
@@ -1335,6 +1419,8 @@ index=business sourcetype="dbx:purchase_orders" earliest=-90d
 - **Visualization:** Bar chart (maverick spend by supplier), Table (cycle time and maverick detail), Single value (overall maverick %), Line chart (average cycle days trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-23.6.6 · Intercompany Reconciliation Exception Queue
@@ -1358,6 +1444,8 @@ index=business sourcetype="dbx:ic_reconciliation" status!="matched" earliest=-60
 - **Implementation:** (1) Export unmatched intercompany lines nightly from the general ledger or reconciliation tool via DB Connect; (2) classify severity bands with your controller; (3) assign a daily saved search that emails the shared services inbox when high severity open items exceed the agreed cap.
 - **Visualization:** Table (exceptions by entity pair), Bar chart (open items by severity), Single value (total unmatched variance), Pie chart (severity mix).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1400,6 +1488,8 @@ index=itsm sourcetype="snow:incident" earliest=-30d
 - **Visualization:** Single value (open backlog, SLA %), Bar chart (volume by team), Line chart (daily ticket trend), Table (team performance).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-23.7.2 · First Contact Resolution Rate and Escalation Patterns
@@ -1426,6 +1516,8 @@ index=itsm sourcetype="snow:incident" state="Closed" earliest=-30d
 - **Implementation:** (1) Track reassignment count and escalation events in your ticketing system; (2) define FCR criteria (resolved by original assignee, no reopens within 48h); (3) schedule weekly; (4) identify top escalation categories for targeted training; (5) compare FCR by channel (phone vs chat vs email) to understand channel effectiveness.
 - **Visualization:** Bar chart (FCR rate by category), Table (top escalation categories), Single value (overall FCR rate), Line chart (FCR trend over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1455,6 +1547,8 @@ index=business sourcetype="support_survey" earliest=-90d
 - **Visualization:** Heatmap (channel × issue type), Bar chart (CES by channel), Table (highest effort combinations), Line chart (CES trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-23.7.4 · Backlog Age and Breach Risk Forecast
@@ -1481,6 +1575,8 @@ index=itsm sourcetype="snow:incident" state!="Closed" earliest=-30d
 - **Implementation:** (1) Ingest open incidents with accurate opened timestamps from ServiceNow; (2) align `sla_target_hours` with your contractual response and resolve clocks; (3) schedule every two hours and route “AT RISK” queues to team leads before breaches hit customer reports.
 - **Visualization:** Stacked bar (tickets by risk band and team), Table (oldest tickets), Single value (count at risk), Line chart (backlog age trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1511,6 +1607,8 @@ index=business sourcetype="acd:agent_state" earliest=-7d
 - **Visualization:** Bar chart (occupancy by agent), Table (adherence exceptions), Single value (team average occupancy), Heatmap (hour-of-day occupancy).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.7.6 · Knowledge Base Deflection and Self-Service ROI
@@ -1538,6 +1636,8 @@ index=web sourcetype="access_combined" status=200 uri="/help/*" earliest=-30d
 - **Implementation:** (1) Ensure help centre URLs are structured so `/help/` paths are easy to filter in web logs; (2) join or correlate weekly ticket counts by category with top article topics using a shared topic tag if available; (3) publish a monthly readout to the knowledge team listing articles with high views and categories where tickets remain high.
 - **Visualization:** Bar chart (top articles by views), Table (URI performance), Line chart (help sessions vs tickets), Single value (help sessions per thousand tickets).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928), [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1594,6 +1694,8 @@ index=web sourcetype="access_combined" status=200 uri="/help/*" earliest=-30d
 - **Visualization:** Single value tiles (one per KPI with traffic light colors), Table (KPI vs target), Gauge or bullet charts for each metric.
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-23.8.2 · Operational Efficiency and Productivity Metrics
@@ -1625,6 +1727,8 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-1mon@
 - **Implementation:** (1) Combine revenue, headcount, and process data into a unified view; (2) define "cost per transaction" calculation based on your cost structure; (3) track process automation by tagging automated vs manual processes in application logs; (4) schedule monthly for operations reviews; (5) trend over quarters to show efficiency improvements.
 - **Visualization:** Single value (revenue per employee, automation rate), Bar chart (metrics over time), Gauge (automation rate vs target), Table (efficiency metrics).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -1671,6 +1775,8 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-1mon@
 - **Visualization:** Heatmap (risk areas × risk level), Single value tiles per domain, Table (risk register with current status), Trend chart (risk movement over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263), [Splunk ITSI](https://splunkbase.splunk.com/app/1841), [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.8.4 · Rule-of-40 and SaaS Unit Economics
@@ -1707,6 +1813,8 @@ index=business sourcetype="dbx:erp_orders" order_status="booked" earliest=-270d 
 - **Visualization:** Line chart (rule-of-40 over quarters), Table (growth and margin components), Single value (latest rule-of-40), Bar chart (margin vs growth stacked).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.8.5 · Customer Acquisition Cost and Payback Period
@@ -1738,6 +1846,8 @@ index=business sourcetype="dbx:crm_opportunities" stage="Closed Won" earliest=-9
 - **Implementation:** (1) Load closed-won customers with first-order dates from customer relationship management via DB Connect; (2) combine marketing and allocated sales costs in `marketing_spend.csv` or separate lookups by month; (3) review monthly with the chief marketing officer and finance partner and set alert thresholds when payback months exceed policy.
 - **Visualization:** Line chart (CAC and payback trend), Table (monthly detail), Single value (blended CAC), Bar chart (spend vs new customers).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -1775,6 +1885,8 @@ index=business sourcetype="dbx:inventory" earliest=-1d@d latest=now()
 - **Implementation:** (1) Schedule a daily snapshot from inventory, receivables, and payables tables through DB Connect using consistent valuation rules; (2) use trailing thirty-day revenue as the activity denominator unless your controller specifies otherwise; (3) alert treasury when the cash conversion cycle moves more than five days away from the rolling average.
 - **Visualization:** Single value (CCC, DIO, DSO, DPO), Waterfall (components), Line chart (CCC trend), Table (daily snapshot history).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1825,6 +1937,8 @@ index=facilities sourcetype="power_meter" earliest=-1mon@mon latest=@mon
 - **Visualization:** Stacked bar (emissions by scope), Pie chart (emission sources), Line chart (monthly trend vs target), Single value (total CO2e, % reduction YoY).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.9.2 · Energy Consumption and Efficiency by Facility
@@ -1853,6 +1967,8 @@ index=facilities sourcetype="power_meter" earliest=-30d
 - **Visualization:** Bar chart (EUI by facility), Heatmap (energy by system × site), Line chart (daily consumption trend), Single value (total monthly cost, EUI benchmark).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.9.3 · Waste Diversion and Recycling Rate Tracking
@@ -1877,6 +1993,8 @@ index=business sourcetype="waste_manifest" earliest=-90d
 - **Implementation:** (1) Import waste manifests from waste management provider via CSV upload or HEC; (2) classify disposal methods consistently; (3) schedule monthly; (4) set diversion rate targets by facility; (5) alert when any site's diversion rate drops below target; (6) trend quarterly for ESG reporting.
 - **Visualization:** Bar chart (diversion rate by site), Pie chart (waste by type), Line chart (monthly diversion trend), Single value (overall diversion rate %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -1905,6 +2023,8 @@ index=facilities sourcetype="water_meter" earliest=-30d
 - **Visualization:** Bar chart (consumption by site), Line chart (daily trend with anomaly markers), Single value (monthly total, cost), Table (sites with anomalies).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-23.9.5 · ESG Disclosure Readiness and Data Completeness
@@ -1932,6 +2052,8 @@ index=facilities sourcetype="water_meter" earliest=-30d
 - **Implementation:** (1) Build `esg_metric_registry.csv` listing all required ESG metrics by framework (CSRD, GRI, SASB, TCFD); (2) map each metric to its Splunk data source and data owner; (3) schedule quarterly readiness checks; (4) alert data owners when their metrics have data gaps; (5) generate audit trail showing when each metric was last validated; (6) produce a readiness report for the sustainability committee.
 - **Visualization:** Table (metric readiness by framework), Gauge (overall completeness %), Bar chart (gaps by framework), Single value (metrics with gaps).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---
 
@@ -1962,6 +2084,8 @@ index=facilities sourcetype="power_meter" earliest=-30d
 - **Visualization:** Stacked bar (renewable vs grid kWh by site), Single value (portfolio renewable %), Table (site-level mix), Line chart (renewable share trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-23.9.7 · Scope 3 Commuting and Hybrid Work Emissions
@@ -1987,5 +2111,7 @@ index=business sourcetype="commute_survey" earliest=-90d
 - **Implementation:** (1) Send anonymised commute surveys or badge-based attendance summaries to Splunk via HEC on a schedule employees understand; (2) keep `commute_emission_factors.csv` aligned with your country’s published factors; (3) run quarterly and review results with facilities and people leaders before publishing ESG narratives.
 - **Visualization:** Bar chart (tonnes CO2 by commute mode), Table (site and mode breakdown), Pie chart (mode share), Single value (total estimated commuting tonnes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 
 ---

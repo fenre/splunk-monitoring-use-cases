@@ -24,6 +24,9 @@ index=bms sourcetype="modbus:hvac"
 - **Visualization:** Line chart (setpoint vs actual per zone), Heatmap (zone × temperature), Single value (zones out of spec).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.5 · Elevator/Equipment Health
@@ -42,6 +45,9 @@ index=bms sourcetype="bms:faults"
 - **Implementation:** Forward BMS fault events to Splunk. Map fault codes to descriptions via lookup. Track fault frequency per equipment. Alert on critical faults. Report on recurring issues for maintenance planning.
 - **Visualization:** Table (equipment faults), Bar chart (faults by equipment), Timeline (fault events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -62,6 +68,9 @@ index=environment sourcetype="sensor:environmental"
 - **Visualization:** Heatmap (zone × temperature), Line chart (temp/humidity trend), Single value (zones in compliance %), Gauge (current temp per zone).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.7 · LoRaWAN Gateway Health
@@ -75,13 +84,17 @@ index=environment sourcetype="sensor:environmental"
 ```spl
 index=iot sourcetype="lorawan:gateway_stats"
 | eval uplink_success_rate=if(uplink_total>0, (uplink_ok/uplink_total)*100, null), downlink_success_rate=if(downlink_total>0, (downlink_ok/downlink_total)*100, null)
-| stats avg(rssi) as avg_rssi, avg(uplink_success_rate) as uplink_pct, avg(downlink_success_rate) as downlink_pct by gateway_id, _time span=1h
+| bin _time span=1h
+| stats avg(rssi) as avg_rssi, avg(uplink_success_rate) as uplink_pct, avg(downlink_success_rate) as downlink_pct by gateway_id, _time
 | where uplink_pct < 95 OR downlink_pct < 95 OR avg_rssi < -120
 | table gateway_id, avg_rssi, uplink_pct, downlink_pct
 ```
 - **Implementation:** Poll LoRaWAN Network Server API (ChirpStack, TTN, etc.) for gateway statistics. Ingest rx/tx packet counts, success/failure, and RSSI per gateway. Configure HEC or scripted input to forward JSON to Splunk. Alert when uplink or downlink success rate drops below 95% or RSSI trends below -120 dBm. Track gateway health for capacity planning.
 - **Visualization:** Table (gateways with degraded success rate), Line chart (RSSI trend by gateway), Gauge (uplink/downlink success %), Status grid (gateway × health).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -97,7 +110,8 @@ index=iot sourcetype="lorawan:gateway_stats"
 index=ot sourcetype="modbus:poll_log" OR sourcetype="modbus:gateway"
 | rex "slave=(?<slave_addr>\d+)|address=(?<slave_addr>\d+)|(?<status>success|timeout|failure|error)"
 | eval poll_ok=if(lower(status)="success", 1, 0), poll_fail=if(lower(status)!="success" AND status!="", 1, 0)
-| stats sum(poll_ok) as ok, sum(poll_fail) as fail by slave_addr, host, _time span=15m
+| bin _time span=15m
+| stats sum(poll_ok) as ok, sum(poll_fail) as fail by slave_addr, host, _time
 | eval total=ok+fail, failure_rate_pct=if(total>0, (fail/total)*100, 0)
 | where failure_rate_pct > 10 OR fail > 5
 | table slave_addr, host, ok, fail, failure_rate_pct
@@ -105,6 +119,9 @@ index=ot sourcetype="modbus:poll_log" OR sourcetype="modbus:gateway"
 - **Implementation:** Configure Modbus gateway or Edge Hub Modbus connector to log poll success/failure per slave address. Parse slave address and status from logs. Ingest via syslog or file monitor. Alert when failure rate exceeds 10% over 15 minutes or more than 5 consecutive failures for a critical slave. Correlate with network and PLC health.
 - **Visualization:** Table (slaves with high failure rate), Line chart (failure rate trend by slave), Bar chart (top failing slaves), Single value (slaves in spec %).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -131,6 +148,9 @@ index=ot sourcetype="opcua:diagnostics" OR sourcetype="opcua:server"
 
 **Primary App/TA:** SNMP Modular Input (TA), SNMP trap receiver (syslog/HEC), vendor NMS exports.
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.10 · SNMP Trap Storm Detection
@@ -149,6 +169,9 @@ index=network sourcetype IN ("snmp:trap","snmptrapd:syslog")
 - **Implementation:** Baseline traps/min per agent IP. Alert when rate exceeds 5× baseline or absolute threshold. Correlate with link flaps or misconfigured threshold on managed device.
 - **Visualization:** Line chart (trap rate by device), Single value (peak traps/min), Table (top storm sources).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -169,6 +192,9 @@ index=network sourcetype="snmp:poll_status"
 - **Implementation:** Emit structured poll result per target (success, timeout, auth error). Alert on sustained failure rate >5% or SNMP timeout storms. Verify SNMP community/v3 creds and ACLs on device.
 - **Visualization:** Table (devices with poll failures), Line chart (failure % trend), Status grid (device × OID family).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -191,6 +217,9 @@ index=network sourcetype="snmp:inventory"
 - **Visualization:** Table (non-compliant devices), Pie chart (compliance %), Bar chart (by site).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.13 · Environmental Sensor Threshold Alerts
@@ -209,6 +238,9 @@ index=environment sourcetype="snmp:env_sensor"
 - **Implementation:** Map OIDs to sensor labels. Alert per ASHRAE/site policy. Correlate with HVAC/BMS where available.
 - **Visualization:** Heatmap (rack × temp), Line chart (sensor trend), Table (exceedances).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -233,6 +265,9 @@ index=network sourcetype IN ("snmp:auth","cisco:ios")
 - **CIM Models:** N/A
 
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -253,6 +288,9 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*temperat
 - **Visualization:** Temperature gauge per location; trend timeline; alert dashboard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-14.1.16 · Humidity Monitoring and Dew Point Tracking (Meraki MT)
@@ -272,6 +310,9 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*humidity
 - **Visualization:** Humidity gauge per location; humidity vs temperature correlation; trend chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-14.1.17 · Door Open/Close Event Detection and Alerts (Meraki MT)
@@ -289,6 +330,9 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*door*" (
 - **Implementation:** Monitor door sensor events. Alert on unusual access patterns.
 - **Visualization:** Door event timeline; access pattern analysis; alert table.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -309,6 +353,9 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*water*"
 - **Visualization:** Leak alert dashboard; sensor location map; event timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-14.1.19 · Power Monitoring and Electrical Load Analysis (Meraki MT)
@@ -327,6 +374,9 @@ index=cisco_network sourcetype="meraki:api" sensor_type="power" power_watts=*
 - **Implementation:** Query sensor API for power metrics. Track consumption and peaks.
 - **Visualization:** Power consumption gauge; peak load timeline; capacity planning chart.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -347,6 +397,9 @@ index=cisco_network sourcetype="meraki:api" sensor_type="air_quality" co2_ppm=*
 - **Visualization:** CO2 level gauge per location; trend timeline; air quality status chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-14.1.21 · Ambient Noise Level Monitoring and Trend Analysis (Meraki MT)
@@ -366,6 +419,9 @@ index=cisco_network sourcetype="meraki:api" sensor_type="noise" noise_db=*
 - **Visualization:** Noise level gauge; time-of-day heat map; location comparison chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-14.1.22 · Indoor Climate Trending and HVAC Optimization (Meraki MT)
@@ -384,6 +440,9 @@ index=cisco_network sourcetype="meraki:api" sensor_type IN ("temperature", "humi
 - **Implementation:** Correlate temperature and humidity data. Identify optimization opportunities.
 - **Visualization:** Climate trend line chart; comfort zone indicator; energy efficiency analysis.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -405,6 +464,9 @@ index=cisco_network sourcetype="meraki:api" battery_level=*
 - **Visualization:** Battery health table; battery trend timeline; replacement alert dashboard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-14.1.24 · Sensor Connectivity and Heartbeat Monitoring (Meraki MT)
@@ -424,6 +486,9 @@ index=cisco_network sourcetype="meraki:api"
 - **Implementation:** Query sensor API for last report time. Alert on missing heartbeats.
 - **Visualization:** Sensor status table; last heartbeat timeline; offline sensor list.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -447,6 +512,9 @@ index=building sourcetype="bms:hvac" object_type="AHU"
 - **Visualization:** Line chart (supply temp vs setpoint per AHU); deviation heatmap by AHU and time of day; single value (worst deviation).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.26 · VAV Box Damper Position Stuck Detection
@@ -467,6 +535,9 @@ index=building sourcetype="bms:hvac" object_type="VAV"
 - **Implementation:** Monitor damper position variance over 1-hour windows. If position barely changes while zone temp drifts from setpoint, flag as stuck actuator. Dispatch HVAC technician.
 - **Visualization:** Table of stuck VAV boxes; zone comfort heatmap; damper position timeline per VAV.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -491,6 +562,9 @@ index=building sourcetype="bms:hvac" object_type="chiller"
 - **Visualization:** COP trend line per chiller; efficiency gauge vs baseline; chiller comparison chart; kW/ton dashboard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.28 · Cooling Tower Approach Temperature Trending
@@ -514,6 +588,9 @@ index=building sourcetype="bms:hvac" object_type="cooling_tower"
 - **Visualization:** Approach temperature trend per tower; status indicator; comparison to design baseline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.29 · HVAC Setpoint Override Frequency and Duration
@@ -535,6 +612,9 @@ index=building sourcetype="bms:hvac" event_type="setpoint_override"
 - **Implementation:** Capture BMS override events with zone, user, original setpoint, override value, and duration. Track daily override frequency. Alert on zones with excessive overrides.
 - **Visualization:** Override count heatmap by zone and time; daily override trending; top override zones table.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -560,6 +640,9 @@ index=building sourcetype="bms:hvac" object_type="AHU"
 - **Visualization:** Free cooling utilization gauge per AHU; seasonal trend; missed opportunity cost estimate.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.31 · Building Energy Consumption Intensity (kWh/m²)
@@ -584,6 +667,9 @@ index=building sourcetype="bms:energy" meter_type="electricity"
 - **Visualization:** EUI trend per building; benchmark comparison bar chart; building ranking table; year-over-year comparison.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.32 · Sub-Meter Energy Distribution by System
@@ -606,6 +692,9 @@ index=building sourcetype="bms:energy" meter_type="sub_meter"
 - **Implementation:** Deploy sub-meters on HVAC, lighting, plug load, and elevator panels. Ingest readings. Calculate percentage distribution. Trend over time. Identify systems with growing share.
 - **Visualization:** Pie chart of energy by system; stacked area chart over time; system comparison across buildings.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -633,6 +722,9 @@ index=building sourcetype="bms:energy" meter_type="electricity"
 - **Visualization:** After-hours vs occupied hours comparison chart; waste energy trending; building ranking by waste percentage.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.34 · Peak Demand Shaving Effectiveness
@@ -658,6 +750,9 @@ index=building sourcetype="bms:energy" meter_type="electricity"
 - **Visualization:** Demand profile chart (15-min intervals); monthly peak trending; load factor gauge; demand limit threshold line.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.35 · Lighting Schedule Compliance and Override Tracking
@@ -680,6 +775,9 @@ index=building sourcetype="bms:lighting" event_type IN ("on", "off", "override")
 - **Implementation:** Monitor lighting circuit status from BMS or DALI/KNX gateway. Compare on/off events to published schedule. Track overrides with timestamp and duration. Alert on sustained after-hours lighting without override justification.
 - **Visualization:** Schedule compliance percentage gauge; after-hours lighting heatmap by floor; override frequency chart.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -704,6 +802,9 @@ index=building sourcetype="bms:elevator"
 - **Visualization:** Trip count timeline per elevator; floor usage heatmap; peak hour analysis; elevator comparison chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.37 · Elevator Door Fault Frequency and Prediction
@@ -727,6 +828,9 @@ index=building sourcetype="bms:elevator" event_type="door_*"
 - **Visualization:** Door fault trend per elevator; close time degradation chart; reversal frequency; fault prediction timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.38 · Elevator Wait Time and Service Quality
@@ -749,6 +853,9 @@ index=building sourcetype="bms:elevator" event_type="hall_call"
 - **Implementation:** Capture hall call registration and car arrival timestamps from elevator controller. Calculate wait time per call. Aggregate into hourly metrics. Compare to industry SLA (30s average, 60s 95th percentile).
 - **Visualization:** Wait time gauge per elevator group; hourly pattern chart; SLA compliance timeline; floor-level analysis.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -776,6 +883,9 @@ index=building sourcetype="bms:water" meter_type="main_feed"
 - **Visualization:** Water consumption timeline; occupied vs unoccupied comparison; anomaly alert dashboard; leak detection map.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.40 · Domestic Hot Water Temperature Compliance (Legionella Prevention)
@@ -801,6 +911,9 @@ index=building sourcetype="bms:water" system="domestic_hot_water"
 - **Implementation:** Monitor hot water storage tank and return line temperatures continuously. Alert immediately on any reading below compliance threshold. Log all temperature data for regulatory audit trail.
 - **Visualization:** Temperature compliance gauge per system; temperature timeline; non-compliance alert log; regulatory compliance report.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -829,6 +942,9 @@ index=building sourcetype="bms:water" system="cooling_tower"
 - **Visualization:** Chemistry parameter trend lines; status indicator per tower; chemical consumption dashboard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.42 · Fire Alarm Panel Zone Health and Event Monitoring
@@ -853,6 +969,9 @@ index=building sourcetype="bms:fire" event_type IN ("trouble", "alarm", "supervi
 - **Implementation:** Connect fire alarm panels via syslog receiver or serial-to-IP converter. Normalize events into alarm, trouble, and supervisory categories. Alert on any alarm immediately. Track trouble conditions for resolution within code-required timeframes.
 - **Visualization:** Fire panel status dashboard; event timeline; trouble condition age tracking; multi-building overview map.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -880,6 +999,9 @@ index=building sourcetype="bms:fire" event_type="supervisory" device_type IN ("v
 - **Visualization:** Valve status map by building; tamper event timeline; open trouble list; NFPA 25 compliance dashboard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.44 · Fire Pump Controller Status and Run Monitoring
@@ -900,6 +1022,9 @@ index=building sourcetype="bms:fire" device_type="fire_pump"
 - **Implementation:** Monitor fire pump controller via syslog or serial gateway. Track all pump starts (test and demand), run duration, and electrical parameters. Flag excessive jockey pump cycling (>20 starts/day). Log for NFPA 25 weekly/monthly test compliance.
 - **Visualization:** Pump run history timeline; jockey pump cycling chart; weekly test compliance tracker; voltage quality gauge.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -927,6 +1052,9 @@ index=building sourcetype="bms:bacnet" event_type="device_status"
 - **Visualization:** Controller status map; network health dashboard; offline device list; communication stability trend.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.46 · BMS Alarm Flood Detection and Suppression
@@ -948,6 +1076,9 @@ index=building sourcetype="bms:*" event_type="alarm"
 - **Implementation:** Aggregate all BMS alarms. Detect bursts exceeding 20 alarms in 5 minutes. Identify the earliest alarm as probable root cause. Suppress downstream alarms in operator dashboard. Track alarm flood frequency for system reliability improvement.
 - **Visualization:** Alarm volume timeline; flood event timeline; root cause table; alarm type distribution during floods.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -971,6 +1102,9 @@ index=building sourcetype="bms:parking"
 - **Visualization:** Occupancy gauge per level; daily pattern heatmap; available spaces single value; trend chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.1.48 · EV Charging Station Availability and Utilization
@@ -993,6 +1127,9 @@ index=building sourcetype="bms:ev_charging"
 - **Implementation:** Connect to charging management platform via OCPP or vendor API. Track session starts, energy delivered, and station faults. Monitor utilization rates. Alert on faulted stations. Feed energy data to demand management.
 - **Visualization:** Station availability map; energy delivery trend; utilization by time of day; faulted station alerts; session duration histogram.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1018,6 +1155,9 @@ index=building sourcetype="bms:iaq"
 - **Implementation:** Deploy IAQ sensors measuring CO2, PM2.5, TVOC, temperature, and humidity. Calculate composite IAQ index weighted by parameter importance. Alert on poor zones. Correlate with HVAC ventilation rates for root cause. Support WELL/RESET certification data logging.
 - **Visualization:** IAQ index gauge per zone; floor plan heatmap; CO2 trend with occupancy overlay; certification compliance dashboard.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1046,6 +1186,13 @@ index=building sourcetype="bms:energy"
 
 **Primary App/TA:** Splunk Edge Hub (OPC-UA, Modbus, MQTT protocols), Splunk OT Intelligence (Splunkbase #5180).
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### 14.2 Industrial Control Systems (ICS/SCADA)
+
 ---
 
 ### UC-14.2.1 · PLC/RTU Health Monitoring
@@ -1064,6 +1211,9 @@ index=ot sourcetype="opcua:metrics"
 - **Implementation:** Connect to PLCs via OPC-UA server or Modbus gateway through Splunk Edge Hub. Poll health metrics every 30 seconds. Alert on CPU >80%, memory >90%, or communication loss. Track uptime per controller.
 - **Visualization:** Status grid (PLC × health), Gauge (CPU/memory per PLC), Line chart (health trend).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1084,6 +1234,9 @@ index=ot sourcetype="opcua:process"
 - **Visualization:** Line chart (process variable with limit bands), Table (out-of-range events), Single value (current value with status color).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.3 · Safety System Activation
@@ -1102,6 +1255,9 @@ index=ot sourcetype="safety_plc"
 - **Implementation:** Forward safety PLC events to Splunk (isolated network — use data diode or Edge Hub). Alert at critical priority on any safety activation. Maintain incident log for regulatory compliance. Track activation frequency per system.
 - **Visualization:** Single value (safety activations — target: 0), Table (activation history), Timeline (safety events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1122,6 +1278,9 @@ index=network sourcetype="pan:traffic" zone_pair="IT-to-OT"
 - **Implementation:** Forward IT/OT boundary firewall logs. Monitor all traffic crossing the boundary. Alert on unexpected protocols or connections. Validate against whitelist of approved communications. Report for ICS security audits.
 - **Visualization:** Table (cross-boundary traffic), Sankey diagram (IT→OT flows), Bar chart (by protocol), Single value (unauthorized connections).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1144,6 +1303,9 @@ index=ot sourcetype="ics_inventory"
 - **Visualization:** Table (devices with outdated firmware), Pie chart (compliance distribution), Single value (% compliant).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.6 · Unauthorized Access Detection
@@ -1164,6 +1326,9 @@ index=ot sourcetype="ics_firewall"
 - **Visualization:** Table (access events), Timeline (unauthorized attempts), Bar chart (blocked connections by source).
 - **CIM Models:** N/A
 
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1186,6 +1351,9 @@ index=ot sourcetype="modbus:traffic"
 - **Visualization:** Line chart (Modbus req rate), Table (anomalous unit × function), Heatmap (time × unit).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.8 · OPC-UA Session Abuse
@@ -1199,12 +1367,16 @@ index=ot sourcetype="modbus:traffic"
 ```spl
 index=ot sourcetype="opcua:session"
 | where event_type IN ("CreateSession","ActivateSession") AND (is_anonymous=1 OR rejected=1)
-| stats dc(session_id) as sessions, dc(client_ip) as clients by server_endpoint, _time span=1h
+| bin _time span=1h
+| stats dc(session_id) as sessions, dc(client_ip) as clients by server_endpoint, _time
 | where sessions > 50 OR clients > 10
 ```
 - **Implementation:** Ingest OPC-UA audit events. Whitelist known engineering hosts. Alert on anonymous session creation or high rejection rate.
 - **Visualization:** Table (servers with suspicious sessions), Bar chart (sessions by client IP).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1226,6 +1398,9 @@ index=ot sourcetype="plc:inventory"
 - **Visualization:** Timeline (firmware changes), Table (PLCs with unexpected version).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.10 · ICS Protocol Violation Alerts
@@ -1245,6 +1420,9 @@ index=ot sourcetype="ics:protocol"
 - **Implementation:** Normalize IDS fields into Splunk. Tune for false positives on legacy equipment. Route critical to SOC and OT jointly.
 - **Visualization:** Table (violations), Timeline (events), Sankey (src → dest).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1266,6 +1444,9 @@ index=security sourcetype IN ("vpn:log","firewall:traffic") nerc_cip=1
 - **Implementation:** Tag in-scope assets and controls. Use saved searches per CIP requirement (e.g., access logging, 30-day log retention). Document in Splunk as authoritative evidence store.
 - **Visualization:** Compliance dashboard (control × status), Table (gaps by site).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263)
 
 ---
 
@@ -1289,6 +1470,9 @@ index=ot sourcetype="historian:point"
 - **Visualization:** Line chart (insert rate), Table (tags with gaps), Single value (data quality %).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.13 · Safety Instrumented System Monitoring
@@ -1308,6 +1492,9 @@ index=ot sourcetype="sis:event"
 - **Implementation:** Segregate SIS data per safety policy. Never route writes from IT networks. Alert on any bypass or fault.
 - **Visualization:** Timeline (SIS events), Single value (active bypasses), Table (trip history).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1329,6 +1516,9 @@ index=ot sourcetype="hmi:audit"
 - **Visualization:** Table (non-compliant logins), Map (source IP).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.15 · Control Loop Deviation
@@ -1348,6 +1538,9 @@ index=ot sourcetype="opcua:control"
 - **Implementation:** Define deadband per loop. Alert when sustained error exceeds threshold or output pegs. Integrate with maintenance CMMS.
 - **Visualization:** Line chart (PV vs SP), Gauge (loop error), Table (loops in alarm).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1369,6 +1562,9 @@ index=ot sourcetype="opcua:process"
 - **Visualization:** Line chart (actual vs predicted), Table (tags trending to limit).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.17 · ICS Network Segmentation Violations
@@ -1388,6 +1584,9 @@ index=network sourcetype="flow:ics"
 - **Implementation:** Maintain `allowed_pair` lookup for zone-to-zone. Alert on any deny or unexpected allow. Quarterly review.
 - **Visualization:** Sankey (zones), Table (violations), Single value (open violations).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1409,6 +1608,9 @@ index=ot sourcetype="sysmon:windows" host_tag="EWS"
 - **Implementation:** Lock down EWS to approved paths. Alert on new process or driver load. Correlate with maintenance windows.
 - **Visualization:** Table (suspicious processes), Timeline (EWS events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1432,6 +1634,9 @@ index=ot sourcetype="flow:ics" src_zone="OT_L3"
 - **Visualization:** Map (flows), Table (assets), Sankey (zone → egress).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.20 · OT Protocol Port Monitoring
@@ -1454,6 +1659,9 @@ index=ot (sourcetype="zeek:conn" OR sourcetype="ics:protocol")
 - **Visualization:** Table (unexpected sessions), Bar chart (port mix), Timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.21 · Removable Media in OT Detection
@@ -1473,6 +1681,9 @@ index=ot (sourcetype="WinEventLog:Security" EventCode=6416) OR (sourcetype="sysm
 - **Implementation:** Physical port block by default; break-glass USB with logged approval ticket.
 - **Visualization:** Table (USB events), Timeline, Single value (events per shift).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1496,6 +1707,9 @@ index=network sourcetype="pan:traffic" zone_pair="IT_DMZ_to_OT_L3"
 - **Visualization:** Line chart (bytes by app), Table (anomalies), Heatmap (hour × app).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.23 · ICS Change Management Compliance
@@ -1516,6 +1730,9 @@ index=ot sourcetype="plc:download"
 - **Implementation:** Require pre-approved WO for all downloads; correlate with maintenance windows from MES.
 - **Visualization:** Table (unauthorized downloads), Bar chart (by line), Gantt (WO vs. event time).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1540,6 +1757,9 @@ index=ot sourcetype="mes:line_status"
 - **Visualization:** Bar chart (downtime by line), Timeline (stops), Single value (MTBF).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.25 · OEE Metrics Collection
@@ -1563,6 +1783,9 @@ index=ot sourcetype="opcua:tag" tag=oee
 - **Visualization:** Line chart (OEE trend), Gauge (current OEE), Bar chart (loss buckets).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.26 · Batch Process Deviation Alerting
@@ -1584,6 +1807,9 @@ index=ot sourcetype="batch:phase" batch_id=*
 - **Implementation:** Integrate with quality hold workflow; electronic signatures for parameter overrides.
 - **Visualization:** Table (deviations), Control chart (temp), Timeline (phases).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1607,6 +1833,9 @@ index=edi sourcetype="edi:control"
 - **Visualization:** Table (late/missing acks), Line chart (ack latency trend), Bar chart (by partner).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.2.28 · Supplier Delivery Performance
@@ -1628,6 +1857,9 @@ index=supply sourcetype="edi:asn"
 - **Implementation:** Join to GRN for quantity accuracy; exclude force majeure with reason codes.
 - **Visualization:** Bar chart (OTIF % by supplier), Table (worst performers), Trend (rolling 13 weeks).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1660,6 +1892,9 @@ index=supply sourcetype="edi:asn"
 - **Visualization:** Line chart (mstats temperature trend by device), Single value (current temperature), Timeline (anomaly events from edge-hub-anomalies).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.3.2 · Vibration & Motion Monitoring
@@ -1684,6 +1919,9 @@ index=supply sourcetype="edi:asn"
 - **Implementation:** Mount Edge Hub near rotating equipment (IP66 enclosure suits industrial environments, operating -40°C to 80°C). The built-in accelerometer and gyroscope stream metrics to `edge-hub-data`. Enable kNN anomaly detection via the mobile app for each axis. Deploy MLTK Smart Outlier Detection model for more advanced analysis (requires OT Intelligence 4.8.0+ and Edge Hub OS 2.0+). Alert on anomaly detections. Note: one ML model per sensor; performance degrades with 2+ concurrent models.
 - **Visualization:** Line chart (accelerometer axes over time), Single value (current RMS), Timeline (anomaly events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1710,6 +1948,9 @@ index=supply sourcetype="edi:asn"
 - **Visualization:** Line chart (IAQ score over time), Gauge (current IAQ), Multi-metric dashboard (VOC + humidity + temperature).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.3.4 · Sound Level Anomalies
@@ -1735,6 +1976,9 @@ index=supply sourcetype="edi:asn"
 - **Visualization:** Line chart (sound level trend), Single value (current dB), Timeline (anomaly events).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.3.5 · MQTT Device Integration Monitoring
@@ -1759,6 +2003,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" OR "broker"
 - **Visualization:** Line chart (MQTT metric trends), Table (connected device inventory), Single value (active MQTT topics).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.3.6 · SNMP Device Polling from Edge
@@ -1781,6 +2028,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "snmp" ("timeout" OR "unreach
 - **Implementation:** Configure SNMP polling via Edge Hub Advanced Settings → SNMP tab. Add devices by IP, set SNMP version (v1/v2c/v3), community string or v3 credentials, and define OIDs with aliases. Set polling interval (default 60s). Edge Hub polls local OT devices and forwards results to `edge-hub-snmp` index via HEC. This bridges the air-gap — enterprise Splunk never touches the OT network directly. Alert on device unreachability or metric threshold violations.
 - **Visualization:** Table (device OID values), Status grid (device × poll status), Line chart (metric trends).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1808,6 +2058,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 - **Visualization:** Single value (connectivity status with LED color mapping), Gauge (CPU/memory/disk), Line chart (forwarding rate over time).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -1833,6 +2086,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 - **Visualization:** Single-value alert indicator, time-series trend, deviation log.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -1855,6 +2111,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 - **Implementation:** Mount Edge Hub in archival vault with sensors in passive airflow zone. Configure 10-minute polling intervals via Advanced Settings → Sensor Polling for daily compliance reporting. Use edge-hub-health index to track sensor drift (humidity can drift ±5% annually). Maintain audit trail in edge-hub-logs for regulatory documentation.
 - **Visualization:** Compliance scorecard, historical trend, excursion timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1880,6 +2139,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log
 - **Visualization:** VPD gauge, growth score trend, hourly optimization heatmap.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -1902,6 +2164,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **Visualization:** Motion vs light correlation scatter, false positive trend, alert effectiveness dashboard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -1916,13 +2181,16 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **SPL:**
 ```spl
 | mstats avg(light_level) as lux by host, _time span=15m
-| join max=1 host [index=edge-hub-logs camera_occupancy_count > 0 | stats count as people_detected by host, _time span=15m]
+| join max=1 host [index=edge-hub-logs camera_occupancy_count > 0 | bin _time span=15m | stats count as people_detected by host, _time]
 | eval hvac_mode=case(people_detected > 0 AND lux < 500, "COMFORT", people_detected = 0 AND lux > 500, "ECO", 1=1, "TRANSITION")
 | stats count by hvac_mode, host
 ```
 - **Implementation:** Deploy custom ARM64 container with TensorFlow Lite occupancy counting model (CNN) running on NPU. Integrate Modbus TCP gateway to read/write HVAC controller setpoint registers (port 502). Use light sensor as secondary occupancy indicator. Configure container resource limits to ensure 30-second sensor polling remains unaffected. Implement local alerting logic in container to adjust setpoint without cloud round-trip latency.
 - **Visualization:** Occupancy vs light scatter, energy savings trend, HVAC mode timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1948,6 +2216,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **Visualization:** Shelf occupancy heatmap, light level trend by shelf, inventory status dashboard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -1971,6 +2242,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **Implementation:** Mount Edge Hub on bridge structure, machinery frame, or building floor with accelerometer facing primary load direction. Collect 7-day baseline using kNN built-in anomaly detection (one model per sensor). Enable MLTK Smart Outlier Detection v4.8.0+ for drift tracking over months. Store 3M data points locally for baseline comparison. Note: MQTT sensors only support MLTK; if using built-in accelerometer, use built-in kNN algorithm.
 - **Visualization:** Vibration magnitude trend, baseline drift scatter, anomaly frequency timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1996,6 +2270,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **Visualization:** Door swing timeline, access frequency histogram, anomalous access alert.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2018,6 +2295,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **Implementation:** Mount Edge Hub at equipment bearing or motor coupling with gyroscope Z-axis aligned to equipment rotation axis. Collect 30-day baseline for expected rotation rate and variation. Use built-in kNN anomaly detection to flag unexpected rotational patterns (e.g., gyroscopic precession from misalignment). For precision industrial environments, integrate with OPC-UA PLC (port 4840) to read encoder data for ground-truth validation. Local 3M backlog ensures all rotation events are captured.
 - **Visualization:** Rotation rate trend, z-axis dominance heatmap, misalignment risk gauge.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2042,6 +2322,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_signature_extracted=tru
 - **Implementation:** Position Edge Hub stereo microphone 0.5-2m from equipment (not in direct high-velocity air). Build custom ARM64 container using FFT (Fast Fourier Transform) library to extract peak frequencies and power spectral density. Deploy on NPU (v2.1+) for real-time FFT computation without cloud round-trip. Reference frequency baseline from first 7 days of operation. Store sound level metric data locally for pattern matching without streaming audio to cloud (privacy + bandwidth).
 - **Visualization:** Frequency spectrum waterfall, peak frequency trend, degradation risk timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2071,6 +2354,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_signature_extracted=tru
 - **Visualization:** Multi-sensor correlation matrix, drift detection alerts, baseline comparison chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2085,7 +2371,8 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_signature_extracted=tru
 - **SPL:**
 ```spl
 index=edge-hub-data metric_name=pressure
-| stats avg(pressure) as avg_press by room, zone, _time span=5m
+| bin _time span=5m
+| stats avg(pressure) as avg_press by room, zone, _time
 | eval zone_pair=room + "_" + zone
 | eventstats avg(avg_press) as zone_avg by zone_pair
 | eval pressure_diff=avg_press - zone_avg
@@ -2095,6 +2382,9 @@ index=edge-hub-data metric_name=pressure
 - **Implementation:** Deploy Edge Hub with optional pressure sensor in each cleanroom zone. Configure 5-minute polling interval (Advanced Settings → Sensor Polling) for real-time compliance monitoring. Cleanrooms require 0.5-2.0 hPa positive pressure differential from adjacent areas. Set threshold alerts at 0.5 hPa minimum. Enable continuous local logging (edge-hub-logs index) for regulatory audit trail. Pressure sensor range 300-1100 hPa covers sea-level and altitude variations.
 - **Visualization:** Pressure differential gauge, zone comparison heatmap, compliance timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2119,6 +2409,9 @@ index=edge-hub-data metric_name=pressure
 - **Visualization:** Duct pressure trend, filter condition gauge, maintenance alert timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2142,6 +2435,9 @@ index=edge-hub-data metric_name=pressure
 - **Visualization:** Altitude vs time, pressure correction factor trend, weather correlation chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2162,6 +2458,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=transform_enri
 - **Implementation:** Build custom ARM64 Python container (requires Dockerfile with Python 3.9+ and gRPC client library) to read sensor data via Edge Hub gRPC API. Implement custom enrichment logic (e.g., add facility ID, shift code, operator ID). Redact PII or sensitive fields before forwarding to cloud. Configure edge.json manifest with resource limits (memory: 512MB, CPU: 2 cores). Container runs as non-root (v2.0+). Deploy via Advanced Settings → Containers tab. Local SQLite backlog absorbs data if container crashes.
 - **Visualization:** Transform success rate trend, processing latency histogram, error frequency chart.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2185,6 +2484,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log bacnet_translation_event
 - **Visualization:** BACnet object discovery count, translation success rate, latency histogram.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2205,6 +2507,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=local_alerting
 - **Implementation:** Build custom ARM64 container with gRPC client library and GPIO library (RPi.GPIO or gpiod). Container subscribes to Edge Hub gRPC sensor stream, implements local thresholds (e.g., temperature > 90°C), and directly controls GPIO pins to energize/de-energize relays (e.g., kill power to pump, trigger siren). No cloud round-trip latency—decisions made in <100ms. Configure edge.json with resource limits (memory: 128MB, CPU: 0.5 core). Store alert events in local edge-hub-logs for compliance.
 - **Visualization:** Alert frequency timeline, relay activation log, response latency histogram.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2229,6 +2534,9 @@ index=edge-hub-data metric_name=temperature
 - **Visualization:** Rolling average trend, threshold crossing frequency, anomaly detection timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2250,6 +2558,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log bluetooth_beacon_event beacon
 - **Implementation:** Enable Bluetooth scanning on Edge Hub. Build custom ARM64 container that listens for iBeacon or AltBeacon advertisements, parses UUID/major/minor identifiers, and logs beacon_id + RSSI (signal strength). Use RSSI to estimate distance (typically 1-10m range for Edge Hub antenna). Store beacon events locally via 100K event backlog. Implement trilateration logic in container or Splunk downstream to estimate asset location across 3+ Edge Hubs. MQTT publish beacon sightings to central location service.
 - **Visualization:** Asset presence map, RSSI range heatmap, movement timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2274,6 +2585,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log barcode_scan_event
 - **Visualization:** Scan success rate trend, invalid barcode timeline, inventory reconciliation report.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2296,6 +2610,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_classification_event
 - **Visualization:** Anomaly classification frequency, confidence score distribution, sound type timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2316,6 +2633,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log predictive_model_inference fa
 - **Implementation:** Train XGBoost or TensorFlow Lite model offline using historical sensor data (temperature, vibration, power consumption trends). Quantize model to INT8 for NPU deployment. Build custom ARM64 container that streams sensor features (via gRPC API) into model inference pipeline running on NPU. Model outputs failure_risk_score (0-1 scale). If score > 0.7, trigger alert and log predictive maintenance event. Store raw feature vectors locally (3M backlog) for continuous model retraining. Configure edge.json: memory 512MB, CPU 2 cores, NPU enabled.
 - **Visualization:** Failure risk score trend, maintenance urgency gauge, prediction accuracy (post-hoc) scatter.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2339,6 +2659,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua opcua_tag=* opcua_value=*
 - **Implementation:** Configure OPC-UA connection in Advanced Settings → OPC-UA tab with PLC/SCADA server hostname (port 4840), username/password or anonymous authentication. Browse PLC namespace to discover tags. Enable continuous polling of selected tags at 5-second intervals. Configure threshold alerts on value changes (delta > 20% or absolute > threshold). Store tag values in edge-hub-logs index with sourcetype=splunk_edge_hub_opcua. Detect unexpected data type changes (INT to FLOAT) or tag disappearance (PLC program change). Use local SQLite backlog (100K event capacity) for connectivity loss resilience.
 - **Visualization:** Tag value trend, data type change alert, PLC program integrity dashboard.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2366,6 +2689,9 @@ index=edge-hub-logs sourcetype=edge_hub modbus_register
 - **Implementation:** Configure Modbus TCP in Advanced Settings → Modbus tab with equipment IP/port (default 502). Define register map (coils, discrete inputs, holding registers, input registers) with OID aliases for readability. Configure polling interval (10-30 seconds typical) and register read strategy (optimized batching). Store register values in edge-hub-logs (events) or as metrics in edge-hub-data. Map register indices to human-readable tags (e.g., 0x1234→"VFD_Speed_Hz"). Local SQLite backlog stores 100K Modbus events for offline resilience.
 - **Visualization:** Register value trend, equipment health gauge, Modbus gateway connection status.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2395,6 +2721,9 @@ OR index=edge-hub-data metric_name=temperature
 - **Visualization:** Multi-protocol correlation heatmap, root cause attribution waterfall, equipment health scorecard.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2421,6 +2750,9 @@ index=edge-hub-health sourcetype=edge_hub gateway_name=*
 - **Visualization:** Gateway uptime timeline, response time histogram, error rate trend.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2435,7 +2767,8 @@ index=edge-hub-health sourcetype=edge_hub gateway_name=*
 - **SPL:**
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_opcua alarm_event=true
-| stats count as alarm_count, latest(alarm_severity) as severity, latest(alarm_message) as msg by source_node_id, _time span=1m
+| bin _time span=1m
+| stats count as alarm_count, latest(alarm_severity) as severity, latest(alarm_message) as msg by source_node_id, _time
 | where severity="HIGH" OR severity="CRITICAL"
 | eval acknowledgment_status=if(isnotnull(acknowledged_time), "ACK", "UNACK")
 | where acknowledgment_status="UNACK"
@@ -2443,6 +2776,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua alarm_event=true
 - **Implementation:** Configure OPC-UA in Advanced Settings → OPC-UA tab with Alarms & Events subscription enabled. Define event filters for alarm severity levels (High, Critical). Edge Hub subscribes to server's Alarms & Events namespace and logs all alarm state changes (triggered, acknowledged, cleared) to edge-hub-logs (sourcetype=splunk_edge_hub_opcua). Store alarm events locally via 100K backlog for resilience. Implement alarm acknowledgment workflow: operator ack in Splunk → webhook → OPC-UA Acknowledge operation. Color LED ring based on highest unacknowledged severity (red=critical, orange=high).
 - **Visualization:** Alarm frequency timeline, severity distribution pie, acknowledgment status list.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2468,6 +2804,9 @@ index=edge-hub-logs sourcetype=edge_hub modbus_register meter_type=energy modbus
 - **Visualization:** Energy consumption trend, cost breakdown by zone, demand charge projection.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2492,6 +2831,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua program_timestamp_event
 - **Visualization:** Program timestamp timeline, change detection alert, modification history.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2507,7 +2849,8 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua program_timestamp_event
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_opcua hmi_event=true
 | regex field_name="setpoint|start|stop|mode"
-| stats count as action_count, latest(field_value) as value by operator_id, _time span=1h
+| bin _time span=1h
+| stats count as action_count, latest(field_value) as value by operator_id, _time
 | eval action_frequency=(action_count / 60)
 | where action_frequency > 5
 | eval operator_behavior="UNUSUAL"
@@ -2515,6 +2858,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_opcua hmi_event=true
 - **Implementation:** Configure OPC-UA subscriptions to HMI write tags (setpoints, control commands). Enable change notification for tags with ValueWrite attributes. Log tag writes with operator context (user ID from HMI session) to edge-hub-logs (sourcetype=splunk_edge_hub_opcua). Store events locally (100K backlog) for audit trail continuity. Implement audit report: operator ID, timestamp, tag name, old value, new value, status. Alert on unusual operator behavior patterns (too many commands in short time window).
 - **Visualization:** Operator action timeline, command frequency histogram, unusual behavior alert.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2541,6 +2887,9 @@ index=edge-hub-health sourcetype=edge_hub
 - **Visualization:** Firmware version distribution pie, device compliance status list, update history timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2564,6 +2913,9 @@ index=edge-hub-logs sourcetype=edge_hub gnss_position=true
 - **Implementation:** Edge Hub with cellular module (LTE/4G) includes integrated GNSS receiver. Enable GNSS in Advanced Settings (requires clear sky line-of-sight). Edge Hub logs GPS position (latitude, longitude, accuracy_meters) to edge-hub-logs every 15 minutes. Store expected location + geofence radius per device. Alert if device moves outside geofence (e.g., trailer theft detection, equipment relocation). For outdoor industrial sites, track GNSS acquisition time and accuracy metrics (typically 5-20m accuracy in open sky). Local SQLite stores 30+ days of position history.
 - **Visualization:** Device location map, geofence status indicator, movement timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2592,6 +2944,9 @@ index=edge-hub-health sourcetype=edge_hub
 - **Visualization:** Signal strength heatmap, latency trend, network type distribution.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2617,6 +2972,9 @@ index=edge-hub-health sourcetype=edge_hub
 - **Visualization:** CPU usage trend, memory usage gauge, container resource breakdown pie, capacity projection.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2641,6 +2999,9 @@ index=edge-hub-health sourcetype=edge_hub configuration_snapshot=true
 - **Implementation:** Edge Hub computes MD5 hash of entire configuration (MQTT subscriptions, OPC-UA endpoints, Modbus registers, container definitions, sensor polling intervals) and reports to edge-hub-health index weekly. Central Splunk instance generates baseline config hash per location/site. Alert if device config hash differs (indicates manual configuration, failed deployment, or malicious modification). Implement remediation workflow: flag device for manual inspection or trigger automated config re-deployment via edge.json manifest update. Store configuration snapshots locally for historical comparison.
 - **Visualization:** Config drift alert, baseline hash variance, deployment history timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2670,6 +3031,9 @@ index=edge-hub-health sourcetype=edge_hub
 - **Visualization:** Backlog utilization gauge, lost data counter, recovery timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2696,6 +3060,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log people_count_event
 - **Visualization:** Occupancy trend by location, capacity status heatmap, peak occupancy histogram.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2720,6 +3087,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log visual_inspection_event defec
 - **Visualization:** Defect detection timeline, defect type distribution pie, quality trend chart.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2743,6 +3113,9 @@ index=edge-hub-data metric_name=temperature
 - **Implementation:** Build custom ARM64 container with Python requests library. Container subscribes to sensor data via gRPC API, periodically fetches external data (weather API, stock prices, etc.) via HTTPS, correlates with sensor data, and publishes enriched metrics back to MQTT. Example: fetch external air temperature from weather API every 30 minutes, correlate with Edge Hub inside temperature to detect HVAC failures. Implement caching layer to minimize API calls. Store enrichment logs locally. Configure edge.json: memory 256MB, CPU 1 core. Container runs as non-root (v2.0+).
 - **Visualization:** Sensor vs API correlation scatter, enrichment success rate trend, external data staleness timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2770,6 +3143,9 @@ index=edge-hub-data metric_name=temperature
 - **Visualization:** Pressure vs humidity scatter plot, leak risk gauge, enclosure seal integrity trend.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2794,6 +3170,9 @@ index=edge-hub-data metric_name=temperature
 - **Implementation:** Deploy Edge Hub with stereo microphone in warehouse/factory/airport locations. Configure 1-hour aggregation for OSHA 8-hour TWA (time-weighted average). Build custom container that computes: (1) dB(A) sound pressure level (apply A-weighting curve), (2) frequency band powers (125Hz, 250Hz, 500Hz, 1kHz, 2kHz, 4kHz, 8kHz octave bands). Store hourly averages in edge-hub-data metrics. Alert if hourly average exceeds 85 dB (OSHA hearing protection threshold). Log high-frequency band power (4-8kHz) for hearing loss risk assessment. Note: Do not stream raw audio; only log processed metrics for privacy.
 - **Visualization:** Noise level trend by location, frequency band heatmap, OSHA compliance status.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2821,6 +3200,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log impact_event=true
 - **Visualization:** Impact event timeline, severity distribution histogram, peak acceleration trend.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2846,6 +3228,9 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 - **Implementation:** Edge Hub firmware tracks sensor calibration date and calculates drift estimate (comparison to stable reference or statistical baseline). Temperature sensor nominal accuracy ±0.2°C; alert if drift exceeds ±0.5°C (±2.5x drift). Humidity sensor nominal accuracy ±2%; alert if drift exceeds ±5% RH (±2.5x drift). Report calibration status to edge-hub-health every week. Recommend recalibration every 12 months or after >2% drift detected. Store calibration history in edge-hub-logs for audit trail. For critical environments (pharmaceutical, food), set more aggressive drift thresholds (±1% per year).
 - **Visualization:** Sensor drift gauge, calibration status list, recalibration due timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2873,6 +3258,9 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 - **Visualization:** Light level trend by location, anomaly detection timeline, darkness event log.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2896,6 +3284,9 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 - **Implementation:** Deploy Edge Hub accelerometer on precision equipment (CNC machine, semiconductor wafer scanner, optical alignment tool). Configure 10-second rolling window for vibration magnitude calculation. Set alarm threshold based on equipment manufacturer specs (typical: 3-5g for precision machinery). Build custom container that monitors vibration in real-time and triggers GPIO relay to cut equipment power if threshold exceeded (safety interlock). Store vibration magnitude in edge-hub-data metrics. Implement hierarchical alerts: 80% threshold = warning, 100% threshold = equipment shutdown. Local alert response avoids cloud latency (critical for safety).
 - **Visualization:** Vibration magnitude trend, threshold exceedance timeline, equipment protection status.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2922,6 +3313,9 @@ index=edge-hub-health sourcetype=edge_hub sensor_type=temperature OR sensor_type
 - **Visualization:** Zone temperature heatmap, gradient trend, HVAC balance status.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2945,6 +3339,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log acoustic_classification_event
 - **Implementation:** Build custom ARM64 container with TensorFlow Lite audio anomaly detection model (autoencoder or isolation forest on MFCC spectral features). Container captures 5-second audio windows at 1-minute intervals, extracts MFCC features, computes reconstruction error vs baseline model (trained on normal equipment sounds), outputs anomaly_score (0-1). Score > 0.7 = significant acoustic change. Deploy NPU inference (v2.1+) for real-time processing. Store anomaly events locally (100K backlog). Useful for early detection of bearing wear, compressor cavitation, motor bearing looseness before catastrophic failure. Do not stream raw audio to cloud (privacy).
 - **Visualization:** Anomaly score timeline, detection frequency histogram, equipment health trend.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2972,6 +3369,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log mqtt_latency_event
 - **Visualization:** MQTT latency trend by topic, message loss rate, broker health timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -2995,6 +3395,9 @@ index=edge-hub-logs sourcetype=edge_hub temperature_response_test=true stimulus_
 - **Implementation:** Implement quarterly temperature sensor response test: apply controlled heat source (heat lamp, hot water bath) near sensor, record time from stimulus application to temperature rise detection (configurable threshold: +5°C from baseline). Temperature sensor response time (Edge Hub spec): ~1-5 seconds in air, ~10-30 seconds in slow-moving air. Response time > 60 seconds indicates sensor degradation (fouled sensing element, thermal insulation issue). Store test results in edge-hub-logs. Alert if average response time exceeds equipment-specific safety limit (e.g., fire detection requires < 30 second response). Use test data for recalibration/replacement decisions.
 - **Visualization:** Sensor response time trend, test results timeline, response time validation pass/fail status.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3035,6 +3438,9 @@ index=iot sourcetype="iot_platform:devices"
 - **Visualization:** Table (devices needing attention), Gauge (fleet health %), Pie chart (device status distribution), Map (device locations with status).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.2 · Environmental Monitoring
@@ -3053,6 +3459,9 @@ index=iot sourcetype="sensor:environmental"
 - **Implementation:** Deploy environmental sensors in server rooms, warehouses, and facilities. Ingest via MQTT or API. Alert immediately on water leak or smoke detection. Track temperature/humidity trends per location.
 - **Visualization:** Floor plan (sensors with status), Line chart (environmental trends), Table (alerts), Single value (active environmental alerts).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3074,6 +3483,9 @@ index=iot sourcetype="asset_tracking"
 - **Visualization:** Map (asset locations), Table (asset inventory with location), Timeline (asset movement), Single value (assets not reporting).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.4 · Home Automation Monitoring
@@ -3092,6 +3504,9 @@ index=smarthome sourcetype="homey:events"
 - **Implementation:** Configure Homey/Home Assistant webhook or API to send events to Splunk HEC. Track device states, energy consumption, and automation triggers. Create dashboards for home energy management and security.
 - **Visualization:** Line chart (energy usage), Table (device events), Status grid (device × state), Single value (energy today).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3114,6 +3529,9 @@ index=iot sourcetype="iot_platform:inventory"
 - **Visualization:** Table (non-compliant devices), Pie chart (compliant vs non-compliant), Bar chart (by device type), Single value (compliance %).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.6 · IoT Device Connectivity and Last-Seen Monitoring
@@ -3134,6 +3552,9 @@ index=iot sourcetype="iot:telemetry"
 - **Implementation:** Track last-seen per device from telemetry or heartbeat. Alert when device has not reported for >1 hour (tune per use case). Report on connectivity rate and devices with longest gap. Correlate with gateway health.
 - **Visualization:** Table (devices with gap), Single value (devices offline), Line chart (connectivity rate).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3156,6 +3577,9 @@ index=ot sourcetype="modbus:traffic"
 - **Visualization:** Table (write events), Timeline (commands by source), Bar chart (function codes).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.8 · Sensor Calibration and Drift Detection
@@ -3168,7 +3592,8 @@ index=ot sourcetype="modbus:traffic"
 - **SPL:**
 ```spl
 index=iot sourcetype="sensor:reading"
-| stats avg(value) as avg_val, stdev(value) as stdev_val by sensor_id, metric, _time span=1d
+| bin _time span=1d
+| stats avg(value) as avg_val, stdev(value) as stdev_val by sensor_id, metric, _time
 | eventstats avg(avg_val) as fleet_avg by metric
 | eval drift=abs(avg_val-fleet_avg)
 | where drift > (stdev_val * 3)
@@ -3176,6 +3601,9 @@ index=iot sourcetype="sensor:reading"
 - **Implementation:** Ingest sensor readings and optional reference values. Compute baseline or peer average. Alert when a sensor deviates beyond threshold. Track calibration history and flag sensors due for recalibration.
 - **Visualization:** Line chart (sensor vs baseline), Table (sensors with drift), Bar chart (drift magnitude).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3197,6 +3625,9 @@ index=iot sourcetype="gateway:metrics"
 - **Visualization:** Table (gateways over threshold), Gauge (queue depth), Line chart (utilization trend).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.10 · IoT Data Pipeline Throughput and Latency
@@ -3209,13 +3640,17 @@ index=iot sourcetype="gateway:metrics"
 - **SPL:**
 ```spl
 index=iot sourcetype="pipeline:metrics"
-| stats avg(ingestion_rate) as rate, avg(latency_ms) as latency, max(backlog) as backlog by pipeline_stage, _time span=5m
+| bin _time span=5m
+| stats avg(ingestion_rate) as rate, avg(latency_ms) as latency, max(backlog) as backlog by pipeline_stage, _time
 | where rate < 100 OR latency > 5000 OR backlog > 50000
 | table pipeline_stage, rate, latency, backlog
 ```
 - **Implementation:** Ingest pipeline stage metrics (rate, latency, backlog). Alert when rate drops or latency/backlog exceeds threshold. Report on throughput by stage and trend. Correlate with gateway and cloud health.
 - **Visualization:** Line chart (throughput and latency), Table (stages with issues), Single value (pipeline health).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3238,6 +3673,9 @@ index=environment sourcetype="aranet:sensor"
 - **CIM Models:** N/A
 
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.12 · IoT Device Fleet Health Dashboard
@@ -3257,6 +3695,9 @@ index=iot sourcetype="iot_platform:devices"
 - **Implementation:** Normalize vendor fields. Refresh dashboard every 5 min. Drill to device detail.
 - **Visualization:** Status grid (region × health), Treemap (fleet by family), Single value (% healthy).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3282,6 +3723,9 @@ index=iot sourcetype="iot:ota"
 - **Visualization:** Bar chart (compliance by wave), Table (lagging devices).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.14 · Sensor Data Gap Detection
@@ -3303,6 +3747,9 @@ index=iot sourcetype="iot:telemetry"
 - **Visualization:** Table (gaps), Heatmap (device × hour), Line chart (messages/min).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.15 · MQTT Broker Overload
@@ -3321,6 +3768,9 @@ index=iot sourcetype="mqtt:broker_metrics"
 - **Implementation:** Scrape Prometheus or vendor API. Alert on sustained high utilization or any dropped messages. Correlate with misbehaving clients publishing at high QoS0 rate.
 - **Visualization:** Line chart (connections and CPU), Table (brokers with drops), Gauge (connection %).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3343,6 +3793,9 @@ index=iot sourcetype="iot:cert_inventory"
 - **Visualization:** Table (certs expiring), Timeline (renewal window), Single value (devices <30d).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.17 · Edge-to-Cloud Sync Failures
@@ -3362,6 +3815,9 @@ index=iot sourcetype="edge:sync"
 - **Implementation:** Parse sync success, backoff, and queue depth. Alert on failure or growing backlog. Correlate with WAN outages.
 - **Visualization:** Table (edges with backlog), Line chart (backlog MB), Single value (edges in sync).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3384,6 +3840,9 @@ index=audit sourcetype="iot:provisioning"
 - **Visualization:** Table (provisioning events), Timeline (bursts), Bar chart (by actor).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.4.19 · BLE/Zigbee Gateway Health
@@ -3403,6 +3862,9 @@ index=iot sourcetype IN ("zigbee:gateway","ble:gateway")
 - **Visualization:** Status grid (gateway × health), Line chart (offline device count), Table (gateways degraded).
 - **CIM Models:** N/A
 
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3424,7 +3886,8 @@ index=iot sourcetype IN ("zigbee:gateway","ble:gateway")
 - **SPL:**
 ```spl
 index=edge-hub-data OR index=ot sourcetype=mqtt OR sourcetype=edge_hub
-| stats count as msg_count, latest(_time) as last_seen by topic, host, _time span=5m
+| bin _time span=5m
+| stats count as msg_count, latest(_time) as last_seen by topic, host, _time
 | eval age_sec = now() - last_seen
 | where age_sec > 600 OR msg_count < 1
 | table topic host msg_count last_seen age_sec
@@ -3432,6 +3895,9 @@ index=edge-hub-data OR index=ot sourcetype=mqtt OR sourcetype=edge_hub
 - **Implementation:** Use Edge Hub MQTT topic subscriptions with metric extraction (topic as dimension). Or ingest broker metrics (e.g. Mosquitto stats, HiveMQ REST API) for messages per topic. Alert when a critical topic has no messages for >10 minutes or rate drops below baseline. Dashboard message rate by topic and subscriber count.
 - **Visualization:** Line chart (message rate by topic), Table (topics with no recent data), Single value (topics healthy %).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3454,6 +3920,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "opcua" OR "opc-ua"
 - **Visualization:** Table (server, state, session count), Status grid (endpoint × state), Single value (OPC-UA connections healthy).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.3 · Edge Hub MQTT Broker Client Disconnections
@@ -3467,13 +3936,17 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "opcua" OR "opc-ua"
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" ("disconnect" OR "connection closed" OR "client")
 | rex "client_id=(?<client_id>\S+)|client (?<client_id>\S+)"
-| stats count as disconnect_count by client_id, host, _time span=15m
+| bin _time span=15m
+| stats count as disconnect_count by client_id, host, _time
 | where disconnect_count > 5
 | sort -disconnect_count
 ```
 - **Implementation:** Enable MQTT broker logging on Edge Hub or external broker. Ingest disconnect and connection events. Count disconnects per client per 15 minutes. Alert on disconnect storms (>5 in 15 min) or when a critical client (e.g. PLC gateway) disconnects.
 - **Visualization:** Table (client, disconnect count), Line chart (disconnects over time), Timeline (connection events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3487,7 +3960,8 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" ("disconnect" OR "conn
 - **SPL:**
 ```spl
 index=edge-hub-data sourcetype=splunk_edge_hub_opcua
-| stats count as sample_count, dc(node_id) as nodes_seen by host, _time span=5m
+| bin _time span=5m
+| stats count as sample_count, dc(node_id) as nodes_seen by host, _time
 | eventstats avg(sample_count) as avg_count, stdev(sample_count) as std_count by host
 | eval z = if(std_count>0, (sample_count-avg_count)/std_count, 0)
 | where abs(z) > 3
@@ -3496,6 +3970,9 @@ index=edge-hub-data sourcetype=splunk_edge_hub_opcua
 - **Implementation:** Ingest OPC-UA node samples from Edge Hub. Compute per-host message rate (samples per 5 min). Baseline mean and stdev; alert when rate exceeds 3 standard deviations. Optionally run MLTK anomaly detection on critical tags.
 - **Visualization:** Line chart (sample rate by host), Table (anomalous intervals), Single value (current rate vs baseline).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3517,6 +3994,9 @@ index=edge-hub-health sourcetype=edge_hub
 - **Visualization:** Gauge (backlog per device), Single value (HEC connected), Line chart (backlog over time).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.6 · MQTT Retain and Last Will Message Audit
@@ -3529,13 +4009,17 @@ index=edge-hub-health sourcetype=edge_hub
 - **SPL:**
 ```spl
 index=ot sourcetype=mqtt_broker_audit (retain=1 OR "last_will" OR "will_message")
-| stats count by client_id, topic, action, _time span=1h
+| bin _time span=1h
+| stats count by client_id, topic, action, _time
 | where count > 0
 | table _time client_id topic action count
 ```
 - **Implementation:** Enable broker audit or access logging for MQTT publish (include retain flag and will payload if logged). Forward to Splunk. Alert on new retain on sensitive topics or LWT changes. Dashboard retain/LWT events by client and topic.
 - **Visualization:** Table (client, topic, retain/LWT events), Timeline (audit events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3557,6 +4041,9 @@ index=edge-hub-data OR index=ot sourcetype=opcua_metrics
 - **Visualization:** Gauge (queue depth), Line chart (queue over time), Table (endpoints over threshold).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.8 · MQTT QoS 0/1/2 Delivery and Drops
@@ -3569,7 +4056,8 @@ index=edge-hub-data OR index=ot sourcetype=opcua_metrics
 - **SPL:**
 ```spl
 index=ot sourcetype=mqtt_broker_metrics
-| stats sum(messages_in) as in, sum(messages_out) as out, sum(messages_dropped) as dropped by qos, _time span=5m
+| bin _time span=5m
+| stats sum(messages_in) as in, sum(messages_out) as out, sum(messages_dropped) as dropped by qos, _time
 | eval drop_rate=if(in>0, round(dropped/in*100, 2), 0)
 | where drop_rate > 1 OR dropped > 0
 | table _time qos in out dropped drop_rate
@@ -3577,6 +4065,9 @@ index=ot sourcetype=mqtt_broker_metrics
 - **Implementation:** Collect broker metrics (SNMP, REST, or log parsing) for messages in/out/dropped by QoS. Ingest to Splunk. Alert when drop rate exceeds 1% or absolute drops exceed threshold. Correlate with broker CPU and connection count.
 - **Visualization:** Line chart (in/out/dropped by QoS), Table (drop rate by QoS), Single value (total drops).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3598,6 +4089,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "opcua" ("certificate" OR "tr
 - **Visualization:** Table (cert expiry by endpoint), Timeline (cert events), Single value (certs expiring in 30d).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.10 · Edge Hub Local Storage and SQLite Backlog
@@ -3618,6 +4112,9 @@ index=edge-hub-health sourcetype=edge_hub
 - **Visualization:** Gauge (disk %), Line chart (backlog over time), Table (devices near limit).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.11 · MQTT Authentication Failure and ACL Denials
@@ -3630,13 +4127,21 @@ index=edge-hub-health sourcetype=edge_hub
 - **SPL:**
 ```spl
 index=ot sourcetype=mqtt_broker_log ("auth failed" OR "ACL deny" OR "access denied" OR "unauthorized")
-| stats count by client_id, src, reason, _time span=15m
+| bin _time span=15m
+| stats count by client_id, src, reason, _time
 | where count > 5
 | sort -count
 ```
 - **Implementation:** Enable broker authentication and ACL logging. Forward to Splunk. Alert when failure count from a single client or IP exceeds threshold. Dashboard failures by client and topic.
 - **Visualization:** Table (client, IP, reason, count), Timeline (denials), Bar chart (top denied clients).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src span=15m | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -3658,6 +4163,9 @@ index=edge-hub-data OR index=ot sourcetype=opcua_metrics
 - **Visualization:** Line chart (latency by subscription), Table (overruns by subscription), Single value (max latency).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.13 · Edge Hub Container Health (MQTT/OPC-UA Modules)
@@ -3671,13 +4179,17 @@ index=edge-hub-data OR index=ot sourcetype=opcua_metrics
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log ("container" OR "module" OR "oom" OR "restart")
 | search "mqtt" OR "opcua" OR "opc-ua"
-| stats count by log_level, message, _time span=1h
+| bin _time span=1h
+| stats count by log_level, message, _time
 | where count > 0
 | table _time log_level message count
 ```
 - **Implementation:** Forward Edge Hub system logs. Parse container/module start, stop, and OOM events. Alert on any restart or OOM for MQTT or OPC-UA modules. Correlate with device memory and CPU from edge-hub-health.
 - **Visualization:** Timeline (container events), Table (restart/OOM by module), Single value (modules healthy).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3700,6 +4212,9 @@ index=ot sourcetype=mqtt_tls_log ("handshake failed" OR "certificate verify" OR 
 - **Visualization:** Table (cipher, protocol, failures), Timeline (handshake events), Single value (TLS failures).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.15 · OPC-UA Write and Permission Denials
@@ -3713,13 +4228,17 @@ index=ot sourcetype=mqtt_tls_log ("handshake failed" OR "certificate verify" OR 
 ```spl
 index=ot sourcetype=opcua_audit action=write
 | search status_code!="Good" OR permission_denied
-| stats count by client_id, node_id, status_code, _time span=1h
+| bin _time span=1h
+| stats count by client_id, node_id, status_code, _time
 | where count > 0
 | table _time client_id node_id status_code count
 ```
 - **Implementation:** Enable OPC-UA server audit or security logging for write requests. Forward to Splunk. Alert on write denials for critical nodes or high volume of denials from a single client. Dashboard writes by client and node.
 - **Visualization:** Table (client, node, status, count), Timeline (write denials), Bar chart (denials by node).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3742,6 +4261,9 @@ index=ot sourcetype="hivemq:log"
 - **Implementation:** Forward HiveMQ broker logs with cluster logger categories enabled to Splunk. Normalize host to broker hostname. Alert on any match of split-brain/quorum strings or sudden role flaps.
 - **Visualization:** Timeline (cluster events), Table (event counts by broker), Single value (split-brain indicators in last 24h).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3767,6 +4289,9 @@ index=ot sourcetype="mqtt:message"
 - **Visualization:** Bar chart (messages per share group), Heatmap (group × time), Table (skew: max/min share_pct per base topic).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [MQTT Modular Input](https://splunkbase.splunk.com/app/1890)
+
 ---
 
 ### UC-14.5.18 · HiveMQ Retained Message Store Growth
@@ -3789,6 +4314,9 @@ index=ot sourcetype="hivemq:metrics"
 - **Implementation:** Map the exact HiveMQ metric name from your Prometheus/SVA mapping. Alert on week-over-week growth or crossing a capacity threshold. Correlate spikes with new devices publishing retained messages on unique topics.
 - **Visualization:** Line chart (retained count over time), Area chart (growth rate), Single value (current max), Table (brokers over threshold).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3818,6 +4346,9 @@ index=ot sourcetype="hivemq:log"
 - **Visualization:** Bar chart (disconnects by category), Pie chart (category mix), Table (top client_ids), Timeline (disconnect bursts).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.20 · HiveMQ Extension Execution Errors
@@ -3840,6 +4371,9 @@ index=ot sourcetype="hivemq:log"
 - **Visualization:** Table (top extensions by errors), Line chart (error rate over time), Bar chart (errors by host).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.5.21 · MQTT Topic Tree Depth and Fan-Out Analysis
@@ -3861,6 +4395,9 @@ index=ot sourcetype="mqtt:message"
 - **Implementation:** For very high message rates, sample or pre-aggregate in HiveMQ metrics. Exclude test topics. Pair with ACL audit if unauthorized deep topics appear.
 - **Visualization:** Bar chart (unique topics by root prefix), Histogram (depth distribution), Table (top fan-out roots).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [MQTT Modular Input](https://splunkbase.splunk.com/app/1890)
 
 ---
 
@@ -3886,6 +4423,9 @@ index=ot sourcetype="hivemq:metrics"
 - **Implementation:** Replace the static `license_limit` with a lookup or environment-specific value. Alert at 85%/95% thresholds with different severities.
 - **Visualization:** Line chart (connections vs limit), Area chart (utilization %), Gauge (current utilization), Table (hosts approaching limit).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884), [TA for Corelight](https://splunkbase.splunk.com/app/3885)
 
 ---
 
@@ -3918,6 +4458,9 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Visualization:** Bar chart (writes vs reads by source/destination pair), Single value (max write_ratio), Table (top writers).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.2 · S7comm Program Upload/Download Detection
@@ -3941,6 +4484,9 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Visualization:** Timeline (upload/download events), Table (filename, block, endpoints), Single value (events in last 24h).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.3 · S7comm CPU State Change Detection
@@ -3962,6 +4508,9 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Implementation:** Place Zeek on taps facing S7 controllers and HMIs; normalize `subfunction_name`/`rosctr_name` strings from production captures. Alert on stop/start patterns outside approved maintenance; correlate with MES/SCADA alarms for the same asset.
 - **Visualization:** Timeline (state-related messages), Bar chart (count by subfunction_name), Table (source, destination, fields).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -3986,6 +4535,9 @@ index=ot sourcetype="zeek:s7comm:json"
 - **Visualization:** Table (source, destination, function, error), Bar chart (errors by source_h), Timeline (clusters of denied access).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.5 · Modbus Function Code Distribution Audit
@@ -4008,6 +4560,9 @@ index=ot sourcetype="zeek:modbus_detailed:json"
 - **Implementation:** Ingest ICSNPP `modbus_detailed` logs from Zeek sensors on Modbus TCP segments. Establish weekly baselines per RTU; alert when diagnostics (0x08) or force/write function codes spike versus baseline or appear from new masters.
 - **Visualization:** Pie or bar chart (function code distribution), Table (risky FC by master), Timeline (spikes).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4033,6 +4588,9 @@ index=ot sourcetype="zeek:modbus_detailed:json" matched=true
 - **Visualization:** Table (register_key, old vs new values), Timeline (changes), Line chart (change rate per hour).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.7 · Modbus Device Identification Enumeration (FC 43 / 0x2B)
@@ -4054,6 +4612,9 @@ index=ot (sourcetype="zeek:modbus_detailed:json" OR sourcetype="zeek:modbus_read
 - **Implementation:** Forward ICSNPP Modbus detailed and read-device-identification logs from OT VLAN taps. Allowlist asset-management scanners; alert on new sources or high fan-out to many slaves in a short window.
 - **Visualization:** Bar chart (enumeration events by source), Table (source, target count), Map or table (distinct targets).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4079,6 +4640,9 @@ index=ot sourcetype="zeek:dnp3:json"
 - **Visualization:** Timeline (unsolicited rate), Line chart (count vs median), Table (spikes).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.9 · DNP3 Control Relay Output Block (CROB) Tracking
@@ -4098,6 +4662,9 @@ index=ot sourcetype="zeek:dnp3:json" block_type="Control_Relay_Output_Block"
 - **Implementation:** Enable ICSNPP-DNP3 control logging on Zeek sensors facing RTU/MTU paths. Ingest `dnp3_control` fields; map `index_number` to one-line diagrams. Require change correlation for OPERATE phases outside maintenance.
 - **Visualization:** Table (full CROB audit), Timeline (SELECT vs OPERATE), Bar chart (operates by index_number).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4119,6 +4686,9 @@ index=ot sourcetype="zeek:dnp3:json"
 - **Implementation:** Capture DNP3 on links to critical RTUs via network tap; confirm field names (`function` vs `object_type`) against a sample capture. Alert any restart from non-master IPs or outside approved windows.
 - **Visualization:** Timeline (restart events), Table (source, destination, function), Single value (restarts per day).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4144,6 +4714,9 @@ index=ot sourcetype="zeek:enip:json" direction="Request"
 - **Visualization:** Bar chart (CIP service mix), Table (rare services), Heatmap (service by source).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.12 · EtherNet/IP Unregistered Session Detection
@@ -4164,6 +4737,9 @@ index=ot sourcetype="zeek:enip:json"
 - **Implementation:** Ingest `enip.log` from Zeek on EtherNet/IP segments. Validate ordering with known-good PLC/HMI captures; tune exclusions for vendor-specific handshake quirks. Combine with asset roles so HMIs are not false-positive flagged incorrectly.
 - **Visualization:** Table (sessions with anomalous first command), Timeline (connection uid), Bar chart (count by destination_h).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4188,6 +4764,9 @@ index=ot (sourcetype="zeek:cip_io:json" OR (sourcetype="zeek:enip:json" io_data=
 - **Visualization:** Line chart (data_length over time), Timeline (anomaly markers), Table (connection_id stats).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.14 · IEC 104 Interrogation Command Monitoring
@@ -4208,6 +4787,9 @@ index=ot sourcetype="zeek:iec104:json"
 - **Implementation:** Deploy Zeek IEC 60870-5-104 parser on 2404/tcp SCADA paths via tap. Map `asdu_type` 100 to general interrogation and 103 to clock sync per asset documentation; whitelist primary SCADA masters.
 - **Visualization:** Timeline (interrogation and clock sync), Bar chart (count by asdu_type), Table (master, outstation, ASDU type).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4234,6 +4816,9 @@ index=ot sourcetype="zeek:iec104:json" cot=3
 - **Visualization:** Line chart (value over time by IOA), Table (IOA, delta), Timeline (large deltas).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.16 · IEC 104 Clock Synchronization Deviation
@@ -4258,6 +4843,9 @@ index=ot sourcetype="zeek:iec104:json" asdu_type=103
 - **Visualization:** Single value (max skew), Line chart (skew over time), Table (endpoints, skew stats).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.17 · BACnet Object Access Audit
@@ -4279,6 +4867,9 @@ index=ot sourcetype="zeek:bacnet:json"
 - **Visualization:** Table (writes by object), Bar chart (writes by source_h), Timeline (write bursts).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.18 · BACnet Who-Is Broadcast Storm Detection
@@ -4299,6 +4890,9 @@ index=ot sourcetype="zeek:bacnet:json" pdu_service IN ("who-is","i-am","who_is",
 - **Implementation:** Ingest discovery logs from Zeek on BACnet/IP VLANs. Set thresholds per campus; investigate sources with high Who-Is rates and verify router/broadcast management settings.
 - **Visualization:** Area chart (Who-Is rate per minute), Table (spikes), Pie chart (share by pdu_service).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4322,6 +4916,9 @@ index=ot sourcetype="zeek:hartip:json"
 - **Visualization:** Timeline (command 48 events), Table (device, status, additional_status), Single value (devices reporting faults).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
+
 ---
 
 ### UC-14.6.20 · Unknown Protocol on OT VLAN Detection
@@ -4344,6 +4941,9 @@ index=ot sourcetype="zeek:conn:json" (like(vlan_name,"OT-%") OR cidrmatch("10.0.
 - **Implementation:** Forward `conn.log` from Zeek on OT core taps with VLAN tags preserved. Maintain a Splunk lookup of approved services/ports per site; schedule nightly review of new triples (origin, destination, service). Tune DNS/NTP allowances.
 - **Visualization:** Table (unexpected proto/port/service), Treemap (bytes by service), Timeline (first-seen connections).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [TA for Zeek](https://splunkbase.splunk.com/app/5466), [Corelight App for Splunk](https://splunkbase.splunk.com/app/3884)
 
 ---
 
@@ -4379,6 +4979,9 @@ index=ot sourcetype="litmus:health"
 - **Visualization:** Single value (gateways offline), Table (gateway, site, last health), Status indicator (green/red per gateway).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.7.2 · PLC Tag Data Ingestion Validation
@@ -4400,6 +5003,9 @@ index=ot sourcetype="litmus:tag"
 - **Implementation:** Normalize tag events so each sample carries gateway_id, tag_name, and source_device. Replace thresholds with per-device baselines from a lookup. For stricter checks, join to a required-tag lookup.
 - **Visualization:** Line chart (events per minute by device), Table (devices below floor), Heatmap (device × time rate).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4424,6 +5030,9 @@ index=ot sourcetype="litmus:tag"
 - **Visualization:** Line chart (p95/p99 latency by gateway), Area chart (latency distribution), Single value (fleet p95 latency).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.7.4 · Production Sensor Data Completeness Audit
@@ -4447,6 +5056,9 @@ index=ot sourcetype="litmus:tag"
 - **Implementation:** Set stale_threshold per tag class. Optionally join to a required-tag lookup and alert when any required tag is absent entirely.
 - **Visualization:** Table (stale tags), Bar chart (count stale by gateway), Heatmap (tag × gateway freshness).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4473,6 +5085,9 @@ index=ot (sourcetype="litmus:health" OR sourcetype="litmus:edge")
 - **Visualization:** Table (new vs missing devices), Bar chart (drift events by gateway), Timeline (first seen for new devices).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.7.6 · Edge Data Transformation Error Rate
@@ -4495,6 +5110,9 @@ index=ot sourcetype="litmus:edge"
 - **Implementation:** Route Litmus pipeline diagnostics to Splunk. Alert when error rate exceeds SLO (e.g., >1% over 15 minutes).
 - **Visualization:** Line chart (error rate), Stacked bar (errors vs total), Table (top error pipelines), Single value (fleet error rate %).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4519,6 +5137,9 @@ index=ot sourcetype="litmus:health"
 - **Visualization:** Bar chart (health % by site), Table (site ranking), Treemap (gateways × site).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-14.7.8 · Litmus Edge Connector Authentication Monitoring
@@ -4538,6 +5159,9 @@ index=_internal sourcetype="splunkd_http_input" (status=401 OR status=403)
 - **Implementation:** Ensure HEC is enabled only on the collector Litmus uses. Correlate spikes with token rotations and NTP drift. Alert on any 401/403 responses.
 - **Visualization:** Line chart (auth failures over time), Table (hosts with failures), Single value (failures in last hour).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4564,6 +5188,9 @@ index=ot sourcetype IN ("edge_hub:metrics","litmus:edge")
 - **Implementation:** Aggregate sensor data from all edge gateways (Edge Hub, Litmus Edge, Cisco EI) into a centralized OT index. Schedule weekly retraining jobs via DSDL containers running PyTorch or TensorFlow autoencoders. Track model performance metrics (reconstruction error distribution, anomaly detection rate, false positive rate) in a model registry KV store. Compare new model metrics against the production model before promotion. Deploy updated model weights back to edge gateways via the Edge Hub container management API or Litmus Edge's model deployment pipeline. Alert data engineering when model drift exceeds thresholds (reconstruction error mean shifting more than 2 standard deviations from the training baseline). Maintain model versioning and rollback capability.
 - **Visualization:** Line chart (reconstruction error over model versions), Bar chart (anomaly detection rate by site), Table (model registry with version, accuracy, deployment status), Single value (model age in days).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4595,6 +5222,8 @@ index=ot sourcetype IN ("edge_hub:metrics","litmus:edge")
 - **Implementation:** Normalize `device.online` to 0/1 (or heartbeat) in the metrics pipeline. Multiply `fleet_online_rate` by a fleet `inputlookup` total if `mstats` only returns devices that reported—otherwise the average is the share of devices reporting at least one healthy sample per day. Align `metric_name` with Edge Hub transforms. If metrics are not available, use daily `dc(device_id)` from `edge_hub:*` heartbeats divided by the inventory lookup. Alert when `online_pct` drops more than 5 points below the 30-day median for three consecutive days.
 - **Visualization:** Line chart (online % and trendline), Area chart (online versus offline device-days), Single value (current fleet availability).
 - **CIM Models:** Operational Telemetry (Metrics) where tagged; otherwise N/A
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 
 ---
 
@@ -4618,6 +5247,8 @@ index=ot sourcetype IN ("edge_hub:metrics","modbus:readings","opcua:telemetry") 
 - **Implementation:** Map your quality field (`good`, `192` OPC status, Modbus exception flags). If quality is not present, infer staleness with `streamstats` per `device_id` and `tag` using gaps between `_time` greater than `3×` the expected poll interval from a lookup. Dedupe by `device_id`+`tag` to avoid double counting. Tune thresholds per line speed—fast PLCs need tighter windows than environmental sensors.
 - **Visualization:** Line chart (daily bad or stale % with trend), Stacked bar (bad readings by site), Table (worst devices by gap count).
 - **CIM Models:** Operational Telemetry (Quality / Metrics) where mapped; otherwise N/A
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 
 ---
 
@@ -4640,6 +5271,8 @@ index=ot sourcetype IN ("edge_hub:metrics","modbus:readings","opcua:telemetry") 
 - **Implementation:** If OEE is not pre-calculated, derive it from availability × performance × quality metrics ingested separately (use `eval` in a scheduled search writing to a summary index). Align shifts and planned downtime using a `production_calendar` lookup to avoid penalizing scheduled stops. Compare assets to peers in the same technology line. Alert when 4-week rolling OEE drops more than 5 points below baseline.
 - **Visualization:** Line chart (OEE % by line over weeks), Area chart (components if split metrics), Bullet chart (actual versus target OEE).
 - **CIM Models:** Operational Telemetry (Production / OEE) where enabled; otherwise N/A
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 
 ---
 
@@ -4661,6 +5294,8 @@ index=ot sourcetype IN ("edge_hub:anomaly","edge_hub:alert") earliest=-90d@d
 - **Implementation:** Tag production ML alerts distinctly from threshold rules. Deduplicate repeated scores per asset per hour if the model emits bursts. Correlate spikes with maintenance windows—expected dips after work orders. If counts go to zero suddenly, validate the scoring container and HEC path. Feed counts back to data science for precision and recall reviews quarterly.
 - **Visualization:** Line chart (weekly ML alert count with trend), Bar chart (alerts by asset), Single value (alerts versus 8-week average).
 - **CIM Models:** Operational Telemetry (Maintenance / Security) as applicable; otherwise N/A
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [Splunkbase app 6796](https://splunkbase.splunk.com/app/6796), [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 
 ---
 
@@ -4699,6 +5334,12 @@ index=nozomi sourcetype="nozomi:nn_asset"
 - **Implementation:** **Cyber Vision:** Configure Splunk Add-On with API token from Cyber Vision Center; add "Devices" input with polling interval (e.g. 3600s). **Nozomi:** Configure Universal Add-on with Guardian/Vantage API credentials; enable the `nn_asset` data input. Both platforms passively discover assets — use device data as the authoritative OT asset inventory for compliance and security programs.
 - **Visualization:** Asset count single value; vendor breakdown pie chart; device table with firmware versions; site comparison bar chart.
 - **CIM Models:** Compute_Inventory
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Compute_Inventory.Virtual_OS by Virtual_OS.dest, Virtual_OS.status | sort - count
+```
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Compute_Inventory](https://docs.splunk.com/Documentation/CIM/latest/User/Compute_Inventory)
 
 ---
 
@@ -4725,6 +5366,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="ASSET-NEW"
 - **Implementation:** **Cyber Vision:** Forward syslog to Splunk (CEF format via TCP/TLS); alert on `component_new` events. **Nozomi:** Enable `alert` data input; filter on `type_id="ASSET-NEW"`. Both platforms detect new devices automatically. Enrich with sensor/zone location to identify physical site. Cross-reference against approved asset list. Investigate unauthorized devices within SLA.
 - **Visualization:** New device alert timeline; device location map by sensor; unauthorized device table.
 - **CIM Models:** Network Traffic, Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -4756,6 +5404,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="CVE-*"
 - **Implementation:** **Cyber Vision:** Enable "Vulnerabilities" input; knowledge base updated weekly via Cisco Talos. **Nozomi:** Enable `alert` input; Guardian matches assets against NVD automatically. Both platforms provide passive vulnerability assessment without active scanning. Track vulnerability counts per asset. Prioritize remediation by CVSS severity and asset criticality.
 - **Visualization:** Vulnerability count by severity pie chart; top 10 vulnerable assets table; CVE trend over time; CVSS distribution histogram.
 - **CIM Models:** Vulnerabilities
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Vulnerabilities](https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities)
 
 ---
 
@@ -4789,6 +5444,12 @@ index=nozomi sourcetype="nozomi:nn_asset" risk=*
 - **Implementation:** Both platforms calculate composite risk scores per device. Track score changes over time. Alert on assets crossing risk thresholds. Use risk scores to prioritize patching and segmentation efforts. Report on overall risk posture trends for management.
 - **Visualization:** Risk distribution gauge; high-risk asset table; risk trend line per site; risk heatmap by asset group.
 - **CIM Models:** Compute_Inventory
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Compute_Inventory.Virtual_OS by Virtual_OS.dest, Virtual_OS.status | sort - count
+```
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Compute_Inventory](https://docs.splunk.com/Documentation/CIM/latest/User/Compute_Inventory)
 
 ---
 
@@ -4819,6 +5480,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="ANOMALY*"
 - **Implementation:** **Cyber Vision:** Create baselines for critical production zones; enable monitoring mode. **Nozomi:** Guardian automatically builds AI-powered behavioral baselines; anomaly alerts fire when deviations occur. Alert on any Critical or High severity deviations. Investigate and either acknowledge (legitimate change) or escalate (potential threat). Track unresolved deviations.
 - **Visualization:** Deviation event timeline; baseline status dashboard; unresolved deviation count; severity distribution.
 - **CIM Models:** Change, Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -4851,6 +5519,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="SIGN*"
 - **Implementation:** **Cyber Vision:** Enable Snort IDS on sensors (4GB RAM required); configure Talos subscription for weekly rule updates. **Nozomi:** Guardian includes built-in threat intelligence with Nozomi Threat Intelligence updates. Both platforms provide signature-based IDS for OT. Forward events to Splunk. Correlate with IT security events in Splunk ES for unified threat detection. Alert SOC on Critical/High severity IDS hits targeting OT assets.
 - **Visualization:** IDS alert timeline; top source IPs table; signature hit frequency chart; OT target heatmap.
 - **CIM Models:** Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t dc(IDS_Attacks.dest) as agg_value from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.src | sort - agg_value
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Intrusion Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -4882,6 +5557,13 @@ index=nozomi sourcetype="nozomi:alert" type_id IN ("PROTOCOL-ENGINEERING-WRITE",
 - **Implementation:** Both platforms detect PLC program changes across industrial protocols. Alert on all program download/upload events. Cross-reference with change management system to validate authorized changes. Flag events outside approved maintenance windows. Require investigation and sign-off for every program change.
 - **Visualization:** Program change timeline; authorized vs unauthorized change chart; target PLC table; change window compliance gauge.
 - **CIM Models:** Change, Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -4909,6 +5591,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-ENGINEERING-FIRMWARE*"
 - **Implementation:** Both platforms detect firmware activation events on controllers. Alert immediately — this is always high-priority. Cross-reference with approved change records. Investigate source and target. Validate firmware version matches approved versions.
 - **Visualization:** Firmware activation event log; target controller details; change authorization correlation.
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -4935,6 +5624,13 @@ index=nozomi sourcetype="nozomi:variable" status="forced"
 - **Implementation:** **Cyber Vision:** Detects `flow_forced_variable` events via syslog. **Nozomi:** Guardian tracks all process variables via the `nozomi:variable` sourcetype, including forced status. Alert on all forced variable events. Verify against active maintenance work orders. Track duration — any that remain active longer than the maintenance window must be investigated.
 - **Visualization:** Forced variable event log; active forces table; force duration tracker; variable name word cloud.
 - **CIM Models:** Change, Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -4967,6 +5663,13 @@ index=nozomi sourcetype="nozomi:variable"
 - **Implementation:** Both platforms track process variable changes. Baseline normal control action volume per source-target pair. Alert on spikes exceeding 2x baseline (mass parameter changes could indicate unauthorized batch modifications). Track who is making changes and which controllers are targets. Correlate with operator shift schedules.
 - **Visualization:** Control action volume timeline; source-target relationship map; process change audit log.
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user span=1h | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -5001,6 +5704,13 @@ index=nozomi sourcetype="nozomi:alert" type_id IN ("PROTOCOL-ENGINEERING-MODE*",
 - **Implementation:** Both platforms detect controller mode changes across industrial protocols. Alert immediately — CPU Stop and Offline events are highest priority as they halt physical processes. Cross-reference with scheduled maintenance. Track frequency of mode changes per controller. Investigate any mode change from unexpected source IPs.
 - **Visualization:** Mode change timeline with color-coded severity; controller status dashboard; unauthorized source detection.
 - **CIM Models:** Change, Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -5031,6 +5741,13 @@ index=nozomi sourcetype="nozomi:link_events" status="new"
 - **Implementation:** Both platforms detect new communication flows after an initial learning period. Alert on new flows. Prioritize IT protocols appearing in OT zones (FTP, SSH, HTTP, RDP, SMB). Correlate with baseline deviations. Investigate source and destination to determine if the flow is legitimate.
 - **Visualization:** New flow event timeline; protocol distribution chart; source-destination network graph.
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1d | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5061,6 +5778,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL*"
 - **Implementation:** Both platforms detect protocol-level exceptions via DPI. Baseline normal exception rates per flow. Alert on sudden spikes (>5 exceptions from single source in short window). Differentiate between known interoperability issues and new attack patterns. Feed into SOC correlation rules.
 - **Visualization:** Exception volume timeline; top exception source table; exception type distribution; attack pattern detection dashboard.
 - **CIM Models:** Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Intrusion Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -5091,6 +5815,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="AUTH*"
 - **Implementation:** Both platforms detect authentication failures on OT devices. Alert on repeated failures, especially against critical OT assets (PLCs, RTUs, SIS controllers). Correlate source IP with known engineering workstations. Unknown sources attempting authentication are high priority. Feed into Splunk ES notable events.
 - **Visualization:** Failed auth timeline; top attack source table; target asset vulnerability assessment; brute force detection dashboard.
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -5124,6 +5855,13 @@ index=nozomi sourcetype="nozomi:session" session_type="engineering"
 - **Implementation:** Both platforms detect engineering/admin connections to industrial assets. Baseline approved engineering workstation IPs. Alert on connections from unapproved sources or outside business hours. Track connection frequency per engineer. Correlate with change management tickets.
 - **Visualization:** Admin connection timeline; source-destination network map; after-hours connection alerts; approved vs unapproved source comparison.
 - **CIM Models:** Authentication, Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -5150,6 +5888,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="SCAN*"
 - **Implementation:** Both platforms detect port scanning in OT networks. Alert immediately on any port scan event. Identify scanner source — is it an authorized vulnerability scanner or unknown? Correlate with network baseline. Block scanning source at network boundary if unauthorized. Escalate to SOC and OT security team.
 - **Visualization:** Port scan alert log; scanner source identification; target analysis; network map overlay.
 - **CIM Models:** Intrusion Detection, Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Intrusion Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -5178,6 +5923,13 @@ index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-CIPHER*"
 - **Implementation:** Both platforms detect weak encryption in OT communications. Inventory all findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.
 - **Visualization:** Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5206,6 +5958,13 @@ index=nozomi sourcetype="nozomi:session" protocols="smb"
 - **Implementation:** Both platforms detect SMB traffic via DPI. Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with IDS for known SMB exploit signatures. High priority for SOC investigation.
 - **Visualization:** SMB activity timeline; source-target map; alert correlation with IDS; legitimate vs suspicious classification.
 - **CIM Models:** Network Traffic, Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5236,6 +5995,13 @@ index=nozomi sourcetype="nozomi:link_events" status IN ("up", "down", "flapping"
 - **Implementation:** Both platforms detect network redundancy and HA state changes. Baseline normal failover frequency (should be near zero in stable networks). Alert on any failover event. Multiple failovers in short succession (flapping) indicates a serious issue. Correlate with physical infrastructure monitoring.
 - **Visualization:** Failover event timeline; network stability score; flapping device detection; HA state dashboard.
 - **CIM Models:** Network Traffic, Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1h | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5263,6 +6029,13 @@ index=nozomi sourcetype="nozomi:health"
 - **Implementation:** Both platforms expose sensor/appliance health metrics. **Cyber Vision:** Pre-filtered at 80% threshold via syslog. **Nozomi:** Guardian exposes health data via the `nozomi:health` sourcetype. Alert on high resource usage. Track trends per sensor. High CPU may indicate excessive traffic (DDoS, broadcast storm). Plan capacity upgrades or traffic optimization.
 - **Visualization:** Sensor health dashboard; CPU/memory/disk gauges per sensor; resource trend lines; sensor fleet status map.
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.Memory by Performance.host | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -5291,6 +6064,13 @@ index=nozomi sourcetype="nozomi:health" log_type="audit"
 - **Implementation:** Both platforms provide administrative audit trails. Forward all administration events to Splunk. Build compliance reports showing all administrative actions. Alert on high-severity admin events (system reboot, database restore, sensor deletion). Track user login patterns for anomaly detection.
 - **Visualization:** Admin activity timeline; user action summary table; login pattern analysis; compliance audit report.
 - **CIM Models:** Authentication, Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -5325,6 +6105,13 @@ index=nozomi sourcetype="nozomi:link"
 - **Implementation:** Both platforms support zone-based monitoring aligned with IEC 62443. Export zone definitions to a lookup table. Define approved conduits with allowed protocols. Match actual cross-zone flows against policy. Alert on any unapproved cross-zone communication. Generate compliance reports for audits.
 - **Visualization:** Zone topology map; conduit compliance matrix; violation count per zone pair; compliance trend over time.
 - **CIM Models:** Network Traffic, Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5359,6 +6146,9 @@ index=nozomi sourcetype="nozomi:alert"
 - **Visualization:** Severity distribution pie chart; daily event volume stacked bar chart; trend line overlay; category breakdown table.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905)
+
 ---
 
 ### UC-14.9.24 · OT Protocol Usage Analysis and Inventory
@@ -5386,6 +6176,13 @@ index=nozomi sourcetype="nozomi:link"
 - **Implementation:** Both platforms identify all industrial protocols in use via DPI. Analyze data to build protocol inventory per site/zone. Identify unexpected protocols (e.g., BACnet in a power substation, or Modbus in an enterprise zone). Compare protocol usage across sites for standardization. Feed into protocol-specific security policy development.
 - **Visualization:** Protocol distribution pie chart per site; protocol comparison across sites; unexpected protocol alert table; protocol trend over time.
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5417,5 +6214,12 @@ index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-DECODE*"
 - **Implementation:** Both platforms generate events when DPI encounters unparseable packets. Baseline normal decode failure rates per sensor/zone. Alert on sudden spikes exceeding 3x baseline, which may indicate a fuzzing or exploitation attempt. Correlate with IDS alerts from the same time window.
 - **Visualization:** Decode failure timeline per sensor; spike detection; correlation with IDS events; sensor health overlay.
 - **CIM Models:** Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest span=1h | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [CIM: Intrusion Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---

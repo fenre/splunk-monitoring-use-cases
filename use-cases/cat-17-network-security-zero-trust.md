@@ -31,12 +31,16 @@ index=nac sourcetype="cisco:ise:auth"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.2 · Endpoint Posture Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Non-compliant endpoints accessing the network pose security risks. Posture tracking ensures endpoint hygiene enforcement.
 - **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
@@ -60,12 +64,16 @@ index=nac sourcetype="cisco:ise:posture"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.3 · VLAN Assignment Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1078
 - **Value:** Dynamic VLAN assignments reflect authorization decisions. Anomalous placements may indicate policy misconfiguration or attacks.
 - **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
@@ -86,6 +94,9 @@ index=nac sourcetype="cisco:ise:auth"
   by All_Sessions.user All_Sessions.src All_Sessions.dest span=1h
 | sort -count
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Network_Sessions](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Sessions)
 
 ---
 
@@ -114,6 +125,9 @@ index=nac sourcetype="cisco:ise:guest"
 | sort -count
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Network_Sessions](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Sessions)
+
 ---
 
 ### UC-17.1.5 · BYOD Onboarding Tracking
@@ -141,6 +155,9 @@ index=nac sourcetype="cisco:ise:byod"
   by Authentication.user Authentication.src Authentication.app span=1h
 | sort -count
 ```
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -172,6 +189,9 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.7 · Profiling Accuracy
@@ -193,12 +213,16 @@ index=nac sourcetype="cisco:ise:profiler"
 - **Visualization:** Table (profiling changes), Sankey diagram (old→new profiles), Bar chart (re-profiling frequency).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915)
+
 ---
 
 ### UC-17.1.8 · NAC Policy Change Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562.004
 - **Value:** NAC policy changes affect network access for all devices. Unauthorized changes can create security gaps or disrupt access.
 - **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
@@ -220,6 +244,9 @@ index=nac sourcetype="cisco:ise:admin"
   by All_Changes.user All_Changes.object span=1h
 | sort -count
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -254,6 +281,9 @@ index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth" OR sourcetype
 | where count > 5
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.10 · RADIUS Accounting Discrepancies
@@ -286,12 +316,16 @@ index=nac sourcetype="radius:accounting"
 - **Visualization:** Table (sessions with discrepancies), Bar chart (discrepancy count by NAS), Single value (orphaned sessions), Line chart (discrepancy trend).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-17.1.11 · Posture Assessment Failure Trends
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Equipment Models:** Cisco ISE 3515–3695, ISE Virtual Appliance
@@ -312,6 +346,9 @@ index=nac sourcetype="cisco:ise:posture" earliest=-30d
   where Authentication.action=failure
   by Authentication.src span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -345,12 +382,16 @@ index=nac sourcetype="cisco:ise:auth" earliest=-24h
 | where count > 20
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.13 · 802.1X Authentication Failure Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault, Security
+- **MITRE ATT&CK:** T1110, T1078
 - **Value:** Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants.
 - **App/TA:** `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA
 - **Equipment Models:** Cisco ISE, switches, WLCs
@@ -374,6 +415,9 @@ index=nac (sourcetype="cisco:ise:auth" OR sourcetype="radius:auth") earliest=-7d
   by Authentication.dest Authentication.src span=1h
 | where count > 10
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -407,6 +451,9 @@ index=nac sourcetype="cisco:ise:guest" earliest=-24h
 | where sessions > 5 OR total_bytes > 10737418240
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Network_Sessions](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Sessions)
+
 ---
 
 ### UC-17.1.15 · RADIUS Accounting NAS vs Session-ID Reconciliation
@@ -430,6 +477,9 @@ index=nac sourcetype="radius:accounting" earliest=-24h
 - **Implementation:** A given RADIUS session should map to one NAS-IP unless mobility events are logged; multiple NAS for one session ID often indicates misconfiguration or log duplication.
 - **Visualization:** Table (conflicting sessions), Single value (conflict count).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -463,6 +513,9 @@ index=nac sourcetype="cisco:ise:auth" auth_method="MAB" earliest=-7d
 | where count > 10
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.17 · Network Quarantine Effectiveness
@@ -486,12 +539,16 @@ index=nac sourcetype="nac:quarantine" earliest=-30d
 - **Visualization:** Table (low effectiveness MACs), Bar chart (success ratio by violation type), Line chart (fleet success ratio).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915)
+
 ---
 
 ### UC-17.1.18 · NAC Policy Compliance Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1562.004
 - **Value:** Daily percentage of authentications that receive “permit” vs “deny” vs “redirect” per authorization policy — trending for policy drift and rollout validation.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Equipment Models:** Cisco ISE
@@ -513,12 +570,16 @@ index=nac sourcetype="cisco:ise:auth" earliest=-30d
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.19 · Endpoint Compliance Scoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Composite score per endpoint from posture checks (AV, patch, encryption) for executive dashboards and exception reporting.
 - **App/TA:** Splunk_TA_cisco-ise
 - **Equipment Models:** Cisco ISE
@@ -544,12 +605,16 @@ index=nac sourcetype="cisco:ise:posture" earliest=-4h
   by Authentication.src span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.1.20 · Quarantine Release Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078, T1562.004
 - **Value:** Audit trail of who released endpoints from quarantine and whether release matched policy (e.g., IT-only, ticket required).
 - **App/TA:** Splunk_TA_cisco-ise, `nac:quarantine`
 - **Equipment Models:** Cisco ISE
@@ -565,6 +630,9 @@ index=nac (sourcetype="nac:quarantine" OR sourcetype="cisco:ise:admin")
 - **Visualization:** Table (release audit), Timeline (releases), Bar chart (releases by admin).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -572,6 +640,7 @@ index=nac (sourcetype="nac:quarantine" OR sourcetype="cisco:ise:admin")
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Non-compliant endpoints (missing patches, disabled AV) on the network increase attack surface. ISE posture data enables enforcement visibility.
 - **App/TA:** `Splunk_TA_cisco-ise`
 - **Equipment Models:** Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend
@@ -587,6 +656,9 @@ index=network sourcetype="cisco:ise:syslog" "Posture"
 - **Implementation:** Forward ISE posture assessment logs to Splunk. Track compliant vs. non-compliant endpoints. Alert when non-compliance rate exceeds 10%. Drill down by failure reason.
 - **Visualization:** Pie chart (compliant vs non-compliant), Table (non-compliant endpoints), Timechart (compliance trend).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915)
 
 ---
 
@@ -609,6 +681,9 @@ index=nac sourcetype="nac:quarantine"
 - **Visualization:** Table (quarantine duration by violation), Bar chart (avg duration), Pie chart (remediation outcome).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 2846](https://splunkbase.splunk.com/app/2846), [Splunkbase app 2847](https://splunkbase.splunk.com/app/2847)
+
 ---
 
 ### 17.2 VPN & Remote Access
@@ -621,6 +696,7 @@ index=nac sourcetype="nac:quarantine"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1133, T1078
 - **Value:** VPN capacity planning prevents remote workers from being locked out. Trending identifies peak usage and growth patterns.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -643,6 +719,9 @@ index=vpn sourcetype="cisco:asa"
   by All_Sessions.src All_Sessions.user All_Sessions.app span=1h
 | sort -count
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -675,6 +754,9 @@ index=vpn sourcetype="cisco:asa" action="authentication_failed"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.3 · Geo-Location Anomalies
@@ -705,6 +787,9 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
   by All_Sessions.src All_Sessions.user All_Sessions.app span=1h
 | sort -count
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -737,12 +822,16 @@ index=vpn sourcetype="cisco:asa"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.5 · VPN Tunnel Stability
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN
@@ -768,6 +857,9 @@ index=vpn sourcetype="cisco:asa"
   by All_Sessions.src All_Sessions.user All_Sessions.app span=1h
 | sort -count
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -802,6 +894,9 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.7 · VPN Bandwidth Consumption
@@ -834,6 +929,9 @@ index=vpn sourcetype="cisco:asa"
 | sort -count
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.8 · Simultaneous Session Detection
@@ -863,6 +961,9 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
   by All_Sessions.src All_Sessions.user All_Sessions.app span=1h
 | sort -count
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -900,6 +1001,9 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect")
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.10 · mTLS Certificate Rotation Tracking
@@ -923,6 +1027,9 @@ index=certs (sourcetype="cert:inventory" OR sourcetype="istio:cert" OR sourcetyp
 - **Implementation:** Run periodic certificate inventory scans (OpenSSL, cert-manager, HashiCorp Vault) and forward to Splunk. Ingest Istio/Linkerd cert rotation logs for service mesh. Parse subject, serial, notAfter. Alert when cert expires in <30 days; critical alert at <14 days. Track rotation success/failure from mesh logs. Report on cert distribution by workload and expiry timeline. Integrate with automation for cert renewal.
 - **Visualization:** Table (certs expiring soon), Single value (expired count), Bar chart (expiry by month), Timeline (rotation events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -955,12 +1062,16 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="ses
 | where count > 100
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.12 · VPN Concentrator Capacity
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity
+- **MITRE ATT&CK:** T1133
 - **Value:** Tracks session count and CPU/memory against platform limits to avoid remote-access brownouts during peaks.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), SNMP TA
 - **Equipment Models:** ASA, FTD, Palo Alto GlobalProtect
@@ -973,6 +1084,9 @@ index=snmp sourcetype="snmp:cpu" host="vpn-headend-*" earliest=-24h
 - **Implementation:** Prefer vendor metrics (e.g., AnyConnect session count OID). Alert when CPU >80% sustained or sessions >85% of license. Simplify if only session logs: use UC-17.2.1 trend + license field.
 - **Visualization:** Line chart (CPU vs sessions), Gauge (capacity %), Table (headends).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757)
 
 ---
 
@@ -1000,6 +1114,9 @@ index=vpn sourcetype="cisco:asa" earliest=-4h
 - **Implementation:** If connect/disconnect deltas are incomplete, use vendor “show vpn-sessiondb summary” scripted input for authoritative count. Tune `max_sessions` from license CSV.
 - **Visualization:** Single value (peak vs cap %), Line chart (concurrent sessions), Table (headends near limit).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1034,12 +1151,16 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 | where count > 5
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.15 · VPN Tunnel Keepalive Failure Analysis
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`
 - **Equipment Models:** ASA, Palo Alto IPsec
@@ -1054,6 +1175,9 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-24h
 - **Implementation:** Normalize `message_signature` with `rex` or `cluster` on raw. Correlate with UC-17.2.5 stability metrics.
 - **Visualization:** Bar chart (failures by peer), Table (top messages), Line chart (failure rate).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757)
 
 ---
 
@@ -1085,12 +1209,16 @@ index=windows sourcetype="WinEventLog:Microsoft-Windows-TerminalServices-Gateway
 | where count > 5
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.17 · VPN Client Version Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1133, T1078
 - **Value:** Reports AnyConnect/GlobalProtect client versions against minimum supported builds.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect)
 - **Equipment Models:** ASA, GP portal
@@ -1115,12 +1243,16 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="ses
   by Authentication.user span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.2.18 · Site-to-Site Tunnel Flapping
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Counts IKE/IPsec up/down events per peer for unstable WAN or crypto issues.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, `Splunk_TA_juniper`
 - **Equipment Models:** Firewalls, routers
@@ -1137,6 +1269,9 @@ index=vpn sourcetype="cisco:asa" earliest=-24h
 - **Implementation:** Vendor message strings vary — maintain `rex` extractions in props. Alert when transitions >N per hour per peer.
 - **Visualization:** Line chart (transitions over time), Table (worst peers), Single value (flapping peers).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757)
 
 ---
 
@@ -1161,12 +1296,16 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 - **Visualization:** Table (non-compliant hosts), Bar chart (violations by OU), Single value (violation count).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-17.2.20 · VPN Bandwidth Utilization Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Capacity
+- **MITRE ATT&CK:** T1133
 - **Value:** Time-series bandwidth per headend and user cohort — complements UC-17.2.7 top talkers with **trend** and **gateway** dimension.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, NetFlow
 - **Equipment Models:** ASA, routers
@@ -1189,6 +1328,9 @@ index=vpn sourcetype="cisco:asa" earliest=-7d
   by _time span=1h
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.2.21 · SSL VPN Certificate Compliance
@@ -1210,6 +1352,9 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-30d
 - **Implementation:** Prefer proactive cert inventory from PKI; this search catches client-reported errors. Alert on any `expired` match on production gateways.
 - **Visualization:** Table (cert errors), Single value (error count), Timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757)
 
 ---
 
@@ -1235,6 +1380,9 @@ index=vpn sourcetype="vpn:session" earliest=-7d
 - **Visualization:** Scatter (duration vs time), Table (outliers), Histogram (duration).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -1257,6 +1405,9 @@ index=vpn sourcetype="vpn:session"
 - **Implementation:** Ingest VPN session and accounting data. Compute session duration and idle time. Alert on sessions exceeding policy (e.g., >24h) or user with unusually long average. Report on session distribution.
 - **Visualization:** Table (long sessions), Bar chart (avg duration by user), Line chart (session count trend).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293)
 
 ---
 
@@ -1292,6 +1443,9 @@ index=zt sourcetype="zscaler:zpa"
 | where count > 5
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.2 · Device Trust Scoring
@@ -1319,6 +1473,9 @@ index=zt sourcetype="zscaler:device_posture"
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1349,6 +1506,9 @@ index=zt sourcetype="microseg:policy"
 | where count > 5
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Akamai Guardicore Add-on for Splunk](https://splunkbase.splunk.com/app/7426), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.4 · ZTNA Application Access
@@ -1377,12 +1537,16 @@ index=zt sourcetype="zscaler:zpa"
 | where count > 5
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.5 · Posture Assessment Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078, T1133
 - **Value:** Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.
 - **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune)
 - **Data Sources:** ZT posture assessment data
@@ -1403,12 +1567,16 @@ index=zt sourcetype="zt:posture"
 | where count > 5
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.6 · Policy Drift Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Configuration
+- **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Zero-trust policies require continuous validation. Drift from baseline configuration introduces security gaps.
 - **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
 - **Data Sources:** ZT policy audit logs, configuration snapshots
@@ -1430,6 +1598,9 @@ index=zt sourcetype="zt:admin_audit"
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1453,6 +1624,9 @@ index=zt sourcetype="device:cert"
 - **Visualization:** Table (certs expiring soon), Single value (failed renewals), Bar chart (expiry by month).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757)
+
 ---
 
 ### UC-17.3.8 · Zero Trust Access Denial Trending
@@ -1475,6 +1649,9 @@ index=zt sourcetype="zt:access"
 - **Visualization:** Line chart (denials over time), Table (denials by user/app), Bar chart (deny reasons).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757)
+
 ---
 
 ### UC-17.3.11 · Micro-Segment Traffic Baseline Anomaly
@@ -1496,6 +1673,13 @@ index=flows sourcetype="netflow"
 - **Implementation:** Ingest segment-level or flow data. Baseline traffic between segment pairs. Alert when traffic exceeds baseline by threshold. Correlate with new connections and ZT policy. Report on segment traffic matrix.
 - **Visualization:** Table (anomalous segment pairs), Heatmap (segment × segment traffic), Line chart (traffic trend).
 - **CIM Models:** Network_Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Akamai Guardicore Add-on for Splunk](https://splunkbase.splunk.com/app/7426), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1524,12 +1708,16 @@ index=proxy sourcetype="zscaler:web" earliest=-30d
   by All_Traffic.url span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.13 · ZPA Application Segment Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Tracks connector health, app segment reachability, and error rates for ZPA-published apps.
 - **App/TA:** Zscaler TA
 - **Data Sources:** `sourcetype=zscaler:zpa`, connector telemetry
@@ -1550,6 +1738,9 @@ index=zt sourcetype="zscaler:zpa" earliest=-24h
   where Authentication.action=failure
   by Authentication.dest span=1h
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1579,12 +1770,16 @@ index=dns sourcetype="umbrella:dns" earliest=-7d
 | where count > 100
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 ### UC-17.3.15 · SASE Tunnel Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Monitors IPSec/GRE/SSL tunnels from branch to SASE PoPs — packet loss, latency, and down events.
 - **App/TA:** `Splunk_TA_zscaler`, `Splunk_TA_paloalto` (Prisma Access), Cato Networks Events App (Splunkbase 8037), `TA-fortinet_fortigate` (FortiSASE), Netskope Add-on for Splunk (Splunkbase 3808)
 - **Data Sources:** `sourcetype=sase:tunnel`, SD-WAN to SASE
@@ -1599,6 +1794,9 @@ index=sase sourcetype="sase:tunnel" earliest=-24h
 - **Implementation:** Field names vary (Zscaler GRE, Prisma IPSec). Use unified summary index if multi-vendor.
 - **Visualization:** Table (unhealthy tunnels), Geo map (site), Line chart (loss trend).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757)
 
 ---
 
@@ -1628,6 +1826,9 @@ index=zt sourcetype="zscaler:zpa" earliest=-30d
   from datamodel=Authentication.Authentication
   by Authentication.user Authentication.app span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cloudflare App for Splunk](https://splunkbase.splunk.com/app/4501), [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1660,6 +1861,9 @@ index=zt sourcetype="microseg:policy" earliest=-7d
   by All_Traffic.dest span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.18 · Device Trust Score Trending
@@ -1684,6 +1888,9 @@ index=zt sourcetype="zscaler:device_posture" earliest=-30d
   from datamodel=Authentication.Authentication
   by Authentication.src span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1713,12 +1920,16 @@ index=identity sourcetype="azure:signin" earliest=-7d
   by Authentication.user span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.20 · Browser Isolation Usage
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Operational
+- **MITRE ATT&CK:** T1133
 - **Value:** Measures adoption of remote browser isolation (RBI) sessions vs direct access — for licensing and risky-site coverage.
 - **App/TA:** Menlo Security syslog, `Splunk_TA_zscaler` (RBI), Island Enterprise Browser syslog, Broadcom Symantec WSS Add-on (Splunkbase 3856), Forcepoint ONE syslog
 - **Data Sources:** `sourcetype=rbi:session`
@@ -1732,6 +1943,9 @@ index=zt sourcetype="rbi:session" earliest=-30d
 - **Implementation:** Map vendor-specific session types. Alert when isolation_rate drops vs baseline for high-risk categories.
 - **Visualization:** Line chart (isolation rate), Bar chart (sessions by app), Single value (% isolated).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Broadcom Symantec WSS Add-on](https://splunkbase.splunk.com/app/3856)
 
 ---
 
@@ -1761,12 +1975,16 @@ index=proxy sourcetype="zscaler:web" earliest=-24h
 | where count > 200
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.22 · ZTNA Application Access Latency
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1133
 - **Value:** p95 latency per published application for user experience SLAs on ZTNA paths.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Cloudflare Logpush integration
 - **Data Sources:** `zscaler:zpa` access logs with `latency_ms`
@@ -1787,12 +2005,16 @@ index=zt sourcetype="zscaler:zpa" earliest=-24h
   by All_Traffic.url span=5m
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.23 · Prisma Access Tunnel Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** IPSec/SSL tunnel state, latency, and error codes for Palo Alto Prisma Access remote networks and mobile users.
 - **App/TA:** Splunk_TA_paloalto, Prisma Access cloud logging
 - **Data Sources:** `sourcetype=prisma:access:tunnel` or PAN-OS VPN logs
@@ -1807,6 +2029,9 @@ index=sase sourcetype="prisma:access:tunnel" earliest=-24h
 - **Implementation:** Map Prisma Remote Network vs Mobile User templates. Join SD-WAN site name from CMDB.
 - **Visualization:** Table (down tunnels), Map (sites), Line chart (tunnel availability %).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1835,6 +2060,9 @@ index=identity sourcetype="azure:signin" earliest=-7d
   where Authentication.action=failure
   by Authentication.user span=1h
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1866,12 +2094,16 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
   by IDS_Attacks.signature span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
+
 ---
 
 ### UC-17.3.26 · Cato WAN Link Health and Quality (Cato Networks)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Cato SD-WAN measures latency, jitter, and packet loss per Socket uplink (MPLS, broadband, LTE). When quality falls below policy thresholds, Cato steers flows to healthier paths automatically. Retaining link-quality telemetry in Splunk exposes chronic ISP issues, validates steering decisions, and supports capacity conversations with carriers using your own historical evidence.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
 - **Equipment Models:** Cato Socket, Cato vSocket (per-site uplinks); remote users via Cato SDP Client do not replace site link metrics but appear in separate client-quality events where exposed.
@@ -1896,6 +2128,9 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
   from datamodel=Network_Traffic.All_Traffic
   by All_Traffic.src span=5m
 ```
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1929,12 +2164,16 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
 | where count >= 5
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
+
 ---
 
 ### UC-17.3.28 · Cato Cloud Firewall Policy Audit (Cato Networks)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration, Compliance
+- **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Cloud firewall policies are authored centrally in Cato Management and enforced at every PoP, so one misconfiguration has global blast radius. Auditing administrator actions, policy edits, and time-ordered changes lets you tie traffic anomalies to specific change records and demonstrate who approved risky rules.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); Cato Events API audit stream
 - **Equipment Models:** Cato Management (cloud); Cato Socket, Cato vSocket, Cato SDP Client consume policies — no per-box CLI audit trail.
@@ -1959,12 +2198,16 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-30d
   by All_Changes.user All_Changes.object span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-17.3.29 · Cato SD-WAN Tunnel Health (Cato Networks)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Cato Sockets build IPsec/DTLS tunnels to the nearest PoP; when tunnels drop, the site loses cloud-delivered security, path selection, and centralized breakout. Measuring down events, duration, and time-to-recover supports SLA reporting and distinguishes transient blips from structural connectivity failures.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
 - **Equipment Models:** Cato Socket, Cato vSocket (site tunnel endpoints); Cato SDP Client uses separate session semantics — split dashboards accordingly.
@@ -1984,10 +2227,10 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-7d
 - **CIM Models:** Network_Traffic, Network_Sessions
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Network_Sessions.Network_Sessions
-  by Network_Sessions.src_network span=1h
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -2022,6 +2265,9 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
   by Authentication.user Authentication.action span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.31 · Cato DLP and CASB Event Analysis (Cato Networks)
@@ -2055,6 +2301,9 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-7d
 | where count > 100
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.32 · Netskope Cloud App Risk Assessment
@@ -2085,6 +2334,9 @@ index=casb sourcetype="netskope:events" earliest=-7d
 | sort -bytes
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.33 · Netskope DLP Policy Violations
@@ -2107,11 +2359,10 @@ index=casb sourcetype="netskope:alert" alert_type="DLP" earliest=-7d
 - **CIM Models:** DLP
 - **CIM SPL:**
 ```spl
-| tstats `summariesonly` count
-  from datamodel=Data_Loss_Prevention.Incident
-  by Incident.user Incident.dest Incident.signature span=1d
-| sort -count
+| tstats summariesonly=t count from datamodel=Data_Loss_Prevention.DLP_Incidents by DLP_Incidents.user, DLP_Incidents.action | sort - count
 ```
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [CIM: DLP](https://docs.splunk.com/Documentation/CIM/latest/User/DLP)
 
 ---
 
@@ -2140,6 +2391,9 @@ index=casb sourcetype="netskope:alert" alert_type IN ("Malware", "malsite", "Com
   by Malware_Attacks.user Malware_Attacks.signature span=1h
 | where count > 0
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [CIM: Malware](https://docs.splunk.com/Documentation/CIM/latest/User/Malware)
 
 ---
 
@@ -2170,12 +2424,16 @@ index=proxy sourcetype="netskope:events" earliest=-7d
   by Web.category span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-17.3.36 · Netskope Private Access (NPA) Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
 - **Equipment Models:** Netskope Security Cloud, Netskope Publisher (on-prem connector), Netskope Client
@@ -2192,6 +2450,9 @@ index=casb sourcetype="netskope:connection" earliest=-24h
 - **Implementation:** Map `publisher_name` to datacenter/region. Alert when any publisher shows >10% error rate or latency p95 exceeds 2s. Report on NPA adoption vs legacy VPN.
 - **Visualization:** Table (unhealthy publishers), Single value (publishers in error), Line chart (error rate trend), Bar chart (latency by app).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808)
 
 ---
 
@@ -2222,12 +2483,16 @@ index=casb sourcetype="netskope:events" earliest=-7d
   by Web.url Web.user span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.38 · Netskope Admin Audit Trail
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration, Compliance
+- **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Administrative changes to Netskope policies, steering configs, and tenant settings have global impact. Audit trail ensures accountability and change correlation.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
 - **Equipment Models:** Netskope Security Cloud (tenant admin)
@@ -2247,6 +2512,9 @@ index=casb sourcetype="netskope:audit" earliest=-30d
   from datamodel=Change.All_Changes
   by All_Changes.user All_Changes.object span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Netskope Add-on for Splunk](https://splunkbase.splunk.com/app/3808), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -2277,6 +2545,9 @@ index=proxy sourcetype="fgt_utm" subtype="webfilter" earliest=-7d
   by Web.category span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-17.3.40 · FortiSASE ZTNA Application Access (Fortinet)
@@ -2305,12 +2576,16 @@ index=zt sourcetype="fgt_traffic" subtype="forward" earliest=-24h
   by All_Traffic.action All_Traffic.dest span=1h
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.41 · FortiSASE Threat Detection Events (Fortinet)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1562, T1133
 - **Value:** FortiSASE applies IPS, anti-malware, and sandboxing inline for all users. Threat events reveal attack vectors bypassing traditional perimeter security — critical for remote-first organizations.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE IPS/AV logs)
 - **Equipment Models:** FortiSASE (cloud), FortiClient (endpoint), FortiSandbox Cloud
@@ -2331,12 +2606,16 @@ index=ids sourcetype="fgt_utm" subtype IN ("ips","virus","anomaly") earliest=-24
   by IDS_Attacks.signature IDS_Attacks.severity span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
+
 ---
 
 ### UC-17.3.42 · FortiSASE Thin Edge Health (Fortinet)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** FortiSASE thin edges (FortiExtender, FortiGate in SASE mode) connect branches to the nearest FortiSASE PoP. Tunnel state, latency, and failover events determine branch connectivity and SLA compliance.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE tunnel/system logs)
 - **Equipment Models:** FortiSASE (cloud PoPs), FortiExtender 200F/400F, FortiGate SD-WAN appliances in FortiSASE mode
@@ -2359,12 +2638,16 @@ index=sase sourcetype="fgt_event" subtype IN ("vpn","system") earliest=-24h
   by All_Traffic.src span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.43 · FortiSASE Admin Configuration Audit (Fortinet)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration, Compliance
+- **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE admin audit)
 - **Equipment Models:** FortiSASE (cloud management plane)
@@ -2386,12 +2669,16 @@ index=sase sourcetype="fgt_event" subtype="system" earliest=-30d
   by All_Changes.user All_Changes.object span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-17.3.44 · Check Point Harmony SASE Threat Prevention (Check Point)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1133
 - **Value:** Check Point Harmony SASE applies ThreatCloud AI-powered prevention (IPS, anti-malware, anti-bot, threat emulation) to all user traffic via cloud enforcement points. Detection events reveal threats targeting users regardless of location.
 - **App/TA:** Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Endpoint (client), Smart-1 Cloud (management)
@@ -2412,6 +2699,9 @@ index=checkpoint sourcetype="cp_log" earliest=-24h
   from datamodel=Intrusion_Detection.IDS_Attacks
   by IDS_Attacks.signature IDS_Attacks.severity span=1h
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -2442,12 +2732,16 @@ index=proxy sourcetype="cp_log" product="URL Filtering" earliest=-7d
   by Web.category span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-17.3.46 · Check Point Harmony SASE Private Access (Check Point)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Harmony SASE Private Access (ZTNA) grants per-application access to private resources without VPN. Connector health, access decisions, and latency determine user experience for internal applications.
 - **App/TA:** Check Point App for Splunk (Splunkbase 4293)
 - **Equipment Models:** Check Point Harmony SASE (cloud), Harmony Connect Client, Harmony SASE Connector (on-prem)
@@ -2472,12 +2766,16 @@ index=zt sourcetype="cp_log" product="VPN" earliest=-24h
   by Authentication.dest span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-17.3.47 · Check Point Harmony SASE Admin Audit (Check Point)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration, Compliance
+- **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Centralized SASE policy changes affect all connected users and sites. Audit logs enable compliance, change correlation, and accountability.
 - **App/TA:** Check Point App for Splunk (Splunkbase 4293)
 - **Equipment Models:** Check Point Harmony SASE management portal, Smart-1 Cloud
@@ -2498,6 +2796,9 @@ index=checkpoint sourcetype="cp_log" product="SmartConsole" earliest=-30d
   from datamodel=Change.All_Changes
   by All_Changes.user All_Changes.object span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -2525,6 +2826,9 @@ index=dlp sourcetype="cp_log" product="DLP" earliest=-7d
   from datamodel=Data_Loss_Prevention
   by DLP.user DLP.src span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [CIM: DLP](https://docs.splunk.com/Documentation/CIM/latest/User/DLP)
 
 ---
 
@@ -2554,6 +2858,9 @@ index=microseg sourcetype="guardicore:network" earliest=-24h
   where All_Traffic.action="blocked"
   by All_Traffic.src All_Traffic.dest span=1h
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Akamai Guardicore Add-on for Splunk](https://splunkbase.splunk.com/app/7426), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -2587,6 +2894,9 @@ index=microseg sourcetype="guardicore:network" earliest=-24h
 | where count > 10
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Akamai Guardicore Add-on for Splunk](https://splunkbase.splunk.com/app/7426), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-17.3.51 · Akamai Guardicore Agent Health
@@ -2608,6 +2918,9 @@ index=microseg sourcetype="guardicore:agent" earliest=-4h
 - **Implementation:** Alert when agents go offline for >30 minutes on critical assets. Report on agent coverage (% of assets with active agents). Track agent version compliance.
 - **Visualization:** Single value (offline agents), Table (unhealthy agents), Pie chart (agent status), Line chart (coverage trend).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Akamai Guardicore Add-on for Splunk](https://splunkbase.splunk.com/app/7426)
 
 ---
 
@@ -2635,6 +2948,9 @@ index=microseg sourcetype="guardicore:incident" earliest=-7d
   from datamodel=Intrusion_Detection.IDS_Attacks
   by IDS_Attacks.src IDS_Attacks.dest span=1h
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Akamai Guardicore Add-on for Splunk](https://splunkbase.splunk.com/app/7426), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -2664,6 +2980,9 @@ index=proxy sourcetype="symantec:wss:accesslog" earliest=-7d
   where Web.action="blocked"
   by Web.category span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Symantec WSS Add-on for Splunk](https://splunkbase.splunk.com/app/3856), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -2695,6 +3014,9 @@ index=proxy sourcetype="symantec:wss:accesslog" earliest=-30d
 | where count > 20
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Symantec WSS Add-on for Splunk](https://splunkbase.splunk.com/app/3856), [Symantec CAS App](https://splunkbase.splunk.com/app/5934), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-17.3.55 · Broadcom Symantec Cloud SWG Threat Events (Broadcom)
@@ -2723,6 +3045,9 @@ index=proxy sourcetype="symantec:wss:accesslog" earliest=-24h
   by Malware_Attacks.user Malware_Attacks.url span=1h
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Symantec WSS Add-on for Splunk](https://splunkbase.splunk.com/app/3856), [CIM: Malware](https://docs.splunk.com/Documentation/CIM/latest/User/Malware)
+
 ---
 
 ### UC-17.3.56 · Cloudflare Access (ZTNA) Policy Enforcement
@@ -2749,6 +3074,9 @@ index=zt sourcetype="cloudflare:access" earliest=-7d
   from datamodel=Authentication.Authentication
   by Authentication.user Authentication.app span=1d
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cloudflare App for Splunk](https://splunkbase.splunk.com/app/4501), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2779,12 +3107,16 @@ index=proxy sourcetype="cloudflare:gateway" earliest=-7d
   by Web.category span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cloudflare App for Splunk](https://splunkbase.splunk.com/app/4501), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-17.3.58 · Cloudflare Tunnel Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Cloudflare Tunnels (formerly Argo Tunnels) connect private infrastructure to Cloudflare without opening inbound ports. Tunnel health determines whether users can reach private applications through Cloudflare Access.
 - **App/TA:** Cloudflare App for Splunk (Splunkbase 4501)
 - **Equipment Models:** Cloudflare Zero Trust (cloud), cloudflared daemon (connector)
@@ -2800,6 +3132,9 @@ index=zt sourcetype="cloudflare:tunnel" earliest=-24h
 - **Implementation:** Configure Logpush for Tunnel health events. Alert when tunnels disconnect for >10 minutes. Track connector version compliance. Report on tunnel availability SLA.
 - **Visualization:** Single value (tunnels down), Table (unhealthy tunnels), Line chart (tunnel availability %), Timeline (connect/disconnect events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cloudflare App for Splunk](https://splunkbase.splunk.com/app/4501)
 
 ---
 
@@ -2830,12 +3165,16 @@ index=proxy sourcetype="forcepoint:one" earliest=-7d
   by Web.category span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Forcepoint Insights SIEM App](https://splunkbase.splunk.com/app/8053), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-17.3.60 · Forcepoint ONE ZTNA Private Access Health (Forcepoint)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Forcepoint ONE ZTNA provides agentless and agent-based private application access. Connector health and access decision monitoring ensures application reachability.
 - **App/TA:** Forcepoint Insights SIEM App (Splunkbase 8053)
 - **Equipment Models:** Forcepoint ONE (cloud), Forcepoint ONE Connector (on-prem), Smart Edge Agent
@@ -2859,6 +3198,9 @@ index=zt sourcetype="forcepoint:one" earliest=-24h
   from datamodel=Network_Sessions.All_Sessions
   by All_Sessions.dest span=1h
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Forcepoint Insights SIEM App](https://splunkbase.splunk.com/app/8053), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -2889,6 +3231,9 @@ index=proxy sourcetype="dell:sonicwall:firewall" earliest=-7d
   by Web.category span=1d
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [SonicWall SMA 1000 TA](https://splunkbase.splunk.com/app/6670), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-17.3.62 · Versa SASE Security and Access Events (Versa Networks)
@@ -2917,5 +3262,8 @@ index=sase sourcetype="versa:sase" earliest=-24h
   where All_Traffic.action="blocked"
   by All_Traffic.src span=1h
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---

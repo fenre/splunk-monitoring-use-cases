@@ -82,12 +82,15 @@ def extract_field_lines(body: str) -> dict:
     return fields
 
 
+RE_SPL_MARKER = re.compile(r"-\s+\*\*SPL(?:\s*\([^)]*\))?:\*\*")
+
+
 def extract_spl_fenced(body: str) -> Tuple[Optional[str], str]:
-    idx = body.find("- **SPL:**")
-    if idx == -1:
+    m = RE_SPL_MARKER.search(body)
+    if m is None:
         return None, "no_SPL_marker"
 
-    rest = body[idx + len("- **SPL:**") :]
+    rest = body[m.end():]
     lines = rest.splitlines()
     i = 0
     while i < len(lines) and not lines[i].strip():
@@ -97,7 +100,12 @@ def extract_spl_fenced(body: str) -> Tuple[Optional[str], str]:
 
     fence_start = lines[i].strip()
     if not fence_start.startswith("```"):
-        return None, "no_opening_fence_after_SPL"
+        i += 1
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+        if i >= len(lines) or not lines[i].strip().startswith("```"):
+            return None, "no_opening_fence_after_SPL"
+        fence_start = lines[i].strip()
 
     inner_lines: List[str] = []
     i += 1

@@ -46,6 +46,8 @@ index=storage sourcetype="netapp:ontap:volume_perf"
 - **Visualization:** Line chart (latency over time by volume), Heatmap (volume × time), Single value (current avg latency).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.3 · IOPS Trending per Volume
@@ -65,6 +67,8 @@ index=storage sourcetype="netapp:ontap:volume_perf"
 - **Visualization:** Line chart (IOPS trend by volume), Stacked bar (read vs write IOPS), Table (top IOPS consumers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.4 · Disk Failure Alerts
@@ -83,6 +87,8 @@ index=storage sourcetype="netapp:ontap:ems" severity="EMERGENCY" OR severity="AL
 - **Implementation:** Enable SNMP traps or syslog forwarding for disk failure events. Create high-priority alert with PagerDuty/ServiceNow integration. Track spare disk inventory to ensure replacements are available.
 - **Visualization:** Single value (failed disk count), Table (failed disks with details), Timeline (failure events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -104,6 +110,8 @@ index=storage sourcetype="netapp:ontap:snapmirror"
 - **Visualization:** Single value (max replication lag), Table (replication pairs with lag), Line chart (lag over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.6 · Controller Failover Events
@@ -122,6 +130,8 @@ index=storage sourcetype="netapp:ontap:ems"
 - **Implementation:** For NetApp ONTAP: ingest EMS events via syslog (UDP/TCP) or use `TA-netapp_ontap` for REST-based EMS polling. Key EMS message families: `cf.takeover`, `cf.giveback`, `ha.interconnect`. Alert on any takeover outside a scheduled change window, or any giveback failure. Include `cluster`, `node`, and `partner` fields in the alert for storage operations handoff.
 - **Visualization:** Timeline (failover events), Single value (days since last failover), Table (event details).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -142,6 +152,8 @@ index=storage sourcetype="netapp:ontap:aggregate"
 - **Implementation:** Poll aggregate/pool metrics showing logical vs physical capacity. Calculate overcommit ratio. Alert when physical utilization exceeds safe thresholds relative to committed capacity.
 - **Visualization:** Gauge (overcommit ratio per pool), Table (aggregates with overcommit stats), Bar chart (logical vs physical).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -164,6 +176,8 @@ index=storage sourcetype="netapp:ontap:volume"
 - **Visualization:** Bar chart (snapshot usage by volume), Table (volumes with high snapshot usage), Line chart (snapshot growth trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.9 · Fibre Channel Port Errors
@@ -184,6 +198,8 @@ index=network sourcetype="brocade:syslog" OR sourcetype="cisco:mds"
 - **Implementation:** Forward FC switch syslog to Splunk. Poll SNMP counters for FC error rates. Alert on error rate exceeding baseline. Correlate with storage latency spikes to identify fabric issues.
 - **Visualization:** Table (ports with errors), Bar chart (error counts by type), Timeline (error events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -206,6 +222,8 @@ index=storage sourcetype="netapp:ontap:system"
 - **Visualization:** Table (arrays with firmware status), Pie chart (firmware version distribution), Single value (% compliant).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.11 · Isilon Cluster and Node Health
@@ -223,6 +241,8 @@ index=storage (sourcetype=isilon:syslog OR sourcetype=isilon:api) (node_down OR 
 - **Implementation:** Configure syslog from Isilon cluster to Splunk; optionally use OneFS REST API or vendor TA for node state, drive status, and cluster events. Alert on node down, pool degradation, or OneFS readonly conditions.
 - **Visualization:** Single value (nodes down), Table (node/cluster status), Timeline (health events). Aligns with use cases in Splunk IT Essentials Learn (Storage – Isilon).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -242,6 +262,8 @@ index=storage sourcetype=isilon:metrics
 - **Implementation:** Poll OneFS stats API or use Isilon TA to collect capacity and performance metrics. Set alerts for pool capacity >85% and for sustained high latency or drop in throughput.
 - **Visualization:** Line chart (capacity and IOPS over time by node/pool), Single value (cluster used %), Table (top consumers).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -264,6 +286,8 @@ index=storage sourcetype="truenas:pool"
 - **Visualization:** Single value (pools not healthy), Table (pool name, health, resilver %), Timeline (health change events), Gauge (resilver progress during rebuild).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.14 · Ceph Cluster Health and OSD Status
@@ -285,6 +309,8 @@ index=storage sourcetype="ceph:status"
 - **Visualization:** Single value (cluster health status), Table (OSD up/down/out counts), Timeline (health and OSD events), Bar chart (PG states distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.15 · NFS Export Availability
@@ -305,6 +331,8 @@ index=storage sourcetype="nfs:probe"
 - **Visualization:** Table (exports with status and latency), Single value (unreachable exports count), Line chart (latency trend per export), Status grid (export × server).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.16 · SMB / CIFS Share Availability
@@ -324,6 +352,8 @@ index=storage sourcetype="smb:probe"
 - **Implementation:** Deploy scripted input on Windows or Linux probe host. Use `smbclient -L //server` or `net use \\server\share` (Windows) to test connectivity. Optionally perform read/write test and measure latency. Run every 5–10 minutes. Index share_path, server, status, latency_ms. Alert on status != ok or latency exceeding threshold. Use domain credentials with minimal read-only access.
 - **Visualization:** Table (shares with status and latency), Single value (unreachable shares count), Line chart (latency trend per share), Status grid (share × server).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -347,6 +377,8 @@ index=storage sourcetype="raid:rebuild"
 - **Visualization:** Gauge (rebuild progress %), Table (arrays in rebuild with ETA), Line chart (progress over time), Single value (hours until rebuild complete).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.18 · NetApp ONTAP Performance Counters
@@ -366,6 +398,8 @@ index=storage sourcetype="netapp:ontap:counter"
 - **Implementation:** Enable performance counter polling (15m) for volumes/LUNs. Map instance to SVM and export. Baseline p95 latency and IOPS; alert on sustained deviation from baseline.
 - **Visualization:** Line chart (latency and IOPS by object), Table (top latency contributors), Single value (max read/write ms).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -387,6 +421,8 @@ index=storage sourcetype="pure:array"
 - **Visualization:** Single value (open critical alerts), Table (array, component, status), Timeline (health transitions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.20 · iSCSI Session Monitoring
@@ -406,6 +442,8 @@ index=storage sourcetype="iscsi:session"
 - **Implementation:** Scripted input on hosts or array API export of active sessions every 5m. Alert on session count drop to zero or vs baseline. Correlate with NIC/link events.
 - **Visualization:** Line chart (sessions per host/target), Table (hosts with zero sessions), Single value (total active sessions).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -427,6 +465,8 @@ index=os (sourcetype=linux_syslog OR sourcetype=syslog) (multipath OR "path fail
 - **Visualization:** Timeline (failover events), Table (host, path, count), Single value (failovers last 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.22 · Fibre Channel Port Error Rate (Array)
@@ -447,6 +487,8 @@ index=storage sourcetype="storage:fc_port"
 - **Visualization:** Bar chart (errors by port), Line chart (error rate trend), Table (ports with errors).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.23 · LUN Latency Trending
@@ -466,6 +508,8 @@ index=storage sourcetype="storage:lun_perf"
 - **Visualization:** Line chart (p95 read/write per LUN), Heatmap (LUN × hour), Table (worst LUNs).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.24 · Aggregate Space Forecasting
@@ -484,6 +528,8 @@ index=storage sourcetype="netapp:ontap:aggregate"
 - **Implementation:** Daily snapshot of aggregate utilization. Use `predict` or linear regression for 30/60-day runway. Alert when forecast crosses 85% within 30 days.
 - **Visualization:** Line chart (used % with forecast band), Table (aggregates by days-to-full), Single value (soonest full date).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -506,6 +552,8 @@ index=storage sourcetype="storage:snapshot"
 - **Visualization:** Table (non-compliant volumes), Single value (policy violations count), Timeline (snapshot completions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.26 · Deduplication Savings Ratio
@@ -525,6 +573,8 @@ index=storage sourcetype="storage:dedupe"
 - **Implementation:** Poll dedupe stats weekly or daily. Baseline savings ratio per aggregate. Alert on significant drop vs 30-day average (e.g., >20% relative drop).
 - **Visualization:** Line chart (savings ratio over time), Table (aggregate, logical, physical, ratio), Single value (fleet average ratio).
 - **CIM Models:** N/A
+
+- **References:** [Cisco DC Networking Application for Splunk](https://splunkbase.splunk.com/app/7777)
 
 ---
 
@@ -551,6 +601,12 @@ index=network sourcetype="snmp:if" host="mds*" port_type="ISL"
 - **Implementation:** Poll ISL port counters via SNMP every 60 seconds. Tag ISL ports in a lookup. Alert at 70% sustained utilization (5-min average). Correlate with storage latency (UC-6.1.2) and FC port errors (UC-6.1.9).
 - **Visualization:** Line chart (ISL utilization over time), Heatmap (switch x ISL port), Single value (peak ISL utilization), Topology map.
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Network by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -575,6 +631,8 @@ index=network sourcetype="cisco:mds" "SLOW_DRAIN" OR "PORT-5-IF_TXWAIT" OR "PORT
 - **Visualization:** Table (ports with slow drain), Line chart (TxWait over time), Topology (affected path highlighting).
 - **CIM Models:** N/A
 
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777)
+
 ---
 
 ### UC-6.1.29 · MDS Zone Configuration Compliance
@@ -598,6 +656,12 @@ index=network sourcetype="cisco:mds" "ZONE" ("added" OR "removed" OR "activated"
 - **Implementation:** Export zone configuration periodically via NX-API. Maintain a baseline lookup of approved zones per VSAN. Detect zone additions, removals, and activations via syslog. Alert on any zone change outside change windows.
 - **Visualization:** Table (zone changes), Timeline (change events), Diff view (current vs baseline).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.user | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -621,6 +685,12 @@ index=network sourcetype="cisco:mds" "FLOGI" OR "FDISC"
 - **Implementation:** Forward MDS syslog and periodically poll FLOGI database via NX-API. Maintain a lookup of known/authorized WWNs. Alert on unknown WWN logins. Track FLOGI count trends to detect login storms.
 - **Visualization:** Table (FLOGI entries with authorization status), Bar chart (logins per switch), Timeline (login events).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -645,6 +715,8 @@ index=network sourcetype="cisco:mds" "VSAN" ("isolated" OR "merge" OR "segmented
 - **Visualization:** Status grid (VSAN health), Table (isolation events), Topology map (VSAN segmentation).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.1.32 · MDS SAN Fabric Oversubscription Ratio
@@ -668,6 +740,8 @@ index=network sourcetype="snmp:if" host="mds*"
 - **Implementation:** Poll interface inventory via SNMP or NX-API. Classify ports by type (F-port=edge, E/TE-port=ISL). Calculate oversubscription ratio per switch. Alert when ratio exceeds policy threshold. Report quarterly for capacity planning.
 - **Visualization:** Table (switch oversubscription), Gauge (ratio per switch), Trend chart (ratio over quarters).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -694,6 +768,8 @@ index=aws sourcetype="aws:cloudwatch" metric_name="BucketSizeBytes"
 - **Visualization:** Line chart (bucket size over time), Stacked area (total storage by bucket), Table (largest buckets).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-6.2.2 · Access Pattern Anomalies
@@ -713,6 +789,8 @@ index=aws sourcetype="aws:s3:accesslogs"
 - **Implementation:** Enable S3 server access logging to a dedicated logging bucket. Ingest via SQS-based S3 input. Baseline normal access patterns and alert on statistical outliers. Correlate with IAM changes.
 - **Visualization:** Line chart (access volume over time), Table (anomalous access events), Bar chart (operations by requester).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
 
 ---
 
@@ -734,6 +812,8 @@ index=aws sourcetype="aws:config:rule"
 - **Visualization:** Single value (public bucket count — should be 0), Table (non-compliant buckets), Status indicator (red/green).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-6.2.4 · Lifecycle Policy Compliance
@@ -753,6 +833,8 @@ index=aws sourcetype="aws:cloudwatch" metric_name="BucketSizeBytes"
 - **Visualization:** Stacked bar (storage class distribution per bucket), Table (policy violations), Pie chart (total storage by class).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.2.5 · Cross-Region Replication Lag
@@ -771,6 +853,8 @@ index=aws sourcetype="aws:cloudwatch" metric_name="ReplicationLatency"
 - **Implementation:** Enable S3 replication metrics in CloudWatch. Ingest and alert when replication latency or pending operations exceed thresholds. Correlate with data ingestion spikes that may cause temporary lag.
 - **Visualization:** Line chart (replication lag over time), Single value (max lag), Table (buckets with lag exceeding SLA).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -792,6 +876,8 @@ index=aws sourcetype="aws:s3:lifecycle_inventory"
 - **Visualization:** Table (buckets without compliant lifecycle), Pie chart (compliant vs non-compliant), Single value (non-compliant count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876), [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+
 ---
 
 ### UC-6.2.7 · Cross-Region Replication Lag (SLA)
@@ -811,6 +897,8 @@ index=aws sourcetype="aws:cloudwatch" metric_name="OperationsPendingReplication"
 - **Visualization:** Line chart (pending replication / lag), Table (buckets breaching SLA), Single value (max lag minutes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.2.8 · Bucket Policy Change Audit
@@ -829,6 +917,8 @@ index=aws sourcetype="aws:cloudtrail" eventName IN ("PutBucketPolicy","DeleteBuc
 - **Implementation:** Ingest CloudTrail S3 and IAM policy events. Enrich with CMDB owner. Alert on changes outside change windows or from non-break-glass principals.
 - **Visualization:** Timeline (policy changes), Table (bucket, user, action), Single value (changes last 24h).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
 
 ---
 
@@ -851,6 +941,8 @@ index=aws sourcetype="aws:s3:accesslogs"
 - **Visualization:** Table (top presigned requesters), Line chart (presigned request rate), Map (remote_ip).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-6.2.10 · Storage Class Transition Tracking
@@ -871,6 +963,8 @@ index=aws sourcetype="aws:s3:inventory" OR sourcetype="aws:cloudwatch" metric_na
 - **Implementation:** Ingest periodic inventory or CloudWatch breakdown. Compare STANDARD % vs policy targets. Report buckets with excessive STANDARD after expected transition age.
 - **Visualization:** Stacked bar (storage class % per bucket), Table (buckets with high STANDARD %), Line chart (class mix over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -893,6 +987,8 @@ index=aws sourcetype="aws:config:rule"
 - **Visualization:** Table (non-compliant buckets), Single value (buckets without versioning), Status grid (bucket × region).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.2.12 · Object Lock Integrity
@@ -912,6 +1008,8 @@ index=aws sourcetype="aws:s3:object_lock_audit"
 - **Implementation:** Scripted audit comparing required lock settings from lookup to actual API responses. Alert on drift or disabled lock. Log tamper-evident checksum of policy JSON if stored in Splunk.
 - **Visualization:** Table (buckets failing lock check), Single value (drift count), Timeline (audit runs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -940,6 +1038,8 @@ index=backup sourcetype="veeam:job"
 - **Visualization:** Single value (overall success rate %), Table (failed jobs with details), Bar chart (success/fail by job), Trend line (daily success rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.2 · Backup Job Duration Trending
@@ -958,6 +1058,8 @@ index=backup sourcetype="veeam:job" status="Success"
 - **Implementation:** Calculate job duration from start/end timestamps. Track trend over weeks/months. Alert when duration exceeds historical average by >50%. Correlate with data volume changes.
 - **Visualization:** Line chart (duration trend per job), Table (longest running jobs), Bar chart (avg duration by job).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -981,6 +1083,8 @@ index=backup sourcetype="veeam:job" status="Success"
 - **Visualization:** Table (missed jobs with schedule details), Single value (number of missed jobs), Status grid (job name × date).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.4 · Backup Storage Capacity
@@ -1000,6 +1104,8 @@ index=backup sourcetype="veeam:repository"
 - **Implementation:** Poll backup repository capacity via API or scripted input. Alert at 80% and 90% thresholds. Track growth rate and forecast when capacity will be exhausted using `predict`.
 - **Visualization:** Gauge (% used per repository), Line chart (capacity trend), Table (repositories above threshold).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1021,6 +1127,8 @@ index=backup sourcetype="restore_test"
 - **Implementation:** Log all restore test results (automated or manual) to a dedicated index. Maintain a lookup of systems requiring quarterly restore tests. Alert when any system exceeds 90 days without a successful test.
 - **Visualization:** Table (systems with test status), Single value (% tested in last 90d), Status grid (system × quarter).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1045,6 +1153,8 @@ index=backup sourcetype="restore_test"
 - **Visualization:** Single value (SLA compliance %), Table (non-compliant systems), Pie chart (covered vs uncovered), Dashboard with filters by business unit.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.7 · Backup Data Volume Trending
@@ -1063,6 +1173,8 @@ index=backup sourcetype="veeam:job" status="Success"
 - **Implementation:** Sum data transferred across all backup jobs daily. Track trend and apply predictive analytics for 30/60/90-day forecasts. Compare against available repository capacity.
 - **Visualization:** Line chart (daily backup volume with prediction), Bar chart (volume by job type), Single value (total backed up today).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1083,6 +1195,8 @@ index=backup sourcetype="tape_library"
 - **Implementation:** Forward tape library syslog to Splunk. Poll SNMP for drive error counters and media faults. Alert on drive errors, media faults, or cleaning cartridge expiration. Track tape media lifecycle.
 - **Visualization:** Table (drive/media errors), Single value (drives needing attention), Timeline (error events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1105,6 +1219,8 @@ index=backup sourcetype="veeam:job_session"
 - **Visualization:** Table (job, status, duration, data transferred), Single value (failed jobs count), Bar chart (duration by job), Status grid (job × date).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.10 · Backup Data Growth Rate
@@ -1126,6 +1242,8 @@ index=backup sourcetype="veeam:repository" OR sourcetype="backup:repository"
 - **Visualization:** Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.11 · Veeam Backup Job Status Summary
@@ -1146,6 +1264,8 @@ index=backup sourcetype="veeam:job_session"
 - **Visualization:** Status grid (job × last status), Single value (failed count), Table (jobs needing attention).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.12 · Commvault Job Completion
@@ -1165,6 +1285,8 @@ index=backup sourcetype="commvault:job"
 - **Implementation:** Ingest completed job events from Commvault. Normalize status values. Alert on Failed; report Partial with same severity as policy dictates.
 - **Visualization:** Table (failed jobs), Single value (failed jobs 24h), Bar chart (failures by error code).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1190,6 +1312,8 @@ index=backup sourcetype="commvault:job"
 - **Visualization:** Table (systems breaching RPO), Gauge (% RPO compliant), Line chart (hours since backup by tier).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.14 · Tape Library Robotics and Drive Health
@@ -1209,6 +1333,8 @@ index=backup sourcetype="tape_library:robot"
 - **Implementation:** Augment generic tape syslog with SNMP polls for robotics status. Alert on inventory failures or slot errors. Schedule cleaning when `cleaning_required` is set.
 - **Visualization:** Table (library, component, errors), Timeline (robotics faults), Single value (libraries with open faults).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1230,6 +1356,8 @@ index=backup sourcetype="dr_rehearsal"
 - **Implementation:** Log each rehearsal with scenario, duration, pass/fail. Alert when annual test is overdue or result is not Pass. Correlate with actual restore tests from backup tools.
 - **Visualization:** Table (overdue systems), Calendar (scheduled tests), Single value (% scenarios current).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1254,6 +1382,8 @@ index=backup sourcetype="veeam:job" status="Success"
 - **Visualization:** Bar chart (utilization % by job), Line chart (duration trend vs window), Table (jobs at risk of overrun).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.17 · Incremental Backup Chain Integrity
@@ -1274,6 +1404,8 @@ index=backup sourcetype="backup:chain_verify"
 - **Visualization:** Table (broken chains), Single value (VMs with integrity issues), Timeline (verify jobs).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.18 · Backup Data Growth Trending by Workload
@@ -1292,6 +1424,8 @@ index=backup sourcetype="veeam:job" status="Success"
 - **Implementation:** Sum data per job daily. Use `predict` for growth. Alert when week-over-week growth exceeds threshold (e.g., 25%). Compare to repository free space.
 - **Visualization:** Line chart (daily GB with forecast per job), Table (fastest-growing jobs), Top values (growth %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1315,6 +1449,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Backup"
 - **Visualization:** Status grid (host × backup status), Table (failures), Line chart (backup success rate over time), Single value (hours since last backup).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-6.3.20 · Backup Target Capacity and Growth Rate
@@ -1335,6 +1471,8 @@ index=backup sourcetype=backup_capacity
 - **Implementation:** Poll backup target capacity (vendor API or filesystem/object metrics). Ingest used and total. Alert at 85% (warning) and 95% (critical). Compute week-over-week growth rate for capacity planning.
 - **Visualization:** Gauge per target, Line chart (usage % over time), Table (target, %, growth rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1357,6 +1495,8 @@ index=backup sourcetype=backup_restore job_type=restore
 - **Visualization:** Table (job, success, failures, avg duration), Line chart (restore duration trend), Single value (last 7d fail rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.22 · Backup Job Overlap and Schedule Conflict Detection
@@ -1378,6 +1518,8 @@ index=backup sourcetype=backup_job
 - **Visualization:** Timeline (jobs by start/end), Table (overlapping jobs), Single value (max concurrent).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.3.23 · Immutable Backup and Ransomware Recovery Readiness
@@ -1397,6 +1539,8 @@ index=backup sourcetype=backup_immutable
 - **Implementation:** Poll backup copy configuration for retention lock or immutable flag. Optionally run periodic checksum or catalog validation. Alert when any critical copy is not immutable or when last verification is older than 7 days. Document and test recovery runbook.
 - **Visualization:** Status grid (copy, immutable, last verify), Table (non-compliant copies), Single value (ready for recovery %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1419,6 +1563,8 @@ index=backup sourcetype="tape_library:capacity"
 - **Implementation:** Poll tape library via SNMP (MIB-II, vendor-specific MIBs for slot counts) or vendor REST/CLI API. Collect total_slots, slots_used, and optionally media expiration dates. Run scripted input every 1–4 hours. Index to Splunk. Alert when slot utilization exceeds 85% or when media expiring within 30 days is detected. Maintain lookup of media barcodes and expiration for lifecycle tracking.
 - **Visualization:** Gauge (slot utilization % per library), Table (libraries with slot counts and expiring media), Line chart (slot usage trend), Single value (libraries near capacity).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1446,6 +1592,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663
 - **Visualization:** Table (user, file, access type, count), Bar chart (top accessed files), Timeline (access events for specific files).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-6.4.2 · Ransomware Indicator Detection
@@ -1465,6 +1613,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663
 - **Implementation:** Enable file audit logging on critical file shares. Create high-urgency alert for mass file modification patterns (>100 unique files modified by one user in 1 minute). Integrate with SOAR for automated account disable/network isolation.
 - **Visualization:** Single value (files modified per minute — current), Line chart (modification rate over time), Table (users with anomalous activity).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1486,6 +1636,8 @@ index=wineventlog sourcetype="WinEventLog:DFS Replication"
 - **Visualization:** Table (replication groups with backlog), Line chart (backlog trend), Single value (total conflicts today).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-6.4.4 · Share Permission Changes
@@ -1504,6 +1656,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4670 OR EventCode=
 - **Implementation:** Enable "Audit Policy Change" and "Audit File System" via GPO. Forward Security events from file servers. Alert on any permission change to critical shares. Correlate with change management tickets.
 - **Visualization:** Table (permission changes with details), Timeline (change events), Bar chart (changes by user).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1526,6 +1680,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663 AccessMask="0
 - **Visualization:** Table (users with large transfers), Bar chart (transfer volume by user), Line chart (daily transfer volume trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-6.4.6 · Backup Encryption and Key Access Audit
@@ -1547,6 +1703,8 @@ index=backup sourcetype=backup_audit (event="key_access" OR event="decrypt")
 - **Visualization:** Table (user, key, count), Timeline of key access, Bar chart by principal.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.4.12 · DFS Replication Backlog and Connectivity Health
@@ -1566,6 +1724,8 @@ index=storage sourcetype="dfsr:backlog"
 - **Implementation:** Ingest backlog count from PowerShell `Get-DfsrState` or scheduled dfsrdiag output every 15m. Alert on rising backlog trend or disconnected partners.
 - **Visualization:** Line chart (backlog files over time), Table (RG, member, backlog), Single value (max backlog).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1587,6 +1747,8 @@ index=storage sourcetype="nas:nfs_export"
 - **Visualization:** Table (export, used %, ops/s), Line chart (ops and capacity trend), Bar chart (top exports by ops).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-6.4.14 · SMB Share Access Audit
@@ -1607,6 +1769,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5140
 - **Visualization:** Table (share, user, count), Bar chart (top shares by access count), Heatmap (share × hour).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-6.4.15 · File Server Capacity Trending
@@ -1625,6 +1789,8 @@ index=os sourcetype="Perfmon:LogicalDisk" counter="% Free Space"
 - **Implementation:** Collect % Free Space every 5–15m. Alert at 15% (warning) and 10% (critical). Use `predict` on large shares for procurement lead time.
 - **Visualization:** Line chart (free % trend), Gauge (current free %), Table (volumes below threshold).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1645,6 +1811,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4663
 - **Implementation:** Maintain lookup of ransomware extensions from threat intel. Combine with mass-delete and entropy signals. Integrate SOAR for host isolation.
 - **Visualization:** Table (user, host, files affected), Timeline (detection), Single value (distinct suspicious files).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1667,6 +1835,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5140 OR EventCode=
 - **Visualization:** Line chart (session rate per server), Table (spike windows), Single value (current sessions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-6.4.18 · File Deletion Volume Anomaly
@@ -1687,6 +1857,8 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4660,4663) Acc
 - **Implementation:** Enable auditing on delete for sensitive trees. Baseline deletes per user/share. Alert on statistical outliers. Exclude known maintenance accounts via lookup.
 - **Visualization:** Timeline (delete bursts), Table (user, share, delete count), Line chart (deletes per minute).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 

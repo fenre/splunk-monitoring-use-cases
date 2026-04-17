@@ -26,6 +26,8 @@ index=containers sourcetype="docker:events" action="die"
 - **Visualization:** Table (container, image, crashes, exit code), Bar chart by container, Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.2 · Container OOM Kills
@@ -50,6 +52,8 @@ index=os sourcetype=syslog "Memory cgroup out of memory" OR "oom-kill"
 - **Visualization:** Events timeline, Single value (OOM count last 24h), Table with container details.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.3 · Container CPU Throttling
@@ -70,6 +74,8 @@ index=containers sourcetype="docker:stats"
 - **Implementation:** Collect Docker stats via `docker stats --format '{{json .}}'` or read cgroup files directly (`/sys/fs/cgroup/cpu/docker/<id>/cpu.stat`). Monitor `throttled_time` and `nr_throttled`. Alert when >25% of periods are throttled.
 - **Visualization:** Line chart (throttle % over time), Table (container, throttle %, CPU limit), Bar chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -92,6 +98,8 @@ index=containers sourcetype="docker:stats"
 - **Visualization:** Gauge per container, Table with limit context, Line chart (trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.5 · Image Vulnerability Scanning
@@ -112,6 +120,8 @@ index=containers sourcetype="trivy:scan"
 - **Visualization:** Table (image, critical, high, medium, low), Stacked bar chart by image, Trend line.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.6 · Privileged Container Detection
@@ -130,6 +140,8 @@ index=containers sourcetype="docker:inspect"
 - **Implementation:** Create scripted input: `docker inspect --format '{{.Name}} {{.HostConfig.Privileged}}' $(docker ps -q)`. Run every 300 seconds. Alert on any privileged container in production. Maintain an allowlist for justified exceptions.
 - **Visualization:** Table (container, image, host), Single value (count of privileged), Status indicator.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -152,6 +164,8 @@ index=containers sourcetype="docker:ps"
 - **Visualization:** Table, Single value (reclaimable space), Bar chart by host.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.8 · Docker Daemon Errors
@@ -170,6 +184,8 @@ index=containers sourcetype="docker:daemon" level="error" OR level="fatal"
 - **Implementation:** Forward Docker daemon logs (usually via journald or `/var/log/docker.log`). Alert on fatal errors. Track error patterns by host.
 - **Visualization:** Table (host, error, count), Timeline, Bar chart by error type.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -198,6 +214,8 @@ index=containers sourcetype="docker:info"
 - **Visualization:** Table (host, version, containers, images), Single value (version count), Status grid (host health).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.10 · Container Image Vulnerability Scanning Results
@@ -217,6 +235,8 @@ index=containers (sourcetype="trivy:scan" OR sourcetype="grype:scan")
 - **Implementation:** Forward CI and registry scan JSON to Splunk with stable fields (`image_name`, `image_digest`, `Target`). Deduplicate on digest+CVE. Alert when CRITICAL/HIGH appears on images referenced by running tags.
 - **Visualization:** Table (image, digest, vuln count, severities), Treemap by repo, Trend (open vulns over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -241,6 +261,8 @@ index=containers sourcetype="docker:info"
 - **Visualization:** Line chart (mem %, CPU load), Table (host, limits), Single value (hosts over threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.12 · Compose Service Health
@@ -262,6 +284,8 @@ index=containers sourcetype="docker:compose:ps"
 - **Visualization:** Status grid by service, Table (project, service, health), Timeline of state changes.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.13 · Container Restart Loop Detection
@@ -282,6 +306,8 @@ index=containers sourcetype="docker:events" action="die" OR action="start"
 - **Implementation:** Track paired start/die bursts per container in sliding windows. Alert when >3 restart cycles in 15 minutes. Enrich with `exitCode` from die events.
 - **Visualization:** Timeline (start/die), Table (container, cycles, host), Single value (looping containers).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -308,6 +334,8 @@ index=os sourcetype=syslog (docker OR "br-" OR "vxlan")
 - **Visualization:** Table (host, error signature, count), Timeline, Bar chart by error type.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.15 · Image Layer Bloat Analysis
@@ -329,6 +357,8 @@ index=containers sourcetype="docker:image:history"
 - **Visualization:** Bar chart (image vs MB), Table (image, layers, total MB), Trend (average image size).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.16 · Docker Volume Usage Trending
@@ -347,6 +377,8 @@ index=containers sourcetype="docker:volumes"
 - **Implementation:** Parse `docker system df -v` or volume inspect into Splunk daily. Alert when volume used GB grows >20% week-over-week or host filesystem backing the volume >85%.
 - **Visualization:** Line chart (used GB over time), Table (volume, host, used %), Single value (largest volume).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -370,6 +402,8 @@ index=containers sourcetype="docker:inspect"
 - **Visualization:** Table (container, mem limit, CPU), Compliance single value (% with limits), Bar chart by host.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.18 · Docker Build Cache Efficiency
@@ -392,6 +426,8 @@ index=containers sourcetype="docker:build"
 - **Visualization:** Line chart (hit rate over builds), Table (repo, hit rate), Bar chart (CI duration vs hit rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.19 · Container Log Driver Health
@@ -411,6 +447,8 @@ index=containers sourcetype="docker:daemon" ("log driver" OR "failed to log" OR 
 - **Implementation:** Monitor daemon for log driver write failures, buffer overflow, and remote endpoint timeouts. Correlate with missing log volume in Splunk for the same container IDs.
 - **Visualization:** Table (host, error, count), Timeline, Single value (log driver errors/hour).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -436,6 +474,8 @@ index=containers sourcetype="http:check" check_type="registry_mirror"
 - **Visualization:** Table (mirror, status, latency), Map or bar by region, Timeline of failures.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.21 · Container Runtime Security Events
@@ -454,6 +494,8 @@ index=containers sourcetype="falco:alert" priority="Critical" OR priority="Error
 - **Implementation:** Forward Falco JSON with `rule`, `priority`, container/k8s metadata. Tune noise with allowlists. Page on Critical; dashboard top rules by container image.
 - **Visualization:** Table (rule, container, count), Timeline, Heatmap (rule vs namespace).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -477,6 +519,8 @@ index=containers sourcetype="docker:events" type="container" action="health_stat
 - **Visualization:** Table (unhealthy containers with count), Single value (unhealthy container count), Timeline (health status transitions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.23 · Container Network I/O Anomalies
@@ -497,6 +541,12 @@ index=containers sourcetype="docker:stats"
 - **Implementation:** Collect `docker stats` output or cAdvisor metrics at regular intervals. Extract `rx_bytes`, `tx_bytes`, `rx_packets`, `tx_packets`, and `rx_dropped`/`tx_dropped` per container. Baseline per-container network profiles and alert on deviations above 3 standard deviations. High TX from a container that normally has low outbound traffic is a strong exfiltration indicator. Dropped packets signal network saturation.
 - **Visualization:** Line chart (TX/RX per container), Bar chart (top talkers), Table (anomalous containers).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -517,6 +567,12 @@ index=containers sourcetype="docker:events" type="container" action="exec_start*
 - **Implementation:** Docker emits `exec_start` and `exec_create` events when someone runs `docker exec`. Forward daemon events to Splunk. Alert on any exec in production environments, especially during non-business hours. Flag high-risk commands (shells like `/bin/bash`, `/bin/sh`, or commands accessing sensitive paths). Correlate with host SSH/login events to attribute the session to a user.
 - **Visualization:** Table (exec sessions with command and container), Timeline (exec events), Single value (exec count last 24h).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.dest | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -540,6 +596,8 @@ index=containers sourcetype="docker:inspect"
 - **Visualization:** Table (containers with socket mount), Single value (exposed container count), Alert (immediate page).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.26 · Image Pull Failures and Registry Connectivity
@@ -559,6 +617,8 @@ index=containers sourcetype="docker:daemon" ("pull" AND ("error" OR "denied" OR 
 - **Implementation:** Forward Docker daemon logs to Splunk. Search for pull-related error messages including authentication failures, rate limit responses (HTTP 429), image-not-found errors, and network timeouts. Alert on any pull failure in production. Track pull failure rate over time to detect intermittent registry connectivity issues. For Docker Hub rate limits, monitor the `RateLimit-Remaining` header if available in debug logs.
 - **Visualization:** Table (failed images with error), Bar chart (failures by registry), Line chart (pull failure rate over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -581,6 +641,8 @@ index=containers sourcetype="docker:system_df"
 - **Visualization:** Gauge (reclaimable space per host), Line chart (storage growth trend), Table (hosts with most waste).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.28 · Docker Swarm Service Replica Health
@@ -602,6 +664,8 @@ index=containers sourcetype="docker:service"
 - **Visualization:** Table (services with replica gaps), Single value (unhealthy service count), Timeline (task failures).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.1.29 · Container Filesystem Write Rate
@@ -621,6 +685,12 @@ index=containers sourcetype="docker:stats"
 - **Implementation:** Collect `docker stats` or cAdvisor block I/O metrics at regular intervals. Extract `blkio.io_service_bytes_recursive` for read and write operations per container. Alert when any container sustains write rates above 100 MB per 5-minute window. Investigate which process inside the container is writing (use `docker exec` or container logs). Common root causes: application logging to stdout captured by json-file driver with no rotation, temp file accumulation, and missing persistent volume mounts for data directories.
 - **Visualization:** Line chart (write rate per container), Bar chart (top writers), Table (containers exceeding threshold).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t sum(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Network by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -648,6 +718,8 @@ index=k8s sourcetype="kube:container:meta"
 - **Visualization:** Table (namespace, pod, container, restarts), Bar chart by namespace, Trending line.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.2 · Pod Scheduling Failures
@@ -666,6 +738,8 @@ index=k8s sourcetype="kube:events" reason="FailedScheduling"
 - **Implementation:** Forward Kubernetes events to Splunk. Alert on FailedScheduling events persisting >5 minutes. Parse the event message for the specific cause (Insufficient cpu, node affinity, PVC not bound, etc.).
 - **Visualization:** Table (pod, namespace, reason), Single value (pending pods), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -691,6 +765,8 @@ index=k8s sourcetype="kube:node:meta"
 - **Visualization:** Node status grid (green/red), Events timeline, Table.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.4 · Resource Quota Exhaustion
@@ -712,6 +788,8 @@ index=k8s sourcetype="kube:resourcequota:meta"
 - **Visualization:** Gauge per namespace/resource, Table, Bar chart by namespace.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.5 · Persistent Volume Claims
@@ -730,6 +808,8 @@ index=k8s sourcetype="kube:events" reason="ProvisioningFailed" OR reason="Failed
 - **Implementation:** Forward Kubernetes events and PVC metadata. Alert on PVCs in Pending phase >5 minutes. Include storage class and requested size in alert context.
 - **Visualization:** Table (PVC, namespace, status, storage class), Status indicators.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -750,6 +830,8 @@ index=k8s sourcetype="kube:events" involvedObject.kind="Deployment" (reason="Pro
 - **Visualization:** Table (deployment, namespace, reason), Timeline, Status panel.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.7 · Control Plane Health
@@ -769,6 +851,8 @@ index=k8s sourcetype="kube:apiserver"
 - **Visualization:** Line chart (latency by verb), Single value (error rate), Multi-panel dashboard per component.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.8 · etcd Cluster Health
@@ -787,6 +871,8 @@ index=k8s sourcetype="kube:etcd"
 - **Implementation:** Scrape etcd metrics via OTel Collector. Monitor disk fsync latency (<10ms healthy), database size, leader changes, and proposal failures. Alert on leader changes (indicates instability) and high fsync latency.
 - **Visualization:** Line chart (fsync latency, db size), Single value (leader changes), Gauge (db size).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -809,6 +895,8 @@ index=k8s sourcetype="kube:ingress:nginx"
 - **Visualization:** Line chart (error rate over time), Table (top error paths), Single value (current error rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.10 · CrashLoopBackOff Detection
@@ -829,6 +917,8 @@ index=k8s sourcetype="kube:events" reason="BackOff"
 - **Visualization:** Table (pod, namespace, count, message), Status panel, Single value (CrashLoop pods count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.11 · HPA Scaling Events
@@ -848,6 +938,8 @@ index=k8s sourcetype="kube:events" involvedObject.kind="HorizontalPodAutoscaler"
 - **Visualization:** Line chart (replica count over time), Table of scaling events, Area chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.12 · RBAC Audit
@@ -866,6 +958,8 @@ index=k8s sourcetype="kube:audit" responseStatus.code>=403
 - **Implementation:** Enable Kubernetes audit logging (audit policy file). Forward audit logs to Splunk. Alert on 403 Forbidden responses, especially from service accounts. Track RBAC changes (ClusterRole, ClusterRoleBinding modifications).
 - **Visualization:** Table (user, resource, verb, denials), Bar chart by user, Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -891,6 +985,8 @@ index=k8s sourcetype="certmanager:metrics"
 - **Visualization:** Table (cert, namespace, days remaining), Single value (certs expiring soon), Status indicator.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.14 · Container Image Pull Failures
@@ -909,6 +1005,8 @@ index=k8s sourcetype="kube:events" (reason="ErrImagePull" OR reason="ImagePullBa
 - **Implementation:** Forward Kubernetes events. Alert on ImagePullBackOff events. Parse the image name and registry to identify whether it's an auth issue, missing tag, or network issue.
 - **Visualization:** Table (pod, image, error), Single value (pull failures last hour), Bar chart by namespace.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -929,6 +1027,8 @@ index=k8s sourcetype="kube:daemonset:meta"
 - **Implementation:** kube-state-metrics reports DaemonSet status. Alert when `numberReady < desiredNumberScheduled` for >5 minutes. Critical for infrastructure DaemonSets (CNI plugins, OTel Collector, kube-proxy).
 - **Visualization:** Table (DaemonSet, desired, ready, missing), Status indicator, Single value.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -952,6 +1052,8 @@ index=k8s sourcetype="kube:metrics" (metric_name="kubelet_volume_stats_used_byte
 - **Implementation:** Configure Splunk Connect for Kubernetes or OTel Collector to scrape kubelet metrics. The kubelet exposes volume stats at `/metrics` on each node. Extract `kubelet_volume_stats_used_bytes` and `kubelet_volume_stats_capacity_bytes` with labels `namespace`, `persistentvolumeclaim`. Alert when any PVC exceeds 80% capacity. Consider 90% for critical stateful workloads.
 - **Visualization:** Gauge per PVC, Table (namespace, PVC, node, used %, bytes), Line chart (trend over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -979,6 +1081,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_*"
 - **Visualization:** Table (HPA, namespace, current, min, max), Status indicator (at max = warning), Line chart (replicas over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.18 · Kubernetes Ingress Backend Health
@@ -1003,6 +1107,8 @@ index=k8s (sourcetype="kube:ingress:nginx" OR sourcetype="kube:ingress:traefik")
 - **Visualization:** Table (host, path, upstream, errors, rate), Line chart (error rate over time), Single value (current 5xx rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.19 · Kubernetes DaemonSet Missing Pods
@@ -1024,6 +1130,8 @@ index=k8s sourcetype="kube:daemonset:meta"
 - **Implementation:** kube-state-metrics exposes DaemonSet status. Splunk Connect for Kubernetes collects this. Alert when `currentNumberScheduled < desiredNumberScheduled` (pods not scheduled) or `numberReady < desiredNumberScheduled` (pods scheduled but not ready). Critical for CNI, kube-proxy, and monitoring DaemonSets. Investigate node taints, resource constraints, or image pull issues.
 - **Visualization:** Table (DaemonSet, desired, scheduled, ready, missing), Status grid by DaemonSet, Single value (DaemonSets with gaps).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1050,6 +1158,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_cronjob_status_last_schedu
 - **Visualization:** Table (job/cronjob, namespace, failures, message), Line chart (failure rate over time), Single value (failed jobs last 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.21 · Kubernetes Admission Webhook Latency
@@ -1072,6 +1182,8 @@ index=k8s sourcetype="kube:apiserver" metric_name="apiserver_admission_webhook_a
 - **Visualization:** Table (webhook, operation, avg, max latency), Line chart (latency over time by webhook), Heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.22 · Pod Security Admission Violations
@@ -1092,6 +1204,8 @@ index=k8s sourcetype="kube:audit" objectRef.resource="pods"
 - **Visualization:** Table (namespace, user, count), Bar chart by namespace, Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.23 · RBAC Audit Log Analysis
@@ -1111,6 +1225,8 @@ index=k8s sourcetype="kube:audit" verb="create" OR verb="patch" OR verb="update"
 - **Implementation:** Retain audit JSON with `user`, `verb`, `objectRef`. Scheduled reports for RBAC mutations; alert on non-break-glass users attaching `cluster-admin` bindings.
 - **Visualization:** Table (user, resource, object), Timeline of changes, Bar chart by user.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1141,6 +1257,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_st
 - **Visualization:** Line chart (replicas over time), Table (HPA, events), Single value (scale events/hour).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.25 · PV/PVC Capacity Monitoring
@@ -1167,6 +1285,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kubelet_volume_stats_used_bytes
 - **Visualization:** Gauge per PVC, Table (namespace, PVC, used %), Heatmap (node × PVC).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.26 · etcd Health and Latency
@@ -1185,6 +1305,8 @@ index=k8s sourcetype="kube:etcd"
 - **Implementation:** Scrape etcd `/metrics` from members (managed clusters: use cloud metrics export if direct scrape is blocked). Alert on rising commit duration, peer RTT, or leader election counters.
 - **Visualization:** Line chart (latency, DB size), Single value (leader changes), Table (member ID, health).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1209,6 +1331,8 @@ index=k8s sourcetype="kube:ingress:nginx"
 - **Visualization:** Line chart (5xx rate by class), Table (upstream, err %), Single value (global ingress 5xx/min).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.28 · Node Pressure Conditions (Disk/Memory/PID)
@@ -1231,6 +1355,8 @@ index=k8s sourcetype="kube:events" (reason="EvictionThresholdMet" OR reason="Fre
 - **Implementation:** Ingest node conditions from kube-state-metrics or OTel node receiver. Correlate with eviction events and node `Allocatable` vs usage. Page on any pressure True >2 minutes.
 - **Visualization:** Node heatmap (pressure flags), Timeline (evictions), Table (node, condition).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1257,6 +1383,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_cronjob_status_last_schedu
 - **Visualization:** Table (cronjob, last schedule, failures), Line chart (failure count), Single value (failed jobs 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.30 · Init Container Failures
@@ -1281,6 +1409,8 @@ index=k8s sourcetype="kube:container:meta" init="true"
 - **Visualization:** Table (pod, init container, reason), Timeline, Single value (failed inits/hour).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.31 · Sidecar Injection Validation
@@ -1300,6 +1430,8 @@ index=k8s sourcetype="kube:pod:meta"
 - **Implementation:** Periodically snapshot pod container lists and namespace labels (`istio-injection`, etc.). Flag mismatches. Integrate with CI to fail deploys that skip injection in labeled namespaces.
 - **Visualization:** Table (namespace, pod, missing sidecar), Compliance %, Bar chart by team.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1321,6 +1453,8 @@ index=k8s sourcetype="kube:resourcequota:meta"
 - **Implementation:** Same quota feed as UC-3.2.4; use a stricter 90% threshold for release windows. Split alerts by resource type (cpu, memory, pods).
 - **Visualization:** Stacked bar (used vs hard), Gauge per quota, Table.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1346,6 +1480,8 @@ index=k8s sourcetype="kube:objects:events" "*drain*" OR reason="NodeSchedulable"
 - **Visualization:** Timeline (drain/cordon), Table (user, node), Map of affected nodes.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.34 · Cluster DNS Resolution Failures
@@ -1370,6 +1506,8 @@ index=k8s sourcetype="kube:metrics" metric_name="coredns_dns_responses_total"
 - **Visualization:** Line chart (errors by rcode), Table (qname, count), Single value (SERVFAIL/min).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.35 · Pod Anti-Affinity Violations
@@ -1389,6 +1527,8 @@ index=k8s sourcetype="kube:events" reason="FailedScheduling"
 - **Implementation:** Capture scheduler `FailedScheduling` messages with affinity terms. Optional: compare replica distribution by zone label versus `topologySpreadConstraints`. Alert when scheduling failures mention anti-affinity for >10 minutes.
 - **Visualization:** Table (pod, message), Bar chart by zone (replica counts), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1413,6 +1553,8 @@ index=k8s sourcetype="kube:audit" objectRef.resource="pods" responseStatus.code=
 - **Visualization:** Table (namespace, workload, reason), Timeline, Single value (limit violations/day).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.37 · Pod Disruption Budget Violations
@@ -1436,6 +1578,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_poddisruptionbudget_status
 - **Implementation:** Scrape PDB status metrics; correlate with `Cannot evict pod` events during drains. Alert when healthy < expected minimum for PDB.
 - **Visualization:** Table (PDB, healthy vs expected), Timeline (blocked evictions), Status panel.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1462,6 +1606,8 @@ index=k8s sourcetype="kube:metrics" metric_name="vpa_recommendation_target_cpu"
 - **Visualization:** Table (workload, target vs request), Line chart (recommendation drift), Bar chart (gap).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.39 · Kubernetes Events Anomaly Detection
@@ -1485,6 +1631,8 @@ index=k8s sourcetype="kube:objects:events" type="Warning"
 - **Implementation:** Baseline Warning rate per namespace with rolling stdev. Tune thresholds for chatty namespaces. Optional: replace with `anomalydetection` or MLTK for seasonality.
 - **Visualization:** Timechart with overlay, Table (namespace, spike z-score), Single value (anomaly intervals).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1510,6 +1658,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_volume_snapshot_ready"
 - **Visualization:** Table (snapshot, status), Timeline, Single value (failed snapshots 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.41 · Service Endpoint Health
@@ -1533,6 +1683,8 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_endpoint_address_available
 - **Implementation:** Scrape EndpointSlice metrics (`kube_endpoint_*`). Exclude headless where appropriate. Alert when `available==0` for production Services.
 - **Visualization:** Table (service, endpoints), Status grid, Line chart (ready endpoints).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1560,6 +1712,8 @@ index=k8s sourcetype="kube:node:cert" role="kubelet"
 - **Visualization:** Table (node, days left), Timeline (rotation success), Single value (nodes expiring <30d).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.43 · Container Probe Failure Analysis
@@ -1583,6 +1737,8 @@ index=k8s sourcetype="kube:objects:events" reason="Unhealthy"
 - **Visualization:** Table (pod, container, count), Timeline, Bar chart by workload.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.2.44 · Node Pool Auto-Repair Events
@@ -1602,6 +1758,8 @@ index=cloud (sourcetype="aws:eks:node" OR sourcetype="gcp:gke:operation" OR sour
 - **Implementation:** Export node pool operations via cloud add-ons or EventBridge/Activity Log. Tag auto-repair operations. Alert on repair rate spike versus baseline.
 - **Visualization:** Timeline (repairs), Table (pool, message), Single value (repairs/day).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1623,6 +1781,8 @@ index=k8s sourcetype="kube:apiserver" metric_name="apiserver_admission_webhook_a
 - **Implementation:** Same histogram as UC-3.2.21; emphasize percentile SLOs per webhook `name` and `operation`. Page on P99 >1s for production webhooks.
 - **Visualization:** Line chart (p95/p99 by webhook), Table (webhook, p99), Heatmap.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1650,6 +1810,8 @@ index=k8s sourcetype="kube:events" reason="FailedScheduling"
 - **Visualization:** Table (reason, count), Timeline (scale-up), Single value (pending pods).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### 3.3 OpenShift
@@ -1675,6 +1837,8 @@ index=openshift sourcetype="openshift:clusterversion"
 - **Visualization:** Table (cluster, version, status), Status indicator.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.3.2 · Operator Degraded Detection
@@ -1695,6 +1859,8 @@ index=openshift sourcetype="openshift:clusteroperator"
 - **Visualization:** Operator status grid (green/yellow/red), Table with details, Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.3.3 · Build Failure Monitoring
@@ -1713,6 +1879,8 @@ index=openshift sourcetype="kube:events" involvedObject.kind="Build" reason="Bui
 - **Implementation:** Forward OpenShift events. Alert on BuildFailed events. Track build success/failure rate per namespace over time. Investigate common failure reasons (image pull, compile errors, push failures).
 - **Visualization:** Table (build, namespace, reason), Line chart (success rate %), Bar chart by failure type.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1733,6 +1901,8 @@ index=openshift sourcetype="openshift:audit" responseStatus.code=403 objectRef.r
 - **Implementation:** Enable and forward OpenShift audit logs. Alert on SCC-related 403 errors. Track which SCCs are most commonly requested and denied.
 - **Visualization:** Table (user, namespace, pod, SCC requested), Bar chart by SCC, Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1761,6 +1931,8 @@ index=k8s (sourcetype="helm:list" OR sourcetype="gitops:desired")
 - **Visualization:** Table (namespace, release, chart, version, status), Drift indicator (deployed vs desired), Timeline of updates.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.3.6 · Operator Health Monitoring
@@ -1781,6 +1953,8 @@ index=openshift sourcetype="openshift:clusteroperator"
 - **Visualization:** Operator matrix (green/yellow/red), Table (operator, conditions), Timeline of flapping.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.3.7 · Build Config Failures
@@ -1799,6 +1973,8 @@ index=openshift sourcetype="kube:objects:events" involvedObject.kind="Build" (re
 - **Implementation:** Ensure build events include `BuildConfig` correlation. Group by namespace and builder image. Alert on repeated failures for the same `BuildConfig` within 1 hour.
 - **Visualization:** Table (build, namespace, message), Line chart (failure rate), Bar chart by builder image.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1827,6 +2003,8 @@ index=openshift sourcetype="certmanager:metrics" metric_name="certmanager_certif
 - **Visualization:** Table (route, hostname, days left), Single value (soonest expiry), Gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.3.9 · Cluster Version Upgrade Status
@@ -1846,6 +2024,8 @@ index=openshift sourcetype="openshift:clusterversion"
 - **Implementation:** Parse `status.conditions` (Failing, Progressing, Available) and `status.history[]` from JSON into indexed fields. Alert when `progressing` remains true >2 hours or `Failing=True`. Complements UC-3.3.1 with failure messages from `status.history[].message`.
 - **Visualization:** Upgrade timeline per cluster, Table (version, phase, message), Single value (clusters not on target channel).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1867,6 +2047,8 @@ index=openshift sourcetype="openshift:imagestream"
 - **Visualization:** Table (imagestream, tag, digests), Drift count single value, Timeline of tag updates.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.3.11 · Operator Subscription Health
@@ -1886,6 +2068,8 @@ index=openshift sourcetype="openshift:subscription"
 - **Implementation:** Parse Subscription `status.state` and conditions. Alert on `CatalogSourcesUnhealthy`, `InstallPlanPending` beyond SLA, or repeated upgrade failures. Correlate with CatalogSource pod health.
 - **Visualization:** Table (subscription, state, message), Status grid by namespace, Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1912,6 +2096,8 @@ index=containers sourcetype="registry:audit"
 - **Visualization:** Table (user, image, action, time), Bar chart by repository, Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.4.2 · Vulnerability Scan Results
@@ -1932,6 +2118,8 @@ index=containers sourcetype="registry:scan"
 - **Visualization:** Stacked bar chart (vulns by severity per image), Table, Trend line (vulns over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.4.3 · Storage Quota Monitoring
@@ -1951,6 +2139,8 @@ index=containers sourcetype="registry:metrics"
 - **Implementation:** Poll registry API for storage metrics. Alert when usage exceeds 80%. Review and tune image retention/garbage collection policies.
 - **Visualization:** Gauge (storage usage), Line chart (growth trend), Table.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1973,6 +2163,8 @@ index=containers sourcetype="registry:vuln_scan"
 - **Visualization:** Table (image, CVE count, severity), Bar chart by image, Single value (images with critical vulns).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.4.5 · Registry Authentication and Authorization Failures
@@ -1993,6 +2185,12 @@ index=containers sourcetype="registry:audit" (action="login_failed" OR action="p
 - **Implementation:** Forward registry audit logs to Splunk. Extract user, action, repository. Alert on high failure rates or denied actions for critical repos.
 - **Visualization:** Table (user, action, count), Timechart of failures, Events list.
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.action span=1h | sort - count
+```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2013,6 +2211,8 @@ index=containers sourcetype="registry:replication"
 - **Implementation:** Poll replication status from registry (e.g. Harbor replication jobs). Ingest lag and status. Alert when lag exceeds 5 minutes or status is failed.
 - **Visualization:** Line chart (lag over time), Table (source, target, lag, status), Single value (max lag).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2035,6 +2235,8 @@ index=containers sourcetype="registry:tags"
 - **Visualization:** Table (repository, tag count, oldest tag), Bar chart (tags per repo).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.4.8 · Registry TLS and Certificate Expiration
@@ -2055,6 +2257,8 @@ index=containers sourcetype="registry:tls"
 - **Implementation:** Script that connects to registry HTTPS and extracts cert expiry (e.g. `openssl s_client -connect registry:443 -servername registry`). Ingest daily. Alert when expiry is within 30 days.
 - **Visualization:** Table (registry, expiry, days left), Single value (soonest expiry), Gauge (days remaining).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2077,6 +2281,8 @@ index=containers (sourcetype="trivy:scan" OR sourcetype="grype:scan" OR sourcety
 - **Implementation:** Run Trivy, Grype, or registry-native scanner (Harbor, ACR) against running images or registry catalog. Output JSON with image, CVE ID, severity, and discovered_at (or published date). Forward to Splunk via HEC. Alert when Critical/High CVEs have been known for >7 days (configurable). Integrate with CI/CD to block deployment of images with aged critical vulns. Track remediation SLA.
 - **Visualization:** Table (image, tag, severity, vuln count, oldest days), Bar chart (images by vuln age), Single value (images with aged critical vulns).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2109,6 +2315,8 @@ index=containers (sourcetype="otel:metrics" OR sourcetype="prometheus:istio")
 - **Visualization:** Time chart (requests and 5xx by destination), Table (top error rates by service), Single value (mesh-wide error %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.5.2 · Sidecar Proxy Health
@@ -2130,6 +2338,8 @@ index=containers (sourcetype="kube:metrics" OR sourcetype="otel:metrics")
 - **Visualization:** Table (namespace, pod, ready, restarts), Timeline (restarts), Single value (unhealthy sidecar count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.5.3 · mTLS Certificate Expiry
@@ -2150,6 +2360,8 @@ index=containers sourcetype="istio:cert_status"
 - **Implementation:** Schedule `istioctl proxy-config secret` or Citadel/istiod cert status exports and send JSON to Splunk (HEC). Include `not_after` for each SPIFFE identity. Alternatively parse cert-manager Certificate resources’ status. Alert at 30/14/7 days and page on any cert already expired.
 - **Visualization:** Table (workload, namespace, soonest expiry days), Single value (minimum days to expiry), Gauge per cluster.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2174,6 +2386,8 @@ index=containers sourcetype="envoy:access"
 - **Visualization:** Time chart (4xx/5xx rate by route), Table (top routes by error %), Heatmap (cluster vs status).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.5.8 · Circuit Breaker Trips
@@ -2194,6 +2408,8 @@ index=containers (sourcetype="prometheus:istio" OR sourcetype="otel:metrics")
 - **Implementation:** Scrape Istio/Envoy Prometheus endpoints (port 15090) with OTel Prometheus receiver. Map overflow and ejection counters to Splunk metrics. Correlate trips with deploy times and upstream latency. Alert when overflow rate accelerates versus steady-state for a cluster.
 - **Visualization:** Time chart (overflow counters by cluster), Table (cluster, trips, destination), Bar chart (trips per namespace).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2216,6 +2432,8 @@ index=containers (sourcetype="kube:logs" OR sourcetype="otel:logs") (istiod OR "
 - **Visualization:** Single value (istiod ready replicas), Timeline (pod restarts), Table (error snippets by pod).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.5.10 · Ingress Gateway Latency
@@ -2235,6 +2453,8 @@ index=containers sourcetype="envoy:access"
 - **Implementation:** Label ingress gateway access logs with `gateway_workload` or filter Kubernetes workload name. Export histogram or timer metrics (`istio_request_duration_milliseconds`) via OTel. Set SLO windows on p95/p99 per host and route. Compare canary vs stable gateway revisions during rollouts.
 - **Visualization:** Time chart (p95/p99 latency by route), Geographic or by-AZ breakdown if multi-region, Single value (SLO burn).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2262,6 +2482,8 @@ index=containers sourcetype="kubernetes:audit" objectRef.resource="pods"
 - **Visualization:** Table (namespace, pod, missing sidecar), Single value (non-compliant pod count), Trend (compliance %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.5.12 · Rate Limiting and Traffic Policy Compliance
@@ -2283,6 +2505,8 @@ index=containers sourcetype="envoy:access"
 - **Implementation:** Ensure access logs include `response_code` 429 and Envoy `response_flags` (e.g. `RL` for rate limited). For global RLS, scrape `ratelimit_service_*` or service metrics. Dashboard expected 429 share per route against policy (e.g. per-API key). Alert on unexpected absence of throttling during attacks or sudden spikes in 429s indicating config errors.
 - **Visualization:** Time chart (429 rate by route), Table (routes with throttle events), Stacked bar (allowed vs rate-limited volume).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2315,6 +2539,12 @@ index=containers sourcetype="cilium:hubble:flows"
 - **Implementation:** Deploy Cilium as the Kubernetes CNI with Hubble enabled. Hubble captures eBPF-level network flows including source/destination pod, namespace, identity, IP, port, protocol, L7 protocol details (HTTP method/path, DNS query/response, Kafka topic), verdict (forwarded/dropped), and drop reason. Export Hubble flows to Splunk via the OTel Collector's Hubble receiver or by relaying Hubble's gRPC stream to a log pipeline. Key detections: dropped flows indicate network policy violations or misconfigurations; unexpected destination identities signal lateral movement or misconfigured services; DNS failures (NXDOMAIN, timeout) from Hubble's DNS-aware L7 parsing reveal resolution issues before they cascade. Correlate dropped flows with Cilium network policies to identify which policy blocked the traffic. Track flow volume per namespace to detect traffic anomalies.
 - **Visualization:** Sankey diagram (namespace-to-namespace traffic flow), Table (dropped flows with source/destination), Line chart (flow volume and drop rate over 24 hours), Bar chart (top drop reasons), Network graph (pod communication map).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - count
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -2347,6 +2577,12 @@ index=containers sourcetype="tetragon:events"
 - **Implementation:** Deploy Tetragon as a DaemonSet in Kubernetes. Define TracingPolicies to capture security-relevant events: process execution (detect shells, interpreters, network tools in production containers), file access (sensitive paths like /etc/shadow, SSH keys, Kubernetes secrets), network connections (unexpected outbound connections from application pods), and kprobe events (privilege escalation syscalls like ptrace, mount). Export Tetragon events via JSON log file or gRPC stream to the OTel Collector's filelog receiver, then forward to Splunk HEC. Classify events by severity based on the binary executed (shells and network tools in production = high risk) and file paths accessed (credentials and keys = critical). Correlate with Kubernetes context (pod, namespace, node, container image) for investigation. Integrate with Splunk ES as risk events on container/pod entities.
 - **Visualization:** Timeline (security events per namespace), Table (critical events with pod and binary details), Bar chart (events by type and severity), Single value (critical events in last hour).
 - **CIM Models:** Endpoint
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
+```
+
+- **References:** [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
 
 ---
 
@@ -2378,6 +2614,8 @@ index=containers sourcetype="tetragon:events"
 - **Implementation:** Deploy Beyla as a DaemonSet or sidecar. Beyla uses eBPF to intercept HTTP/gRPC syscalls and generate OpenTelemetry-compatible metrics and traces without any application code changes. Configure Beyla to export via OTLP to the OTel Collector, which forwards to Splunk. Beyla generates standard OTel HTTP semantic conventions: `http.server.request.duration`, `http.server.request.body.size`, `http.request.method`, `http.response.status_code`. Tag Beyla-generated telemetry with `instrumentation_source=beyla` to distinguish from SDK-instrumented data. Use Beyla for immediate coverage of uninstrumented services while teams work on proper OTel SDK integration. Compare Beyla RED metrics with SDK-generated metrics for instrumented services to validate accuracy. Track which services rely on Beyla vs SDK instrumentation to measure manual instrumentation progress.
 - **Visualization:** Table (service RED metrics from Beyla), Line chart (request rate and error rate per service), Bar chart (services by instrumentation source — Beyla vs SDK), Gauge (error rate per service).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2413,6 +2651,8 @@ index=containers sourcetype="kube:events" (reason="OOMKilling" OR reason="Evicte
 - **Visualization:** Timeline (K8s events overlaid with trace error rate), Table (correlated events with app impact), Bar chart (K8s events by reason), Line chart (trace error rate with event markers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.5.17 · Kubernetes Resource Quota and LimitRange Compliance
@@ -2444,6 +2684,8 @@ index=containers sourcetype="kube:objects:resourcequotas"
 - **Visualization:** Bar chart (quota utilization % by namespace), Table (namespaces approaching limits), Heatmap (namespace × resource type utilization), Line chart (quota utilization trend per namespace over 30 days).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### 3.6 Container & Kubernetes Trending
@@ -2464,6 +2706,8 @@ index=containers sourcetype="kube:objects:resourcequotas"
 - **Implementation:** Ensure kube-state-metrics or the OpenTelemetry Kubernetes receiver emits container restart counters into Splunk metrics. Run the panel on a 30-day window and baseline normal daily restarts per cluster. Alert when the 7-day moving average exceeds the prior 30-day baseline by more than 50%. Exclude system namespaces (kube-system, monitoring) if they skew the signal.
 - **Visualization:** Line chart (daily restarts with 7-day SMA, 30 days), area chart by namespace.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2487,6 +2731,8 @@ index=containers sourcetype IN ("trivy:scan", "grype:scan")
 - **Visualization:** Stacked area chart (critical/high CVEs over time), line chart (7-day SMA), table of top images by CVE count.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.6.3 · Deployment Velocity Trending
@@ -2506,6 +2752,8 @@ index=containers sourcetype="kube:audit"
 - **Implementation:** Ingest Kubernetes audit logs that record Deployment changes. Map objectRef.resource, verb, and namespace fields. If audit logs are unavailable, use Argo CD or Flux application sync events with the same grouping. Use span=1d or span=1w depending on whether you want daily or weekly velocity. Exclude system namespaces that skew the chart.
 - **Visualization:** Column chart (deployments per period by namespace), line chart (weekly total velocity trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2527,6 +2775,8 @@ index=containers sourcetype="kube:audit"
 - **Visualization:** Line chart (avg CPU % of request by namespace, 30 days), dual panel for memory, heatmap (namespace x day).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-3.6.5 · Kubernetes Event Error Rate Trending
@@ -2545,6 +2795,8 @@ index=containers sourcetype="kube:events" type IN ("Warning", "Error")
 - **Implementation:** Forward Kubernetes events via the Splunk connector with the type field preserved. Filter out known noisy reasons with a lookup. Baseline typical Warning vs Error counts per day and alert when Error count exceeds threshold or Warning grows week-over-week. Optionally split by involvedObject.namespace for drilldown.
 - **Visualization:** Column chart (Warning vs Error per day), line chart overlay with 7-day SMA.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2566,3 +2818,4 @@ index=containers sourcetype IN ("nginx:ingress", "istio:ingress")
 - **Visualization:** Line chart (weekly average RPS with 4-week SMA), optional breakdown by ingress class or hostname.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)

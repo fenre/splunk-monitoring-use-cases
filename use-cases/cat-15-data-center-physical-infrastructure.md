@@ -23,6 +23,8 @@ index=power sourcetype="snmp:ups"
 - **Visualization:** Timechart of `runtime_min` and `charge_pct` by `ups_name` for battery health trending; table sorted by `runtime_min` ascending to surface units needing replacement; single-value gauge for fleet-wide minimum runtime as the critical KPI.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.2 · PDU Power per Rack
@@ -43,6 +45,8 @@ index=power sourcetype="snmp:pdu"
 - **Visualization:** Heatmap (rack × power usage), Gauge (% capacity per circuit), Bar chart (power by rack), Table (overloaded circuits).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.3 · Power Redundancy Status
@@ -61,6 +65,8 @@ index=power sourcetype="snmp:pdu"
 - **Implementation:** Monitor PDU input status and UPS input voltage. Alert immediately on loss of any power feed. Track ATS (Automatic Transfer Switch) events. Maintain power topology documentation for impact analysis.
 - **Visualization:** Status grid (rack × A/B feed status), Table (power events), Timeline (redundancy loss events), Single value (racks with full redundancy %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -82,6 +88,8 @@ index=power sourcetype="generator:test"
 - **Visualization:** Table (generator test history), Single value (days since last test), Status indicator (pass/fail).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.5 · PUE Calculation
@@ -101,6 +109,8 @@ index=power sourcetype="power:aggregate"
 - **Visualization:** Gauge (current PUE), Line chart (PUE trend), Single value (monthly average PUE), Bar chart (PUE by month).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.6 · Circuit Breaker Trips
@@ -119,6 +129,8 @@ index=power sourcetype="pdu:events" OR sourcetype="bms:events"
 - **Implementation:** Forward PDU and BMS events to Splunk. Alert immediately on breaker trips or overcurrent events. Track affected equipment from PDU-to-server mapping. Investigate root cause (overload, short circuit, equipment failure).
 - **Visualization:** Timeline (breaker events), Table (trip details), Single value (trips this month).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -141,6 +153,8 @@ index=power sourcetype="snmp:apc:pdu"
 - **Visualization:** Table (outlet current by PDU), Bar chart (top outlets by draw), Status grid (outlet on/off state), Line chart (outlet current trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.8 · Generator Runtime and Fuel Level
@@ -160,6 +174,8 @@ index=power sourcetype="generator:telemetry"
 - **Implementation:** Integrate generator controller via SNMP or Modbus. Ingest fuel_level_pct, run_hours, engine_status (standby, running, fault). Poll every 5–15 minutes. Alert on low fuel (<30%), engine fault, or unexpected runtime. Correlate with utility outage events. Report fuel consumption rate during run events.
 - **Visualization:** Gauge (fuel level per generator), Table (generator status), Line chart (fuel level trend), Single value (lowest fuel %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -183,6 +199,8 @@ index=power sourcetype="pdu:rack_power"
 - **CIM Models:** N/A
 
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.10 · UPS Battery Runtime Remaining
@@ -201,6 +219,8 @@ index=power sourcetype="snmp:ups"
 - **Implementation:** Poll `upsEstimatedMinutesRemaining` every 1–5 minutes. Alert when runtime drops below site policy (e.g., <10 min). Correlate with concurrent generator tests.
 - **Visualization:** Gauge (runtime min per UPS), Line chart (runtime trend), Single value (minimum runtime in site).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -223,6 +243,8 @@ index=power sourcetype="snmp:pdu:outlet"
 - **Visualization:** Bar chart (outlet draw), Heatmap (PDU × outlet), Table (top consumers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.12 · Generator Fuel Level Monitoring
@@ -241,6 +263,8 @@ index=power sourcetype="generator:telemetry"
 - **Implementation:** Poll fuel level and totalizer. Compute burn rate during engine run. Alert on low level and abnormal consumption (leak suspicion).
 - **Visualization:** Gauge (fuel %), Line chart (level vs time), Table (hours of fuel at current load).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -262,6 +286,8 @@ index=power sourcetype="ats:events"
 - **Visualization:** Timeline (transfer events), Table (last transfer by ATS), Single value (transfers in 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.14 · Power Factor Monitoring
@@ -280,6 +306,8 @@ index=power sourcetype="power_meter:pq"
 - **Implementation:** Poll main switchboard meters. Alert when PF drops below utility contract threshold. Correlate with capacitor bank status if monitored.
 - **Visualization:** Line chart (PF trend), Gauge (current PF), Table (feeds out of spec).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -301,6 +329,8 @@ index=power sourcetype="power:aggregate"
 - **Visualization:** Line chart (PUE vs target band), Gauge (delta from design), Single value (30-day avg PUE).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.16 · Breaker Panel Load Balancing
@@ -321,6 +351,8 @@ index=power sourcetype="panel:phase"
 - **Visualization:** Bar chart (phase amps), Table (panels with imbalance), Heatmap (panel × phase).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.17 · UPS Self-Test Failure
@@ -339,6 +371,8 @@ index=power sourcetype="snmp:ups:selftest"
 - **Implementation:** Ingest results from scheduled and manual tests. Alert on any failure. Force battery replacement workflow per vendor guidance.
 - **Visualization:** Table (failed tests), Timeline (self-test history), Single value (UPS with last fail).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -360,6 +394,8 @@ index=power sourcetype="generator:events"
 - **Visualization:** Table (start failures), Single value (failed starts 90d), Timeline (events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.19 · Power Redundancy Compliance (N+1)
@@ -378,6 +414,8 @@ index=power sourcetype="power:redundancy"
 - **Implementation:** Model expected load after single failure from DCIM. Alert when any feed is down or modeled headroom <0%. Pair with physical walk-through audits.
 - **Visualization:** Status grid (feed × PDU), Gauge (headroom %), Table (non-compliant PDUs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -399,6 +437,8 @@ index=power sourcetype="snmp:pdu:branch"
 - **Implementation:** Map branches to rack groups. Alert at 80% sustained. Correlate with planned equipment adds.
 - **Visualization:** Bar chart (branch load %), Table (branches at risk).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -422,6 +462,8 @@ index=power sourcetype="panel:phase" panel_type="main"
 - **CIM Models:** N/A
 
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -442,6 +484,8 @@ index=power sourcetype="snmp:ups"
 - **Visualization:** Gauge (charge %), Line chart (runtime trend), Table (UPS status), Single value (runtime remaining).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.23 · Power Consumption Trending
@@ -460,6 +504,8 @@ index=power sourcetype="snmp:pdu"
 - **Implementation:** Poll PDU power metrics via SNMP. Track per-rack and per-circuit consumption. Baseline normal patterns. Alert on unusual spikes (potential hardware issue) or drops (server failure). Use for PUE calculation.
 - **Visualization:** Line chart (power per rack), Heatmap (rack × time power usage), Bar chart (top consumers), Stacked area (floor/room power).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -482,6 +528,8 @@ index=physical sourcetype="pdu:metrics"
 - **Visualization:** Table (PDU load by phase), Bar chart (phase balance), Line chart (load trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.1.25 · Generator Run Hours and Maintenance Due
@@ -502,6 +550,8 @@ index=physical sourcetype="generator:status"
 - **Implementation:** Ingest generator run hours and maintenance schedule. Alert when remaining hours until next service is below threshold. Report on run hour trend and overdue maintenance.
 - **Visualization:** Table (generators due for service), Gauge (remaining hours), Bar chart (run hours by unit).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -529,6 +579,8 @@ index=environment sourcetype="sensor:temperature"
 - **Visualization:** Heatmap (zone × temperature), Line chart (temperature trend per zone), Floor plan visualization, Single value (hottest zone).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.2 · Humidity Monitoring
@@ -547,6 +599,8 @@ index=environment sourcetype="sensor:humidity"
 - **Implementation:** Deploy humidity sensors alongside temperature sensors. Alert on out-of-range humidity (below 40% or above 60% RH). Track dew point to prevent condensation. Correlate with HVAC system humidifier/dehumidifier operation.
 - **Visualization:** Line chart (humidity trend), Gauge (current humidity per zone), Table (zones out of range).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -567,6 +621,8 @@ index=cooling sourcetype="bms:crac"
 - **Visualization:** Status grid (unit × operational status), Table (unit health), Line chart (supply/return temps), Gauge (cooling capacity %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.4 · Hot Aisle Temperature Trending
@@ -585,6 +641,8 @@ index=environment sourcetype="sensor:temperature" position="hot_aisle"
 - **Implementation:** Deploy sensors in hot aisle containment. Track return air temperatures. Compare hot aisle temps across zones to identify cooling imbalances. Use prediction to forecast capacity issues.
 - **Visualization:** Line chart (hot aisle temps with prediction), Heatmap (zone × time), Bar chart (avg hot aisle by zone).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -605,6 +663,8 @@ index=environment sourcetype="leak_detection"
 - **Visualization:** Single value (active leak alerts — target: 0), Floor plan (sensor locations with status), Timeline (leak events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.6 · Cooling Capacity Planning
@@ -623,6 +683,8 @@ index=cooling sourcetype="bms:cooling_capacity"
 - **Implementation:** Calculate cooling load from IT power consumption (1 watt IT ≈ 3.41 BTU/h heat). Compare against total cooling capacity. Track utilization percentage. Alert when approaching 80% capacity. Plan for seasonal variations.
 - **Visualization:** Dual-axis chart (load vs capacity), Gauge (cooling utilization %), Line chart (utilization trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -646,6 +708,8 @@ index=cooling sourcetype="snmp:apc:inrow"
 - **CIM Models:** N/A
 
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.8 · CRAC Unit Failure and Alarm State
@@ -664,6 +728,8 @@ index=cooling sourcetype="bms:crac"
 - **Implementation:** Map vendor alarm codes to plain text. Page on any fault. Track MTTR for CRAC repairs.
 - **Visualization:** Status grid (unit × fault class), Timeline (alarms), Single value (units in fault).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -686,6 +752,8 @@ index=environment sourcetype="sensor:temperature" row_id=*
 - **Visualization:** Line chart (ΔT by row), Heatmap (row × time), Gauge (current ΔT).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.10 · Humidity Threshold Exceedance (ASHRAE)
@@ -705,6 +773,8 @@ index=environment sourcetype="sensor:humidity"
 - **Implementation:** Use sliding windows to alert only if out of 40–60% RH for >15 minutes. Pair with dew point for condensation risk.
 - **Visualization:** Line chart (RH with bands), Table (zones in excursion), Single value (max excursion minutes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -726,6 +796,8 @@ index=cooling sourcetype="bms:chiller"
 - **Visualization:** Line chart (kW/ton trend), Gauge (current vs design), Table (chillers degraded).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.12 · Liquid Cooling Loop Pressure
@@ -746,6 +818,8 @@ index=cooling sourcetype="liquid_cool:loop"
 - **Visualization:** Line chart (pressure and flow), Gauge (delta-P), Table (loops at risk).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.13 · Air Handler Filter Differential Pressure
@@ -764,6 +838,8 @@ index=cooling sourcetype="bms:ahu"
 - **Implementation:** Set change-out threshold at ~85% of max rated ΔP. Correlate rising ΔP with fan speed increases.
 - **Visualization:** Line chart (filter ΔP), Table (AHUs due for filter change), Gauge (ΔP % of limit).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -786,6 +862,8 @@ index=cooling sourcetype="bms:cooling_capacity"
 - **Visualization:** Area chart (load vs capacity), Gauge (margin tons), Table (zones tight).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.15 · Economizer Mode Utilization
@@ -804,6 +882,8 @@ index=cooling sourcetype="bms:economizer"
 - **Implementation:** Compare economizer hours to weather bin data. Investigate AHU with low free-cooling in mild weather.
 - **Visualization:** Bar chart (econ hours by month), Line chart (OA temp vs mode), Table (AHUs underutilizing economizer).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -824,6 +904,8 @@ index=environment sourcetype="sensor:condensation"
 - **Visualization:** Table (at-risk locations), Line chart (surface temp vs dew), Single value (active condensation risk).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.2.17 · Cooling Redundancy Status
@@ -843,6 +925,8 @@ index=cooling sourcetype="bms:cooling_redundancy"
 - **Visualization:** Gauge (redundancy margin), Table (zones without N+1), Status grid (unit × online).
 - **CIM Models:** N/A
 
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -865,6 +949,8 @@ index=cooling sourcetype="bms:cooling_redundancy"
 - **Visualization:** Gauge (dew point vs actual temp), time-series overlay, condensation risk heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -886,6 +972,8 @@ index=environment sourcetype="leak_detection"
 - **Implementation:** On any leak, show adjacent zones and nearest CRAC/isolation valve. Integrate with facilities runbook.
 - **Visualization:** Floor plan (zones), Table (active leaks), Single value (leak count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -916,6 +1004,8 @@ index=physical sourcetype="access_control"
 No CIM model available for physical access control data.
 ```
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.2 · After-Hours Access Alerts
@@ -940,6 +1030,8 @@ index=physical sourcetype="access_control" result="granted"
 No CIM model available for physical access control data.
 ```
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.3 · Tailgating Detection
@@ -960,6 +1052,8 @@ index=physical sourcetype="access_control" door="DC_Main_Entry"
 - **Visualization:** Table (tailgating events), Bar chart (by door), Line chart (tailgating trend), Single value (incidents this week).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.4 · Camera System Health
@@ -978,6 +1072,8 @@ index=physical sourcetype="vms:camera_status"
 - **Implementation:** Poll camera/NVR status via API or forward VMS events. Alert on camera offline, recording failure, or storage issues. Track camera uptime percentage. Report on coverage gaps.
 - **Visualization:** Status grid (camera × status), Table (offline cameras), Single value (cameras recording %), Floor plan (camera locations with status).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1002,6 +1098,8 @@ index=physical sourcetype="cabinet_lock"
 No CIM model available for physical access control data.
 ```
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.7 · Fire Suppression and Detection System Alarms
@@ -1022,6 +1120,8 @@ index=physical sourcetype="fire:alarm"
 - **Visualization:** Table (alarms), Timeline (events), Single value (active alarms).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.8 · Raised Floor and Cable Management Events
@@ -1041,6 +1141,8 @@ index=physical sourcetype="floor:sensor"
 - **Implementation:** Deploy sensors for critical floor tiles and cable runs. Forward events to Splunk. Alert on tile removal or strain above threshold. Correlate with change tickets. Report on access and strain history.
 - **Visualization:** Table (events), Timeline (tile/cable events), Floor plan (locations).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1063,6 +1165,8 @@ index=dcim sourcetype="capacity:zone"
 - **Visualization:** Table (zones with low headroom), Bar chart (headroom by zone), Heatmap (zone capacity).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.11 · CCTV / IP Camera Health Monitoring
@@ -1083,6 +1187,8 @@ index=physical sourcetype="nvr:camera_status"
 - **Visualization:** Status grid (camera × status), Table (offline or degraded cameras), Gauge (storage utilization), Floor plan (camera locations with status).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.12 · Fire Suppression System Status
@@ -1102,6 +1208,8 @@ index=physical sourcetype="fire:suppression_status"
 - **Implementation:** Integrate fire suppression panel via BMS, SNMP, or vendor API. Ingest system_armed (armed/disarmed), agent_level_pct, alarm_active. Poll every 15–30 minutes. Alert immediately on disarmed state, low agent (<95%), or active alarm. Track inspection dates. Report on system readiness for compliance.
 - **Visualization:** Status grid (zone × armed/agent status), Table (zones needing attention), Gauge (agent level %), Single value (systems disarmed).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1124,6 +1232,8 @@ index=environment sourcetype="sensor:battery_status"
 - **Visualization:** Table (low battery sensors), Gauge (lowest battery %), Bar chart (sensors by battery level), Single value (sensors needing battery replacement).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ---
@@ -1145,6 +1255,8 @@ index=physical sourcetype="access_control"
 - **Implementation:** Enable anti-passback on mantraps where supported. Correlate with video analytics if available. Escalate repeat doors.
 - **Visualization:** Table (tailgate events), Bar chart (by door), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1172,6 +1284,8 @@ index=physical sourcetype="access_control" result="granted"
 - **Visualization:** Table (unapproved after-hours), Bar chart (by person).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.16 · Camera Feed Loss and Recording Gap Detection
@@ -1191,6 +1305,8 @@ index=physical sourcetype="vms:stream_health"
 - **Implementation:** Poll VMS for per-camera FPS and last recorded frame time. Alert on stream loss or gap >1 min for critical zones.
 - **Visualization:** Table (cameras with feed loss), Timeline (gaps), Floor plan overlay.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1212,6 +1328,8 @@ index=physical sourcetype="vms:visitor"
 - **Visualization:** Table (expired active badges), Single value (count), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-15.3.18 · Cabinet Intrusion and Forced Rack Door Events
@@ -1230,6 +1348,8 @@ index=physical sourcetype="cabinet:intrusion"
 - **Implementation:** Require ticket_id or approved user for opens in secure suites. Page on forced events immediately.
 - **Visualization:** Timeline (intrusion events), Table (racks), Map of data hall.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1250,6 +1370,8 @@ index=physical sourcetype="fire:supervisory"
 - **Implementation:** Map all supervisory points per NFPA 72. Page on any unacknowledged supervisory >5 min.
 - **Visualization:** Timeline (supervisory events), Table (unacked), Status grid (zone × signal).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1272,6 +1394,7 @@ index=physical sourcetype="access_control:panel"
 - **CIM Models:** N/A
 
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-15.3.22 · Camera Uptime and Availability Tracking (Meraki MV)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
@@ -1288,6 +1411,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MV
 - **Implementation:** Monitor MV camera status via device API. Alert on offline cameras.
 - **Visualization:** Camera status map; offline camera list; availability percentage gauge.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1309,6 +1434,8 @@ index=cisco_network sourcetype="meraki:api" storage_usage=*
 - **Visualization:** Storage utilization gauge; retention timeline; storage trend chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.24 · Motion Detection Events and Alert Volume Analysis (Meraki MV)
@@ -1327,6 +1454,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*motion*"
 - **Implementation:** Ingest motion detection events. Track volume and patterns.
 - **Visualization:** Motion detection timeline; heat map by time of day; camera comparison chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1348,6 +1477,8 @@ index=cisco_network sourcetype="meraki:api" quality_score=*
 - **Visualization:** Quality score gauge per camera; quality trend line; affected camera list.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.26 · Cloud Archive Status and Backup Validation (Meraki MV)
@@ -1367,6 +1498,8 @@ index=cisco_network sourcetype="meraki:api" archive_status=*
 - **Visualization:** Archive status table; last backup time timeline; failure alert dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.27 · Video Stream Connection Errors and Quality Issues (Meraki MV)
@@ -1385,6 +1518,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*stream*
 - **Implementation:** Monitor stream connection events. Alert on error spikes.
 - **Visualization:** Connection error timeline; affected camera list; error type breakdown.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1406,6 +1541,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MV
 - **Visualization:** Firmware version table; compliance percentage gauge; outdated camera list.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.29 · Night Mode Effectiveness and Low-Light Performance (Meraki MV)
@@ -1425,6 +1562,8 @@ index=cisco_network sourcetype="meraki:api" night_mode=true
 - **Visualization:** Night mode quality gauge; low-light performance timeline; affected camera list.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.30 · People Counting Trends and Occupancy Analytics
@@ -1442,6 +1581,8 @@ index=cisco_network sourcetype="meraki:api" people_count=*
 - **Implementation:** Extract people_count metrics from camera API. Aggregate by location and time.
 - **Visualization:** Occupancy heat map by time of day; location comparison bar chart; trend sparkline.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1468,6 +1609,8 @@ index=cisco_spaces sourcetype="cisco:spaces:occupancy"
 - **Visualization:** Floor plan heat maps (occupancy by zone), Line chart (occupancy trend by floor), Column chart (peak occupancy by day of week), Single value panels (current building occupancy, % of capacity).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 8485](https://splunkbase.splunk.com/app/8485), [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.32 · Visitor Dwell Time and Movement Flow Analysis
@@ -1493,6 +1636,8 @@ index=cisco_spaces sourcetype="cisco:spaces:location"
 - **Visualization:** Sankey diagram (movement flows between zones), Heat map (dwell time by zone and time of day), Bar chart (visits and avg dwell by zone), Table (zone engagement ranking).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 8485](https://splunkbase.splunk.com/app/8485)
+
 ---
 
 ### UC-15.3.33 · Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)
@@ -1515,6 +1660,8 @@ index=cisco_spaces sourcetype="cisco:spaces:sensors"
 - **Implementation:** Deploy Meraki MT sensors and associate them with Meraki MR access points as BLE gateways. Configure sensor thresholds in Meraki Dashboard for local alerting. Stream telemetry to Splunk via the Spaces Add-On or direct Meraki webhook integration to HEC. Define location-specific thresholds (server rooms: 18-27°C; offices: 20-24°C; cold storage: 2-8°C). Create severity tiers: warning (approaching threshold), critical (exceeding threshold), emergency (water leak, extreme temperature). MT sensors have five-year battery life and five days of onboard data storage.
 - **Visualization:** Gauge panels (current temp/humidity per zone), Line chart (environmental trends over 7 days), Map (sensor locations with color-coded status), Alert table (active environmental alerts).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 8485](https://splunkbase.splunk.com/app/8485)
 
 ---
 
@@ -1539,6 +1686,8 @@ index=cisco_spaces sourcetype="cisco:spaces:assets"
 - **Implementation:** Register assets in Cisco Spaces IoT Explorer with BLE tags. Define geofence zones matching building floor plans. Configure the Firehose API to stream asset location updates. Maintain a lookup table of asset assignments (asset_tag, assigned_zone, asset_category, asset_value). Alert immediately on high-value assets leaving their zone. For lower-value assets, alert after 30 minutes outside zone. Track "last seen" timestamps and flag assets not seen for >1 hour during business hours. Generate weekly utilization reports (time in zone vs. time out of zone) to optimize asset distribution.
 - **Visualization:** Floor plan map (asset locations with icons), Table (geofence violations and missing assets), Bar chart (assets by zone), Timeline (asset movement history).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 8485](https://splunkbase.splunk.com/app/8485)
 
 ---
 
@@ -1565,6 +1714,12 @@ index=cisco_spaces sourcetype="cisco:spaces:presence" eventType="DEVICE_ENTRY"
 - **Implementation:** Configure Cisco Spaces Firehose API to stream DEVICE_PRESENCE events with entry/exit notifications. Build a known devices lookup by correlating MAC addresses with user identities from ISE or Active Directory (via 802.1X authentication records). Define business hours per building/zone (some facilities operate 24/7). Maintain an authorized_afterhours list for security, janitorial, and operations staff. Alert on unknown devices or unauthorized users detected after hours in sensitive zones. Integrate with badge access logs for cross-validation.
 - **Visualization:** Floor plan map (after-hours device locations), Timeline (presence events outside business hours), Table (unauthorized after-hours presence), Bar chart (after-hours detections by zone).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **References:** [Splunkbase app 8485](https://splunkbase.splunk.com/app/8485), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1594,6 +1749,8 @@ index=cisco_spaces sourcetype="cisco:spaces:workspace"
 - **Visualization:** Heat map (utilization by room and time slot), Bar chart (ghost booking rate by floor), Table (workspace utilization summary), Scatter plot (room capacity vs. actual avg occupants).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 8485](https://splunkbase.splunk.com/app/8485), [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.37 · Access Control Event Audit
@@ -1612,6 +1769,8 @@ index=physical sourcetype="access_control"
 - **Implementation:** Forward access control events via syslog or API. Parse badge holder, door, time, and action (granted, denied). Alert on after-hours access to sensitive areas. Correlate physical access with logical authentication events.
 - **Visualization:** Table (access events), Bar chart (access by door), Timeline (access events for specific person), Geo/floor plan.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1642,6 +1801,8 @@ index=spaces sourcetype="cisco:spaces:location"
 - **Visualization:** Sankey diagram (zone-to-zone flow), Floor plan overlay (traffic density by path), Bar chart (top 20 transitions by volume), Line chart (traffic volume by hour), Heatmap (zone × hour congestion).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-15.3.39 · Cisco Spaces Proximity and Engagement Analytics
@@ -1671,6 +1832,8 @@ index=spaces sourcetype="cisco:spaces:dwell_time"
 - **Implementation:** Ingest Cisco Spaces dwell time data via the Spaces Add-On. Cisco Spaces calculates dwell time by tracking how long a device's Wi-Fi probe requests are detected within a zone boundary. Configure zone types (amenity, collaboration, retail, reception, demo) to enable category-level analysis. Track unique visitors (distinct device MACs), average dwell time, and repeat visit rate (same device returning within 7 days). Build a composite engagement score combining dwell time, repeat rate, and visitor volume. Compare engagement across similar zone types (e.g., all breakout spaces) to identify high-performing and underperforming spaces. Provide monthly reports to facilities and real estate teams. For retail environments, correlate engagement with point-of-sale data to measure conversion.
 - **Visualization:** Bar chart (engagement score by zone), Bubble chart (zones by visitor volume, dwell time, repeat rate), Line chart (engagement trend per zone over 90 days), Table (zone performance details), Heatmap (zone × day-of-week engagement).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1703,6 +1866,8 @@ index=spaces sourcetype="cisco:spaces:iot_sensors" alert_active=true
 - **Implementation:** Ingest Cisco Spaces IoT sensor data (temperature, humidity, air quality index, CO2 levels) via the Spaces Add-On. Configure sensor alert thresholds in Cisco Spaces (e.g., temperature >27°C, CO2 >1000ppm, humidity >65%). Separately ingest BMS/HVAC event logs via BACnet gateway, Modbus, or BMS API integration. Correlate by zone ID and time window: when a sensor alert fires, check whether a corresponding BMS action occurred within 15 minutes. Track BMS non-responses to identify automation failures or disconnected zones. Layer in occupancy data to distinguish capacity-driven environmental issues (crowded meeting room overheating) from equipment failures (empty room overheating). Provide weekly reports to facilities management showing alert count, BMS response rate, and average response time by building zone.
 - **Visualization:** Table (active alerts with BMS response status), Gauge (BMS response rate %), Line chart (daily alert count and response rate trend), Bar chart (alerts by sensor type and zone), Floor plan overlay (alert locations with severity coloring).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 

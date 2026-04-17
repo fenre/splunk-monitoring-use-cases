@@ -24,6 +24,11 @@ index=database sourcetype="mysql:slowquery"
 - **Implementation:** Enable MySQL slow query log (long_query_time=5). For SQL Server, poll DMVs via DB Connect. For PostgreSQL, enable `pg_stat_statements`. Ingest and alert on queries exceeding thresholds. Report top offenders weekly.
 - **Visualization:** Table (slow queries with details), Bar chart (top slow queries by avg duration), Line chart (slow query count trend).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -44,6 +49,11 @@ index=database sourcetype="mssql:errorlog"
 - **Implementation:** Enable trace flag 1222 for SQL Server deadlock graphs. For PostgreSQL, set `log_lock_waits=on` and `deadlock_timeout=1s`. Ingest error logs. Alert on any deadlock occurrence. Parse deadlock graphs for involved queries/objects.
 - **Visualization:** Line chart (deadlocks over time), Table (deadlock details), Single value (deadlocks today).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action span=1h | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -64,6 +74,11 @@ index=database sourcetype="dbconnect:mssql_connections"
 - **Implementation:** Poll connection counts via DB Connect every 5 minutes. Compare against configured maximum. Alert at 80% and 95% thresholds. Track by application/user to identify connection leaks.
 - **Visualization:** Gauge (% connections used), Line chart (connections over time), Table (connections by application).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action span=5m | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -84,6 +99,11 @@ index=database sourcetype="dbconnect:replication_status"
 - **Implementation:** Poll replication status via DB Connect at 5-minute intervals. Alert when lag exceeds RPO (e.g., >60 seconds). Track lag trend over time. Correlate spikes with batch jobs or network events.
 - **Visualization:** Line chart (lag over time by replica), Single value (current max lag), Table (replicas with lag status).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action span=5m | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -103,6 +123,11 @@ index=database sourcetype="dbconnect:db_size"
 - **Implementation:** Poll database size metrics via DB Connect daily. Track growth rate per database. Use `predict` command for 30-day forecast. Alert when projected size exceeds available disk. Report top growing databases.
 - **Visualization:** Line chart (size trend with prediction), Table (databases with growth rate), Bar chart (top databases by size).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action span=1d | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -124,6 +149,11 @@ index=database sourcetype="dbconnect:backup_history"
 - **Implementation:** Query backup history tables via DB Connect daily. Alert on any database without a successful backup in the expected window. Cross-reference with CMDB for backup classification (full/diff/log) requirements.
 - **Visualization:** Table (databases with backup status), Single value (databases missing backup), Status grid (database × backup type).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -146,6 +176,11 @@ index=database sourcetype="mssql:errorlog"
 - **Implementation:** Ensure failed login auditing is enabled (SQL Server: "Both failed and successful logins"). Forward error logs to Splunk. Alert on >10 failures per user per hour. Correlate with AD lockout events.
 - **Visualization:** Table (users with failed logins), Bar chart (failures by user), Line chart (failure rate over time).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -166,6 +201,11 @@ index=database sourcetype="dbconnect:active_transactions"
 - **Implementation:** Poll active transactions via DB Connect every 5 minutes. Alert when any transaction exceeds 5 minutes. Include SQL text and blocking information. Escalate transactions blocking other sessions.
 - **Visualization:** Table (active long transactions), Single value (longest active transaction), Timeline (long transaction events).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -186,6 +226,11 @@ index=database sourcetype="dbconnect:index_stats"
 - **Implementation:** Poll index fragmentation stats via DB Connect weekly (resource-intensive query — schedule during off-hours). Alert when critical indexes exceed 30% fragmentation. Track fragmentation trend to optimize rebuild schedules.
 - **Visualization:** Table (fragmented indexes), Bar chart (fragmentation by database), Heatmap (table × index fragmentation).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -205,6 +250,11 @@ index=database sourcetype="dbconnect:wait_stats"
 - **Implementation:** Poll wait statistics via DB Connect. Filter for PAGELATCH waits on TempDB (database_id 2). Alert when TempDB waits exceed baseline. Recommend adding TempDB data files equal to number of CPU cores (up to 8).
 - **Visualization:** Bar chart (wait types), Line chart (TempDB wait trend), Single value (current TempDB wait ms).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -225,6 +275,12 @@ index=database sourcetype="dbconnect:perf_counters"
 - **Implementation:** Poll buffer cache performance counters via DB Connect every 15 minutes. Alert when hit ratio drops below 95% for sustained periods. Correlate with memory pressure and query workload changes.
 - **Visualization:** Gauge (buffer cache hit ratio), Line chart (hit ratio over time), Single value (current hit ratio %).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Database_Instance by Database_Instance.host, Database_Instance.action span=15m | sort - count
+```
+
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -244,6 +300,11 @@ index=database sourcetype="dbconnect:ag_status"
 - **Implementation:** Poll AG replica state DMVs every 5 minutes. Alert on any non-HEALTHY or non-CONNECTED state. Track failover events from SQL Server error log. Create dashboard showing full AG topology and health.
 - **Visualization:** Status grid (replica × health state), Table (unhealthy replicas), Timeline (failover events).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -263,6 +324,11 @@ index=database sourcetype="mssql:audit" action_id IN ("CR","AL","DR")
 - **Implementation:** Enable SQL Server audit for DDL events (CREATE, ALTER, DROP). For PostgreSQL, set `log_statement='ddl'`. Forward audit logs to Splunk. Alert on any DDL outside maintenance windows. Correlate with change tickets.
 - **Visualization:** Table (DDL events with details), Timeline (schema changes), Bar chart (changes by user).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -284,6 +350,11 @@ index=database sourcetype="dbconnect:query_store"
 - **Implementation:** Enable Query Store on SQL Server databases. Poll query performance metrics via DB Connect. Maintain baseline lookup of normal query durations. Alert when queries regress >50% from baseline. Enable automatic plan correction if available.
 - **Visualization:** Table (regressed queries), Bar chart (regression % by query), Line chart (query duration trend).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -303,6 +374,11 @@ index=database sourcetype="mssql:audit"
 - **Implementation:** Enable database audit for security events (GRANT, REVOKE, ALTER ROLE). Forward to Splunk. Alert on any privilege change in production. Correlate with change management tickets and access review cycles.
 - **Visualization:** Table (privilege change events), Timeline (changes), Bar chart (changes by granting user).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -330,6 +406,8 @@ index=database sourcetype="mongodb:log"
 - **Visualization:** Timeline (membership events), Single value (current node count), Table (recent cluster changes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.2 · Replication Lag / Consistency
@@ -350,6 +428,8 @@ index=database sourcetype="mongodb:rs_status"
 - **Visualization:** Line chart (replication lag over time), Table (replicas with lag), Single value (max current lag).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.3 · Read/Write Latency Trending
@@ -367,6 +447,8 @@ index=database sourcetype="mongodb:server_status"
 - **Implementation:** Poll database metrics every 5 minutes via scripted input or API. Track read/write latency percentiles (p50, p95, p99). Baseline normal patterns and alert on sustained deviation. Correlate with workload changes.
 - **Visualization:** Line chart (latency percentiles over time), Dual-axis chart (latency + throughput), Table (current latency by operation).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -389,6 +471,8 @@ index=database sourcetype="mongodb:shard_status"
 - **Visualization:** Bar chart (data size per shard), Table (shards with imbalance), Single value (max imbalance %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.5 · Compaction Monitoring
@@ -407,6 +491,8 @@ index=database sourcetype="cassandra:compaction"
 - **Implementation:** Poll compaction stats via JMX (Cassandra) or scripted input. Track pending compaction tasks and throughput. Alert when pending tasks grow consistently, indicating compaction cannot keep up with write volume.
 - **Visualization:** Line chart (pending compactions over time), Dual-axis (pending + throughput), Single value (current pending).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -428,6 +514,8 @@ index=database sourcetype="jvm:gc"
 - **Visualization:** Line chart (GC pause duration over time), Histogram (pause distribution), Table (hosts with excessive GC).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.7 · Connection Count Monitoring
@@ -447,6 +535,8 @@ index=database sourcetype="mongodb:server_status"
 - **Implementation:** Poll connection metrics every 5 minutes. Calculate percentage of max connections used. Alert at 80% and 95%. Track by client application to identify connection leaks.
 - **Visualization:** Gauge (% connections used per node), Line chart (connection count over time), Table (nodes approaching limit).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -468,6 +558,8 @@ index=database sourcetype="mongodb:log"
 - **Visualization:** Table (active/recent index builds), Timeline (build events), Single value (builds in progress).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.9 · Memory Utilization
@@ -488,6 +580,8 @@ index=database sourcetype="redis:info"
 - **Visualization:** Gauge (memory % per node), Line chart (memory + evictions), Table (nodes with high utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.10 · Elasticsearch Cluster Health
@@ -507,6 +601,8 @@ index=database sourcetype="elasticsearch:cluster_health"
 - **Implementation:** Poll `_cluster/health` endpoint every minute. Alert on yellow status (warning) and red status (critical). Track unassigned shard count and node count. Correlate with JVM metrics and disk space to identify root cause.
 - **Visualization:** Status indicator (green/yellow/red), Single value (unassigned shards), Line chart (cluster health timeline), Table (cluster details).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -529,6 +625,8 @@ index=database sourcetype="mongodb:replication_info"
 - **Visualization:** Line chart (oplog window hours over time), Single value (current window hours), Table (hosts with shrinking oplog).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.12 · MongoDB WiredTiger Cache Pressure
@@ -550,6 +648,8 @@ index=database sourcetype="mongodb:server_status"
 - **Visualization:** Line chart (dirty % and used % over time), Gauge (cache pressure), Table (hosts with high cache pressure).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.13 · MongoDB Atlas Cluster Alerts
@@ -570,6 +670,8 @@ index=database sourcetype="mongodb:atlas:alert"
 - **Visualization:** Timeline (Atlas alerts), Table (cluster, alert type, status), Single value (open critical count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.14 · Cassandra Compaction Backlog and Throughput
@@ -588,6 +690,8 @@ index=database sourcetype="cassandra:compactionstats"
 - **Implementation:** Poll nodetool every 5m per node. Alert when pending_tasks grows monotonically for 1h or throughput collapses.
 - **Visualization:** Dual-axis (pending vs throughput), Table (nodes with backlog), Line chart (pending tasks).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -608,6 +712,8 @@ index=database sourcetype="redis:info" role=master
 - **Visualization:** Line chart (fragmentation ratio), Table (hosts over threshold), Gauge (current ratio).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.16 · DynamoDB Throttling Events
@@ -626,6 +732,8 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/DynamoDB" metric_name="Thro
 - **Implementation:** Enable DynamoDB metrics with table dimension. Alert on any sustained throttling. Correlate with hot key patterns from access logs if available.
 - **Visualization:** Line chart (throttled requests), Table (table, operation), Single value (throttle bursts per day).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
 
 ---
 
@@ -646,6 +754,8 @@ index=database sourcetype="couchdb:replication"
 - **Implementation:** Ingest replication task status from `_active_tasks` and periodic conflict counts from a map view. Alert on replication errors or conflict_count increase week-over-week.
 - **Visualization:** Table (DB, conflicts, error), Line chart (conflict trend), Single value (total conflicts).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -668,6 +778,8 @@ index=database sourcetype="mongodb:replication_info"
 - **Visualization:** Line chart (oplog window hours), Table (hosts below tier min), Gauge (worst window).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.19 · Cassandra Tombstone Accumulation
@@ -688,6 +800,8 @@ index=database sourcetype="cassandra:tablestats"
 - **Visualization:** Table (KS, table, tombstones), Bar chart (top tables), Line chart (tombstone trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.20 · Redis Eviction Rate
@@ -706,6 +820,8 @@ index=database sourcetype="redis:info"
 - **Implementation:** Derive per-second evictions from counter deltas. Alert when sustained above baseline. Correlate with `maxmemory` policy and traffic.
 - **Visualization:** Line chart (evictions/sec), Table (hosts spiking), Dual-axis (evictions + memory).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -727,6 +843,8 @@ index=database sourcetype="hbase:master"
 - **Visualization:** Timeline (RS failures), Table (cluster, host, events), Single value (RS down count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.2.22 · CouchDB View Build Times
@@ -746,6 +864,8 @@ index=database sourcetype="couchdb:active_tasks" type=indexer
 - **Implementation:** Poll `_active_tasks` every minute. Alert when indexer runs >1h with low progress or task errors. Correlate with data volume growth.
 - **Visualization:** Table (design doc, % complete), Line chart (indexer duration), Single value (stuck indexers).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -767,6 +887,8 @@ index=database sourcetype="mongodb:index_stats"
 - **Implementation:** Weekly job exports `$indexStats`. Flag large indexes with minimal usage. Exclude `_id` and required unique indexes via lookup.
 - **Visualization:** Table (namespace, index, size, ops), Bar chart (wasted index size), Single value (low-usage large indexes count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -793,6 +915,8 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS"
 - **Visualization:** Multi-line chart (CPU, connections, latency), Table (top wait events), Single value (current active sessions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-7.3.2 · Automated Failover Events
@@ -812,6 +936,8 @@ index=aws sourcetype="aws:cloudwatch:events"
 - **Visualization:** Timeline (failover events), Table (failover details), Single value (days since last failover).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-7.3.3 · Read Replica Lag
@@ -830,6 +956,8 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="ReplicaLa
 - **Implementation:** Ingest CloudWatch RDS metrics. Alert when ReplicaLag exceeds application tolerance (e.g., >30 seconds). Track trend and correlate with write workload spikes. Alert on replica lag growing consistently.
 - **Visualization:** Line chart (replica lag over time), Single value (current max lag), Table (replicas with lag).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -851,6 +979,8 @@ index=aws sourcetype="aws:cloudtrail" eventName="ModifyDBInstance"
 - **Visualization:** Timeline (scaling events), Table (databases with scaling history), Bar chart (scaling frequency by database).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.3.5 · Maintenance Window Tracking
@@ -871,6 +1001,8 @@ index=aws sourcetype="aws:cloudwatch:events"
 - **Visualization:** Table (upcoming/recent maintenance), Calendar view, Timeline (maintenance history).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.3.6 · Redis Memory Fragmentation Ratio
@@ -890,6 +1022,8 @@ index=database sourcetype="redis:info"
 - **Implementation:** Create scripted input running `redis-cli INFO memory` every 15 minutes. Parse `mem_fragmentation_ratio` (used_memory_rss/used_memory). Alert when ratio exceeds 1.5. Track `used_memory_rss` and `used_memory` for trend analysis. Consider `MEMORY PURGE` (Redis 4+) or restart for severe fragmentation. Correlate with eviction rate.
 - **Visualization:** Line chart (fragmentation ratio over time), Gauge (current ratio), Table (hosts with high fragmentation).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -912,6 +1046,8 @@ index=database sourcetype="redis:info"
 - **Visualization:** Gauge (keyspace hit ratio %), Line chart (hit ratio over time), Table (hosts with low hit ratio).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.3.8 · Aurora Serverless Scaling Events
@@ -929,6 +1065,8 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="Serverles
 - **Implementation:** Ingest ACU metric and RDS events for scale actions. Alert on repeated scale-to-max or throttling. Correlate with `DatabaseConnections` and CPU.
 - **Visualization:** Line chart (ACU over time), Timeline (scaling events), Table (clusters at max ACU).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_aws](https://splunkbase.splunk.com/app/1876)
 
 ---
 
@@ -950,6 +1088,8 @@ index=azure sourcetype="mssql:azuremonitor" OR sourcetype="azure:metrics"
 - **Visualization:** Line chart (RU consumption %), Table (collections over threshold), Single value (hottest collection).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+
 ---
 
 ### UC-7.3.10 · Cloud Spanner Instance Health
@@ -968,6 +1108,8 @@ index=gcp sourcetype="gcp:monitoring" metric_type="spanner.googleapis.com/instan
 - **Implementation:** Ingest Spanner instance metrics per project. Alert on high CPU or increasing 99p latency metrics. Use query insights export for hot keys if enabled.
 - **Visualization:** Line chart (CPU and latency), Table (instances over SLO), Heatmap (instance × region).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -990,6 +1132,8 @@ index=gcp sourcetype="gcp:monitoring" metric_type="spanner.googleapis.com/instan
 - **Visualization:** Timeline (failovers by cloud), Table (resource, cloud, time), Single value (failovers 30d).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.3.12 · Azure SQL Database DTU Exhaustion
@@ -1008,6 +1152,8 @@ index=azure sourcetype="azure:sql:metrics"
 - **Implementation:** Enable Azure Monitor metrics for SQL DB/elastic pool. Alert on sustained high DTU%. Recommend tier upgrade or elastic pool rebalance.
 - **Visualization:** Line chart (DTU %), Gauge (current DTU), Table (databases over 85%).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -1028,6 +1174,8 @@ index=gcp sourcetype="gcp:audit" protoPayload.methodName="*.sql.instances.patch"
 - **Implementation:** Parse patch operations that change disk size. Alert when more than one resize per week per instance. Forecast disk from `disk_utilization` metrics.
 - **Visualization:** Timeline (resize events), Table (instance, new size GB), Line chart (disk size over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1050,6 +1198,8 @@ index=cloud sourcetype="rds:snapshot_inventory"
 - **Visualization:** Table (instances missing recent backup), Single value (non-compliant count), Calendar (snapshot coverage).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.3.15 · Read Replica Lag Trending (Percentiles)
@@ -1069,6 +1219,8 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="ReplicaLa
 - **Visualization:** Line chart (p95/p99 replica lag), Table (replicas breaching SLA), Single value (worst p95).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.3.16 · Azure SQL Managed Instance Resource Utilization
@@ -1087,6 +1239,12 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.sql/manag
 - **Implementation:** Collect Azure Monitor metrics for SQL Managed Instance. Key metrics: `avg_cpu_percent` (alert >85% sustained), `io_bytes_read`/`io_bytes_written` against provisioned IOPS for the service tier, and `storage_space_used_mb` versus reserved storage. Monitor `virtual_core_count` utilization to guide tier scaling decisions. Alert on sustained high CPU and storage approaching the limit.
 - **Visualization:** Line chart (CPU % over time), Gauge (storage used vs. limit), Table (instances near capacity).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Storage by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -1107,6 +1265,8 @@ index=cloud sourcetype="azure:monitor:activity" resourceType="microsoft.sql/mana
 - **Implementation:** Collect Activity Log events for failover group operations and Azure Monitor metrics for replication state. Alert on unplanned failover events (not initiated by known maintenance windows). Monitor `ReplicationState` metric — alert when state is not `SEEDING` or `CATCH_UP` for extended periods. Track replication lag to validate RPO compliance.
 - **Visualization:** Timeline (failover events), Single value (current replication state), Table (failover history).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -1134,6 +1294,8 @@ index=datawarehouse sourcetype="snowflake:query_history"
 - **Visualization:** Table (expensive queries), Bar chart (cost/duration by warehouse), Line chart (query performance trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.2 · Cluster Scaling Events
@@ -1152,6 +1314,8 @@ index=datawarehouse sourcetype="snowflake:warehouse_events"
 - **Implementation:** Poll warehouse event history. Track resume/suspend/scaling frequency. Correlate with query concurrency to validate scaling policies. Alert on unexpected scaling events outside business hours.
 - **Visualization:** Timeline (scaling events), Stacked bar (events by type per day), Table (warehouse scaling summary).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1174,6 +1338,8 @@ index=datawarehouse sourcetype="airflow:task_instance"
 - **Visualization:** Status grid (pipeline × status), Table (failed pipelines), Line chart (pipeline duration trend), Single value (overall success rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.4 · Credit / Cost per Query
@@ -1195,6 +1361,8 @@ index=datawarehouse sourcetype="snowflake:query_history"
 - **Visualization:** Bar chart (cost by user/warehouse), Table (most expensive queries), Line chart (daily cost trend), Pie chart (cost by team).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.5 · Warehouse Utilization
@@ -1213,6 +1381,8 @@ index=datawarehouse sourcetype="snowflake:warehouse_load"
 - **Implementation:** Poll warehouse utilization metrics every 15 minutes. Track running vs queued queries. Alert when queuing occurs consistently (indicates undersized warehouse). Identify idle warehouses for auto-suspend policy adjustment.
 - **Visualization:** Line chart (running vs queued queries), Heatmap (warehouse × hour utilization), Table (underutilized warehouses), Bar chart (utilization by warehouse).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1234,6 +1404,8 @@ index=database sourcetype="elasticsearch:cluster_health"
 - **Visualization:** Status indicator (green/yellow/red), Single value (unassigned shards), Table (unassigned shard details), Line chart (cluster health and JVM heap over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.7 · Elasticsearch Index Size and Document Count Trending
@@ -1254,6 +1426,8 @@ index=database sourcetype="elasticsearch:indices"
 - **Visualization:** Line chart (index size and doc count with prediction), Table (indices by size and growth rate), Bar chart (top growing indices).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.8 · ClickHouse Query Performance
@@ -1273,6 +1447,8 @@ index=database sourcetype="clickhouse:query_log"
 - **Implementation:** Poll `system.query_log` (or enable query_log and ingest via DB Connect/scripted input) for completed queries. Extract query_duration_ms, query_kind, read_rows, memory_usage. Poll `system.metrics` for Merge, Insert, Query metrics. Poll `system.merges` for active merge count and progress. Alert on queries >30s, merge backlog >10, or insert rate drop. Track p95/p99 query duration by type.
 - **Visualization:** Table (slow queries with duration and rows), Line chart (query duration p95 over time), Bar chart (merge count and insert rate), Single value (active merges).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1295,6 +1471,8 @@ index=datawarehouse sourcetype="snowflake:warehouse_metering"
 - **Visualization:** Line chart (credits per day by warehouse), Bar chart (top consumers), Single value (total credits MTD).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.10 · Databricks Cluster Utilization
@@ -1315,6 +1493,8 @@ index=databricks sourcetype="databricks:cluster_event"
 - **Visualization:** Line chart (DBU per day), Table (long-running clusters), Heatmap (cluster × hour utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.11 · Redshift Query Queue Depth
@@ -1333,6 +1513,8 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/Redshift" metric_name="WLMQ
 - **Implementation:** Map queue names to workload classes. Alert when queue_depth sustained above SLA. Tune WLM slots or concurrency scaling.
 - **Visualization:** Line chart (queue depth), Table (cluster, queue, depth), Single value (max depth).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1356,6 +1538,8 @@ index=datawarehouse sourcetype="bigquery:jobs"
 - **Visualization:** Line chart (daily bytes billed), Table (anomalous days/projects), Bar chart (top users by cost).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.13 · Snowflake Query Spillage (Bytes Spilled to Local/Remote Storage)
@@ -1376,6 +1560,8 @@ index=datawarehouse sourcetype="snowflake:query_history"
 - **Implementation:** Poll `QUERY_HISTORY` for completed queries. Alert on spill_bytes >1GB. Join with warehouse size for context.
 - **Visualization:** Table (queries with spill), Bar chart (spill by user), Line chart (daily spill volume).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1398,6 +1584,8 @@ index=databricks sourcetype="databricks:job_run"
 - **Visualization:** Line chart (failure rate by job), Table (failed runs), Single value (failed jobs 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.4.15 · Azure Synapse Analytics SQL Pool Performance
@@ -1416,6 +1604,12 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.synapse/w
 - **Implementation:** Collect Azure Monitor metrics for Synapse SQL pools. Alert when `DWUUsedPercent` exceeds 90% sustained (scale up DWU), when `QueuedQueries` exceeds 10 (resource contention), or when `AdaptiveCacheHitPercent` drops below 50% (cold cache after pause/resume). Enable diagnostics for `SqlRequests` to track query execution times and identify long-running queries consuming resources.
 - **Visualization:** Line chart (DWU % and queued queries), Table (long-running queries), Gauge (cache hit ratio).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -1436,6 +1630,8 @@ index=cloud sourcetype="azure:diagnostics" Category="SynapsePipelineRuns"
 - **Implementation:** Enable diagnostics on Synapse workspaces to route `SynapsePipelineRuns` and `SynapseActivityRuns` to Splunk via Event Hub. Alert on failed pipeline runs. Track activity-level errors for root cause analysis (data movement failures, notebook errors, SQL script timeouts). Monitor pipeline duration trending to detect degradation.
 - **Visualization:** Table (failed pipelines with error detail), Bar chart (failures by pipeline), Line chart (duration trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -1458,6 +1654,8 @@ index=cloud sourcetype="azure:diagnostics" Category="SynapsePipelineRuns"
 - **Visualization:** Line chart (total open cursors over time by application), Table (top sessions by cursor count), Single value (current max), Bar chart (cursors by application/service).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-7.1.17 · Database Connection Pool Exhaustion
@@ -1478,6 +1676,8 @@ index=cloud sourcetype="azure:diagnostics" Category="SynapsePipelineRuns"
 - **Visualization:** Gauge (connection count vs max), Line chart (connections over time), Table (by program/user).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.1.18 · Long-Running Query and Blocking Session Detection
@@ -1495,6 +1695,8 @@ index=cloud sourcetype="azure:diagnostics" Category="SynapsePipelineRuns"
 - **Implementation:** Poll active sessions and wait/block info. Ingest sessions with elapsed time >5 minutes or with blocking_session set. Alert on blocking chains. Dashboard top long-running and blocked sessions with SQL text.
 - **Visualization:** Table (session, user, wait time, blocker), Blocking chain diagram, Line chart (long-running count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1516,6 +1718,8 @@ index=cloud sourcetype="azure:diagnostics" Category="SynapsePipelineRuns"
 - **Visualization:** Table (table, bloat %, last vacuum), Bar chart (bloat by table), Single value (tables overdue for vacuum).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.1.20 · Database Backup and Archive Log Retention Verification
@@ -1534,6 +1738,8 @@ index=cloud sourcetype="azure:diagnostics" Category="SynapsePipelineRuns"
 - **Implementation:** Ingest backup job status (RMAN, SQL Server backup history, or backup vendor logs). Alert on any failed or incomplete backup. Track archive log destination space and retention; alert when space is low or retention is below policy.
 - **Visualization:** Table (last backup, status, duration), Gauge (backup success %), Timeline of backup jobs.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1555,6 +1761,12 @@ index=db_audit sourcetype=oracle_audit (action="CREATE USER" OR action="GRANT" O
 - **Implementation:** Enable database audit for user and privilege changes. Forward audit logs to Splunk. Alert on any CREATE USER, GRANT, or ALTER USER. Correlate with change management.
 - **Visualization:** Events timeline, Table (user, action, object), Bar chart (changes by user).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object span=1h | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1575,6 +1787,11 @@ index=database sourcetype="dbconnect:postgresql_wal"
 - **Implementation:** Use DB Connect or a scripted input to poll WAL metrics every 15–30 minutes. Query `pg_current_wal_lsn()` and compare with `pg_walfile_name()` to derive WAL size; alternatively, measure WAL directory on disk. Track replication slot lag via `pg_stat_replication` (replication_lag). Alert when WAL size exceeds threshold (e.g., >10 GB) or when replication lag indicates archival/streaming is falling behind. Correlate with `archive_command` failures and disk space.
 - **Visualization:** Line chart (WAL size over time), Single value (current WAL size GB), Table (host, WAL size, replication lag).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.dest span=1h | sort - count
+```
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1597,6 +1814,11 @@ index=database sourcetype="dbconnect:pg_stat_user_tables"
 - **Implementation:** Poll `pg_stat_user_tables` via DB Connect every hour. Extract `n_dead_tup`, `n_live_tup`, `last_autovacuum`. Compute dead tuple ratio and time since last vacuum. Alert when dead_ratio >5% or n_dead_tup >10000 for critical tables. Alert when last_autovacuum is >24 hours for high-churn tables. Track autovacuum runs from `pg_stat_progress_vacuum` if available.
 - **Visualization:** Table (tables with bloat risk), Bar chart (dead tuples by table), Line chart (dead tuple ratio trend), Single value (tables overdue for vacuum).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1618,6 +1840,11 @@ index=database sourcetype="pgbouncer:pools"
 - **Implementation:** Create a scripted input that connects to PgBouncer admin console (default port 6432) and runs `SHOW POOLS` and `SHOW STATS` every 5 minutes. Parse output into structured events. Extract `cl_active`, `cl_wait`, `max_client_conn` per database/pool. Alert when pool utilization >80% or `cl_wait` >5. Track `sv_idle`, `sv_used` for server connection usage.
 - **Visualization:** Gauge (pool utilization %), Line chart (active vs wait connections), Table (pools with high utilization or wait queue).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action span=5m | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1638,6 +1865,11 @@ index=database sourcetype="dbconnect:mysql_status"
 - **Implementation:** Poll `SHOW GLOBAL STATUS` via DB Connect every 15 minutes. Extract `Innodb_buffer_pool_read_requests` and `Innodb_buffer_pool_reads`. Compute hit ratio = (1 - reads/requests) * 100. Alert when hit ratio drops below 99% for sustained periods. Correlate with memory allocation and workload changes.
 - **Visualization:** Gauge (buffer pool hit ratio %), Line chart (hit ratio over time), Single value (current hit ratio).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.dest span=15m | sort - count
+```
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1660,6 +1892,11 @@ index=database sourcetype="dbconnect:mysql_binlogs"
 - **Implementation:** Poll `SHOW BINARY LOGS` via DB Connect daily or every 6 hours. Sum `File_size` across all binlogs. Optionally measure binlog directory on disk. Alert when total binlog size exceeds threshold (e.g., >50 GB). Track binlog purge lag (oldest binlog age). Correlate with replication lag and `expire_logs_days`/`binlog_expire_logs_seconds` settings.
 - **Visualization:** Line chart (binlog total size over time), Single value (current binlog size GB), Table (host, size, count).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.dest | sort - count
+```
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1681,6 +1918,11 @@ index=database sourcetype="dbconnect:oracle_tablespace"
 - **Implementation:** Poll `DBA_TABLESPACE_USAGE_METRICS` (or `DBA_FREE_SPACE` + `DBA_DATA_FILES`) via DB Connect every 4–6 hours. Extract used percent per tablespace. Alert at 80% (warning) and 90% (critical). Track growth rate for capacity planning. Include temp and undo tablespaces.
 - **Visualization:** Gauge (tablespace used %), Table (tablespaces over threshold), Line chart (utilization trend by tablespace).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Tablespace by Tablespace.host, Tablespace.action span=1d | sort - count
+```
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686), [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1701,6 +1943,11 @@ index=database sourcetype="dbconnect:pg_replication"
 - **Implementation:** Poll replication view every 1m. Map `application_name` to replica. Alert on replay lag > RPO seconds or LSN gap >100MB. Correlate with `archive_command` and network.
 - **Visualization:** Line chart (replay lag per standby), Table (standby, lag sec), Single value (max lag).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1721,6 +1968,11 @@ index=database sourcetype="dbconnect:mysql_status"
 - **Implementation:** Aggregate hourly for executive view; retain per-host series for alerts. Correlate drops with large table scans or buffer pool size changes.
 - **Visualization:** Line chart (fleet avg vs worst instance), Gauge (current hit ratio), Table (instances below 99%).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1742,6 +1994,11 @@ index=database sourcetype="dbconnect:oracle_tablespace"
 - **Implementation:** Daily snapshot. Alert on >10GB/week growth on critical tablespaces. Use `predict` on used_bytes for runway to maxsize.
 - **Visualization:** Line chart (used GB trend), Table (tablespace, growth GB/week), Single value (fastest growing).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Tablespace by Tablespace.host, Tablespace.action span=1d | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1761,6 +2018,11 @@ index=database sourcetype="dbconnect:ag_replica_state"
 - **Implementation:** Poll DMVs every 5m. Alert on unhealthy sync or queue >100MB (tune threshold). Track automatic failover readiness.
 - **Visualization:** Status grid (replica × health), Line chart (queue sizes), Table (unhealthy AG databases).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1782,6 +2044,11 @@ index=database sourcetype="dbconnect:backup_chain"
 - **Implementation:** Custom SQL to flag LSN gaps. For Oracle, check archivelog sequence continuity. Alert on any break in chain for production databases.
 - **Visualization:** Table (broken chains), Timeline (backup types), Single value (databases with gaps).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1802,6 +2069,11 @@ index=database sourcetype="dbconnect:active_requests"
 - **Implementation:** Poll every 2m. Exclude known batch accounts via lookup. Alert when max_sec >900 for OLTP. Include optional `sql_text` sampling for compliance.
 - **Visualization:** Table (long-running sessions), Line chart (count of long queries), Single value (longest elapsed sec).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1823,6 +2095,11 @@ index=database sourcetype="mssql:errorlog"
 - **Implementation:** Parse database name from deadlock XML if available. Alert when hourly deadlocks exceed baseline. Tie to release markers.
 - **Visualization:** Line chart (deadlocks over time), Bar chart (by database), Single value (deadlocks today).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1843,6 +2120,11 @@ index=application sourcetype="hikaricp:metrics"
 - **Implementation:** Ingest both sides; use `transaction` or `join` on host+service. Alert when either side >90%. Dashboard side-by-side.
 - **Visualization:** Gauge (app pool vs DB sessions), Line chart (pct over time), Table (hosts in danger).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Session_Info by Session_Info.host, Session_Info.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1864,6 +2146,11 @@ index=database sourcetype="dbconnect:index_stats"
 - **Implementation:** Weekly job. Export top 50 for DBA runbook. Exclude tiny indexes via page_count floor.
 - **Visualization:** Table (index, frag %, pages, score), Bar chart (top priority_score).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Instance_Stats by Instance_Stats.host, Instance_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1886,6 +2173,11 @@ index=database sourcetype="dbconnect:oracle_temp"
 - **Implementation:** Poll `V$TEMPSEG_USAGE` every 5m. Alert at 85% of temp max. Identify top SQL by `sql_id` from same view.
 - **Visualization:** Line chart (temp usage %), Table (sessions using temp), Single value (peak temp GB).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Lock_Stats by Lock_Stats.host, Lock_Stats.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1907,6 +2199,11 @@ index=database sourcetype="dbconnect:query_store_runtime"
 - **Implementation:** Refresh baseline lookup weekly from stable period. Alert on regression >40% with new `plan_id`. Consider force plan workflow.
 - **Visualization:** Table (regressed queries), Line chart (baseline vs current), Bar chart (regression %).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1927,6 +2224,12 @@ index=database sourcetype="dbconnect:instance_version"
 - **Implementation:** Maintain `approved_db_patch` lookup (engine, major, approved CU/RU). Daily compare. Alert on non-compliant production instances.
 - **Visualization:** Table (non-compliant hosts), Pie chart (compliant %), Single value (drift count).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Database_Instance by Database_Instance.host, Database_Instance.action | sort - count
+```
+
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1947,6 +2250,11 @@ index=db_audit sourcetype=oracle_audit OR sourcetype=mssql:audit
 - **Implementation:** Forward database and OS audit to tamper-evident storage. Alert on any audit disable or policy drop outside CAB. Correlate with DBA group membership.
 - **Visualization:** Timeline (audit config changes), Table (privileged actions), Single value (critical audit events 24h).
 - **CIM Models:** Databases
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Databases.Query by Query.host, Query.action | sort - count
+```
+- **References:** [CIM: Databases](https://docs.splunk.com/Documentation/CIM/latest/User/Databases)
 
 ---
 
@@ -1974,6 +2282,8 @@ index=database sourcetype="elasticsearch:cluster_health"
 - **Visualization:** Single value or status indicator (cluster status), Line chart (status over time), Table (clusters not green).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.2 · Elasticsearch Shard Allocation Failures
@@ -1993,6 +2303,8 @@ index=database sourcetype="elasticsearch:shard_allocation"
 - **Implementation:** Ingest `_cat/shards` with `state` filter and, for unassigned primaries, poll `POST _cluster/allocation/explain` on a schedule. Parse `allocate_explanation` and decider names. Alert when any primary shard is unassigned >5 minutes or replica unassigned count exceeds policy.
 - **Visualization:** Table (index, shard, state, reason), Single value (unassigned shard count), Timeline of allocation events.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2015,6 +2327,8 @@ index=database sourcetype="opensearch:index_stats"
 - **Visualization:** Line chart (merge and refresh time by index), Table (top indices by merge cost), Bar chart (segment count if extracted).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.4 · OpenSearch Search Latency
@@ -2035,6 +2349,8 @@ index=database sourcetype="opensearch:search_latency" OR sourcetype="opensearch:
 - **Visualization:** Line chart (p95/p99 search latency), Table (slow queries from slowlog), Histogram of `took_ms`.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.5 · Elasticsearch Indexing Rate Monitoring
@@ -2052,6 +2368,8 @@ index=database sourcetype="elasticsearch:indexing_stats"
 - **Implementation:** Poll `GET _nodes/stats` every minute; extract `indices.indexing.index_total`, `index_time_in_millis`, and `index_current`. Store prior sample to compute rate of change. Set dynamic or static baselines; alert on drops below expected ingest or on `indexing` rejections from bulk thread pool.
 - **Visualization:** Line chart (documents indexed per second by node), Single value (cluster aggregate rate), Area chart (indexing time vs. count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2074,6 +2392,8 @@ index=database sourcetype="solr:metrics"
 - **Visualization:** Gauge (cache hit ratio per core), Line chart (hit ratio trend), Table (cores below threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.7 · Solr Replication Lag
@@ -2095,6 +2415,8 @@ index=database sourcetype="solr:replication"
 - **Visualization:** Line chart (replication lag over time), Table (replicas over SLA), Single value (max lag per collection).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.8 · Elasticsearch Disk Watermark Alerts
@@ -2115,6 +2437,8 @@ index=database sourcetype="elasticsearch:disk_watermark"
 - **Visualization:** Gauge (disk % per node), Table (nodes near watermark), Line chart (free space trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.9 · Elasticsearch JVM Heap Pressure
@@ -2134,6 +2458,8 @@ index=database sourcetype="elasticsearch:jvm"
 - **Implementation:** Poll JVM stats every 1–2 minutes. Track `heap_used_percent`, young/old GC collection time and count. Alert when heap consistently >85% or old GC time spikes. Correlate with fielddata, merges, and heap dumps policy.
 - **Visualization:** Line chart (heap % and GC time), Area chart (heap used vs. max), Table (nodes over threshold).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2156,6 +2482,8 @@ index=database sourcetype="opensearch:snapshot"
 - **Visualization:** Table (repository, last snapshot, state), Timeline (snapshot jobs), Single value (hours since last success).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.11 · Elasticsearch Circuit Breaker Trips
@@ -2177,6 +2505,8 @@ index=database (sourcetype="elasticsearch:server" OR sourcetype="elasticsearch:c
 - **Visualization:** Bar chart (trips by breaker type), Table (node, breaker, count), Line chart (breaker estimated size vs. limit).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.12 · Elasticsearch Thread Pool Rejections
@@ -2196,6 +2526,12 @@ index=database sourcetype="elasticsearch:thread_pool"
 - **Implementation:** Poll `GET _nodes/stats/thread_pool/search,write,get` every minute. Store cumulative `rejected` counters and compute deltas between samples. Alert when any node shows rejections in a 5-minute window. Correlate with JVM heap and CPU to determine root cause (undersized cluster vs. expensive queries vs. bulk indexing spikes). Do not increase queue sizes as a fix — address the underlying load.
 - **Visualization:** Line chart (rejections per pool over time), Bar chart (rejections by node), Single value (total rejections last hour).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t sum(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2216,6 +2552,12 @@ index=database sourcetype="elasticsearch:search_stats"
 - **Implementation:** Poll `GET _nodes/stats/indices/search` to compute per-node average query latency from cumulative counters. Enable slow logs (`index.search.slowlog.threshold.query.warn: 5s`) and forward to Splunk. Correlate slow queries with specific indices and query patterns. Alert on sustained average latency above baseline or frequent slow log entries.
 - **Visualization:** Line chart (query latency p50/p95/p100), Table (slow queries by index), Single value (current avg latency).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host span=5m | sort - count
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2237,6 +2579,8 @@ index=database sourcetype="elasticsearch:ilm_status"
 - **Visualization:** Table (indices in error with reason), Single value (error count), Bar chart (errors by policy).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.15 · Elasticsearch Snapshot Failures
@@ -2256,6 +2600,8 @@ index=database sourcetype="elasticsearch:snapshot_status"
 - **Implementation:** Poll `GET _snapshot/_all/_all` or `GET _snapshot/<repo>/_current` to track snapshot state. Alert on any snapshot with state FAILED or PARTIAL. Also monitor time since last successful snapshot — alert when it exceeds RPO threshold (e.g., 24 hours). Check `_snapshot/<repo>/_status` for in-progress snapshot progress.
 - **Visualization:** Table (recent snapshots with state), Single value (hours since last successful), Line chart (snapshot duration trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2277,6 +2623,8 @@ index=database sourcetype="elasticsearch:ccr_stats"
 - **Visualization:** Line chart (lag per follower index), Table (follower status), Single value (max lag across all followers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.17 · Elasticsearch Pending Cluster Tasks
@@ -2295,6 +2643,8 @@ index=database sourcetype="elasticsearch:pending_tasks"
 - **Implementation:** Poll `GET _cluster/pending_tasks` every minute. Track the number of tasks and the `time_in_queue_millis` for the oldest task. Alert when queue depth stays above 5 for multiple consecutive samples or any task waits longer than 30 seconds. Common causes include frequent mapping changes, too many small indices, or an overloaded master node.
 - **Visualization:** Line chart (pending task count), Single value (current queue depth), Table (pending tasks with wait time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2315,6 +2665,12 @@ index=database sourcetype="elasticsearch:cache_stats"
 - **Implementation:** Poll `GET _nodes/stats/indices/fielddata,query_cache,request_cache` and compute deltas for `evictions` counters. Any fielddata eviction is significant — alert immediately and investigate which fields use fielddata (should be using doc_values instead). For query cache, alert when eviction rate exceeds a percentage of total cache entries. Correlate with heap usage.
 - **Visualization:** Line chart (eviction rate by cache type), Bar chart (evictions by node), Single value (fielddata memory size).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t sum(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2335,6 +2691,12 @@ index=database sourcetype="elasticsearch:merge_stats"
 - **Implementation:** Poll `GET _nodes/stats/indices/merges` for `current`, `total_size_in_bytes`, `total_time_in_millis`, and `total_throttled_time_in_millis`. Compute merge rate and throttle ratio. Alert when active merges remain high (>3) for sustained periods, or when throttle time exceeds 50% of total merge time. Correlate with indexing rate and search latency to detect I/O contention.
 - **Visualization:** Line chart (active merges over time), Stacked area (merge vs. throttle time), Single value (current merge count).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t sum(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Network by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2356,6 +2718,8 @@ index=database sourcetype="solr:core_status"
 - **Visualization:** Status grid (core × healthy), Table (cores with errors), Single value (unhealthy core count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.5.21 · Elasticsearch Ingest Pipeline Error Rate
@@ -2375,6 +2739,8 @@ index=database sourcetype="elasticsearch:ingest_stats"
 - **Implementation:** Poll `GET _nodes/stats/ingest` and extract per-pipeline `count` and `failed` counters. Compute deltas between samples. Alert when any pipeline shows a non-zero failure rate. Investigate pipeline processor errors in Elasticsearch logs. Common causes include grok pattern mismatches, script errors, and date parsing failures.
 - **Visualization:** Line chart (failures per pipeline), Table (pipeline error details), Single value (total ingest failures).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2403,6 +2769,8 @@ index=db (sourcetype="mysql:status" OR sourcetype="postgresql:metrics" OR source
 - **Visualization:** Line chart (peak pool % by instance), column chart (30-day max), table (instances over threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-7.6.2 · Slow Query Volume Trending
@@ -2425,6 +2793,8 @@ index=db sourcetype IN ("mysql:slow","postgresql:log","mssql:query","oracle:sql"
 - **Visualization:** Stacked column chart (slow queries per day by database), line chart (total slow count), table (top normalized query signatures).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.6.3 · Replication Lag Trending
@@ -2443,6 +2813,8 @@ index=db sourcetype IN ("mysql:slave","postgresql:replication","oracle:dg","mssq
 - **Implementation:** For SQL Server AG, prefer `database_replica` lag fields consistent with your sync mode. Filter out replicas in paused maintenance. Correlate spikes with large index builds or log chain breaks. Use the same clock source (NTP) across primary and replicas to avoid false lag. Cloud replicas may expose lag in milliseconds—normalize to seconds in `eval`.
 - **Visualization:** Line chart (max lag per replica), area chart (avg lag), single value (worst replica lag now).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2466,6 +2838,8 @@ index=db sourcetype IN ("mssql:backup","mysql:backup","oracle:rman","postgresql:
 - **Visualization:** Line chart (backup size GB over months), column chart (month-over-month growth %), table (largest databases).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-7.6.5 · Index Fragmentation Trending
@@ -2485,5 +2859,7 @@ index=db sourcetype IN ("mssql:fragmentation","mysql:innodb","oracle:segment","p
 - **Implementation:** Sample large catalogs during off-peak windows to control license cost. Exclude tiny tables where fragmentation is meaningless. Join `table_name` to owner/schema for remediation tickets. PostgreSQL bloat metrics may use different units—normalize in `eval`. Pair with maintenance windows from change records.
 - **Visualization:** Line chart (fragmentation % over time), heatmap (table × week), table (tables exceeding DBA threshold).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---

@@ -31,6 +31,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 - **Visualization:** Status grid (server health map), Bar chart (faults by component), Table (active critical faults), Timechart (fault trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.2 · Service Profile Compliance (Cisco UCS)
 
 - **Criticality:** 🟠 High
@@ -56,6 +57,7 @@ index=cisco_ucs sourcetype="cisco:ucs:config"
 - **Visualization:** Pie chart (compliance breakdown), Table (non-compliant profiles), Single value (compliance percentage), Status grid (profile status by org).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.3 · Firmware Compliance (Cisco UCS)
 
 - **Criticality:** 🟡 Medium
@@ -79,6 +81,7 @@ index=cisco_ucs sourcetype="cisco:ucs:inventory"
 - **Visualization:** Table (firmware compliance matrix), Bar chart (servers by firmware version), Pie chart (compliant vs non-compliant), Single value (fleet compliance percentage).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.4 · Fault Trending by Severity (Cisco UCS)
 
 - **Criticality:** 🟠 High
@@ -98,6 +101,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 - **Visualization:** Timechart (fault trends by severity), Bar chart (top fault codes), Single value (open critical faults), Table (active faults detail).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.5 · FI Port Channel Health
 
 - **Criticality:** 🔴 Critical
@@ -120,6 +124,7 @@ index=cisco_ucs sourcetype="cisco:ucs:fi_stats"
 - **Visualization:** Status grid (port-channel health), Gauge (member active percentage), Timechart (utilization trending), Table (degraded port-channels).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.6 · Power and Thermal Monitoring (Cisco UCS)
 
 - **Criticality:** 🟠 High
@@ -145,6 +150,7 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental"
 - **Visualization:** Gauge (temperature/power), Timechart (power and thermal trending), Heatmap (chassis thermal map), Single value (total power draw).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.10 · Blade Firmware Compliance (Cisco UCS)
 
 - **Criticality:** 🟠 High
@@ -166,6 +172,7 @@ index=cisco_ucs sourcetype="cisco:ucs:inventory" object_type="blade"
 - **Visualization:** Table (non-compliant blades), Bar chart (by chassis), Single value (non-compliant count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.11 · Service Profile Association Failures (Cisco UCS)
 
 - **Criticality:** 🔴 Critical
@@ -186,6 +193,7 @@ index=cisco_ucs (sourcetype="cisco:ucs:config" OR sourcetype="cisco:ucs:faults")
 - **Visualization:** Table (failed associations), Timeline, Single value (open failures).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.12 · Fault Suppression Policy Audit (Cisco UCS)
 
 - **Criticality:** 🟡 Medium
@@ -207,6 +215,7 @@ index=cisco_ucs sourcetype="cisco:ucs:faults"
 - **Visualization:** Table (top suppressed codes), Bar chart (by user), Line chart (suppression trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.13 · FI Port Channel Member Errors and CRCs
 
 - **Criticality:** 🔴 Critical
@@ -228,6 +237,7 @@ index=cisco_ucs sourcetype="cisco:ucs:fi_stats" object_type="port"
 - **Visualization:** Table (ports with CRCs), Heatmap (FI × port), Line chart (CRC rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.14 · UCS Manager Backup Validation
 
 - **Criticality:** 🟠 High
@@ -248,6 +258,7 @@ index=cisco_ucs sourcetype="cisco:ucs:backup" earliest=-7d
 - **Visualization:** Table (backup status), Single value (failed jobs), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.15 · Chassis PSU Redundancy
 
 - **Criticality:** 🔴 Critical
@@ -267,6 +278,7 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental" metric_type="psu"
 - **Visualization:** Status grid (chassis × PSU), Table (alerts), Single value (chassis without redundancy).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.16 · IOM Uplink Utilization
 
 - **Criticality:** 🟠 High
@@ -288,6 +300,7 @@ index=cisco_ucs sourcetype="cisco:ucs:iom_stats" earliest=-1h
 - **Visualization:** Heatmap (IOM × port util), Table (hot uplinks), Line chart (trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.17 · BIOS Policy Compliance
 
 - **Criticality:** 🟡 Medium
@@ -308,6 +321,7 @@ index=cisco_ucs sourcetype="cisco:ucs:bios"
 - **Visualization:** Table (non-compliant servers), Pie chart (compliance %), Bar chart (by org).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.1.18 · UCS Central Registration Health
 
 - **Criticality:** 🟡 Medium
@@ -327,6 +341,8 @@ index=cisco_ucs sourcetype="cisco:ucs_central:domain" earliest=-24h
 - **Implementation:** Ingest domain inventory from Central API. Alert when heartbeat stale or domain unregistered.
 - **Visualization:** Table (domain status), Single value (stale domains), Map (site).
 - **CIM Models:** N/A
+
+- **References:** [Cisco Intersight Add-on for Splunk](https://splunkbase.splunk.com/app/7828)
 
 ---
 
@@ -353,6 +369,12 @@ index=cisco_intersight sourcetype="cisco:intersight:alarms" earliest=-24h
 - **Implementation:** Configure the Intersight Add-on with API key credentials. Schedule alarm collection every 5 minutes. Alert on critical alarms or sustained warning counts exceeding baseline.
 - **Visualization:** Table (alarms by severity), Bar chart (alarm count by object type), Single value (open criticals).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count
+```
+
+- **References:** [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -377,6 +399,8 @@ index=cisco_intersight sourcetype="cisco:intersight:compute" object_type="firmwa
 - **Visualization:** Table (non-compliant servers), Pie chart (compliant vs non-compliant), Single value (% fleet compliant).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.21 · Intersight HCL Compliance Status
@@ -399,6 +423,8 @@ index=cisco_intersight sourcetype="cisco:intersight:compute" object_type="cond.H
 - **Visualization:** Table (non-validated servers), Pie chart (HCL status distribution), Single value (% validated).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.22 · Intersight Server Power and Thermal Telemetry
@@ -419,6 +445,12 @@ index=cisco_intersight sourcetype="cisco:intersight:metrics" metric_name IN ("po
 - **Implementation:** Enable metric collection in the Intersight Add-on. Set thresholds per server model. Alert on thermal exceedances or power draw approaching PDU circuit limits.
 - **Visualization:** Line chart (power/thermal over time), Heatmap (server x temperature), Single value (peak power draw).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host span=1h | sort - agg_value
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -441,6 +473,12 @@ index=cisco_intersight sourcetype="cisco:intersight:auditRecords" earliest=-24h
 - **Implementation:** Ingest audit logs every 5 minutes. Alert on high-impact changes (profile deployments, firmware policy changes) outside change windows. Feed into ES notable events for SOC visibility.
 - **Visualization:** Table (recent changes), Timeline (change events), Bar chart (changes by user).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -465,6 +503,8 @@ index=cisco_intersight sourcetype="cisco:intersight:contracts"
 - **Visualization:** Table (expiring contracts), Single value (servers without active contract), Gauge (% fleet covered).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.25 · UCS X-Series Intelligent Fabric Module Health
@@ -487,6 +527,12 @@ index=cisco_intersight sourcetype="cisco:intersight:alarms" affected_object_type
 - **Implementation:** Monitor IFM alarms via both Intersight and UCS Manager. Alert immediately on critical IFM faults. Correlate with FI port channel health (UC-19.1.5) for end-to-end fabric path analysis.
 - **Visualization:** Table (IFM alarms), Status grid (chassis x IFM slot), Timeline (fault events).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count
+```
+
+- **References:** [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -517,6 +563,8 @@ index=nutanix sourcetype="nutanix:prism_central:alerts"
 - **Visualization:** Table (active alerts by cluster), Bar chart (alerts by severity and impact type), Status grid (cluster alert status), Single value (critical alert count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.27 · Nutanix AOS Version Compliance
@@ -540,6 +588,8 @@ index=nutanix sourcetype="nutanix:prism_central:clusters"
 - **Implementation:** Poll Prism Central `/api/nutanix/v3/clusters/list` (or equivalent cluster inventory endpoint) every 6–24 hours. Extract `cluster_version` (AOS version) and `name` from each cluster entity. Create lookup `nutanix_aos_baseline.csv` with columns `cluster_name` and `target_version` defining the approved AOS version per cluster or environment. Compare running version to baseline. Alert on clusters with version drift. Generate weekly compliance report. Use for maintenance window planning and support eligibility checks.
 - **Visualization:** Table (non-compliant clusters), Pie chart (version distribution), Single value (compliance percentage), Bar chart (clusters by AOS version).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -566,6 +616,8 @@ index=nutanix sourcetype="nutanix:protection_domains:snapshots"
 - **Visualization:** Table (non-compliant protection domains), Bar chart (snapshot count by domain), Gauge (oldest snapshot age), Single value (domains over retention).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.29 · Blade Server ECC Memory Error Rate (Cisco UCS)
@@ -587,6 +639,8 @@ index=cisco_ucs sourcetype="cisco:ucs:faults" earliest=-24h
 - **Visualization:** Bar chart (faults by blade), Table (top DIMM-related codes), Timechart (ECC-related fault rate).
 - **CIM Models:** N/A
 - **Equipment Models:** Cisco UCS B200 M6/M7, UCS X210c M6/M7, UCS X410c M6
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -611,6 +665,8 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental" metric_type="psu" earliest=
 - **CIM Models:** N/A
 - **Equipment Models:** Cisco UCS C220 M6/M7, UCS C240 M6/M7, UCS C480 M5
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.31 · Fabric Interconnect HA Cluster State
@@ -632,6 +688,8 @@ index=cisco_ucs sourcetype="cisco:ucs:fi_stats" object_type="fi_cluster" earlies
 - **Visualization:** Table (FI cluster state), Timeline (state transitions), Single value (unhealthy FI count).
 - **CIM Models:** N/A
 - **Equipment Models:** Cisco UCS 6454 FI, UCS 6536 FI
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -656,6 +714,8 @@ index=cisco_ucs sourcetype="cisco:ucs:inventory" object_type="adapter" earliest=
 - **CIM Models:** N/A
 - **Equipment Models:** Cisco UCS VIC 1440/1480/1540, UCS X-Series mLOM adapters
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.33 · Intersight Device Connector / Tunnel Health
@@ -679,6 +739,8 @@ index=cisco_intersight sourcetype="cisco:intersight:appliance" earliest=-24h
 - **CIM Models:** N/A
 - **Equipment Models:** Cisco Intersight Assist / connected UCS domains
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.34 · Chassis Thermal Runaway Risk (Blade Enclosures)
@@ -700,7 +762,13 @@ index=cisco_ucs sourcetype="cisco:ucs:environmental" earliest=-6h
 - **Implementation:** (1) Normalize temperature stat names per UCSM release; (2) set per-datacenter thresholds aligned with ASHRAE class; (3) alert and open facilities ticket when chassis peak exceeds policy for two consecutive polls.
 - **Visualization:** Heatmap (chassis × time), Gauge (peak inlet), Table (hot chassis).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
+```
 - **Equipment Models:** Cisco UCS 5108, UCS X9508 chassis
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -725,6 +793,8 @@ index=cisco_ucs sourcetype="cisco:ucs:syslog" earliest=-24h
 - **CIM Models:** N/A
 - **Equipment Models:** Cisco UCS IOM 2200/2300, UCS 6454/6536 FI
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.1.36 · Service Profile vNIC Redundancy and Failover Audit
@@ -747,6 +817,8 @@ index=cisco_ucs sourcetype="cisco:ucs:config" object_type="vnic" earliest=-24h
 - **Visualization:** Table (profiles lacking redundancy), Pie chart (redundant vs single-path), Bar chart (by org).
 - **CIM Models:** N/A
 - **Equipment Models:** Cisco UCS B-Series, X-Series compute
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -774,6 +846,7 @@ index=hci sourcetype="hci:cluster_health"
 - **Visualization:** Status grid (cluster health map), Single value (cluster status), Gauge (storage capacity), Table (cluster details).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.2 · Storage Pool Capacity
 
 - **Criticality:** 🟠 High
@@ -795,6 +868,7 @@ index=hci sourcetype="hci:storage_metrics"
 - **Visualization:** Gauge (capacity utilization), Timechart (capacity trending with forecast), Table (pool details), Single value (days to capacity).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.3 · Storage I/O Latency
 
 - **Criticality:** 🔴 Critical
@@ -815,6 +889,7 @@ index=hci sourcetype="hci:io_metrics"
 - **Visualization:** Timechart (latency trending), Gauge (current latency), Table (high-latency nodes), Heatmap (latency by node over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.4 · Node Performance Balance
 
 - **Criticality:** 🟡 Medium
@@ -837,6 +912,7 @@ index=hci sourcetype="hci:node_metrics"
 - **Visualization:** Bar chart (node utilization comparison), Heatmap (node balance over time), Table (imbalanced nodes), Single value (cluster balance score).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.5 · Disk Failure Tracking
 
 - **Criticality:** 🔴 Critical
@@ -862,6 +938,7 @@ index=hci sourcetype="hci:disk_events"
 - **Visualization:** Status grid (disk health by node), Timeline (failure and rebuild events), Single value (disks in rebuild), Table (failed/warning disks).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.6 · Replication Factor Compliance
 
 - **Criticality:** 🔴 Critical
@@ -883,6 +960,7 @@ index=hci sourcetype="hci:replication"
 - **Visualization:** Single value (RF compliance status), Gauge (rebuild progress), Table (non-compliant containers), Status grid (cluster RF map).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.7 · CVM (Controller VM) Health
 
 - **Criticality:** 🔴 Critical
@@ -903,6 +981,8 @@ index=hci sourcetype="nutanix:cvm"
 - **Implementation:** Monitor CVM service status (Stargate, Cassandra, Zookeeper, Prism) every 30 seconds. Track CVM CPU and memory utilization. Alert immediately on any CVM service failure. Monitor CVM-to-CVM communication for cluster stability. Track CVM restart events and correlate with I/O disruptions.
 - **Visualization:** Status grid (CVM health by node), Table (CVM service status), Gauge (CVM resource utilization), Timechart (CVM metrics trending).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -926,6 +1006,8 @@ index=hci sourcetype="nutanix:capacity"
 - **Visualization:** Table (nodes with skew), Bar chart (used by node), Gauge (cluster balance score).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.2.9 · HCI Data Resiliency and Rebuild Progress
@@ -945,6 +1027,8 @@ index=hci sourcetype="nutanix:resiliency"
 - **Implementation:** Poll resiliency and rebuild status. Alert when rebuild is slow or ETA exceeds threshold. Report on rebuild history and time-to-full resilience. Correlate with disk and node events.
 - **Visualization:** Gauge (rebuild progress), Table (active rebuilds), Line chart (rebuild rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -967,6 +1051,8 @@ index=hci sourcetype="nutanix:cluster"
 - **Visualization:** Table (non-compliant nodes), Pie chart (version distribution), Single value (compliance %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.2.11 · HCI Network and Storage Controller Saturation
@@ -987,6 +1073,8 @@ index=hci sourcetype="nutanix:io"
 - **Visualization:** Table (saturated controllers), Line chart (latency and queue), Gauge (throughput utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.2.12 · HCI Prism Central and Management Plane Health
@@ -1006,6 +1094,8 @@ index=hci sourcetype="nutanix:prism_central"
 - **Implementation:** Poll Prism Central health and API metrics. Alert on unhealthy status, high API latency, or backed-up task queue. Report on PC availability and performance trend. Maintain HA for PC where available.
 - **Visualization:** Status grid (PC health), Table (PC metrics), Line chart (API latency).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1028,6 +1118,7 @@ index=vxrail sourcetype="vxrail:cluster"
 - **Visualization:** Status grid (cluster and host health from cluster_hosts), Table (cluster details with LCM status), Single value (unhealthy cluster count), Gauge (host connectivity percentage from cluster_hosts data).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.14 · Nutanix CVM Resource and Service Health
 
 - **Criticality:** 🔴 Critical
@@ -1048,6 +1139,7 @@ index=hci sourcetype="nutanix:cvm:metrics" earliest=-4h
 - **Visualization:** Table (hot CVMs), Line chart (latency vs CPU), Heatmap (node × time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.15 · Storage Pool Rebalance Monitoring
 
 - **Criticality:** 🟡 Medium
@@ -1067,6 +1159,7 @@ index=hci sourcetype="nutanix:curator" earliest=-24h
 - **Visualization:** Gauge (rebalance %), Table (active tasks), Line chart (skew index).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.16 · HCI Node Failure Domain Risk
 
 - **Criticality:** 🔴 Critical
@@ -1088,6 +1181,7 @@ index=hci sourcetype="hci:fault_domain" earliest=-7d
 - **Visualization:** Table (risky placements), Sankey (VM → FD), Single value (violations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.17 · vSAN Disk Group Health
 
 - **Criticality:** 🔴 Critical
@@ -1108,6 +1202,7 @@ index=hci sourcetype="vsan:diskgroup" earliest=-4h
 - **Visualization:** Status grid (DG × host), Table (issues), Timeline (events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.18 · Cluster Expansion Events
 
 - **Criticality:** 🟡 Medium
@@ -1127,6 +1222,7 @@ index=hci sourcetype="hci:cluster_events" earliest=-30d
 - **Visualization:** Timeline (expansion events), Table (recent changes), Bar chart (events by cluster).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.19 · Nutanix AHV Host Capacity
 
 - **Criticality:** 🟠 High
@@ -1148,6 +1244,7 @@ index=hci sourcetype="nutanix:ahv:host" earliest=-1h
 - **Visualization:** Bar chart (used % by host), Table (headroom), Gauge (cluster average).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.20 · SimpliVity Backup Efficiency
 
 - **Criticality:** 🟡 Medium
@@ -1168,6 +1265,7 @@ index=hci sourcetype="simplivity:backup" earliest=-7d
 - **Visualization:** Table (backup status), Line chart (dedupe trend), Single value (failed jobs).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.21 · Azure Stack HCI Cluster Health
 
 - **Criticality:** 🔴 Critical
@@ -1188,6 +1286,7 @@ index=hci sourcetype="azurestackhci:health" earliest=-4h
 - **Visualization:** Status grid (HCI clusters), Table (issues), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.22 · HPE dHCI Tier Health
 
 - **Criticality:** 🟠 High
@@ -1208,6 +1307,7 @@ index=hci sourcetype="hpe:dhci:tier" earliest=-4h
 - **Visualization:** Table (tier health), Line chart (latency), Gauge (capacity).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.23 · vSAN Witness Appliance Health
 
 - **Criticality:** 🔴 Critical
@@ -1228,6 +1328,7 @@ index=hci sourcetype="vsan:witness" earliest=-24h
 - **Visualization:** Single value (witness OK), Table (clusters at risk), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-19.2.24 · HCI Deduplication Efficiency Ratio
 
 - **Criticality:** 🟡 Medium
@@ -1248,6 +1349,8 @@ index=hci sourcetype="hci:storage_efficiency" earliest=-24h
 - **Implementation:** Define `baseline_ratio` from lookup or 30-day rolling mean. Alert on >15% drop week-over-week.
 - **Visualization:** Line chart (dedupe ratio trend), Single value (fleet average), Table (regressions).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1277,6 +1380,8 @@ index=hci sourcetype="nutanix:cluster_health" earliest=-2h
 - **CIM Models:** N/A
 - **Equipment Models:** Nutanix NX, Dell XC, Lenovo HX nodes
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.2.26 · VxRail LCM Compliance and Staged Bundle Drift
@@ -1300,6 +1405,8 @@ index=vxrail sourcetype="vxrail:lcm" earliest=-24h
 - **CIM Models:** N/A
 - **Equipment Models:** Dell VxRail P/V/E-series
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.2.27 · vSAN Disk Group Capacity Headroom and Mount State
@@ -1321,7 +1428,13 @@ index=hci sourcetype="vsan:diskgroup" earliest=-1h
 - **Implementation:** (1) Ingest vSAN disk group metrics from RVC or vSAN SDK exporter; (2) warn at 80% used and critical at 90%; (3) page on any disk group not mounted; (4) correlate with physical disk SMART (UC-19.2.5).
 - **Visualization:** Gauge (used % per DG), Table (critical disk groups), Heatmap (host × DG utilization).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.Storage by Performance.host | sort - count
+```
 - **Equipment Models:** vSAN ReadyNodes, Dell VxRail with vSAN
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -1347,6 +1460,8 @@ index=hci sourcetype="nutanix:storage_pool" earliest=-4h
 - **CIM Models:** N/A
 - **Equipment Models:** Nutanix clusters with EC-enabled containers
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.2.29 · Nutanix Controller VM Storage Bandwidth Saturation
@@ -1369,7 +1484,13 @@ index=hci sourcetype="nutanix:cvm:metrics" earliest=-4h
 - **Implementation:** (1) Collect per-CVM throughput and negotiated link speed; (2) alert when 95th percentile utilization exceeds 75% for one hour; (3) correlate with rebuild tasks (UC-19.2.9) and snapshot storms.
 - **Visualization:** Line chart (Mbps per node), Table (saturated CVMs), Gauge (peak utilization).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
+```
 - **Equipment Models:** Nutanix AOS nodes (10/25 GbE uplinks)
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -1393,7 +1514,13 @@ index=hci sourcetype="vsan:resync" earliest=-24h
 - **Implementation:** (1) Export vSAN resync statistics to Splunk on 5-minute intervals; (2) alert when backlog exceeds operational thresholds; (3) overlay with adaptive resync policy changes; (4) report ETA from vSAN health where available.
 - **Visualization:** Area chart (resync GB over time), Table (hosts with largest backlog), Single value (total active resync GB).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.Network by Performance.host | sort - count
+```
 - **Equipment Models:** VMware vSAN stretched and standard clusters
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -1418,6 +1545,8 @@ index=hci sourcetype="nutanix:remote_site" earliest=-4h
 - **CIM Models:** N/A
 - **Equipment Models:** Nutanix clusters with remote-site replication
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-19.2.32 · VxRail vCenter Extension and Marvin Plugin Health
@@ -1440,6 +1569,8 @@ index=vxrail sourcetype="vxrail:plugin" earliest=-24h
 - **Visualization:** Table (cluster plugin status), Single value (clusters with errors), Timeline (heartbeat gaps).
 - **CIM Models:** N/A
 - **Equipment Models:** Dell VxRail with integrated vCenter plugin
+
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -1469,6 +1600,8 @@ index=azure_stack_hci sourcetype="azurestackhci:cluster" earliest=-24h
 - **CIM Models:** N/A
 - **Equipment Models:** Azure Stack HCI validated server catalog nodes
 
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110)
+
 ---
 
 ### UC-19.3.2 · Storage Spaces Direct Pool Utilization and Tier Imbalance
@@ -1491,7 +1624,13 @@ index=azure_stack_hci sourcetype="azurestackhci:s2d_pool" earliest=-2h
 - **Implementation:** (1) Ingest `Get-StoragePool` and tier capacity metrics on 15-minute cadence; (2) warn at 80% pool used and critical at 90%; (3) alert when cache share drops below policy for all-flash vs hybrid designs.
 - **Visualization:** Gauge (pool used %), Bar chart (cache vs capacity TB), Table (imbalanced pools).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
+```
 - **Equipment Models:** Azure Stack HCI with NVMe/SAS capacity tiers
+
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -1515,6 +1654,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-High-Availab
 - **CIM Models:** N/A
 - **Equipment Models:** Windows Server Azure Stack HCI hosts
 
+- **References:** [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-19.3.4 · Azure Arc for Servers Heartbeat and Extension Inventory
@@ -1536,7 +1677,13 @@ index=azure_monitor sourcetype="azure:arc:vm" earliest=-24h
 - **Implementation:** (1) Export Arc-enabled machine inventory to Event Hub or blob and ingest via add-on; (2) normalize `last_status` to UTC; (3) alert when heartbeat older than 24h or expected extensions missing; (4) join with CMDB rack location for dispatch.
 - **Visualization:** Table (stale Arc agents), Single value (machines without extensions), Map (site by resource group).
 - **CIM Models:** Compute_Inventory
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Compute_Inventory.Virtual_OS by Virtual_OS.dest, Virtual_OS.status | sort - count
+```
 - **Equipment Models:** Azure Arc–enabled HCI cluster nodes
+
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110), [CIM: Compute_Inventory](https://docs.splunk.com/Documentation/CIM/latest/User/Compute_Inventory)
 
 ---
 
@@ -1562,6 +1709,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Security-Auditing" e
 - **CIM Models:** N/A
 - **Equipment Models:** Windows Admin Center gateway VM or dedicated server
 
+- **References:** [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-19.3.6 · Cluster-Aware Updating Run Status and Node Drain Failures
@@ -1583,7 +1732,13 @@ index=azure_stack_hci sourcetype="azurestackhci:cau" earliest=-7d
 - **Implementation:** (1) Emit structured JSON from `Get-CauRunHistory` after each CAU wave; (2) alert on failed or rolled-back runs; (3) join with Windows Update EventCode 19/20 success for cross-check; (4) attach remediation KB links in alert payload.
 - **Visualization:** Timeline (CAU runs), Table (failed nodes), Single value (open failed runs).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
 - **Equipment Models:** Azure Stack HCI clusters using Cluster-Aware Updating
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1608,6 +1763,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Storage-Storport/Adm
 - **Visualization:** Table (at-risk disks by host), Timeline (Storport errors), Single value (nodes with predictive failures).
 - **CIM Models:** N/A
 - **Equipment Models:** Azure Stack HCI S2D cache tier NVMe and SATA/SAS SSDs
+
+- **References:** [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
 
 ---
 

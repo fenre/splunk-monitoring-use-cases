@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from urllib.parse import urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REFERENCES_LINE = re.compile(r"^\s*-\s*\*\*References:\*\*\s*(.*)$")
@@ -19,12 +21,58 @@ BROWSER_UA = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 HEAD_FALLBACK_CODES = frozenset({400, 403, 405, 501})
+RATE_LIMIT_CODES = frozenset({429, 503})
 TIMEOUT_SEC = 10
-MAX_WORKERS = 10
+MAX_WORKERS = 8
+RETRY_AFTER_DEFAULT = 6
+PER_HOST_DELAY_SEC = 0.75  # between sequential requests to the same host
+IGNORE_FILE = REPO_ROOT / ".link-check-ignore"
+
+
+def load_ignore_patterns() -> list[re.Pattern[str]]:
+    """Load domain/URL regex patterns that should be excluded from checking.
+
+    The ignore file lists known-fragile sources (bot-blocked WAFs, CDNs that
+    return 403 to scripted user-agents, etc.) whose content is otherwise live.
+    Matching URLs are surfaced separately in the report but do **not** count
+    toward the broken-link total.
+    """
+    if not IGNORE_FILE.is_file():
+        return []
+    patterns: list[re.Pattern[str]] = []
+    for raw in IGNORE_FILE.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            patterns.append(re.compile(line))
+        except re.error:
+            print(f"[warn] invalid ignore regex: {line!r}", file=sys.stderr)
+    return patterns
 
 
 def normalize_url(raw: str) -> str:
-    return raw.rstrip(").;,]")
+    """Strip trailing punctuation while keeping balanced parentheses.
+
+    Bare URLs written in prose may be followed by punctuation like
+    ``.``/``,``/``;`` that is not part of the URL.  Parentheses and brackets
+    are trickier: a URL like
+    ``https://en.wikipedia.org/wiki/Entropy_(information_theory)`` ends with
+    a ``)`` that IS part of the URL.  We preserve parens whenever they are
+    balanced inside the URL.
+    """
+    url = raw
+    while url and url[-1] in ".,;!":
+        url = url[:-1]
+    # Strip trailing ')' or ']' only when unbalanced (surplus closers).
+    while url and url[-1] in ")]":
+        opener = "(" if url[-1] == ")" else "["
+        closer = url[-1]
+        if url.count(opener) < url.count(closer):
+            url = url[:-1]
+        else:
+            break
+    return url
 
 
 def collect_urls() -> dict[str, list[str]]:
@@ -47,55 +95,67 @@ def collect_urls() -> dict[str, list[str]]:
     return url_sources
 
 
-def check_url(url: str) -> tuple[bool, str]:
-    """Return (ok, detail). detail is status code or error message."""
+def _head_code(url: str) -> int:
+    req = urllib.request.Request(
+        url, headers={"User-Agent": BROWSER_UA}, method="HEAD",
+    )
+    with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as resp:
+        return resp.getcode()
 
-    def head_code() -> int:
-        req = urllib.request.Request(url, method="HEAD")
-        with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as resp:
-            return resp.getcode()
 
-    def get_code() -> int:
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": BROWSER_UA},
-            method="GET",
-        )
-        with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as resp:
-            code = resp.getcode()
-            # Avoid pulling entire body on large pages; enough to complete handshake.
-            try:
-                resp.read(65536)
-            except (OSError, ValueError, urllib.error.HTTPError):
-                pass
-            return code
-
-    def finish_with_get(head_detail: str) -> tuple[bool, str]:
+def _get_code(url: str) -> int:
+    req = urllib.request.Request(
+        url, headers={"User-Agent": BROWSER_UA}, method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as resp:
+        code = resp.getcode()
         try:
-            code = get_code()
-            if code >= 400:
-                return False, f"GET {code} ({head_detail})"
-            return True, f"GET {code} ({head_detail})"
-        except urllib.error.HTTPError as ge:
-            return False, f"GET {ge.code} ({head_detail})"
-        except urllib.error.URLError as ge:
-            return False, f"GET {ge.reason!s} ({head_detail})"
+            resp.read(65536)
+        except (OSError, ValueError, urllib.error.HTTPError):
+            pass
+        return code
 
+
+def _finish_with_get(url: str, head_detail: str) -> tuple[bool, str]:
     try:
-        code = head_code()
-        if code < 400:
-            return True, f"HEAD {code}"
-        if code in HEAD_FALLBACK_CODES:
-            return finish_with_get(f"HEAD {code}")
-        return False, f"HEAD {code}"
+        code = _get_code(url)
+        ok = code < 400
+        return ok, f"GET {code} ({head_detail})"
+    except urllib.error.HTTPError as ge:
+        return False, f"GET {ge.code} ({head_detail})"
+    except urllib.error.URLError as ge:
+        return False, f"GET {ge.reason!s} ({head_detail})"
+
+
+def _probe_once(url: str) -> tuple[bool, str, int | None]:
+    """One round of HEAD → optional GET probing. Returns (ok, detail, code)."""
+    try:
+        code = _head_code(url)
     except urllib.error.HTTPError as e:
         if e.code in HEAD_FALLBACK_CODES:
-            return finish_with_get(f"HEAD {e.code}")
-        if e.code >= 400:
-            return False, f"HEAD {e.code}"
-        return True, f"HEAD {e.code}"
+            ok, det = _finish_with_get(url, f"HEAD {e.code}")
+            return ok, det, e.code
+        return e.code < 400, f"HEAD {e.code}", e.code
     except urllib.error.URLError as e:
-        return finish_with_get(f"HEAD {e.reason!s}")
+        ok, det = _finish_with_get(url, f"HEAD {e.reason!s}")
+        return ok, det, None
+
+    if code < 400:
+        return True, f"HEAD {code}", code
+    if code in HEAD_FALLBACK_CODES:
+        ok, det = _finish_with_get(url, f"HEAD {code}")
+        return ok, det, code
+    return False, f"HEAD {code}", code
+
+
+def check_url(url: str) -> tuple[bool, str]:
+    """Return (ok, detail). Retries once on 429/503 with exponential backoff."""
+    ok, detail, code = _probe_once(url)
+    if not ok and code in RATE_LIMIT_CODES:
+        time.sleep(RETRY_AFTER_DEFAULT)
+        ok2, detail2, _ = _probe_once(url)
+        return ok2, f"{detail2} after retry"
+    return ok, detail
 
 
 def main() -> int:
@@ -110,28 +170,54 @@ def main() -> int:
     args = parser.parse_args()
 
     url_sources = collect_urls()
-    urls = sorted(url_sources.keys())
+    all_urls = sorted(url_sources.keys())
 
-    if not urls:
+    if not all_urls:
         print("No URLs found on - **References:** lines.", file=sys.stderr)
         return 0
 
+    ignore_patterns = load_ignore_patterns()
+
+    def is_ignored(u: str) -> bool:
+        return any(p.search(u) for p in ignore_patterns)
+
+    urls = [u for u in all_urls if not is_ignored(u)]
+    ignored = [u for u in all_urls if is_ignored(u)]
+
     if args.dry_run:
-        print(f"Dry run: {len(urls)} unique URL(s)\n")
+        print(f"Dry run: {len(urls)} unique URL(s), {len(ignored)} ignored\n")
         for u in urls:
             print(u)
-        print(f"\nTotal unique URLs: {len(urls)}")
+        print(f"\nTotal unique URLs: {len(urls)}  (ignored: {len(ignored)})")
         return 0
+
+    # Group URLs by host so we can throttle requests within each host while
+    # still processing different hosts concurrently.
+    by_host: dict[str, list[str]] = {}
+    for u in urls:
+        host = urlsplit(u).netloc.lower()
+        by_host.setdefault(host, []).append(u)
+
+    def check_host(host_urls: list[str]) -> list[tuple[str, tuple[bool, str]]]:
+        out: list[tuple[str, tuple[bool, str]]] = []
+        for i, u in enumerate(host_urls):
+            if i:
+                time.sleep(PER_HOST_DELAY_SEC)
+            try:
+                out.append((u, check_url(u)))
+            except Exception as e:  # noqa: BLE001
+                out.append((u, (False, repr(e))))
+        return out
 
     results: dict[str, tuple[bool, str]] = {}
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        futs = {ex.submit(check_url, u): u for u in urls}
+        futs = {
+            ex.submit(check_host, host_urls): host
+            for host, host_urls in by_host.items()
+        }
         for fut in as_completed(futs):
-            u = futs[fut]
-            try:
-                results[u] = fut.result()
-            except Exception as e:  # noqa: BLE001 — surface unexpected failures
-                results[u] = (False, repr(e))
+            for url, outcome in fut.result():
+                results[url] = outcome
 
     broken: list[str] = []
     ok_count = 0
@@ -153,6 +239,7 @@ def main() -> int:
     print(f"  URLs checked (unique): {total}")
     print(f"  OK:                    {ok_count}")
     print(f"  Broken:                {bad_count}")
+    print(f"  Ignored (fragile):     {len(ignored)}")
 
     return 1 if bad_count else 0
 

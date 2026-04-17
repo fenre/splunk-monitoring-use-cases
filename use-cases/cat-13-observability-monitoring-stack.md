@@ -24,6 +24,8 @@ index=_internal sourcetype=splunkd group=queue
 - **Visualization:** Gauge (queue fill % per pipeline), Line chart (queue fill over time), Table (queues above threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.2 · Search Concurrency Monitoring
@@ -41,6 +43,8 @@ index=_internal sourcetype=splunkd group=search_concurrency
 - **Implementation:** Track concurrent searches vs configured limits. Alert when approaching concurrency limits. Identify resource-intensive searches consuming disproportionate capacity. Report on search workload distribution.
 - **Visualization:** Line chart (concurrent searches over time), Gauge (% of limit), Table (top resource consumers).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -64,6 +68,8 @@ index=_internal sourcetype=splunkd group=tcpin_connections
 - **Visualization:** Table (silent forwarders), Single value (forwarders reporting), Status grid (forwarder × health), Bar chart (silent by location).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.4 · License Usage Trending
@@ -84,6 +90,8 @@ index=_internal sourcetype=splunkd group=license_usage
 - **Visualization:** Line chart (daily usage with license limit line), Single value (today's usage %), Bar chart (usage by sourcetype), Gauge (% of limit).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.5 · Skipped Search Detection
@@ -102,6 +110,8 @@ index=_internal sourcetype=scheduler status="skipped"
 - **Implementation:** Monitor scheduler logs for skipped searches. Alert when critical searches are skipped. Track skip reasons (concurrency, disabled, cron). Optimize skipped searches or increase search concurrency limits.
 - **Visualization:** Table (skipped searches with reasons), Bar chart (top skipped searches), Line chart (skip rate trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -123,6 +133,8 @@ index=_internal sourcetype=scheduler status="skipped"
 - **Visualization:** Table (index sizes with % used), Bar chart (top indexes by size), Line chart (growth trend), Gauge (% of max per index).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.7 · KV Store Health
@@ -143,6 +155,8 @@ index=_internal sourcetype=splunkd component=KVStoreServlet OR component=KvStore
 - **Visualization:** Status grid (SHC member × KV Store health), Table (KV Store errors), Line chart (replication lag).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.8 · Deployment Server Status
@@ -162,6 +176,8 @@ index=_internal sourcetype=splunkd component=DeploymentServer
 - **Implementation:** Monitor deployment server logs for errors. Track successful vs failed deployments to clients. Alert on deployment failures. Verify client phone-home intervals are within expected ranges.
 - **Visualization:** Table (deployment errors), Single value (clients checking in), Bar chart (failures by server class).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -184,6 +200,8 @@ index=_internal sourcetype=splunkd component=DeploymentServer
 - **Visualization:** Table (sourcetypes with high latency), Line chart (latency trend), Bar chart (latency by sourcetype).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.10 · Search Head Cluster Status
@@ -204,6 +222,8 @@ index=_internal sourcetype=splunkd component=DeploymentServer
 - **Visualization:** Status grid (SHC member × status), Table (member health), Timeline (captain election events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.11 · Indexer Cluster Bucket Replication
@@ -222,6 +242,8 @@ index=_internal sourcetype=splunkd component=DeploymentServer
 - **Implementation:** Monitor cluster master/manager REST endpoints. Track replication and search factor compliance. Alert on any buckets not meeting the configured factor. Investigate cause (indexer down, disk full, network issues).
 - **Visualization:** Single value (non-compliant buckets — target: 0), Table (non-compliant bucket details), Line chart (compliance trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -242,6 +264,8 @@ index=_internal sourcetype=splunkd component=HttpEventCollector
 - **Implementation:** Monitor HEC endpoint health and error rates. Track HTTP status codes returned to clients. Alert on elevated error rates (4xx, 5xx). Monitor HEC token usage for capacity planning and security.
 - **Visualization:** Single value (HEC error rate), Line chart (HEC throughput), Table (errors by token), Bar chart (status codes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -264,6 +288,8 @@ index=_internal sourcetype=splunkd group=license_usage
 - **Visualization:** Bar chart (top sourcetypes by volume), Pie chart (volume distribution), Line chart (growth trend for top sourcetypes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.14 · Long-Running Search Detection
@@ -284,6 +310,8 @@ index=_audit action=search info=completed
 - **Visualization:** Table (long-running searches), Bar chart (top consumers by run time), Line chart (long search count trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.15 · Splunk Certificate Expiration
@@ -302,6 +330,8 @@ index=_internal sourcetype=splunkd "certificate" ("expire" OR "expiration" OR "n
 - **Visualization:** Table (certificates with expiry), Single value (days until nearest expiry), Status grid (component × cert status).
 - **CIM Models:** N/A
 
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -322,6 +352,8 @@ index=_internal sourcetype=splunkd group=queue name=*parsing*
 - **Implementation:** Filter `metrics.log` queue metrics for parsing queue names. Alert on sustained fill >70% or `is_blocked`. Correlate with new sourcetypes, regex-heavy props, or indexer CPU.
 - **Visualization:** Gauge (parsing fill %), Line chart (fill by host), Table (queues above threshold).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -344,6 +376,8 @@ index=_internal sourcetype=splunkd group=queue name=*merge*
 - **Visualization:** Line chart (merge queue depth over time), Table (top merging queues).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.18 · Typing Queue Health (_internal)
@@ -363,6 +397,8 @@ index=_internal sourcetype=splunkd group=queue name=*typing*
 - **Implementation:** Monitor typing queue fill and blocked state. Tune props/transforms if chronic backlog. Correlate with high-cardinality lookups or expensive `EVAL` in transforms.
 - **Visualization:** Area chart (typing queue fill), Single value (worst host).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -384,6 +420,8 @@ index=_internal sourcetype=splunkd (TcpOutputProc OR group=tcpout_connections)
 - **Visualization:** Table (failures by destination), Line chart (failure rate), Status grid (forwarder × output group).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.20 · Modular Input Errors (_internal)
@@ -403,6 +441,8 @@ index=_internal sourcetype=splunkd (component=ModularInputs OR component=ExecPro
 - **Implementation:** Alert on ERROR/FATAL from modular inputs. Map `stanza` to `inputs.conf`. Verify script paths, credentials, and API rate limits.
 - **Visualization:** Table (modular input errors), Timeline (error bursts).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -424,6 +464,8 @@ index=_internal sourcetype=splunkd (AccelerationManager OR "Data Model")
 - **Visualization:** Table (data models with issues), Single value (models not accelerated).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.22 · Summary Indexing Failures (_internal)
@@ -443,6 +485,8 @@ index=_internal sourcetype=scheduler status IN ("failed","skipped")
 - **Implementation:** Tag SI-populating searches and alert on failed/skipped runs. Verify disk space on summary indexers and search concurrency.
 - **Visualization:** Table (failed summary searches), Line chart (SI job success rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -464,6 +508,8 @@ index=_internal sourcetype=splunk_disk_objects OR (sourcetype=splunkd "disk usag
 - **Implementation:** Normalize mount paths for hot/warm/cold. Alert at 85% and 90%. Include frozen path and SmartStore cache volumes where applicable.
 - **Visualization:** Gauge (disk % per indexer), Table (mounts at risk), Heatmap (host × volume).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -487,6 +533,8 @@ index=_internal sourcetype=splunkd (SmartStore OR "remote_storage" OR S2Bucket)
 - **Visualization:** Line chart (hit ratio over time), Single value (cluster avg hit %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.25 · Cluster Bundle Push Failures (_internal)
@@ -506,6 +554,8 @@ index=_internal sourcetype=splunkd (bundle OR BundleReplication)
 - **Implementation:** Monitor CM and peer logs for bundle apply failures. Alert immediately. Verify disk space on peers and CM connectivity.
 - **Visualization:** Table (peers with bundle errors), Timeline (bundle events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -527,6 +577,8 @@ index=_internal sourcetype=splunkd
 - **Visualization:** Table (restart count by host), Timeline (restart events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.27 · Splunk Web UI Errors (_internal)
@@ -546,6 +598,8 @@ index=_internal sourcetype IN ("splunk_web_access","splunkd_ui","splunkd") uri_p
 - **Implementation:** Ensure access logs include HTTP status. Alert on 5xx rate above baseline. Correlate with KV Store and SHC captain during UI-wide failures.
 - **Visualization:** Line chart (5xx rate), Table (top failing URIs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -567,6 +621,8 @@ index=_internal sourcetype=splunkd component=*SHC* OR component=*shcluster*
 - **Visualization:** Table (members with replication issues), Single value (max lag seconds).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.29 · Ingest Actions Pipeline Status (_internal)
@@ -586,6 +642,8 @@ index=_internal sourcetype=splunkd (IngestActions OR "ingest.action")
 - **Implementation:** Map errors to `props`/`transforms` ingest action stanzas. Alert on any sustained error rate. Verify HEC and indexer tier compatibility.
 - **Visualization:** Table (failing ingest actions), Line chart (error trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -607,6 +665,8 @@ index=_internal sourcetype=splunkd (DateParser OR "strptime" OR "could not")
 - **Visualization:** Table (sourcetypes with parse warnings), Line chart (warning rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.31 · Workload Management Pool Saturation (_internal)
@@ -627,6 +687,8 @@ index=_internal sourcetype=splunkd (WorkloadManager OR "workload_pool")
 - **Visualization:** Table (pools with rejections), Gauge (pool utilization %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.32 · Search Scheduler Fill Ratio (_internal)
@@ -646,6 +708,8 @@ index=_internal sourcetype=scheduler
 - **Implementation:** Track skipped vs completed over sliding windows. Break down by app and user. Add concurrency or split heavy searches when fill ratio grows.
 - **Visualization:** Line chart (scheduler skip %), Table (top skipped searches).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -668,6 +732,8 @@ index=_internal sourcetype=splunkd "bundle" ("MB" OR "KB" OR "size")
 - **Visualization:** Table (largest bundles), Bar chart (size by app).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.34 · Real-Time Search Resource Consumption (_internal)
@@ -688,6 +754,8 @@ index=_internal sourcetype=splunkd group=search_concurrency
 - **Visualization:** Line chart (RT vs historical searches), Table (hosts with high RT).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.35 · User Search Activity Audit (_audit)
@@ -706,6 +774,8 @@ index=_audit action=search info=started
 - **Implementation:** Retain per policy. Report on after-hours or high-volume search users. Exclude known service accounts via lookup.
 - **Visualization:** Table (users by search volume), Heatmap (hour × user).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -727,6 +797,8 @@ index=_audit action IN ("edit_*","update")
 - **Visualization:** Timeline (config changes), Table (recent edits by user).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.37 · Knowledge Object Modification Audit (_audit)
@@ -745,6 +817,8 @@ index=_audit object_type IN ("savedsearch","dashboard","lookup","macro")
 - **Implementation:** Tune `object_type` values for your version. Alert on delete or ACL change for critical objects. Use lookups for approved admins.
 - **Visualization:** Table (changes by object type), Bar chart (actions by user).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -766,6 +840,8 @@ index=_audit object_type IN ("savedsearch","dashboard","lookup","macro")
 - **Visualization:** Table (top REST paths), Line chart (4xx/5xx rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.39 · Role and Capability Change Detection (_audit)
@@ -786,6 +862,8 @@ index=_audit object_type IN ("user","role","capabilities")
 - **Visualization:** Timeline (privilege changes), Table (recent role mappings).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.40 · Per-Process CPU and Memory Trending (_introspection)
@@ -803,6 +881,8 @@ index=_introspection sourcetype=splunk_resource_usage
 - **Implementation:** Enable introspection generators on all tiers. Alert when `cpu_pct` or memory for `search`/`indexing` exceeds baseline. Use `predict` for week-over-week growth.
 - **Visualization:** Line chart (CPU/memory by process class), Heatmap (host × process).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -824,6 +904,8 @@ index=main sourcetype="splunk:dispatch_stats"
 - **Visualization:** Gauge (dispatch GB per SH), Line chart (growth trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.42 · I/O Wait Bottleneck Detection (_introspection)
@@ -842,6 +924,8 @@ index=_introspection sourcetype=splunk_resource_usage
 - **Implementation:** Field names depend on platform; normalize in `props`. Correlate with storage latency metrics from SAN/NVMe. Alert when sustained `io_wait` exceeds threshold.
 - **Visualization:** Line chart (iowait %), Table (hosts with disk saturation).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -862,6 +946,8 @@ index=inventory sourcetype="splunk:version_inventory"
 - **Implementation:** Nightly scheduled search hits `server/info` on all peers via SH with credentials or forwarder-side scripted input. Compare to approved matrix. Report non-compliant hosts.
 - **Visualization:** Table (hosts × version), Pie chart (version distribution).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -884,6 +970,8 @@ index=inventory sourcetype="splunk:shc_app_inventory"
 - **Visualization:** Matrix (app × member version), Table (mismatched apps).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.45 · Forwarder Version Compliance (operational inventory)
@@ -904,6 +992,8 @@ index=_internal sourcetype=splunkd group=deploymentclient
 - **Implementation:** Maintain CSV of approved forwarder builds. Supplement with DS client list. Drive upgrades via DS server classes.
 - **Visualization:** Bar chart (forwarders by version), Single value (% compliant).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -931,6 +1021,8 @@ index=_internal sourcetype=splunkd group=deploymentclient
 - **Visualization:** Line chart (volume per sourcetype with anomaly markers), Table (anomalous sourcetypes), Single value (active silent drops).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.47 · License Usage Forecast with Seasonality (MLTK)
@@ -953,6 +1045,8 @@ index=_internal source=*license_usage.log type=Usage
 - **Implementation:** Pull daily license usage from `license_usage.log` and train a StateSpaceForecast model that captures weekly cycles (lower weekend volumes) and monthly trends (end-of-month batch jobs). Forecast 30 days ahead with 95% confidence intervals. Alert when the upper confidence bound crosses the licensed capacity threshold. Display the forecast in a capacity planning dashboard alongside current daily consumption. Retrain monthly. Supplement with `predict` command for simpler deployments that lack MLTK.
 - **Visualization:** Area chart (actual vs forecast with confidence band), Single value (days until projected overage), Table (daily forecast).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -983,6 +1077,8 @@ index=_internal sourcetype=splunkd component=Metrics group=queue
 - **Visualization:** Multi-line chart (all queue depths over time), Heatmap (queue × indexer), Single value (current anomaly status).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.1.49 · Service Latency Seasonality and Anomaly (MLTK)
@@ -1008,6 +1104,12 @@ index=main sourcetype=access_combined
 - **Implementation:** Collect p95 and p99 latency per endpoint in 5-minute bins. Train DensityFunction models per `uri_path` that learn hour-of-week seasonality. Anomalies represent latency that is unusual for that specific time window, not just above a flat threshold. Correlate with deployment events from CI/CD pipelines (cat-12) and infrastructure changes. Create ITSI KPIs from the anomaly output for service health scoring. Alert application owners via Splunk On-Call with endpoint-specific context. Retrain models weekly.
 - **Visualization:** Line chart (p95 latency with seasonal overlay), Heatmap (endpoint × hour-of-week), Table (anomalous endpoints).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=5m | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -1033,6 +1135,8 @@ index=k8s sourcetype="kube:objects:hpa"
 - **Implementation:** Collect HPA status objects from the Kubernetes API via Splunk Connect for Kubernetes. Model the joint distribution of replica count and CPU utilization per HPA target. Outliers where replica count spikes without proportional CPU increase indicate scaling misbehavior. Correlate with pod restart events and OOMKill signals from `kube:events`. Alert the platform engineering team and include the HPA configuration (min/max replicas, target utilization) for rapid triage. Retrain the model weekly.
 - **Visualization:** Dual-axis line chart (replicas vs CPU), Table (anomalous HPAs), Bar chart (replica count distribution by namespace).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1061,6 +1165,8 @@ index=o11y sourcetype="otel:metrics" metric_name IN ("slo.error_budget.remaining
 - **Visualization:** Radar chart (three SLO dimensions per service), Line chart (burn rates over time), Table (services at risk), Single value (services projected to breach this month).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### 13.2 Splunk ITSI (Premium)
@@ -1086,6 +1192,8 @@ index=itsi_summary is_service_in_maintenance=0
 - **Visualization:** Service Analyzer (ITSI native), Glass Table, Line chart (health trend), Status grid.
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.2 · KPI Degradation Alerting
@@ -1104,6 +1212,8 @@ index=itsi_summary severity_value>3
 - **Implementation:** Configure KPIs with adaptive thresholds (ITSI machine learning). Set up correlation searches for threshold breach alerting. Route alerts to Episode Review for analyst triage. Tune thresholds based on feedback.
 - **Visualization:** ITSI Deep Dive, Service Analyzer, Line chart with threshold bands.
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1124,6 +1234,8 @@ index=itsi_grouped_alerts
 - **Visualization:** Bar chart (episodes by severity), Line chart (episode volume trend), Single value (avg MTTR), Table (open episodes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.4 · Entity Status Monitoring
@@ -1142,6 +1254,8 @@ index=itsi_grouped_alerts
 - **Implementation:** Configure entity discovery (AD, CMDB, cloud APIs). Monitor entity states (active, inactive, unstable). Alert when critical entities become inactive. Track entity population for coverage analysis.
 - **Visualization:** Status grid (entities by type × status), Table (inactive entities), Single value (active entity count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1162,6 +1276,8 @@ index=_internal sourcetype=scheduler savedsearch_name="ITSI*Base*"
 - **Visualization:** Table (base search performance), Bar chart (runtime by search), Single value (skipped searches).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.6 · Rules Engine Health
@@ -1180,6 +1296,8 @@ index=_internal sourcetype=itsi_internal_log component=RulesEngine
 - **Implementation:** Monitor Rules Engine logs for errors and warnings. Alert on Rules Engine restarts or processing failures. Track event-to-episode latency. Verify aggregation policies are functioning correctly.
 - **Visualization:** Single value (Rules Engine status), Table (recent errors), Line chart (processing latency).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1201,6 +1319,8 @@ index=itsi_summary service_name="Production Web"
 - **Visualization:** Line chart (actual vs predicted health), Single value (predicted health in 4h), Alert timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.8 · Glass Table NOC Display
@@ -1221,6 +1341,8 @@ index=itsi_summary service_name="Production Web"
 - **Visualization:** ITSI Glass Table (custom visual layout with service health indicators, KPI widgets, and status icons).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.9 · Elasticsearch Ingest Pipeline Errors
@@ -1240,6 +1362,8 @@ index=elasticsearch sourcetype="elasticsearch:ingest"
 - **Implementation:** Poll Elasticsearch `GET _nodes/stats/ingest` via scripted input or scheduled REST call. Parse `ingest.total.pipeline_failures`, `ingest.total.pipeline_current`, and per-pipeline stats. Ingest as events with node, pipeline ID, and counters. Alert when pipeline_failures increases or when pipeline_current exceeds threshold (backlog). Correlate with index rate and cluster health. Investigate pipeline processor errors (script failures, date parse errors, field mapping conflicts).
 - **Visualization:** Table (pipelines with failures), Line chart (pipeline failures over time), Bar chart (failures by pipeline), Single value (total pipeline failures).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1263,6 +1387,8 @@ index=fluent sourcetype IN ("fluentd:plugins", "fluentbit:metrics")
 - **CIM Models:** N/A
 
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.2.11 · KPI Threshold Violation Trending
@@ -1284,6 +1410,8 @@ index=itsi_summary severity_value>=3
 - **Visualization:** Line chart (breaches per KPI), Heatmap (service × hour), Table (KPIs above baseline).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.12 · Episode Correlation Accuracy
@@ -1303,6 +1431,8 @@ index=itsi_grouped_alerts
 - **Implementation:** Ingest manual episode disposition (false positive, wrong merge, should split) from ticketing or a KV store. Monthly review of `pct` by policy. Tune aggregation and similarity thresholds.
 - **Visualization:** Pie chart (disposition mix), Bar chart (accuracy by policy), Table (episodes with poor feedback).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1327,6 +1457,8 @@ index=itsi_summary is_service_in_maintenance=0
 - **Visualization:** Table (services alerting outside window), Single value (non-compliant alert %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.14 · Glass Table SLA Breaches
@@ -1347,6 +1479,8 @@ index=itsi_summary
 - **Implementation:** Maintain `sla_targets` lookup with minimum health score or max severity per service. Drive Glass Table color thresholds from the same search. Alert when executive-facing services breach SLA for >15 minutes.
 - **Visualization:** Glass Table (SLA status), KPI ticker (breached services), Table (breach duration).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1372,6 +1506,8 @@ index=itsi_summary
 - **Visualization:** Service Analyzer tree, Sankey (dependency impact), Table (dependency × health).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.16 · ITSI Backup Set Integrity
@@ -1392,6 +1528,8 @@ index=_internal OR index=main sourcetype="itsi:backup"
 - **Visualization:** Table (failed backups), Timeline (backup jobs), Single value (last successful backup age).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.17 · Notable Event Suppression Audit
@@ -1411,6 +1549,8 @@ index=itsi_notable:audit OR index=notable sourcetype="itsi:notable_audit"
 - **Implementation:** Ingest notable audit events with user, rule, and reason. Alert on high-volume suppression by single user or new rule. Review monthly for policy compliance.
 - **Visualization:** Table (top suppressors), Bar chart (suppressions by rule), Timeline (suppression events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1435,6 +1575,8 @@ index=itsi_summary is_service_in_maintenance=0
 - **Visualization:** Line chart (breaches per adaptive KPI), Table (KPIs needing threshold review).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.19 · Multi-Tier Application Service Tree Modeling
@@ -1456,6 +1598,8 @@ index=itsi_summary is_service_in_maintenance=0
 - **Implementation:** Model services top-down: business service → application tier → middleware → infrastructure. Use entity rules with host/IP aliases to dynamically bind entities. Define dependency relationships so parent health reflects child degradation. Use service templates for repeatable patterns across environments.
 - **Visualization:** Service Analyzer (dependency tree), Glass Table (business service map).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1482,6 +1626,8 @@ index=itsi_summary is_service_in_maintenance=0
 - **Visualization:** Single value (coverage %), Table (unmatched hosts), Column chart (entity count by type).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.21 · Content Pack Deployment Health (Monitoring and Alerting)
@@ -1503,6 +1649,8 @@ index=_internal sourcetype=scheduler app="DA-ITSI-CP-Monitoring-and-Alerting"
 - **Visualization:** Table (search name, status, skip rate), Single value (healthy/degraded count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.23 · Notable Event Volume Trending by Source
@@ -1523,6 +1671,8 @@ index=itsi_tracked_alerts
 - **Implementation:** Monitor notable event ingest rates per correlation search source. Identify sudden spikes (alert storms) and sustained high-volume sources (noisy rules). Set thresholds: >100 notables/hour from a single source warrants investigation. Tune or disable noisy correlation searches. Feed into Episode Review capacity planning.
 - **Visualization:** Stacked area chart (events by source over time), Table (top 10 noisiest sources).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1550,6 +1700,8 @@ index=itsi_summary is_service_in_maintenance=0 is_entity_in_maintenance=0
 - **Visualization:** Line chart (KPI value with baseline band), Table (drifting KPIs ranked by score).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.25 · MLTK Custom Anomaly Detection on KPI Data
@@ -1570,6 +1722,8 @@ index=itsi_summary is_service_aggregate=0 kpi_name IN ("CPU Utilization", "Memor
 - **Implementation:** Extract KPI data from `itsi_summary`. Build MLTK models (DensityFunction for outlier detection, RandomForestRegressor for prediction). Create residual KPIs: predicted vs actual values. Feed MLTK output back as ITSI KPIs for service health scoring. Retrain models monthly or on significant infrastructure changes.
 - **Visualization:** Scatter plot (multi-dimensional KPI space with outliers highlighted), Line chart (residual KPI over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1596,6 +1750,8 @@ index=itsi_grouped_alerts status=1 severity>=4
 - **Visualization:** Table (routing key, severity, count), Single value (unacknowledged critical episodes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.27 · Observability Cloud Alert Ingestion
@@ -1615,6 +1771,12 @@ index=itsi_tracked_alerts source="*observability*" OR source="*o11y*"
 - **Implementation:** Configure Observability Cloud to forward alerts via webhook to Splunk HEC. Normalize alert payloads into the ITSI Universal Alerting schema. Create a Universal Correlation Search to convert incoming alerts into notable events. Configure NEAPs to group O11y alerts with infrastructure alerts into unified episodes. Track alert volume and false positive rate.
 - **Visualization:** Table (O11y alert source, count, severity), Time chart (alert volume over time).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count
+```
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841), [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1638,6 +1800,8 @@ index=itsi_tracked_alerts source="*observability*" OR source="*o11y*"
 - **Visualization:** Pie chart (templated vs non-templated), Table (services diverging from template).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.29 · Entity-Level Adaptive Threshold Tuning
@@ -1660,6 +1824,8 @@ index=itsi_summary is_entity_in_maintenance=0 is_service_in_maintenance=0
 - **Visualization:** Table (entity, KPI, variance, threshold type), Line chart (per-entity KPI with threshold bands).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.30 · Configuration Assistant Recommendations Tracking
@@ -1679,6 +1845,8 @@ index=_internal sourcetype=itsi_internal_log component=ConfigurationAssistant
 - **Implementation:** Review Configuration Assistant recommendations weekly. Categorize by type: threshold tuning, KPI consolidation, entity rule optimization, base search performance. Track implementation rate and measure impact (reduced skipped searches, fewer false positives, improved health score stability). Prioritize recommendations that affect critical services.
 - **Visualization:** Table (recommendation type, count, implementation status), Single value (implementation rate %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1700,6 +1868,8 @@ index=_internal sourcetype=splunkd_ui_access uri_path="*deep_dive*"
 - **Implementation:** Monitor Deep Dive access patterns to understand analyst workflows. Identify unused deep dives for cleanup. Track load times — dives exceeding 10s typically have too many KPIs or overly broad time ranges. Optimize by reducing KPI count per lane, enabling backfill, or narrowing default time ranges.
 - **Visualization:** Table (deep dive name, user, access count, avg load time), Bar chart (top 10 most-used dives).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1724,6 +1894,8 @@ index=_internal sourcetype=splunkd_ui_access uri_path="*deep_dive*"
 - **Implementation:** Define ITSI teams aligned to organizational structure. Assign services to teams for scoped visibility. Audit team membership quarterly — remove departed users, verify role assignments (itoa_admin, itoa_team_admin, itoa_analyst, itoa_user). Ensure admin role inherits itoa_admin in authorize.conf. Monitor for users with excessive permissions.
 - **Visualization:** Table (team, members, services, role distribution), Single value (users with admin access).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1750,6 +1922,8 @@ index=itsi_summary is_service_aggregate=1
 - **Implementation:** Define SLA targets per business service (e.g., 99.9% availability). Map ITSI health score thresholds to SLA compliance (health >= 70 = available). Calculate daily/monthly/quarterly SLA metrics. Use Glass Tables for executive dashboards showing SLA status. Alert on projected SLA breach based on error budget burn rate. Integrate with ITSM for SLA violation reporting.
 - **Visualization:** Glass Table (SLA dashboard), Single value (current SLA %), Gauge (error budget remaining), Table (service SLA history).
 - **CIM Models:** N/A
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1779,6 +1953,8 @@ index=itsi_grouped_alerts status=5
 - **Visualization:** Bar chart (avg MTTR by tier), Line chart (MTTR trend over weeks), Table (slowest-resolved episodes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.35 · ITSI License and Capacity Utilization
@@ -1807,6 +1983,8 @@ index=itsi_grouped_alerts status=5
 - **Visualization:** Single value (entity count vs license limit), Line chart (entity growth trend), Table (entity count by type).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.2.36 · Azure Log Analytics Workspace Ingestion Health
@@ -1825,6 +2003,8 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.operation
 - **Implementation:** Collect Azure Monitor metrics for Log Analytics workspaces. Key metrics: `IngestionLatencyInSeconds` (alert >300s — indicates data delay for all downstream analytics), `IngestionRate` (sudden drops mean data sources stopped sending), and `BillableDataGB` versus daily cap (when cap is hit, ingestion stops until reset). Track per-table ingestion volume using workspace diagnostic settings to identify data spikes.
 - **Visualization:** Line chart (ingestion latency and rate), Gauge (daily volume vs. cap), Table (top tables by volume).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -1853,6 +2033,8 @@ index=itsi_summary is_service_aggregate=0 is_entity_in_maintenance=0
 - **Implementation:** Extract entity-level KPI data from `itsi_summary` for all monitored KPIs within a service. Pivot into wide format (one column per KPI) per entity per time bin. Train DensityFunction models per entity that learn the joint distribution of their KPI values. Schedule the detection search every 5 minutes. Outliers represent entities where the combination of KPI values is unusual, even if each individual KPI is within its threshold. Feed the anomaly score back into ITSI as a synthetic "Entity Health Anomaly" KPI that contributes to the service health score. Alert service owners via ITSI notable event rules when the composite anomaly persists for 3+ consecutive windows. Retrain models weekly; use entity groups (by service or tier) if per-entity training data is sparse.
 - **Visualization:** Radar chart (KPI values for anomalous entity), Line chart (composite anomaly score over time), Table (top anomalous entities with KPI breakdown).
 - **CIM Models:** N/A
+
+- **References:** [Splunk IT Service Intelligence](https://splunkbase.splunk.com/app/1841)
 
 ---
 
@@ -1883,6 +2065,8 @@ index=itsi_summary is_service_aggregate=1
 - **Visualization:** Bar chart (KPI feature importance), Table (top causal KPIs per service), Sankey (parent health → child KPI contributions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk IT Service Intelligence](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### 13.3 Third-Party Monitoring Integration
@@ -1908,6 +2092,8 @@ index=monitoring sourcetype="nagios:notification" OR sourcetype="zabbix:webhook"
 - **Visualization:** Table (third-party alerts), Bar chart (alerts by source tool), Status grid (host × service).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.2 · Prometheus Metric Ingestion
@@ -1924,6 +2110,8 @@ index=monitoring sourcetype="nagios:notification" OR sourcetype="zabbix:webhook"
 - **Implementation:** Configure Prometheus remote_write to Splunk's metrics endpoint or use OpenTelemetry Collector as intermediary. Ingest as Splunk metrics. Use `mstats` for efficient querying. Create unified dashboards combining Prometheus and Splunk data.
 - **Visualization:** Line chart (metric trends), Multi-metric dashboard, Table (metric summaries).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1943,6 +2131,8 @@ index=pagerduty sourcetype="pagerduty:incident"
 - **Implementation:** Poll PagerDuty/Opsgenie API for incident data. Track acknowledgment time, resolution time, and escalation rates. Report on on-call workload distribution. Alert when acknowledgment SLA is breached.
 - **Visualization:** Bar chart (MTTA by service), Line chart (incident volume trend), Table (open incidents), Single value (avg MTTA).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1965,6 +2155,8 @@ index=pagerduty sourcetype="pagerduty:incident"
 - **Visualization:** Table (unmonitored hosts), Single value (coverage %), Pie chart (monitored vs unmonitored), Bar chart (gaps by department).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.5 · Alert Storm Detection
@@ -1984,6 +2176,8 @@ index=alerts sourcetype=*
 - **Implementation:** Ingest alerts from all monitoring tools into a common index. Track alert rate across all sources. Alert when rate exceeds normal baseline by >5× (indicates correlated event). Use ITSI Event Analytics for intelligent grouping.
 - **Visualization:** Line chart (alert rate across all sources), Single value (current alert rate), Timeline (alert storm events), Table (contributing alerts).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2005,6 +2199,8 @@ index=slos sourcetype="slo:compliance"
 - **Visualization:** Gauge (error budget remaining), Line chart (burn rate), Table (services by budget consumed).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.7 · Distributed Trace Sampling and Coverage
@@ -2024,6 +2220,8 @@ index=traces sourcetype="trace:span"
 - **Implementation:** Ingest trace metadata and sampling rates. Alert when sampling drops below target or trace completeness (spans per trace) is low for critical services. Report on coverage by service and env.
 - **Visualization:** Line chart (sampling rate by service), Table (low-coverage services), Bar chart (spans per trace).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2045,6 +2243,8 @@ index=_internal source=*metrics* group=queue
 - **Visualization:** Table (hosts with backlog), Single value (max lag minutes), Line chart (queue depth trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.9 · Dashboard and Saved Search Usage Analytics
@@ -2064,6 +2264,8 @@ index=_audit action=view OR action=run
 - **Implementation:** Ingest Splunk audit or usage logs for dashboard and search runs. Report on most/least used dashboards and searches. Identify unused content for archival. Track adoption by team.
 - **Visualization:** Bar chart (views by dashboard), Table (search run count by name), Pie chart (usage by user).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2085,6 +2287,8 @@ index=synthetic sourcetype="synthetic:check"
 - **Visualization:** Table (failed checks by location), Geo map (failure by region), Line chart (latency by location).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.11 · Prometheus Target Scrape Failures
@@ -2105,6 +2309,8 @@ index=prometheus sourcetype="prometheus:targets" health="down"
 - **Implementation:** Poll Prometheus `/api/v1/targets` via scripted input or HTTP Event Collector. Parse JSON response and index target health (up/down), last scrape time, and last error. Alternatively, ingest `up` metric (value 0 = down) from Prometheus remote write. Alert when any target has been down >5 minutes. Track scrape duration and failure reasons (connection refused, timeout, DNS) for root cause analysis.
 - **Visualization:** Table (down targets with duration), Status grid (job × instance health), Single value (targets down count), Line chart (scrape failure rate over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2128,6 +2334,8 @@ index=prometheus (sourcetype="prometheus:tsdb" OR sourcetype="prometheus:log")
 - **Visualization:** Table (compaction errors by host), Single value (TSDB health status), Line chart (head series count trend), Bar chart (block count by retention).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.13 · Grafana Datasource Health
@@ -2148,6 +2356,8 @@ index=grafana sourcetype="grafana:datasource"
 - **Visualization:** Table (unhealthy datasources with errors), Status grid (datasource × status), Single value (healthy datasource count), Line chart (datasource latency trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.14 · OpenTelemetry Collector Dropped Spans and Metrics
@@ -2166,6 +2376,8 @@ index=grafana sourcetype="grafana:datasource"
 - **Implementation:** Scrape OpenTelemetry Collector's internal metrics endpoint (default :8888/metrics) via Prometheus or OTLP. Ingest `otelcol_exporter_send_failed_spans`, `otelcol_processor_dropped_metric_points`, `otelcol_exporter_send_failed_metric_points`, and `otelcol_processor_dropped_spans`. Alert when any dropped/failed count >0 for critical pipelines. Correlate with `otelcol_receiver_accepted_spans` and queue depth metrics to identify backpressure. Tune batch size, retries, or add more collector replicas.
 - **Visualization:** Line chart (dropped spans/metrics over time), Table (dropped by exporter/processor), Single value (total dropped in last hour), Bar chart (dropped by pipeline).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2205,6 +2417,8 @@ index=grafana sourcetype="grafana:datasource"
 - **Visualization:** Line chart (queue saturation % per collector), Area chart (received vs sent throughput by signal), Gauge (peak queue saturation), Table (collectors above 70% queue).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.16 · OpenTelemetry Collector Memory and CPU Utilization
@@ -2235,6 +2449,8 @@ index=grafana sourcetype="grafana:datasource"
 - **Visualization:** Line chart (heap MB per collector over 24 hours), Area chart (CPU seconds rate), Table (collectors exceeding memory threshold), Single value (collector with highest heap).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.17 · OpenTelemetry Collector Configuration Drift Detection
@@ -2258,6 +2474,8 @@ index=otel_metrics sourcetype="otel:collector:info"
 - **Implementation:** Add a custom processor or extension to each collector that computes a SHA-256 hash of the active configuration and emits it as a metric attribute or log event on startup and at regular intervals (every 5 minutes). Alternatively, use the `zpages` extension to expose config and scrape it. Store the expected config hash in a KV store lookup, updated when deployments roll out. Compare each collector's reported hash against the expected value. Alert when any collector reports a different hash after a rollout window (30 minutes). Also detect stale collectors that haven't reported recently — these may have crashed without restarting. For Kubernetes deployments, correlate with ConfigMap update events to verify that DaemonSet pods restarted after config changes.
 - **Visualization:** Single value (collectors with drift), Table (drifted instances with config hash comparison), Pie chart (config version distribution), Timeline (config rollout events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2291,6 +2509,8 @@ index=otel_metrics sourcetype="otel:collector:info"
 - **Visualization:** Heatmap (receiver × signal health status), Line chart (accepted vs refused per receiver), Table (receivers with refusals), Single value (total active receivers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.3.19 · OpenTelemetry Exporter Retry and Timeout Monitoring
@@ -2323,6 +2543,8 @@ index=otel_metrics sourcetype="otel:collector:info"
 - **Visualization:** Line chart (failure rate per exporter over 24 hours), Table (exporters with active failures), Bar chart (failures by signal type and exporter), Single value (exporters currently healthy vs failing).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263)
+
 ---
 
 ### 13.3.TE Cisco ThousandEyes — Platform Integration
@@ -2353,6 +2575,8 @@ index=ai_ops (sourcetype="openai:api" OR sourcetype="azure:openai")
 - **Visualization:** Line chart (latency p99, error rate), Single value (SLO burn), Table (top failing models/regions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.2 · Token Usage and Cost per Model and Application
@@ -2375,6 +2599,8 @@ index=ai_ops (sourcetype="openai:api" OR sourcetype="azure:openai")
 - **Visualization:** Bar chart (cost by app), Treemap (cost by model), Table (tokens and cost detail).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.3 · GPU and TPU Utilization for Inference Workloads
@@ -2396,6 +2622,8 @@ index=infra sourcetype="otel:metrics" (metric_name="gpu.utilization" OR metric_n
 - **Visualization:** Timechart (GPU %), Heatmap (GPU × host), Single value (cluster avg utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.4 · Model Version Deployment Tracking
@@ -2415,6 +2643,8 @@ index=infra sourcetype="otel:metrics" (metric_name="gpu.utilization" OR metric_n
 - **Implementation:** Log model id from inference gateway on each request; for self-hosted models, ingest deployment events with image tag or `MODEL_ID` env. Maintain a lookup of approved model versions per environment. Alert on requests referencing undeployed or deprecated model strings.
 - **Visualization:** Table (environment × model version), Timeline (version changes), Single value (unapproved model calls).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2437,6 +2667,8 @@ index=ai_ops sourcetype="openai:api"
 - **Implementation:** Centralize LLM traffic through an API gateway and log client identity, route, status, and optional `X-RateLimit-*` headers. Alert on rising 429 share per key or app. Feed quota resets into a small KV store for dashboards if headers are present.
 - **Visualization:** Bar chart (429% by client), Line chart (throttled requests over time), Table (top limited routes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2461,6 +2693,8 @@ index=ai_ops sourcetype="ollama:logs"
 - **Visualization:** Map (source IPs), Table (suspicious sessions), Timeline (request bursts).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.7 · MCP Server Suspicious Activity Detection (ESCU)
@@ -2483,6 +2717,8 @@ index=security sourcetype="mcp:audit"
 - **Visualization:** Table (high-risk tool calls), Sankey (tool flow), Timeline (session anomalies).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.8 · Microsoft 365 Copilot Data Exfiltration Risk (ESCU)
@@ -2503,6 +2739,8 @@ index=o365 sourcetype="o365:audit" Workload="Copilot"
 - **Implementation:** Ingest Copilot-related audit events and sensitivity labels from Purview where available. Tune for bulk retrieval, unusual Copilot sessions after privilege changes, and interactions with restricted sites. Align alerts with ESCU Microsoft 365 analytic stories and incident response playbooks.
 - **Visualization:** Table (users and operations), Bar chart (events by label), Timeline (Copilot activity spikes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2526,6 +2764,8 @@ index=ai_ops sourcetype IN ("openai:api","azure:openai")
 - **Visualization:** Table (injection attempts), Single value (daily blocked prompts), Timeline (repeat offenders).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.10 · AI Model API Key Rotation Compliance
@@ -2548,6 +2788,8 @@ index=security (sourcetype="vault:audit" OR sourcetype="aws:cloudtrail")
 - **Visualization:** Table (keys past due), Single value (% compliant), Bar chart (age distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.11 · LLM Output Content Policy Violation Logging
@@ -2567,6 +2809,8 @@ index=ai_ops (sourcetype="azure:openai" OR sourcetype="openai:api")
 - **Implementation:** Capture moderation and content-filter outcomes from API responses (categories, severity). Avoid storing blocked text; store hashes or length only if needed. Review spikes by app or model after prompt changes. Feed executive summary dashboards for AI governance.
 - **Visualization:** Bar chart (violations by category), Line chart (trend), Table (top apps).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2590,6 +2834,8 @@ index=ai_ops sourcetype="otel:metrics" metric_name IN ("inference.pipeline.error
 - **Implementation:** Instrument each pipeline stage with OTel counters or structured logs (`stage`, `error_class`). Emit `inference.pipeline.errors` and `inference.pipeline.requests` counters per service. Alert on SLO burn for error rate. Correlate with deployments and model version changes.
 - **Visualization:** Line chart (pipeline error rate), Table (errors by stage), Single value (SLO status).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2616,6 +2862,8 @@ index=main sourcetype=syslog earliest=-1h
 - **Implementation:** Tokenize log lines by replacing numeric values with placeholders (N) and hex strings with HEX to reduce vocabulary size. Train an LSTM autoencoder (or Transformer encoder-decoder) in the DSDL container on 30 days of normal-state logs per sourcetype. The model learns to reconstruct typical log line sequences; lines it cannot reconstruct well (high reconstruction error) are anomalous. Deploy the model via `apply` in a scheduled search running every 15 minutes. Tune the threshold per sourcetype — security logs may have higher natural variance than infrastructure logs. Route critical anomalies (>0.95 error) to the SOC and high anomalies (>0.90) to operations. Track model performance weekly by reviewing false positive rates and adjusting the threshold. Retrain quarterly or after major infrastructure changes. Consider training separate models for high-volume sourcetypes (Windows Security, syslog, application logs) for better precision.
 - **Visualization:** Table (anomalous log lines with reconstruction error), Line chart (reconstruction error distribution over time), Histogram (error score distribution), Single value (anomalies detected in last hour).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2644,6 +2892,8 @@ index=infra sourcetype IN ("collectd_http","otel:metrics","vmware:perf:cpu","vmw
 - **Visualization:** Heatmap (metric × time for anomalous hosts), Line chart (CNN anomaly score over time), Table (top anomalous hosts), Image (reconstructed vs actual heatmap for investigation).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.4.15 · MLTK Model Drift and Performance Monitoring
@@ -2671,6 +2921,8 @@ index=ml_ops sourcetype="mltk:model:metrics"
 - **Implementation:** Instrument all deployed MLTK and DSDL models to emit performance metrics (precision, recall, F1 score, reconstruction error mean/std, prediction distribution) to a dedicated `ml_ops` index. For supervised models, compare predictions against ground-truth labels (analyst dispositions, confirmed incidents). For unsupervised models, track anomaly rate stability and reconstruction error distribution. Alert data science teams when F1 drops below 0.80 or model age exceeds 90 days. Maintain a model registry KV store with model name, version, training date, data hash, and performance baseline. Automate retraining pipelines for models that drift past thresholds. Dashboard the health of all production ML models for ML platform governance.
 - **Visualization:** Line chart (F1 score over time per model), Table (model registry with drift status), Bar chart (model age distribution), Single value (models requiring retraining).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2703,6 +2955,8 @@ index=traces sourcetype="otel:traces"
 - **Visualization:** Line chart (p50/p95/p99 duration per operation over 24 hours), Table (operations with latency regressions), Heatmap (service × operation p99), Bar chart (top 10 slowest operations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.2 · Trace Error Rate by Service and Operation
@@ -2729,6 +2983,8 @@ index=traces sourcetype="otel:traces"
 - **Implementation:** Ingest OTel trace data. Map status codes: OTel status `ERROR` (code=2) and HTTP status codes >=500 in span attributes indicate errors. Calculate error rate per service/operation in 5-minute windows. Alert when error rate exceeds 3x the baseline or crosses an absolute 5% threshold. Enrich with error messages from span events (exception.type, exception.message) to group errors by root cause. Build service ownership lookups to route alerts to the responsible team. Track error rate trends per service over 30 days to measure reliability improvements.
 - **Visualization:** Line chart (error rate per service over 24 hours), Table (services with elevated errors), Bar chart (top error types by volume), Single value (fleet-wide error rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2763,6 +3019,8 @@ index=traces sourcetype="otel:traces"
 - **Visualization:** Line chart (completeness % over 7 days), Pie chart (trace classification breakdown), Table (services producing most orphan spans), Single value (current completeness %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.4 · Cross-Service Dependency Map from Traces
@@ -2792,6 +3050,8 @@ index=traces sourcetype="otel:traces" parent_span_id=* parent_span_id!=""
 - **Visualization:** Force-directed graph (service dependency map), Table (new edges detected this week), Bar chart (top dependencies by call volume), Line chart (edge count trend — growing complexity indicator).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-13.5.5 · Log-to-Trace Correlation Coverage
@@ -2816,6 +3076,8 @@ index=app_logs
 - **Implementation:** Modern logging frameworks (Log4j2, Logback, Python logging, Serilog) support automatic injection of OTel trace context (`trace_id`, `span_id`, `trace_flags`) into log events via MDC/context propagation. The OTel SDK logging bridge also carries this context. Measure what percentage of log events per service contain valid trace IDs (not null, not zero-padded). Target: 80%+ for instrumented services. Services below 50% likely haven't configured their logging framework's OTel integration. Provide a weekly instrumentation scorecard by team. Exclude infrastructure logs (syslog, container runtime) from the calculation as they're not expected to carry trace context. Track improvement over time to measure observability maturity program progress.
 - **Visualization:** Bar chart (trace coverage % by service — sorted ascending), Line chart (fleet-wide coverage trend over 90 days), Table (services with lowest coverage), Single value (fleet average coverage %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2846,6 +3108,8 @@ index=traces sourcetype="otel:traces"
 - **Visualization:** Histogram (span count distribution with anomaly threshold), Table (anomalous traces with details), Bar chart (top services producing high-fanout traces), Single value (mega-traces in last hour).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.7 · Splunk APM Service Map Health (RED Metrics)
@@ -2870,6 +3134,8 @@ index=observability sourcetype="signalfx:apm:metrics"
 - **Implementation:** Export Splunk APM metrics to Splunk Enterprise via the OTel Collector (using the SignalFx exporter → Splunk HEC pipeline) or via the Observability Cloud API with a scripted input. Key metrics: `service.request.count` (rate), `service.request.duration.ns.p99` (latency), `service.error.count` (errors). Calculate RED metrics per service in 5-minute windows. Compare against rolling baselines to detect spikes. For ITSI integration, map APM services to ITSI service entities and feed RED metrics as KPIs. For ES integration, generate risk events when critical services show sustained error spikes. Track RED metrics trend over 30 days to measure service reliability improvement.
 - **Visualization:** Table (service health matrix — green/yellow/red by RED metric), Line chart (RED metrics per service over 24 hours), Gauge (error rate per critical service), Heatmap (service × time error rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2896,6 +3162,8 @@ index=traces sourcetype="otel:traces" span_kind="CLIENT" db_system=*
 - **Visualization:** Table (top queries by impact score), Line chart (query p99 trend per service), Bar chart (query count by database system), Scatter plot (query count vs p99 latency — bubble size = impact).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.9 · Splunk RUM Core Web Vitals Tracking
@@ -2920,6 +3188,8 @@ index=observability sourcetype="signalfx:rum:metrics"
 - **Implementation:** Deploy Splunk RUM agent on frontend pages. RUM automatically captures CWV metrics using the web-vitals library. Ingest RUM data into Splunk via the Observability Cloud API or OTel Collector relay. Google measures CWV at the 75th percentile: LCP ≤2.5s (good), INP ≤200ms (good), CLS ≤0.1 (good). Track p75 values per page URL, browser, and device type (mobile vs desktop — mobile often has worse LCP). Alert frontend teams when any high-traffic page drops from "Good" to "Needs Improvement." Compare CWV before and after deployments using deployment markers. Provide weekly CWV reports to product owners with page-level detail and trend direction.
 - **Visualization:** Scorecard (CWV status per top page — green/yellow/red), Line chart (LCP/INP/CLS p75 trend over 30 days), Table (pages with poor CWV), Bar chart (CWV by device type).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2948,6 +3218,8 @@ index=observability sourcetype="signalfx:rum:errors"
 - **Visualization:** Line chart (error session % per page over 7 days), Table (pages with highest error impact), Bar chart (errors by type), Pie chart (errors by browser).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.11 · Splunk Synthetic Monitoring Multi-Step Transaction SLA
@@ -2973,6 +3245,8 @@ index=observability sourcetype="signalfx:synthetics:results" test_type="browser"
 - **Implementation:** Configure Splunk Synthetic browser tests for critical user journeys (login flow, checkout, search, account management) running from multiple geographic locations every 5-15 minutes. Ingest results with per-step timing and status. Define SLA targets per transaction (e.g., 99.5% success, p95 < 3 seconds). Track step-level performance to identify which step in the journey degrades. Compare performance across locations to detect regional infrastructure issues. Alert when any transaction drops below SLA for 2 consecutive hours. Provide weekly SLA reports to service owners showing uptime, performance, and geographic variance. Correlate synthetic failures with infrastructure events (cat-01, cat-05) to distinguish application from infrastructure issues.
 - **Visualization:** Table (transaction SLA status by location — green/red), Line chart (step duration trend per test), Bar chart (success rate by geography), Heatmap (test × location performance).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3003,6 +3277,8 @@ index=observability sourcetype="signalfx:detectors"
 - **Visualization:** Pie chart (detector health distribution), Table (unhealthy detectors with details), Bar chart (detectors by health category), Single value (% of healthy detectors).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.13 · RED Metrics Dashboard Template (Rate, Errors, Duration)
@@ -3026,6 +3302,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Implementation:** Filter for SERVER spans (inbound requests to the service) from OTel trace data. Calculate three metrics per 5-minute window: Rate (requests per second), Errors (percentage of requests with error status), Duration (latency percentiles). This template works with any OTel-instrumented service. Alternatively, compute RED from HTTP access logs using `status>=500` for errors and response time fields for duration. Deploy as a saved search macro `red_metrics(service_name)` for reusability across dashboards. Each team clones the template for their services. Combine with deployment markers to immediately visualize RED impact of releases. Set standard thresholds: error rate >1% (warning), >5% (critical); p99 >2x baseline (warning).
 - **Visualization:** Three-panel row per service: Single value (request rate with sparkline), Gauge (error rate with green/yellow/red), Line chart (p50/p95/p99 duration). Repeatable per service.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3072,6 +3350,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Visualization:** Matrix table (host × resource with USE status coloring), Gauge (utilization per resource), Bar chart (hosts with saturation), Single value (resources in critical state).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.15 · Golden Signals Composite Health per Service
@@ -3102,6 +3382,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Implementation:** Combine the four Golden Signals per service into a weighted composite score (0-100). Weights: Latency 30%, Errors 30%, Traffic 20% (presence/absence), Saturation 20%. Score each signal on a 0-100 scale based on configurable thresholds. The composite score enables instant service ranking during incidents. For services with ITSI coverage, this complements rather than replaces ITSI health scores — ITSI provides richer KPI modeling while this provides a lightweight alternative for services not yet onboarded to ITSI. Store service-level scores in a summary index for historical trending. Build a fleet-wide service health leaderboard sorted by composite score.
 - **Visualization:** Table (service leaderboard sorted by composite health — color coded), Gauge (composite health per critical service), Line chart (composite health trend per service over 7 days), Treemap (services sized by traffic, colored by health).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3135,6 +3417,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER" service_name="$service$
 - **Implementation:** Define SLOs per service as availability targets (e.g., 99.9% = 0.1% error budget over 30 days). Calculate burn rate as (observed error rate / error budget rate). Google SRE recommends multi-window alerting: Fast burn (14.4x burn rate over 5min AND 1hr windows) catches severe incidents — at this rate, the entire monthly budget is consumed in 2 hours. Slow burn (6x burn rate over 30min AND 6hr windows) catches gradual degradation — budget consumed in 5 days. Store SLO definitions in a KV store lookup (service, slo_target, budget_period_days). Calculate remaining error budget percentage per service and display on an SLO dashboard. Pair with UC-13.5.17 for error budget policy enforcement when budget is exhausted.
 - **Visualization:** Gauge (error budget remaining % per service), Line chart (burn rate over 24 hours with threshold lines), Table (services with active burn rate alerts), Single value (services currently burning budget).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3170,6 +3454,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Visualization:** Table (service error budget status with policy action), Gauge (budget remaining % per critical service), Line chart (budget consumption trend over 30 days), Bar chart (services by budget consumption — sorted descending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.18 · Observability Data Volume and Cost Attribution
@@ -3201,6 +3487,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Visualization:** Bar chart (cost by team), Pie chart (volume by signal type), Table (top services by volume), Line chart (total volume trend over 90 days).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.19 · Observability Cardinality Explosion Detection
@@ -3224,6 +3512,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Implementation:** Periodically audit metric cardinality by counting unique label combinations (time series) per metric name. Metrics with cardinality >10,000 are candidates for label reduction. Common offenders: HTTP metrics with `path` labels containing IDs (`/users/12345`), metrics with `pod_name` labels in auto-scaling environments, and custom metrics with unbounded label values. Use the OTel Collector's `metricstransform` processor to aggregate or drop high-cardinality labels before export. For Splunk Observability Cloud, monitor the `sf.org.numCustomMetrics` org metric. Alert when any single metric exceeds 10,000 time series or when total cardinality grows more than 20% week-over-week. Build a cardinality budget per team aligned with cost allocation.
 - **Visualization:** Bar chart (top 20 metrics by cardinality), Line chart (total cardinality trend over 30 days), Table (metrics exceeding threshold with label analysis), Single value (total active time series).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3261,6 +3551,8 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Visualization:** Bar chart (coverage % by team), Table (dark services by team), Pie chart (fleet-wide coverage distribution), Line chart (coverage trend over quarters), Single value (fleet coverage %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-13.5.21 · Telemetry Signal Freshness and Staleness
@@ -3290,3 +3582,4 @@ index=traces sourcetype="otel:traces" span_kind="SERVER"
 - **Implementation:** Track the latest timestamp per service for each signal type (traces, metrics, logs). Calculate the age of each signal in minutes. Define freshness thresholds: traces stale after 60 minutes (services typically generate spans continuously), metrics stale after 30 minutes (collection interval is usually 10-60 seconds), logs stale after 30 minutes. Alert when any service's signal goes stale. Cross-reference with infrastructure health: if the host/pod is running (CPU/memory metrics flowing via node-level collection) but application signals stopped, the instrumentation broke, not the service. Distinguish between services that should be continuously active versus batch/scheduled services that naturally have quiet periods. Maintain an expected-schedule lookup for batch services.
 - **Visualization:** Status matrix (service × signal type — green/yellow/red), Table (services with stale signals), Single value (services with all signals fresh), Line chart (stale service count trend over 7 days).
 - **CIM Models:** N/A
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)

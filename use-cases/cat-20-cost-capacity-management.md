@@ -24,6 +24,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Timechart (daily spend trending), Stacked bar chart (spend by service), Table (top 10 services by cost), Single value (today's spend vs yesterday).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876), [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110), [Splunk Add-on for Google Cloud Platform](https://splunkbase.splunk.com/app/3088)
 ### UC-20.1.2 · Cost Anomaly Detection
 
 - **Criticality:** 🔴 Critical
@@ -47,6 +48,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Timechart (actual vs predicted spend), Table (anomaly details), Single value (current anomaly count), Alert indicator (anomaly detected).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.3 · Reserved Instance Utilization
 
 - **Criticality:** 🟡 Medium
@@ -68,6 +70,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Gauge (overall RI utilization), Bar chart (utilization by reservation), Table (underutilized RIs), Timechart (utilization trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.4 · Idle Resource Identification
 
 - **Criticality:** 🟠 High
@@ -91,6 +94,7 @@ index=cloud_metrics sourcetype="aws:cloudwatch"
 - **Visualization:** Table (idle resources with cost), Bar chart (waste by service), Single value (total monthly waste), Pie chart (waste by team/tag).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.5 · Budget Threshold Alerting
 
 - **Criticality:** 🟠 High
@@ -114,6 +118,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Gauge (budget consumption), Table (budget status by account), Timechart (MTD spend vs budget line), Single value (accounts over budget).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.6 · Cost Allocation by Team
 
 - **Criticality:** 🟡 Medium
@@ -137,6 +142,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Pie chart (cost by team), Bar chart (team costs with trending), Table (detailed allocation), Single value (untagged cost percentage).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.7 · Spot/Preemptible Instance Tracking
 
 - **Criticality:** 🟡 Medium
@@ -159,6 +165,7 @@ index=aws sourcetype="aws:cloudtrail"
 - **Visualization:** Bar chart (interruptions by type), Timechart (interruption frequency), Single value (monthly spot savings), Table (instance interruption details).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.8 · Data Transfer Cost Analysis
 
 - **Criticality:** 🟡 Medium
@@ -185,6 +192,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Pie chart (cost by transfer type), Bar chart (top services by transfer cost), Timechart (transfer cost trending), Table (detailed transfer breakdown).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.9 · Predictive Disk / Volume Exhaustion
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
@@ -211,6 +219,7 @@ index=infrastructure (sourcetype="df" OR sourcetype="disk" OR sourcetype="Perfmo
 - **Visualization:** Timechart (usage with forecast overlay), Table (volumes approaching exhaustion with risk status), Gauge (current utilization), Single value (volumes at risk).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 ### UC-20.1.10 · Reserved Instance Coverage Gaps
 
 - **Criticality:** 🟠 High
@@ -232,6 +241,7 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
 - **Visualization:** Table (coverage gap candidates), Bar chart (on-demand by family), Single value (total addressable OD spend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.11 · Spot Instance Interruption Rate
 
 - **Criticality:** 🟡 Medium
@@ -255,6 +265,7 @@ index=aws sourcetype="aws:cloudtrail" earliest=-30d
 - **Visualization:** Single value (interruptions per 1k hours), Line chart (rate trend), Table (by AZ).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 ### UC-20.1.12 · FinOps Budget Alert Correlation
 
 - **Criticality:** 🟠 High
@@ -274,6 +285,7 @@ index=finops sourcetype="aws:budget:alert" earliest=-7d
 - **Visualization:** Timeline (budget alerts overlaid with spend), Table (alert + cost delta), Sankey (alert → service).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.13 · Cost Anomaly by Cloud Service
 
 - **Criticality:** 🔴 Critical
@@ -297,6 +309,7 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-60d
 - **Visualization:** Table (service anomalies), Line chart (daily vs median), Single value (open anomalies).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.14 · Savings Plan Utilization and Hourly Burn
 
 - **Criticality:** 🟠 High
@@ -316,6 +329,7 @@ index=cloud_cost sourcetype="aws:savings_plan" earliest=-7d
 - **Visualization:** Gauge (SP utilization), Table (underutilized plans), Line chart (util trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.15 · Data Transfer Cost Attribution by Tag
 
 - **Criticality:** 🟡 Medium
@@ -337,6 +351,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Stacked bar (transfer $ by app), Table (top untagged), Pie chart (egress by tag).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.16 · Container Workload Right-Sizing Cost
 
 - **Criticality:** 🟠 High
@@ -358,6 +373,7 @@ index=kubernetes sourcetype="kube:metrics" earliest=-7d
 - **Visualization:** Table (oversized namespaces), Bar chart (waste $), Scatter (request vs use).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.17 · Serverless Invocation Cost Trending
 
 - **Criticality:** 🟡 Medium
@@ -377,6 +393,7 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
 - **Visualization:** Line chart (serverless $ and invocations), Table (top functions from resource tags), Single value (day-over-day %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.18 · Orphaned Cloud Resource Detection
 
 - **Criticality:** 🟠 High
@@ -398,6 +415,7 @@ index=cloud_inventory sourcetype="aws:config:inventory" earliest=-1d
 - **Visualization:** Table (orphan waste $), Bar chart (by account), Single value (total orphan monthly $).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.19 · Cost Allocation Tag Compliance
 
 - **Criticality:** 🟠 High
@@ -419,6 +437,7 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
 - **Visualization:** Single value (tag compliance %), Pie chart (tagged vs untagged $), Table (worst accounts).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.1.20 · Idle Resource Identification by Account
 
 - **Criticality:** 🟠 High
@@ -438,6 +457,8 @@ index=summary sourcetype="cloud:idle_candidates" earliest=-1d
 - **Implementation:** Populate `cloud:idle_candidates` from scheduled UC-20.1.4 logic. Monthly email to top account owners.
 - **Visualization:** Bar chart (idle $ by account), Table (owner, idle $), Single value (fleet idle $).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -462,6 +483,8 @@ index=cloud_billing sourcetype="azure:billing:usage" earliest=-30d
 - **Implementation:** (1) Export Cost Management actual + amortized cost daily to Splunk (Blob pull or Event Hub). (2) Normalize currency fields and subscription identifiers. (3) Alert when any `MeterCategory` exceeds its 14-day median by 40% for two consecutive days.
 - **Visualization:** Stacked area chart (spend by meter category), Table (top categories by subscription), Single value (MTD vs prior MTD %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -491,6 +514,8 @@ index=cloud_billing sourcetype="gcp:billing:export" earliest=-30d
 - **Visualization:** Treemap (cost by project), Bar chart (top services), Table (WoW % and 7-day spend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for Google Cloud Platform](https://splunkbase.splunk.com/app/3088)
+
 ---
 
 ### UC-20.1.23 · Reserved Instance Purchase Amortization vs On-Demand Leakage
@@ -517,6 +542,8 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
 - **Visualization:** Table (accounts and families with leakage), Bar chart (on-demand leak $), Heatmap (account × family).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-20.1.24 · Savings Plan Coverage of Eligible Compute Spend
@@ -542,6 +569,8 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
 - **Visualization:** Gauge (fleet-wide coverage), Table (accounts under target), Bar chart (eligible on-demand still uncovered).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-20.1.25 · NAT Gateway and VPC Endpoint Egress Cost Concentration
@@ -565,6 +594,8 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
 - **Implementation:** (1) Tag NAT gateways and endpoints with owning application. (2) Join top resources to flow log aggregates if available. (3) Prioritize architecture reviews for the top 10 resources by trailing 30-day cost.
 - **Visualization:** Table (top NAT/VPC-endpoint resources), Bar chart (cost by usage type), Pie chart (share by account).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 
 ---
 
@@ -596,6 +627,8 @@ index=cloud_billing sourcetype="aws:billing:cur" earliest=-30d
 - **Visualization:** Scatter plot (spot spend vs interruptions), Table (accounts with worst ratio), Single value (fleet spot savings MTD).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-20.1.27 · Cross-Cloud Consolidated FinOps Executive Rollup
@@ -622,6 +655,8 @@ index=finops sourcetype="cost:unified_daily" earliest=-90d
 - **Visualization:** Column chart (monthly spend by cloud), Stacked bar (business unit mix), Table (MoM % change).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### 20.2 Capacity Planning
@@ -647,6 +682,7 @@ index=infrastructure sourcetype="Perfmon:Processor" OR sourcetype="cpu"
 - **Visualization:** Timechart (utilization with forecast overlay), Table (hosts approaching capacity), Gauge (current vs capacity), Single value (days to threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.2 · Storage Growth Forecasting
 
 - **Criticality:** 🟠 High
@@ -667,6 +703,7 @@ index=storage sourcetype="storage:capacity"
 - **Visualization:** Timechart (usage with forecast), Table (systems approaching capacity), Gauge (current utilization), Single value (days to threshold).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.3 · Network Bandwidth Trending
 
 - **Criticality:** 🟡 Medium
@@ -686,6 +723,7 @@ index=network sourcetype="snmp:interface"
 - **Visualization:** Timechart (bandwidth trending with forecast), Table (high-utilization links), Gauge (current peak utilization), Bar chart (top links by utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.4 · License Utilization Tracking
 
 - **Criticality:** 🟡 Medium
@@ -707,6 +745,7 @@ index=licenses sourcetype="license:usage"
 - **Visualization:** Gauge (license utilization), Table (license inventory with status), Bar chart (utilization by product), Timechart (usage trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.5 · Right-Sizing Recommendations
 
 - **Criticality:** 🟡 Medium
@@ -729,6 +768,7 @@ index=infrastructure (sourcetype="vmware:perf:cpu" OR sourcetype="vmware:perf:me
 - **Visualization:** Table (right-sizing recommendations with savings), Bar chart (waste by team), Scatter plot (allocated vs used), Single value (total potential savings).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.6 · Database Growth Projection
 
 - **Criticality:** 🟡 Medium
@@ -749,6 +789,7 @@ index=database sourcetype="db:capacity"
 - **Visualization:** Timechart (database size with forecast), Table (databases approaching limits), Gauge (current utilization), Bar chart (growth rate by database).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 ### UC-20.2.7 · Seasonal Capacity Modeling
 
 - **Criticality:** 🟡 Medium
@@ -771,6 +812,7 @@ index=infrastructure sourcetype="perf:summary"
 - **Visualization:** Timechart (year-over-year seasonal overlay), Area chart (seasonal patterns), Table (peak week projections), Line chart (actual vs seasonal model).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.8 · IP Address Space Utilization
 
 - **Criticality:** 🟡 Medium
@@ -792,6 +834,8 @@ index=network sourcetype="ipam:pool"
 - **Visualization:** Table (subnet utilization), Bar chart (utilization by location), Heatmap (subnet usage map), Gauge (overall IP utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.2.9 · Cloud Commitment and Savings Plan Utilization
@@ -811,6 +855,8 @@ index=cloud_cost sourcetype="aws:savings_plan"
 - **Implementation:** Ingest commitment and savings plan usage from cloud cost APIs. Alert when utilization or coverage drops below target. Report on commitment ROI and recommend size changes at renewal.
 - **Visualization:** Gauge (utilization %), Table (plans below target), Line chart (coverage trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -833,6 +879,8 @@ index=cloud_cost sourcetype="cost:daily"
 - **Visualization:** Table (anomalous services/accounts), Line chart (cost vs baseline), Bar chart (spike magnitude).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.2.11 · Unused and Orphaned Resource Cost Attribution
@@ -853,6 +901,8 @@ index=cloud_cost sourcetype="resource:inventory"
 - **Implementation:** Combine resource inventory (with last-used or state) and cost data. Flag idle or stopped resources older than threshold. Report on waste by type and account. Drive cleanup campaigns.
 - **Visualization:** Table (waste by type and account), Bar chart (waste cost by resource type), Single value (total waste).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -875,6 +925,8 @@ index=licenses sourcetype="license:usage"
 - **Visualization:** Table (over/under utilized), Gauge (usage %), Bar chart (consumed vs entitled).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.2.13 · Cost Forecast vs Budget and Variance Alert
@@ -895,6 +947,8 @@ index=cloud_cost sourcetype="cost:forecast"
 - **Implementation:** Ingest forecast and budget. Compute variance. Alert when forecast exceeds budget by threshold or variance is large. Report on forecast accuracy and budget burn rate. Integrate with finance.
 - **Visualization:** Table (accounts over budget), Gauge (variance %), Line chart (forecast vs budget trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -922,6 +976,8 @@ index=licenses (sourcetype="license:server" OR sourcetype="license:usage")
 - **Visualization:** Gauge (overall license utilization), Table (license inventory with status), Bar chart (utilization by product), Timechart (usage trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.2.15 · Power Consumption Cost Trending
@@ -946,6 +1002,8 @@ index=infrastructure (sourcetype="snmp:pdu" OR sourcetype="pdu:power")
 - **Implementation:** Collect PDU power readings via SNMP (e.g., OID 1.3.6.1.4.1.2.6.223.8.2.2.1.2 for energy) or BMS integration. Maintain utility rate lookup by zone/tier. Aggregate kWh daily per rack, zone, or cost center. Map kWh to cost for charge-back reports. Alert on anomalous power spikes. Build dashboards for energy cost trending and charge-back allocation.
 - **Visualization:** Timechart (kWh and cost trending), Table (cost by rack/zone), Bar chart (top consumers by cost), Single value (monthly power cost).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -977,6 +1035,7 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Gauge (coverage percentage), Timechart (coverage trend with forecast), Table (accounts with low coverage), Bar chart (uncovered cost by account).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876), [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110), [Splunk Add-on for Google Cloud Platform](https://splunkbase.splunk.com/app/3088)
 ### UC-20.2.17 · Storage Capacity Forecast by Tier
 
 - **Criticality:** 🟠 High
@@ -995,6 +1054,7 @@ index=storage sourcetype="storage:capacity" earliest=-90d
 - **Visualization:** Line chart (used % by tier), Table (at-risk systems), Gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.18 · Compute Cluster Scaling Headroom
 
 - **Criticality:** 🟠 High
@@ -1014,6 +1074,7 @@ index=virtualization sourcetype="vmware:cluster" earliest=-1h
 - **Visualization:** Gauge (headroom %), Table (clusters at risk), Bar chart (by datacenter).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.19 · Network Bandwidth Utilization Trending (Site Interconnect)
 
 - **Criticality:** 🟡 Medium
@@ -1033,6 +1094,7 @@ index=network sourcetype="netflow:site" earliest=-30d
 - **Visualization:** Line chart (p95 util by link), Table (saturated links), Heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.20 · Seasonal Capacity Planning Baseline
 
 - **Criticality:** 🟡 Medium
@@ -1054,6 +1116,7 @@ index=infrastructure sourcetype="perf:summary" earliest=-400d
 - **Visualization:** Line chart (YoY overlay), Table (apps with growth), Calendar heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.21 · CPU and Memory Right-Sizing (Host and VM)
 
 - **Criticality:** 🟡 Medium
@@ -1074,6 +1137,7 @@ index=virtualization sourcetype="vmware:host:perf" earliest=-7d
 - **Visualization:** Table (hot hosts), Heatmap (host × day), Gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 ### UC-20.2.22 · Disk IOPS Saturation Trending
 
 - **Criticality:** 🟠 High
@@ -1092,6 +1156,7 @@ index=storage sourcetype="storage:performance" earliest=-7d
 - **Visualization:** Line chart (IOPS util and latency), Table (hot volumes), Single value (volumes in saturation).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-20.2.23 · VM Sprawl Detection
 
 - **Criticality:** 🟡 Medium
@@ -1112,6 +1177,8 @@ index=virtualization sourcetype="vmware:inv:vm" earliest=-1d
 - **Implementation:** Map `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).
 - **Visualization:** Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1139,6 +1206,8 @@ index=cloud sourcetype IN ("aws:billing","azure:costmanagement","gcp:billing")
 - **Visualization:** Area chart (actual vs forecast with confidence band), Table (anomalous services), Bar chart (top cost deviations by service).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-20.2.25 · Capacity Exhaustion Prediction with Confidence Intervals (MLTK)
@@ -1163,6 +1232,8 @@ index=infra sourcetype IN ("vmware:perf:cpu","linux:cpu","nix:df")
 - **Implementation:** Collect daily average utilization metrics for CPU, memory, disk, and network across hosts, VMs, and containers. Train StateSpaceForecast models per host-resource combination that learn growth trends and seasonal patterns. Forecast 90 days ahead with 95% confidence intervals. Flag resources where the upper confidence bound crosses the saturation threshold (85%) within the forecast window. Provide three timeline estimates: optimistic (lower bound), expected (point forecast), and pessimistic (upper bound). Integrate with CMDB for asset lifecycle context. Alert capacity planning teams monthly with prioritized lists sorted by days-to-exhaustion.
 - **Visualization:** Area chart (utilization forecast with confidence band), Table (resources approaching saturation), Gantt chart (exhaustion timelines by host).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1191,6 +1262,8 @@ index=kubernetes sourcetype="kube:quota" earliest=-1h
 - **Visualization:** Heatmap (namespace × resource headroom), Table (clusters at risk), Gauge (worst namespace headroom).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.2.27 · Object Storage Bucket Growth Forecast
@@ -1215,6 +1288,8 @@ index=cloud_storage sourcetype="aws:s3:bucket_metrics" earliest=-90d
 - **Implementation:** (1) Collect bucket size daily from CloudWatch `BucketSizeBytes`, Storage Lens, or vendor export. (2) Exclude buckets with heavy lifecycle churn unless using MLTK for seasonality. (3) Alert owners when the 60-day forecast exceeds 125% of current size.
 - **Visualization:** Line chart (actual versus forecast per bucket), Table (fastest-growing buckets), Single value (total forecasted terabytes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
 
 ---
 
@@ -1244,6 +1319,8 @@ index=database sourcetype="db:filegrowth" earliest=-60d
 - **Visualization:** Timechart (size by database), Table (large deltas and autogrow counts), Bar chart (top databases by growth rate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-20.2.29 · Site-to-Site VPN Tunnel Bandwidth Headroom
@@ -1270,6 +1347,8 @@ index=network sourcetype="vpn:tunnel" earliest=-7d
 - **Visualization:** Gauge (headroom percent), Line chart (utilization trend), Table (tunnels sorted by risk).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Add-on for AWS](https://splunkbase.splunk.com/app/1876)
+
 ---
 
 ### UC-20.2.30 · Search and Analytics Cluster Disk Watermark Risk
@@ -1295,6 +1374,8 @@ index=observability sourcetype="elastic:cluster_stats" earliest=-30d
 - **Implementation:** (1) Poll `_cluster/stats` or Elastic Cloud metrics daily. (2) Align thresholds with `cluster.routing.allocation.disk.watermark` settings. (3) Integrate with storage forecasting (UC-20.2.2) when forecast crosses seventy-five percent within thirty days.
 - **Visualization:** Area chart (used percent with forecast), Table (clusters breaching planning threshold), Single value (clusters over watermark risk).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1323,6 +1404,8 @@ index=messaging sourcetype="kafka:broker:disk" earliest=-14d
 - **Visualization:** Line chart (disk used percent by broker), Table (brokers over threshold), Heatmap (cluster by broker).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.2.32 · GPU Pool Utilization for ML Workload Capacity
@@ -1347,6 +1430,8 @@ index=ml_infra sourcetype="dcgm:gpu" earliest=-7d
 - **Implementation:** (1) Deploy DCGM on GPU nodes and normalize `gpu_index`. (2) Tag hosts with workload type such as training versus inference. (3) Right-size node pools when underused persists fourteen days; scale out when fleet_p95 exceeds ninety-two.
 - **Visualization:** Box plot (utilization distribution), Table (underused hosts), Timechart (job queue depth if ingested).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1373,6 +1458,8 @@ index=active_directory sourcetype="ad:dc:performance" earliest=-24h
 - **Implementation:** (1) Collect NTDS `LDAP Searches/sec` and total CPU via Performance Monitor or a lightweight forwarder script into `ad:dc:performance`. (2) Tune multipliers for your baseline. (3) Escalate repeated stress windows to the identity engineering team with top calling applications from firewall or load balancer logs.
 - **Visualization:** Timeline (stress markers overlaid on CPU), Table (domain controllers with correlated spikes), Single value (stress hours per week).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1404,6 +1491,8 @@ index=saas sourcetype="license:usage"
 - **Visualization:** Bar chart (utilization % by product), Table (reclaim candidates), Single value (wasted seat estimate).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.2 · Software Audit Readiness Reporting
@@ -1427,6 +1516,8 @@ index=software (sourcetype="license:usage" OR sourcetype="inventory:software")
 - **Implementation:** Normalize discovery data from endpoints and purchase records from procurement. Refresh entitlements from contract system. Dashboard shows install vs entitlement gap by publisher. Export CSV for auditor quarterly.
 - **Visualization:** Table (gap by title), Bar chart (over-deployed publishers), Single value (total gap count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1452,6 +1543,8 @@ index=software (sourcetype="license:usage" OR sourcetype="inventory:software")
 - **Visualization:** Timeline (renewals by quarter), Table (upcoming renewals), Single value (12-month renewal liability).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.4 · License Compliance Gap Detection
@@ -1476,6 +1569,8 @@ index=software sourcetype="inventory:software"
 - **Implementation:** Flag installs without matching entitlement rows in a KV store refreshed from purchases. Reconcile named-user products with IdP group membership. Alert on new breaches weekly; assign owners by `cost_center`.
 - **Visualization:** Table (compliance gaps), Single value (open violations), Bar chart (gaps by department).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1505,6 +1600,8 @@ index=cloud_billing sourcetype="aws:billing:cur"
 - **Visualization:** Line chart (% consumed vs time), Gauge (YTD vs commit), Table (contract status).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.6 · License Pool Allocation Optimization
@@ -1528,6 +1625,8 @@ index=saas sourcetype="license:usage"
 - **Implementation:** Ingest per–cost-center assignments against shared enterprise pools. Identify negative slack (overallocation) and large positive slack (reclaimable). Recommend transfers using simple optimization rules in a lookup updated monthly.
 - **Visualization:** Heatmap (org × pool utilization), Table (rebalance suggestions), Bar chart (slack by pool).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1554,6 +1653,8 @@ index=contracts (sourcetype="license:usage" OR sourcetype="contracts:events")
 - **Visualization:** Table (upcoming opt-out deadlines), Single value (contracts at risk), Timeline (deadlines).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.8 · Microsoft 365 Inactive License Harvest Candidates
@@ -1576,6 +1677,8 @@ index=saas sourcetype="o365:license_assignment" earliest=-1d
 - **Implementation:** (1) Ingest daily license assignment with last interactive sign-in from Graph `reports/getOffice365ActivationsUserDetail` or equivalent. (2) Join `monthly_seat_cost_usd` from a procurement lookup by SKU. (3) Open harvest tickets only after manager approval workflow in ITSM.
 - **Visualization:** Table (SKU and department reclaim value), Bar chart (inactive seats by workload), Single value (total monthly at-risk dollars).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1605,6 +1708,8 @@ index=saas sourcetype="salesforce:login" earliest=-30d
 - **Visualization:** Gauge (utilization percent), Bar chart (slack seats by org), Table (orgs under sixty percent utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.10 · ServiceNow Fulfiller versus Requester License Mix
@@ -1633,6 +1738,8 @@ index=itsm sourcetype="snow:user_role" earliest=-1d
 - **Visualization:** Scatter plot (fulfiller users versus active requesters), Table (instances over policy ratio), Single value (excess fulfiller seats estimate from lookup).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.11 · Oracle Database Option Usage versus Entitlements
@@ -1660,6 +1767,8 @@ index=database sourcetype="oracle:option_usage" earliest=-1d
 - **Visualization:** Table (unentitled options in use), Bar chart (gap count by data center), Single value (databases with violations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
+
 ---
 
 ### UC-20.3.12 · Splunk Enterprise License Pool Usage and Stack Warnings
@@ -1685,6 +1794,8 @@ index=_internal source=*license_usage.log* type=Usage earliest=-30d
 - **Implementation:** (1) Build `splunk_license_quota` from your entitlement and stacking plan (GB per day per pool). (2) Alert at eighty-five percent for two consecutive days. (3) Pair with `data model` acceleration and sourcetype-level volume reports to find noisy sources.
 - **Visualization:** Line chart (indexed GB versus quota by pool), Table (pools over threshold), Single value (total daily utilization percent).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1715,6 +1826,8 @@ index=sap sourcetype="sap:sm20" earliest=-30d
 - **Visualization:** Line chart (concurrent users versus entitlement), Table (systems breaching policy), Single value (peak over entitlement hours per month).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.14 · Software License Harvesting Queue from SAM Reclamation
@@ -1739,6 +1852,8 @@ index=software sourcetype="sam:reclaim_ticket" earliest=-90d
 - **Implementation:** (1) Push reclamation ticket milestones from ITSM when integrated with SAM. (2) Escalate tickets open more than fourteen days. (3) Report pipeline_savings to FinOps monthly for credited harvest dollars.
 - **Visualization:** Bar chart (open reclaim savings by team), Table (stale tickets), Single value (total pipeline savings dollars).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1769,6 +1884,8 @@ index=devops sourcetype="github:audit" earliest=-60d
 - **Visualization:** Gauge (seat utilization percent), Table (enterprises with dormant seats), Bar chart (dormant seats by business unit tag).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.16 · Webex or Zoom Concurrent License Peak versus Subscription
@@ -1798,6 +1915,8 @@ index=collab sourcetype="meetings:usage" earliest=-30d
 - **Visualization:** Line chart (five-minute peak trend), Gauge (headroom percent), Table (tenants at risk of cap).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-20.3.17 · Citrix Virtual Apps and Desktops Concurrent Session versus License Count
@@ -1823,6 +1942,8 @@ index=virtualization sourcetype="citrix:session" earliest=-30d
 - **Implementation:** (1) Forward Director OData or Broker session records with stable `session_key`. (2) Maintain `citrix_license_entitlement` from license server or reseller CSV. (3) Plan purchases when peak_util_pct exceeds eighty-five for more than three peak days per month; investigate downsizing when under forty percent.
 - **Visualization:** Area chart (concurrent sessions with license line overlay), Table (sites over or under target), Single value (portfolio peak utilization percent).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 

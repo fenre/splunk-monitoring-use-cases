@@ -24,6 +24,26 @@ Use cases in this repo support the following optional fields. All are optional u
 | CIM SPL | **CIM SPL:** | tstats/accelerated query (optional). Requires the listed CIM models to be populated and accelerated. |
 | Monitoring type | **Monitoring type:** | Availability, Performance, Security, etc. (comma-separated). |
 
+## Quality metadata (optional, v5.1+)
+
+These fields support the repository's quality and freshness tracking. They are **optional today** but CI will warn when they are missing and may gate new UCs in future versions.
+
+| Field | Markdown key | Description |
+|-------|----------------|-------------|
+| Status | **Status:** | One of `verified` (production-ready), `community` (contributed, unreviewed), `draft` (work in progress). Default `community` when absent. |
+| Last reviewed | **Last reviewed:** | ISO date `YYYY-MM-DD`. Shown on the dashboard as a freshness chip (green ≤6 mo, amber 6–12 mo, red >12 mo). |
+| Splunk versions | **Splunk versions:** | Versions the use case is known to work on, e.g. `9.2+`, `9.3+`, `Cloud`. |
+| Reviewer | **Reviewer:** | GitHub handle of the last reviewer, or `N/A`. |
+
+### Example
+
+```markdown
+- **Status:** verified
+- **Last reviewed:** 2026-04-16
+- **Splunk versions:** 9.2+, Cloud
+- **Reviewer:** @alice
+```
+
 ## SSE-aligned fields (optional)
 
 These match [Splunk Security Essentials](https://github.com/splunk/security_content) / security_content and help analysts and automation.

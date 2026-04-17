@@ -2,12 +2,14 @@
 """Audit UC-* IDs in use-cases/cat-*.md for duplicates, gaps, wrong category, order."""
 
 import glob
+import os
 import re
 import sys
 from collections import Counter, defaultdict
 from typing import Dict, List, Optional, Tuple
 
-USE_CASES_DIR = "/Users/fsudmann/Documents/GitHub/splunk-monitoring-use-cases/use-cases"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+USE_CASES_DIR = os.path.join(REPO_ROOT, "use-cases")
 UC_HEADER = re.compile(r"### UC-(\d+)\.(\d+)\.(\d+)")
 FILENAME_CAT = re.compile(r"cat-(\d+)-")
 

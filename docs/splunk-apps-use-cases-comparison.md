@@ -101,7 +101,7 @@ From [Available content packs](https://help.splunk.com/en/splunk-it-service-inte
 
 ### 5.1 Repo structure (summary)
 
-This repo has **20 categories** (cat-01 … cat-20) with **~2,999 use cases** after build (including ESCU in cat-10). Non-ESCU use cases live in cat-01–09, 11–20; ESCU is in cat-10.
+This repo has **23 categories** (cat-01 … cat-23) with **6,300+ use cases** after build (including ESCU in cat-10). Non-ESCU use cases live in cat-01–09, 11–23; ESCU is in cat-10.
 
 | Repo category | Covers (examples) |
 |---------------|--------------------|
@@ -119,7 +119,15 @@ This repo has **20 categories** (cat-01 … cat-20) with **~2,999 use cases** af
 | 12 DevOps & CI/CD | Source control, pipelines, artifacts |
 | 13 Observability & Monitoring Stack | Splunk health, ITSI |
 | 14 IoT & OT | OT, industrial |
-| 15–20 | Data center, ITSM, zero trust, cost, etc. |
+| 15 Data Center Physical Infrastructure | Power, cooling, physical security |
+| 16 Service Management & ITSM | ServiceNow, incident/change management |
+| 17 Network Security & Zero Trust | NAC, VPN, device posture |
+| 18 Data Center Fabric & SDN | Cisco ACI, VMware NSX |
+| 19 Compute Infrastructure (HCI & Converged) | Nutanix, UCS, blade chassis |
+| 20 Cost & Capacity Management | Cloud cost, rightsizing, forecasting |
+| 21 Industry Verticals | Energy, manufacturing, healthcare, telecom |
+| 22 Regulatory & Compliance Frameworks | GDPR, NIS2, DORA, ISO 27001, NIST CSF |
+| 23 Business Analytics & Executive Intelligence | Executive dashboards, KPI tracking, data quality |
 
 ### 5.2 IT Essentials Learn vs repo
 

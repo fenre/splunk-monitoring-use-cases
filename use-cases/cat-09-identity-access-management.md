@@ -33,6 +33,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4625
 | where count > 10
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.1.2 · Account Lockout Monitoring
@@ -61,6 +64,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4740
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.1.3 · Privileged Group Membership Changes
@@ -88,6 +94,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4728,4732,4756
   by All_Changes.user All_Changes.object span=1h
 | sort -count
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -118,6 +127,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.1.5 · Kerberos Ticket Anomalies
@@ -147,6 +159,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769 Ticket_Encryp
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.1.6 · Password Policy Violations
@@ -173,6 +188,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4723, 4724)
   by Authentication.user Authentication.action span=1h
 | sort -count
 ```
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -202,6 +220,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-9.1.8 · AD Replication Monitoring
@@ -220,6 +241,9 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode IN (1864,
 - **Implementation:** Forward Directory Service event logs from DCs. Run `repadmin /showrepl` via scripted input daily. Alert on replication failures (Event IDs 1864, 2042, 2087). Track replication latency between sites.
 - **Visualization:** Table (replication status by DC pair), Status grid (DC × replication health), Timeline (failure events).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -240,6 +264,9 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=1644
 - **Implementation:** Enable LDAP search diagnostics (registry key: "15 Field Engineering" value "Expensive Search Results Threshold" = 10000). Forward Directory Service logs. Alert on queries visiting >10K entries. Identify and optimize expensive applications.
 - **Visualization:** Table (expensive queries), Bar chart (queries by source application), Line chart (expensive query frequency).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -262,6 +289,9 @@ index=ad sourcetype="ad:accounts"
 - **Implementation:** Run PowerShell script querying AD for lastLogonTimestamp weekly. Export to CSV/JSON and ingest. Flag accounts inactive >90 days. Cross-reference with HR systems for departed employees. Report for access review.
 - **Visualization:** Table (stale accounts), Bar chart (stale accounts by OU), Single value (total stale accounts), Pie chart (by account type).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -292,12 +322,16 @@ index=azure sourcetype="azure:aad:signin"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.1.12 · Conditional Access Policy Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1078
 - **Value:** Conditional Access blocks indicate non-compliant devices or policy misconfigurations. Monitoring ensures security policies work without excessive user friction.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
 - **Data Sources:** Entra ID sign-in logs (conditionalAccessStatus field)
@@ -319,12 +353,16 @@ index=azure sourcetype="azure:aad:signin" conditionalAccessStatus="failure"
 | where count > 10
 ```
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.1.13 · AD Certificate Services Certificate Expiration
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** Internal CA-issued certificates approaching expiry; missed renewals cause outages.
 - **App/TA:** `Splunk_TA_windows`, custom scripted input (certutil)
 - **Data Sources:** ADCS issued certificates database (certutil -view), Certificate Services logs
@@ -340,12 +378,16 @@ index=adcs sourcetype="adcs:cert_inventory"
 - **Visualization:** Table (expiring certificates), Single value (certs expiring in 30 days), Gauge (days until next expiry), Bar chart (expiry by issuer).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-9.1.14 · Service Account Password Age
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance, Security
+- **MITRE ATT&CK:** T1078.004
 - **Value:** Service accounts with passwords older than policy permits increase risk exposure.
 - **App/TA:** `Splunk_TA_windows` (AD inventory), SA-ldapsearch
 - **Data Sources:** AD attribute pwdLastSet on service accounts
@@ -361,6 +403,9 @@ index=ad sourcetype="ad:accounts"
 - **Implementation:** Run PowerShell or ldapsearch script querying AD for service accounts (filter by naming convention or OU). Export pwdLastSet and convert to days. Ingest via scripted input. Alert on accounts exceeding policy (e.g., >90 days). Maintain lookup of accounts with approved exceptions. Report for quarterly access reviews.
 - **Visualization:** Table (overdue service accounts), Bar chart (password age by OU), Single value (accounts over policy limit), Gauge (compliance %).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -391,6 +436,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769 Ticket_Encryp
 | where count > 50
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.1.16 · Golden Ticket Indicators
@@ -411,6 +459,13 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4768
 - **Implementation:** Baseline normal TGT lifetimes and encryption types per domain. Alert on unusual lifetimes, unknown ETYPE, or TGT requests not originating from expected workstations. Correlate with 4624 type 10 and lateral movement analytics.
 - **Visualization:** Table (suspicious TGT events), Timeline, Single value (anomalies per day).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -432,6 +487,13 @@ index=azure sourcetype="azure:aad:audit"
 - **Implementation:** Ingest Entra audit logs via Graph. Alert on any CA policy lifecycle change; require change ticket correlation. Snapshot policy IDs in lookups for crown-jewel apps.
 - **Visualization:** Timeline (policy changes), Table (actor, policy, result), Bar chart (changes by admin).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -439,6 +501,7 @@ index=azure sourcetype="azure:aad:audit"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Hybrid Azure AD join state and Intune compliance gate access; drift from compliant blocks users and signals stale or tampered endpoints.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Microsoft Intune / Graph scripted input
 - **Data Sources:** Entra ID device objects (`trustType`, `isCompliant`, `profileType`), Intune compliance reports
@@ -452,6 +515,13 @@ index=azure sourcetype="azure:intune:devices" OR sourcetype="azure:aad:devices"
 - **Implementation:** Ingest device inventory from Graph/Intune on a schedule. Join with sign-in logs for non-compliant hybrid devices. Alert on compliance flip from true to false or long-running non-compliance.
 - **Visualization:** Table (non-compliant hybrid devices), Pie chart (compliant vs not), Line chart (non-compliance trend).
 - **CIM Models:** Endpoint
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
 
 ---
 
@@ -474,12 +544,16 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-LAPS/Operational" Ev
 - **Visualization:** Table (hosts with failures), Bar chart (failures by OU), Single value (failed rotations 24h).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-9.1.20 · AD Replication Topology Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Configuration
+- **MITRE ATT&CK:** T1098
 - **Value:** New connections, site link, or bridgehead changes can indicate persistence or misconfiguration affecting auth paths.
 - **App/TA:** `Splunk_TA_windows`, `repadmin` / scripted input
 - **Data Sources:** Directory Service events (KCC topology), scripted `repadmin /showconn` / `nltest`
@@ -492,6 +566,9 @@ index=wineventlog (sourcetype="WinEventLog:Directory Service" EventCode IN (1308
 - **Implementation:** Enable KCC and replication diagnostics. Ingest periodic topology snapshots. Alert on new unexpected replication partners or disabled site links outside change windows.
 - **Visualization:** Timeline (topology events), Table (connection changes), Diagram export (optional via lookup).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -513,6 +590,13 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 - **Implementation:** Enable DS change auditing on DCs. Alert on any modification to AdminSDHolder ACL or attributes. Review regularly for expected adminSDHolder propagation delays.
 - **Visualization:** Table (changes), Timeline, Single value (changes per quarter — expect near zero).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -534,6 +618,13 @@ index=ossec sourcetype="ossec:fim" OR index=fim sourcetype="fim:change"
 - **Implementation:** Deploy FIM on DCs or SYSVOL replica members. Alert on new/modified GPO files outside change windows. Correlate with 5136 and DFS-R 4412/5004 events.
 - **Visualization:** Table (file paths changed), Timeline, Bar chart (changes by DC).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user, All_Changes.action | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [GPO change events](https://splunkbase.splunk.com/app/5136), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -555,6 +646,13 @@ index=azure sourcetype="azure:aad:audit"
 - **Implementation:** Ingest PIM-related audit events. Alert on activations outside business hours, without ticket ID (custom field), or for highly privileged roles. Report monthly for access reviews.
 - **Visualization:** Table (activations), Bar chart (role activations by user), Timeline.
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -578,6 +676,9 @@ index=ad sourcetype="ad:computers"
 - **Visualization:** Table (stale computers), Bar chart (stale count by OU), Single value (candidates for cleanup).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.1.25 · AD Forest Trust Changes
@@ -597,6 +698,13 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706,4713,4716
 - **Implementation:** Forward all DC Security logs. Require CAB approval for trust changes. Alert on selective auth disablement or inbound trust creation.
 - **Visualization:** Table (trust changes), Timeline, Single value (changes per year).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -619,6 +727,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4886
 - **Implementation:** Enable CA and template auditing. Maintain lookup mapping template OIDs to ESC categories (per SpecterOps research). Alert on enrollment to high-risk templates and on template ACL/schema changes.
 - **Visualization:** Table (risky enrollments), Bar chart (requests by template), Timeline.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -645,6 +756,9 @@ index=ad sourcetype=repadmin_replsummary
 - **Visualization:** Table of replication partners with status, Events timeline, Network diagram of DC replication.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-9.1.28 · AD Certificate Services (ADCS) Anomalies
@@ -666,6 +780,9 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4886, 4887, 48
 - **Implementation:** Enable Certificate Services auditing on CA servers. EventCode 4887=certificate issued — track who requested which template. Alert on certificates with Subject Alternative Names (SANs) containing admin usernames (ESC1 attack). Monitor for certificate requests from non-standard templates. Track enrollment agent certificates (ESC3). Audit CA configuration for overly permissive templates with `certutil -v -template`.
 - **Visualization:** Table (certificate issuances), Bar chart (requests by template), Timeline, Alert on SAN mismatches.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -702,6 +819,9 @@ index=ldap sourcetype="syslog" "BIND" "err=49"
 | where count > 10
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.2.2 · Search Performance Degradation
@@ -721,6 +841,9 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 - **Implementation:** Enable LDAP access logging with timing information. Parse search operations with duration. Alert on searches exceeding 1 second. Identify expensive filters (unindexed attributes, broad base DN). Recommend index creation.
 - **Visualization:** Table (slow searches), Bar chart (avg duration by filter), Line chart (search latency trend).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -750,6 +873,9 @@ index=ldap sourcetype="openldap:audit"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-9.2.4 · Replication Health Monitoring
@@ -770,12 +896,16 @@ index=ldap sourcetype="openldap:syncrepl"
 - **Visualization:** Status grid (provider × consumer health), Table (replication status), Timeline (failure events).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.2.5 · Azure AD / Entra ID Conditional Access Policy Evaluation Failures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Operational
+- **MITRE ATT&CK:** T1078
 - **Value:** Policy conflicts causing access denials; helps fine-tune conditional access and reduce user friction.
 - **App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`)
 - **Data Sources:** Azure AD Sign-in logs (conditionalAccessStatus, appliedConditionalAccessPolicies)
@@ -794,6 +924,13 @@ index=azure sourcetype="azure:aad:signin"
 - **Implementation:** Configure Splunk Add-on for Microsoft Cloud Services to ingest Entra ID sign-in logs via Graph API. Parse appliedConditionalAccessPolicies array for policy names and results. Alert on spikes in failures per policy. Track reportOnlyNotApplied for policy tuning. Correlate with userPrincipalName and appDisplayName to identify affected users and apps.
 - **Visualization:** Bar chart (failures by policy), Table (blocked users with policy details), Line chart (failure rate trend), Pie chart (failures by application).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -817,6 +954,13 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 - **Implementation:** Baseline searches per source per interval. Alert on statistical outliers. Correlate with known ETL jobs via lookup. On AD, combine with 1644 expensive search events.
 - **Visualization:** Line chart (query volume by source), Table (spikes), Bar chart (top talkers).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src span=15m | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -839,6 +983,13 @@ index=ldap sourcetype="syslog" "BIND" ("err=49" OR "data 52e")
 - **Implementation:** Tune threshold to environment. Whitelist scanners and load balancers. Correlate with account lockouts and Entra hybrid sign-in failures if applicable.
 - **Visualization:** Line chart (bind failure rate), Table (source IP, window count), Single value (spikes per day).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src span=15m | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -860,6 +1011,13 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 - **Implementation:** Enable auditing on schema partition. Alert on any schema object add/modify. Require schema admin CAB approval for all changes.
 - **Visualization:** Timeline (schema changes), Table (detail), Single value (changes per year).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -867,6 +1025,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=5136
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1557
 - **Value:** Unsigned LDAP binds expose credentials to interception. Tracking enforcement and bind failures ensures GPO and domain controller settings are effective.
 - **App/TA:** `Splunk_TA_windows`
 - **Data Sources:** Directory Service event log (2886 — unsigned LDAP bind, 2887 — unsigned SASL)
@@ -880,6 +1039,13 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode IN (2886,
 - **Implementation:** Enable LDAP signing requirements via GPO. Alert on sustained unsigned binds from specific apps; work with owners to enable signing/TLS. Do not alert on one-off legacy until remediated.
 - **Visualization:** Table (clients with unsigned binds), Bar chart (by subnet), Line chart (trend toward zero).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -887,6 +1053,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode IN (2886,
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Availability
+- **MITRE ATT&CK:** T1557
 - **Value:** LDAPS clients failing TLS handshakes or cert validation indicate expired CAs, hostname mismatches, or MITM attempts.
 - **App/TA:** Windows Schannel, OpenLDAP TLS logs
 - **Data Sources:** System log Schannel errors (36870, 36866), slapd TLS errors
@@ -899,6 +1066,9 @@ index=wineventlog sourcetype="WinEventLog:System" SourceName="Schannel" EventCod
 - **Implementation:** Forward Schannel and LDAP server TLS logs. Map to cert renewal runbook. Alert on spike in handshake failures after cert rotation.
 - **Visualization:** Table (hosts with TLS errors), Timeline, Single value (LDAPS errors 24h).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -920,6 +1090,13 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=3039
 - **Implementation:** Phase enforcement with reporting mode first. Identify legacy apps from Client_IP. Alert when moving to enforced mode and failures persist.
 - **Visualization:** Table (clients failing channel binding), Bar chart (by application owner), Line chart (remediation trend).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -927,6 +1104,7 @@ index=wineventlog sourcetype="WinEventLog:Directory Service" EventCode=3039
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Performance, Security
+- **MITRE ATT&CK:** T1078
 - **Value:** Excessive or looping referrals degrade auth and may indicate misconfigured base DNs or cross-domain abuse.
 - **App/TA:** OpenLDAP / 389 DS access logs, AD debug (optional)
 - **Data Sources:** LDAP access log lines containing `REFERRAL` or `v3 referral`
@@ -940,6 +1118,13 @@ index=ldap sourcetype="openldap:access" (message="REFERRAL" OR like(_raw,"%refer
 - **Implementation:** Parse referral responses in access logs. Baseline per app. Alert on referral storms or new referral targets. Correlate with GSSAPI/SASL cross-realm issues in hybrid setups.
 - **Visualization:** Table (referral chains), Line chart (referral volume), Bar chart (by base DN).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -953,6 +1138,7 @@ index=ldap sourcetype="openldap:access" (message="REFERRAL" OR like(_raw,"%refer
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Fault
+- **MITRE ATT&CK:** T1621
 - **Value:** High MFA failure rates indicate user friction, potential phishing, or MFA fatigue attacks. Monitoring supports both security and user experience.
 - **App/TA:** `Splunk_TA_okta`, `Cisco Security Cloud` app (Splunkbase, replaces Duo Splunk Connector)
 - **Data Sources:** Okta system log, Duo authentication log
@@ -974,6 +1160,9 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
   by Authentication.user Authentication.src span=1h
 | where count > 10
 ```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [Cisco Security Cloud](https://splunkbase.splunk.com/app/7404), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1006,6 +1195,9 @@ index=okta sourcetype="OktaIM2:log" eventType="user.session.start"
 | where src_count > 2
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.3.3 · Token Anomaly Detection
@@ -1034,12 +1226,16 @@ index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
 | where src_count > 3
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.3.4 · Application Access Patterns
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078, T1528
 - **Value:** Monitors which applications users access for license optimization and detects anomalous access indicating potential compromise.
 - **App/TA:** `Splunk_TA_okta`
 - **Data Sources:** IdP application access logs
@@ -1061,12 +1257,16 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.3.5 · IdP Availability Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1133
 - **Value:** IdP outage blocks all SSO authentication across the organization. Rapid detection enables failover and communication.
 - **App/TA:** Scripted input (HTTP check), `Splunk_TA_okta`
 - **Data Sources:** IdP status API, synthetic monitoring, Okta system health
@@ -1080,12 +1280,16 @@ index=synthetic sourcetype="http_check" target="*.okta.com"
 - **Visualization:** Single value (IdP uptime %), Line chart (response time), Status indicator (available/degraded/down).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553)
+
 ---
 
 ### UC-9.3.6 · Phishing-Resistant MFA Adoption
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1621
 - **Value:** Tracks migration from phishable factors (SMS, phone) to phishing-resistant factors (FIDO2, WebAuthn). Supports zero-trust maturity goals.
 - **App/TA:** `Splunk_TA_okta`, IdP MFA enrollment data
 - **Data Sources:** IdP MFA enrollment logs, factor type metadata
@@ -1099,6 +1303,9 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.auth_via_mfa"
 - **Implementation:** Track MFA factor types used in authentication events. Classify as phishing-resistant (FIDO2, WebAuthn) vs phishable (SMS, voice, email). Report adoption percentages. Set organizational targets for phishing-resistant adoption.
 - **Visualization:** Pie chart (factor type distribution), Line chart (phishing-resistant adoption trend), Table (users still on SMS).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553)
 
 ---
 
@@ -1129,6 +1336,9 @@ index=okta sourcetype="OktaIM2:log"
 | where src_count > 3
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.3.8 · SAML Assertion Replay Detection
@@ -1149,6 +1359,13 @@ index=saml sourcetype="saml:assertion"
 - **Implementation:** Ingest assertion IDs from IdP or SP debug logs (privacy-safe hashing if needed). Alert on duplicate assertion_id for same SP. Enforce short assertion lifetimes at IdP.
 - **Visualization:** Table (duplicate assertions), Timeline, Single value (replay attempts).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1170,6 +1387,13 @@ index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
 - **Implementation:** Baseline grants per user and client. Alert on burst refresh or grants from many IPs. Revoke client on anomaly. Mirror logic for `azure:aad:signin` with `tokenIssuerType`.
 - **Visualization:** Table (abusive clients), Line chart (grants over time), Bar chart (by client_id).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1192,6 +1416,13 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
 - **Implementation:** Flag sessions with multiple user agents or countries within short windows. Tune for corporate VPN that rotates egress. Pair with UC-9.3.7 for IP-based hijack detection.
 - **Visualization:** Table (suspicious sessions), Timeline, Bar chart (sessions with UA churn).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1213,6 +1444,13 @@ index=azure sourcetype="azure:aad:audit" activityDisplayName="Add external user"
 - **Implementation:** Alert on new federation partners, domain verification, or IdP metadata uploads. Require security review for new trust relationships.
 - **Visualization:** Timeline (trust changes), Table (actor, target), Single value (new trusts per quarter).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1237,6 +1475,13 @@ index=azure sourcetype="azure:aad:audit"
 - **Implementation:** Ingest consent-related audit events. Alert on consent to apps with high privilege (`RoleManagement.ReadWrite.Directory`) or new publisher IDs. Integrate with admin consent workflow.
 - **Visualization:** Table (consent events), Bar chart (apps by consent count), Pie chart (user vs admin consent).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1244,6 +1489,7 @@ index=azure sourcetype="azure:aad:audit"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability, Security
+- **MITRE ATT&CK:** T1528
 - **Value:** Expired client secrets break automation and encourage long-lived secrets; proactive alerting avoids outages and insecure workarounds.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Graph scripted input
 - **Data Sources:** Application credential inventory (`passwordCredentials.endDateTime`), audit when secret added
@@ -1258,6 +1504,9 @@ index=azure sourcetype="azure:graph:applications"
 - **Implementation:** Schedule Graph export of app registrations with secrets/certificates. Alert at 30/14/7 days. Map apps to owners via lookup.
 - **Visualization:** Table (expiring secrets), Single value (next expiry), Gauge (apps past due).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -1280,6 +1529,13 @@ index=azure sourcetype="azure:aad:signin"
 - **Implementation:** Baseline B2B access patterns. Alert on new resource tenants for crown-jewel apps. Correlate with consent events (UC-9.3.12).
 - **Visualization:** Table (cross-tenant access), Heatmap (user × tenant), Line chart (volume).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1303,6 +1559,9 @@ index=oauth sourcetype="oauth:scope_inventory"
 - **Visualization:** Table (scope drift), Bar chart (apps with extra scopes), Timeline.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.3.16 · Token Endpoint Rate Limiting
@@ -1325,6 +1584,9 @@ index=proxy sourcetype="access_combined" uri_path="/oauth2/v2.0/token"
 - **Implementation:** Log token endpoint from AAD Application Proxy or API Management. Alert on 429 spikes per client_id. Implement exponential backoff in callers.
 - **Visualization:** Line chart (429 rate), Table (top clients), Single value (throttled requests/hour).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1360,6 +1622,9 @@ index=pam sourcetype="cyberark:session"
 | sort -count
 ```
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-9.4.2 · Password Checkout Tracking
@@ -1382,6 +1647,9 @@ index=pam sourcetype="cyberark:vault"
 - **Visualization:** Table (active checkouts), Bar chart (checkout duration by user), Line chart (checkout frequency trend).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.4.3 · Break-Glass Account Usage
@@ -1403,12 +1671,16 @@ index=pam sourcetype="cyberark:vault"
 - **Visualization:** Single value (break-glass uses this month — target: 0), Table (usage history), Timeline (break-glass events).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.4.4 · Credential Rotation Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078, T1098
 - **Value:** Overdue password rotations increase exposure window if credentials are compromised. Compliance tracking ensures policy adherence.
 - **App/TA:** PAM TA, scripted input
 - **Data Sources:** PAM vault credential metadata (last rotation date, policy)
@@ -1424,6 +1696,9 @@ index=pam sourcetype="cyberark:account_inventory"
 - **Implementation:** Export credential inventory from PAM periodically. Calculate days since last rotation vs policy requirement. Alert on overdue rotations. Track compliance percentage over time. Report to management monthly.
 - **Visualization:** Table (overdue credentials), Single value (compliance %), Gauge (% compliant), Bar chart (overdue by platform).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1445,6 +1720,9 @@ index=pam sourcetype="cyberark:psm_transcript"
 - **Visualization:** Table (suspicious commands), Timeline (command events), Single value (high-risk commands today).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.4.6 · Vault Health Monitoring
@@ -1463,6 +1741,9 @@ index=pam sourcetype="cyberark:vault_health"
 - **Implementation:** Monitor PAM vault components (vault server, PVWA, PSM, CPM). Track service availability, replication between primary/DR vault, and component health. Alert on any component failure or replication lag >5 minutes.
 - **Visualization:** Status grid (component × health), Single value (vault uptime %), Table (unhealthy components), Line chart (replication lag).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1483,6 +1764,13 @@ index=iam sourcetype="idp:health"
 - **Implementation:** Poll IdP health endpoints (e.g., SAML metadata, OIDC discovery) every 60 seconds. Ingest federation errors from app and IdP logs. Alert on status unhealthy or latency >5s. Correlate with user-reported SSO issues.
 - **Visualization:** Status grid (IdP × health), Single value (IdP uptime %), Line chart (latency trend).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1504,6 +1792,13 @@ index=iam sourcetype="api:token_audit"
 - **Implementation:** Ingest token usage from IdP and API gateways. Baseline normal usage per token. Alert on new IPs, high request volume, or off-hours spikes. Rotate tokens on anomaly.
 - **Visualization:** Table (anomalous tokens), Line chart (requests by token), Bar chart (unique IPs per token).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1524,6 +1819,13 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4706, 4714)
 - **Implementation:** Forward DC Security logs. Alert on any trust creation or modification. Require change approval for trust changes. Report on trust topology for audit.
 - **Visualization:** Table (trust changes), Timeline (events), Single value (changes this week).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1545,6 +1847,13 @@ index=pam sourcetype="jit:requests"
 - **Implementation:** Ingest JIT request and approval events. Alert on excessive requests per user, self-approvals, or access outside business hours. Report on approval latency and denial rate.
 - **Visualization:** Table (request summary), Bar chart (requests by requester), Line chart (approval latency).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1565,6 +1874,13 @@ index=iam sourcetype="sync:job"
 - **Implementation:** Ingest sync job results from IdP and HR-driven connectors. Alert on any failed run or error count >0. Track sync latency and delta size. Report on sync health by target.
 - **Visualization:** Table (failed syncs), Single value (sync success %), Timeline (failure events).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1586,12 +1902,16 @@ index=radius sourcetype="radius:probe"
 - **Visualization:** Line chart (response time by server), Table (slow probes), Single value (current avg latency), Status grid (server × health).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.4.13 · Active Directory Domain Controller Response Time
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance, Availability
+- **MITRE ATT&CK:** T1003.003
 - **Value:** LDAP bind time, DNS query time per DC — slow DCs cause auth delays and user lockouts.
 - **App/TA:** `Splunk_TA_windows`, custom scripted input
 - **Data Sources:** LDAP bind latency probes, DNS query timing, Windows DC perf counters
@@ -1605,6 +1925,9 @@ index=ad_perf sourcetype="ad:dc_probe"
 - **Implementation:** Run scripted input from monitoring host: perform LDAP bind (e.g., ldapsearch -x -H ldap://dc:389 -b "" -s base) and measure elapsed time; run nslookup or Resolve-DnsName for _ldap._tcp.dc._msdcs.domain. Ingest Windows perf counters (NTDS, LDAP Client Sessions) via Splunk_TA_windows. Alert on LDAP bind >1s or DNS >200ms. Identify overloaded DCs for load balancing.
 - **Visualization:** Line chart (LDAP/DNS latency by DC), Table (slow DCs), Status grid (DC × response time tier), Single value (worst DC latency).
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1626,6 +1949,13 @@ index=pam sourcetype="cyberark:psm" OR sourcetype="cyberark:psm_alert"
 - **Implementation:** Forward PSM alert stream to Splunk. Map vendor severity to SOC tiers. Integrate with SOAR for session kill on critical patterns.
 - **Visualization:** Timeline (alerts), Table (session detail), Single value (critical alerts 24h).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1648,6 +1978,13 @@ index=pam sourcetype="cyberark:session"
 - **Implementation:** Baseline duration per target system type. Exclude known maintenance windows via lookup. Pair with UC-9.4.1 audit trail.
 - **Visualization:** Table (long sessions), Box plot (duration by target), Line chart (max duration trend).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1668,6 +2005,9 @@ index=pam sourcetype="cyberark:vault_replication"
 - **Implementation:** Ingest replication job results every minute. Alert on lag > policy (e.g., 2 minutes) or failed sync. Page vault admins for DR sites.
 - **Visualization:** Line chart (lag), Table (failed jobs), Status grid (primary × DR).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1691,6 +2031,13 @@ index=pam sourcetype="jit:requests"
 - **Implementation:** Require justification text; alert on empty justification with approval. Report monthly JIT metrics to IAM governance.
 - **Visualization:** Table (risky patterns), Bar chart (self-approvals), Heatmap (hour × requester).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1713,6 +2060,13 @@ index=pam sourcetype="cyberark:vault" account_tag="emergency_only"
 - **Implementation:** Define emergency accounts in PAM and AD. Alert on any checkout or interactive logon; require post-incident report within SLA. Correlate with major incident tickets.
 - **Visualization:** Timeline (emergency usage), Table (detail), Single value (events outside SOC net).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1736,6 +2090,13 @@ index=pam sourcetype="cyberark:session"
 - **Implementation:** Tune for load-balanced egress using known NAT pools. Prefer per-user vaulted accounts to eliminate shared IDs.
 - **Visualization:** Table (concurrent sessions), Timeline, Bar chart (accounts with overlap events).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1757,6 +2118,9 @@ index=pam sourcetype="cyberark:agent_heartbeat"
 - **Implementation:** Agents send heartbeat every 60s. Alert if no heartbeat >5 minutes. Auto-ticket remediation for PSM in production zones.
 - **Visualization:** Status grid (agent × host), Single value (unhealthy agents), Line chart (heartbeat age).
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Cisco Security Cloud](https://splunkbase.splunk.com/app/7404)
 
 ---
 
@@ -1785,6 +2149,13 @@ index=okta sourcetype="OktaIM2:log" outcome.result="FAILURE"
 - **Implementation:** Ingest Okta System Log via the TA. Normalize `outcome.result` and actor fields. Baseline failures per user and IP; alert on threshold breaches and on impossible concurrent sources. Correlate with Duo denials if both are present.
 - **Visualization:** Table (user, IP, failure count), Line chart (failures over time), Bar chart (top source IPs).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=15m | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1806,6 +2177,13 @@ index=okta sourcetype="OktaIM2:log" eventType="policy.evaluate_sign_on"
 - **Implementation:** Track sign-on policy evaluations where MFA was not satisfied or only password was used. Tune to your org’s allowed “password-only” apps and break-glass accounts. Alert on unexpected ALLOW without MFA for protected apps. Review `policy.evaluate_sign_on` with `outcome.result` and debug fields.
 - **Visualization:** Table (user, IP, reason), Timeline of policy events, Single value (bypass events per hour).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1827,6 +2205,13 @@ index=okta sourcetype="OktaIM2:log" (eventType="security.threat.detected" OR sev
 - **Implementation:** Forward full threat and session events. Map `severity`, `outcome`, and Okta risk context. Create alerts for `security.threat.detected` and for sessions with risk scores above your baseline. Integrate with SOAR for step-up auth.
 - **Visualization:** Table (user, IP, message), Map (sign-in geo), Line chart (threat events per day).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1847,6 +2232,13 @@ index=okta sourcetype="OktaIM2:log" (eventType="user.session.access_admin_app" O
 - **Implementation:** Capture all admin app sessions and high-privilege system events. Restrict alerts to production Okta orgs; exclude known automation actors. Store lookups for approved admins and compare. Alert on first-time admin access from new ASN or country.
 - **Visualization:** Timeline (admin actions), Table (actor, event, IP), Bar chart (events by admin user).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1868,6 +2260,13 @@ index=okta sourcetype="OktaIM2:log"
 - **Implementation:** Ingest policy lifecycle and rule events. Correlate with change tickets. Alert on any policy change outside maintenance windows or from non-admin service accounts. Snapshot policy names in a lookup for critical resources.
 - **Visualization:** Table (policy, actor, target), Timeline (policy changes), Single value (changes in last 24h).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1890,6 +2289,13 @@ index=okta sourcetype="OktaIM2:log"
 - **Implementation:** Parse `target` for admin roles and groups. Use lookups for approved role-assignment paths. Alert on any new admin grant or role elevation. Include `actor` and `client.ipAddress` for triage.
 - **Visualization:** Table (who, what role, when), Timeline, Single value (admin grants today).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1912,6 +2318,13 @@ index=duo sourcetype="duo:authentication" result="deny"
 - **Implementation:** Ingest Duo Authentication API or proxy logs with the TA. Map `result`, `reason`, `factor`, and `application`. Baseline per-user and global deny rates. Alert on spikes and on denies from many IPs for one user.
 - **Visualization:** Table (user, IP, count), Line chart (denials over time), Bar chart (denials by application).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=1h | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1919,6 +2332,7 @@ index=duo sourcetype="duo:authentication" result="deny"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078
 - **Value:** Non-compliant or out-of-date devices that still attempt access signal policy gaps and endpoint risk exposure.
 - **App/TA:** Cisco Duo TA
 - **Data Sources:** `sourcetype=duo:authentication`, `sourcetype=duo:telephony` (device trust), Duo admin logs
@@ -1933,6 +2347,13 @@ index=duo sourcetype="duo:authentication"
 - **Implementation:** Ensure device fields (OS, encryption, posture) are extracted from Duo or endpoint telemetry. Alert on repeated access from untrusted posture or when trust level changes. Pair with Duo Device Trust policies.
 - **Visualization:** Table (user, device, trust level), Pie chart (trusted vs untrusted attempts), Line chart (untrusted attempts over time).
 - **CIM Models:** Endpoint
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
 
 ---
 
@@ -1955,6 +2376,9 @@ index=duo sourcetype="duo:admin" event_type="enrollment"
 - **Visualization:** Line chart (enrollments per hour), Table (spike windows), Bar chart (enrollments by integration).
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-9.5.10 · Federated SSO Token Abuse
@@ -1975,6 +2399,13 @@ index=okta sourcetype="OktaIM2:log" eventType="app.oauth2.token.grant"
 - **Implementation:** Track token grants per user per IP and client. Use `transaction` or `streamstats` to detect rapid grants. Alert on unusual client IDs or scopes. Correlate with OAuth abuse detections from IdP.
 - **Visualization:** Table (user, IP, grant count), Line chart (grants per minute), Bar chart (token grants by client).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -1998,6 +2429,13 @@ index=okta sourcetype="OktaIM2:log" outcome.result="SUCCESS" eventType="user.aut
 - **Implementation:** Use Okta geo fields (or enrich IP with `iplocation`). Tune minimum distance and maximum time windows. Exclude VPN and satellite egress via ASN lookups. Combine with Okta’s built-in impossible travel if licensed.
 - **Visualization:** Table (user, country A → B, delta), Map (sequential points), Single value (impossible travel count per day).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2020,6 +2458,9 @@ index=okta (sourcetype="okta:api" OR sourcetype="OktaIM2:log")
 - **Visualization:** Line chart (429s over time), Table (client, endpoint), Gauge (rate limit remaining %).
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553)
+
 ---
 
 ### UC-9.5.13 · Okta App Assignment Changes
@@ -2039,6 +2480,13 @@ index=okta sourcetype="OktaIM2:log" (eventType="application.user_membership.add"
 - **Implementation:** Capture adds/removes for apps and groups tied to apps. Use lookups for crown-jewel applications. Alert on assignment to privileged groups. Include `actor` for service-account vs human.
 - **Visualization:** Table (app, user, actor), Timeline (assignments), Bar chart (assignments by app).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -2061,6 +2509,13 @@ index=duo sourcetype="duo:authentication" factor="push"
 - **Implementation:** Track push attempts per user per short window. Alert on high-frequency pushes (fatigue) or pushes with `result="fraud"` or Duo fraud reasons. Integrate with Duo Risk-Based Authentication. Pair with Okta MFA events for dual IdP visibility.
 - **Visualization:** Table (user, push count in window), Line chart (pushes per user), Timeline (fraud-marked events).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=5m | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2082,11 +2537,18 @@ index=okta sourcetype="OktaIM2:log"
 - **Implementation:** Align event types with HRIS-driven lifecycle (create, activate, deactivate). Alert on deactivations that fail or retry, and on manual creates outside HR correlation. Feed summaries to access reviews.
 - **Visualization:** Table (event, target user, actor), Line chart (lifecycle events per day), Bar chart (events by type).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
 
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_okta](https://splunkbase.splunk.com/app/6553), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 ### 9.6 Endpoint & Mobile Device Management
 
 **Primary App/TA:** Cisco Meraki Systems Manager, MDM API integrations
+
 
 ---
 
@@ -2094,6 +2556,7 @@ index=okta sourcetype="OktaIM2:log"
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Ensures all managed devices comply with security policies and configuration standards.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api compliance_status=*`
@@ -2107,12 +2570,16 @@ index=cisco_network sourcetype="meraki:api" (compliance_status="noncompliant" OR
 - **Visualization:** Compliance status table; compliance percentage gauge; noncompliant device list.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-9.6.2 · Mobile Device Enrollment and MDM Status Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability
+- **MITRE ATT&CK:** T1078
 - **Value:** Tracks device enrollment status to ensure mobile device management coverage.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api enrollment_status=*`
@@ -2126,12 +2593,16 @@ index=cisco_network sourcetype="meraki:api" enrollment_status IN ("enrolled", "p
 - **Visualization:** Enrollment status pie chart; pending enrollment timeline; device count by OS.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-9.6.3 · Geofencing Alerts and Location-Based Policy Triggers
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
+- **MITRE ATT&CK:** T1078
 - **Value:** Uses geofencing to detect when devices leave secure zones and trigger location-based policies.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*geofence*"`
@@ -2145,12 +2616,16 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*geofence
 - **Visualization:** Geofence event timeline; zone heat map; affected device list.
 - **CIM Models:** N/A
 
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-9.6.4 · Mobile Security Policy Violations and App Restrictions
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078
 - **Value:** Detects policy violations and restricted app usage attempts.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*policy*" OR signature="*app*"`
@@ -2163,6 +2638,9 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*policy*
 - **Implementation:** Monitor security policy violation events. Alert on repeated violations.
 - **Visualization:** Policy violation timeline; violation type breakdown; affected device list.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2181,6 +2659,9 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*lost mod
 - **Implementation:** Monitor lost mode activation events. Track recovery time.
 - **Visualization:** Lost mode event timeline; affected device table; recovery status dashboard.
 - **CIM Models:** N/A
+
+- **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2202,6 +2683,9 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*app*depl
 - **Visualization:** Deployment success rate gauge; app deployment timeline; failure detail table.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### 9.7 Identity & Access Trending
@@ -2210,6 +2694,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*app*depl
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Performance
+- **MITRE ATT&CK:** T1078
 - **Value:** Daily authentication success and failure volumes show whether login load, credential attacks, or misconfiguration are drifting over a quarter. A seven-day moving average smooths weekly noise so you can spot sustained shifts before they overwhelm help desks or mask intrusions.
 - **App/TA:** Splunk Common Information Model (CIM), Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`), Okta Add-on for Splunk
 - **Data Sources:** `Authentication` data model (accelerated); underlying `sourcetype` values such as `WinEventLog:Security`, `azure:aad:signin`, `Okta:im` / `OktaIM2`, `duo` (normalized to CIM Authentication)
@@ -2227,6 +2712,13 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*app*depl
 - **Implementation:** Accelerate the Authentication data model and confirm identity sources are tagged to CIM. Schedule the search over `-90d` with daily `span` for executive and SOC review dashboards. Treat a rising failure trend with flat success as password-spray or IdP issues; rising both may indicate bulk user or application changes. Tune out known maintenance windows with a time-bound macro if needed.
 - **Visualization:** Multi-series line or area chart (success vs failure vs SMA); optional overlay for short-term forecast.
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action span=1d | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2234,6 +2726,7 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*app*depl
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Tracking the percentage of users enrolled in multi-factor authentication over time proves progress toward zero-trust and regulatory expectations. Flat or declining adoption after rollout indicates gaps in onboarding, excluded groups, or integration problems that leave accounts easier to abuse.
 - **App/TA:** Okta Add-on for Splunk, Duo Security App for Splunk, Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`) (Entra ID reporting)
 - **Data Sources:** `index=okta` `sourcetype` in (`Okta:im`, `OktaIM2`) user objects; `index=duo` `sourcetype=duo:admin` or authentication logs with enrollment fields; Entra ID audit / user detail exports ingested with MFA columns
@@ -2252,12 +2745,16 @@ index=okta (sourcetype="Okta:im" OR sourcetype="OktaIM2") objectType=user earlie
 - **Visualization:** Single-value with sparkline; line chart of adoption_pct and sma7; stacked bar of enrolled vs not enrolled by day.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+
 ---
 
 ### UC-9.7.3 · Privileged Account Activity Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078
 - **Value:** Privileged logon volume should be relatively stable; spikes can indicate credential theft, mass admin activity during an incident, or automation run amok. Trending over thirty days highlights gradual increases that point-in-time thresholds miss.
 - **App/TA:** Splunk Common Information Model (CIM), Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`)
 - **Data Sources:** `Authentication` data model; `privileged_users.csv` lookup (user, is_privileged) aligned with `Authentication.user`
@@ -2276,6 +2773,13 @@ index=okta (sourcetype="Okta:im" OR sourcetype="OktaIM2") objectType=user earlie
 - **Implementation:** Build `privileged_users.csv` from Active Directory privileged groups, cloud Global Administrator roles, and break-glass accounts; refresh on a schedule. Require `Authentication.action=success` to measure real sessions. Investigate sustained upward trends with parallel searches on source IP and workstation. Pair with change tickets to expected elevation work.
 - **Visualization:** Line chart of privileged_logons with SMA; anomaly overlay if using MLTK or `anomalydetection`.
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=1d | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2283,6 +2787,7 @@ index=okta (sourcetype="Okta:im" OR sourcetype="OktaIM2") objectType=user earlie
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1078, T1078.004
 - **Value:** Service accounts should authenticate in predictable volumes from known automation. A dormant account suddenly trending upward may indicate compromise, scope creep, or shadow IT scripts. Ninety-day views expose slow burns and seasonal batch jobs alike.
 - **App/TA:** Splunk Common Information Model (CIM), Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`)
 - **Data Sources:** `Authentication` data model; `service_accounts.csv` lookup (`Account_Name`, `account_type`) or naming convention `svc_*` / `service_*`
@@ -2302,6 +2807,13 @@ index=okta (sourcetype="Okta:im" OR sourcetype="OktaIM2") objectType=user earlie
 - **Implementation:** Populate the lookup from AD and cloud app registrations; treat unknown machine accounts carefully. Baseline expected daily volume per account in a separate panel if volumes differ widely. Alert when a low-volume account crosses its historical band or when the aggregate trend jumps after no change tickets. Cross-check with password last set and owner field.
 - **Visualization:** Line chart with SMA and forecast; small multiples per high-risk service account if volume allows.
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=1d | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2309,6 +2821,7 @@ index=okta (sourcetype="Okta:im" OR sourcetype="OktaIM2") objectType=user earlie
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
+- **MITRE ATT&CK:** T1078
 - **Value:** Tracking which conditional access policies block the most sign-ins over time shows whether controls are too strict, mis-targeted, or under attack. Policy-level trends support tuning reviews and prove enforcement for audits without relying on one-off investigations.
 - **App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`), Microsoft Azure Add-on
 - **Data Sources:** `index=azure` or `index=mscs` `sourcetype="azure:aad:signin"` (fields such as `conditionalAccessStatus`, `conditionalAccessPolicies`, `status.errorCode`)
@@ -2332,6 +2845,13 @@ index=azure sourcetype="azure:aad:signin" earliest=-90d@d
 - **Implementation:** Ensure sign-in logs include conditional access evaluation results (license and diagnostic settings in Entra). Expand `policy_name` with `mvexpand` if you need each policy in a multi-policy evaluation. Review top blockers monthly with app owners; correlate spikes with device compliance changes or new locations. Document exclusions for break-glass and service principals separately.
 - **Visualization:** Stacked area or line chart per policy; heatmap of policy vs week for executive summaries.
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=1d | sort - count
+```
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2339,6 +2859,7 @@ index=azure sourcetype="azure:aad:signin" earliest=-90d@d
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
+- **MITRE ATT&CK:** T1110.004
 - **Value:** Sudden increases in password resets—self-service or helpdesk—often align with phishing waves, credential stuffing after a breach, or attacker-driven resets. A ninety-day trend with a moving average makes campaign-scale activity visible before individual tickets pile up.
 - **App/TA:** Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Okta Add-on for Splunk, Splunk Add-on for ServiceNow or your ITSM (optional)
 - **Data Sources:** AD Security log `EventCode` 4724 (password reset attempt); `index=okta` `sourcetype=Okta:system` password reset events; ITSM `category=password` incidents
@@ -2356,6 +2877,9 @@ index=azure sourcetype="azure:aad:signin" earliest=-90d@d
 - **Visualization:** Column or line chart of daily reset_volume with SMA; optional forecast ribbon.
 - **CIM Models:** N/A
 
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-9.7.7 · Identity Provider Availability Trending
@@ -2367,7 +2891,7 @@ index=azure sourcetype="azure:aad:signin" earliest=-90d@d
 - **Data Sources:** `sourcetype=synthetics:url_probe` or `http:response` (fields `http_status`, `url`, `target_name`); map probes to IdP login URLs
 - **SPL:**
 ```spl
-index=synthetics sourcetype=synthetics:url_probe earliest=-90d@d url IN ("https://login.microsoftonline.com/*","https://*.okta.com/oauth2/*","https://accounts.google.com/*")
+index=synthetics sourcetype=synthetics:url_probe earliest=-90d@d url IN ("https://login.microsoftonline.com/","https://*.okta.com/oauth2/","https://accounts.google.com/")
 | bin _time span=1d
 | stats count(eval(http_status<500)) as successes, count as probes by _time, url
 | eval daily_uptime_pct=round(100*successes/probes,3)
@@ -2380,6 +2904,9 @@ index=synthetics sourcetype=synthetics:url_probe earliest=-90d@d url IN ("https:
 - **Implementation:** Point synthetic checks at the same endpoints your users hit for interactive login; run probes at least every few minutes from locations that match your user base. Tag each series with IdP name for clarity. Treat `weekly_uptime_pct` drops below your internal SLO as incidents even if vendor status pages are green. Combine with IdP `system` / `health` API logs if ingested for root-cause context.
 - **Visualization:** Line chart of weekly_uptime_pct by IdP; SLA threshold band; optional forecast.
 - **CIM Models:** N/A
+
+- **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 

@@ -25,6 +25,7 @@ index=cisco_aci sourcetype="cisco:aci:health"
 - **Visualization:** Single value (fabric health), Gauge (per-node health), Timechart (health trending), Status grid (node health map).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.2 · Fault Trending by Severity
 
 - **Criticality:** 🟠 High
@@ -45,6 +46,7 @@ index=cisco_aci sourcetype="cisco:aci:faults"
 - **Visualization:** Timechart (fault trends by severity), Bar chart (top fault codes), Table (active critical faults), Single value (open critical faults count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.3 · Endpoint Mobility Tracking
 
 - **Criticality:** 🟠 High
@@ -67,6 +69,7 @@ index=cisco_aci sourcetype="cisco:aci:endpoint"
 - **Visualization:** Table (high-mobility endpoints), Timechart (move rate trending), Sankey diagram (leaf-to-leaf moves), Single value (anomalous endpoints).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.4 · Contract/Filter Hit Analysis
 
 - **Criticality:** 🟠 High
@@ -89,6 +92,7 @@ index=cisco_aci sourcetype="cisco:aci:contracts"
 - **Visualization:** Table (contract hit summary), Bar chart (top contracts by hits), Timechart (deny trends), Sankey diagram (EPG-to-EPG flows).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.5 · Tenant Configuration Audit
 
 - **Criticality:** 🟡 Medium
@@ -111,6 +115,7 @@ index=cisco_aci sourcetype="cisco:aci:audit"
 - **Visualization:** Table (recent changes), Timeline (change events), Bar chart (changes by user), Pie chart (changes by tenant).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.6 · Leaf/Spine Interface Utilization
 
 - **Criticality:** 🟠 High
@@ -133,6 +138,7 @@ index=cisco_aci sourcetype="cisco:aci:interface_stats"
 - **Visualization:** Heatmap (interface utilization by node), Timechart (utilization trending), Table (high-util interfaces), Gauge (fabric aggregate utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.7 · APIC Cluster Health
 
 - **Criticality:** 🔴 Critical
@@ -158,6 +164,7 @@ index=cisco_aci sourcetype="cisco:aci:system"
 - **Visualization:** Status grid (APIC cluster state), Timeline (cluster events), Single value (cluster fitness), Table (APIC node details).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.8 · Spine-Leaf Fabric Latency
 
 - **Criticality:** 🟡 Medium
@@ -180,6 +187,7 @@ index=fabric sourcetype="fabric:latency"
 - **Visualization:** Heatmap (latency by switch pair), Timechart (latency trending), Table (high-latency paths), Single value (fabric P99 latency).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.9 · ACI Contract Hit/Miss Ratio Analysis
 
 - **Criticality:** 🟠 High
@@ -199,6 +207,7 @@ index=cisco_aci sourcetype="cisco:aci:contracts"
 - **Visualization:** Line chart (permit vs deny), Single value (miss ratio %), Table (worst contracts).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.10 · ACI Endpoint Group (EPG) Health
 
 - **Criticality:** 🟠 High
@@ -221,6 +230,7 @@ index=cisco_aci (sourcetype="cisco:aci:faults" OR sourcetype="cisco:aci:endpoint
 - **Visualization:** Status table (EPG health), Heatmap (tenant × EPG), Single value (degraded EPG count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.11 · ACI Fault Lifecycle Tracking
 
 - **Criticality:** 🟠 High
@@ -243,6 +253,7 @@ index=cisco_aci sourcetype="cisco:aci:faults"
 - **Visualization:** Table (long-lived faults), Bar chart (avg clear time by code), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.12 · Fabric Node Decommission Events
 
 - **Criticality:** 🟡 Medium
@@ -263,6 +274,7 @@ index=cisco_aci (sourcetype="cisco:aci:audit" OR sourcetype="cisco:aci:system")
 - **Visualization:** Table (decommission events), Timeline, Single value (events / month).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.13 · Bridge Domain Subnet Utilization
 
 - **Criticality:** 🟠 High
@@ -284,6 +296,7 @@ index=cisco_aci sourcetype="cisco:aci:bd_stats"
 - **Visualization:** Table (full BDs), Bar chart (used % by BD), Gauge (worst BD).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.14 · L3Out Prefix Monitoring
 
 - **Criticality:** 🟠 High
@@ -305,6 +318,7 @@ index=cisco_aci sourcetype="cisco:aci:bgp" earliest=-24h
 - **Visualization:** Table (noisy prefixes), Line chart (events / hour), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.15 · APIC Policy CAM Utilization
 
 - **Criticality:** 🟠 High
@@ -327,6 +341,7 @@ index=cisco_aci sourcetype="cisco:aci:policy_resource"
 - **Visualization:** Bar chart (CAM % by leaf), Table (top nodes), Line chart (trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.16 · ACI Tenant Configuration Compliance Audit
 
 - **Criticality:** 🟡 Medium
@@ -348,6 +363,7 @@ index=cisco_aci sourcetype="cisco:aci:tenant_summary"
 - **Visualization:** Table (non-compliant tenants), Pie chart (compliance %), Bar chart (missing controls).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.17 · ACI Multisite Health
 
 - **Criticality:** 🔴 Critical
@@ -368,6 +384,7 @@ index=cisco_aci sourcetype="cisco:aci:multisite" earliest=-24h
 - **Visualization:** Status grid (site × peer), Table (active issues), Single value (sites degraded).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.18 · APIC Cluster Replication Latency
 
 - **Criticality:** 🟠 High
@@ -388,6 +405,7 @@ index=cisco_aci sourcetype="cisco:aci:cluster_diag" earliest=-24h
 - **Visualization:** Line chart (repl delay), Table (alerts), Single value (max lag ms).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.1.19 · ACI Fault Domain Severity Rollup
 
 - **Criticality:** 🟠 High
@@ -408,6 +426,8 @@ index=cisco_aci sourcetype="cisco:aci:faults" earliest=-24h
 - **Implementation:** (1) Map `fault_domain` from APIC fault MO or TA extraction; if missing, derive from `dn` prefix via `rex`. (2) Schedule hourly and alert when any domain exceeds baseline affected object count. (3) Correlate spikes with change windows and interface faults (UC-18.1.6).
 - **Visualization:** Stacked bar chart (faults by domain × severity), Table (top domains), Single value (open major+critical count).
 - **CIM Models:** N/A
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777)
 
 ---
 
@@ -435,6 +455,8 @@ index=cisco_aci (sourcetype="cisco:aci:contracts" OR sourcetype="cisco:aci:syslo
 - **Visualization:** Timechart (deny burst timeline), Table (worst EPG pairs), Heatmap (src_epg × dst_epg).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.1.21 · EPG Endpoint Learning and Deletion Churn
@@ -460,6 +482,8 @@ index=cisco_aci sourcetype="cisco:aci:endpoint" earliest=-24h
 - **Implementation:** (1) Ingest endpoint tracker events at least every poll interval of APIC TA. (2) Baseline per business EPG; exclude known vMotion pools via lookup. (3) Correlate with faults on the same `dn` and with L3Out prefix churn (UC-18.1.14).
 - **Visualization:** Timechart (learn vs delete), Table (noisy EPGs), Single value (EPGs over threshold).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -488,6 +512,8 @@ index=cisco_aci sourcetype="cisco:aci:interface_stats" earliest=-2h
 - **Visualization:** Bar chart (member_pct by interface), Table (imbalanced PCs), Heatmap (node × port_channel).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.1.23 · APIC Controller Resource Exhaustion Watch
@@ -511,6 +537,8 @@ index=cisco_aci sourcetype="cisco:aci:apic_capacity" earliest=-24h
 - **Implementation:** (1) Poll `/api/node/mo/sys/summary` or vendor TA capacity fields every 5 minutes. (2) Alert at staged thresholds; include log partition growth rate. (3) Correlate with cluster replication lag (UC-18.1.18).
 - **Visualization:** Gauge (per-APIC disk/mem), Table (nodes at risk), Timechart (capacity trends).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 6805](https://splunkbase.splunk.com/app/6805)
 
 ---
 
@@ -538,6 +566,7 @@ index=vmware sourcetype="vmware:nsx:dfw"
 - **Visualization:** Bar chart (top rules by hits), Timechart (allow vs deny trending), Table (denied connections), Sankey diagram (source-to-destination flows).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.2 · Micro-Segmentation Enforcement
 
 - **Criticality:** 🟠 High
@@ -558,6 +587,7 @@ index=vmware sourcetype="vmware:nsx:dfw"
 - **Visualization:** Heatmap (group-to-group traffic), Sankey diagram (flow paths), Bar chart (denials by group), Single value (policy violation count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.3 · Logical Switch Health
 
 - **Criticality:** 🟠 High
@@ -578,6 +608,7 @@ index=vmware sourcetype="vmware:nsx:events"
 - **Visualization:** Status grid (switch/router health), Table (degraded components), Timechart (event trends), Single value (active logical switches).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.4 · NSX Edge Performance
 
 - **Criticality:** 🟠 High
@@ -598,6 +629,7 @@ index=vmware sourcetype="vmware:nsx:edge_metrics"
 - **Visualization:** Gauge (Edge CPU/memory), Timechart (performance trending), Table (Edge node status), Single value (peak datapath CPU).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.5 · Transport Node Connectivity
 
 - **Criticality:** 🔴 Critical
@@ -618,6 +650,7 @@ index=vmware sourcetype="vmware:nsx:transport_node"
 - **Visualization:** Status grid (transport node map), Table (degraded nodes), Timechart (tunnel status changes), Single value (healthy tunnel percentage).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.6 · Distributed Firewall Rule Hit Rate Analysis
 
 - **Criticality:** 🟠 High
@@ -640,6 +673,7 @@ index=vmware sourcetype="vmware:nsx:dfw" earliest=-7d
 - **Visualization:** Line chart (hits per rule), Table (anomalies), Heatmap (rule × day).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.7 · Micro-Segmentation Policy Drift
 
 - **Criticality:** 🟠 High
@@ -660,6 +694,7 @@ index=vmware sourcetype="vmware:nsx:policy_revision" earliest=-24h
 - **Visualization:** Table (drifted domains), Single value (drift count), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.8 · NSX Edge Gateway Health
 
 - **Criticality:** 🔴 Critical
@@ -680,6 +715,7 @@ index=vmware sourcetype="vmware:nsx:edge_status" earliest=-4h
 - **Visualization:** Status grid (edge × LR), Table (down services), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.9 · NSX-T Transport Node Overlay Path Health
 
 - **Criticality:** 🔴 Critical
@@ -701,6 +737,7 @@ index=vmware sourcetype="vmware:nsx:tn_diag" earliest=-24h
 - **Visualization:** Heatmap (TN × TN loss), Table (worst pairs), Line chart (loss trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.10 · Load Balancer Pool Health
 
 - **Criticality:** 🟠 High
@@ -721,6 +758,7 @@ index=vmware sourcetype="vmware:nsx:lb_pool" earliest=-24h
 - **Visualization:** Table (unhealthy pools), Bar chart (failures by pool), Single value (pools in critical state).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.11 · NAT Rule Utilization
 
 - **Criticality:** 🟡 Medium
@@ -742,6 +780,7 @@ index=vmware sourcetype="vmware:nsx:nat_stats" earliest=-1h
 - **Visualization:** Bar chart (NAT % by rule), Table (top consumers), Gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.12 · T0/T1 Gateway Failover Events
 
 - **Criticality:** 🔴 Critical
@@ -762,6 +801,7 @@ index=vmware sourcetype="vmware:nsx:lr_events" earliest=-7d
 - **Visualization:** Timeline (failovers), Table (events), Single value (failovers / month).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.13 · NSX Manager Cluster Health
 
 - **Criticality:** 🔴 Critical
@@ -782,6 +822,7 @@ index=vmware sourcetype="vmware:nsx:manager_cluster" earliest=-24h
 - **Visualization:** Status grid (manager nodes), Single value (cluster OK), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.2.14 · NSX Intelligence Top Flows and Anomalous East-West Volume
 
 - **Criticality:** 🟠 High
@@ -805,6 +846,12 @@ index=vmware sourcetype="vmware:nsx:intelligence_flow" earliest=-24h
 - **Implementation:** (1) Enable Intelligence flow export to Splunk HEC with CIM-friendly field names. (2) Baseline per domain; exclude backup VLANs via lookup. (3) Correlate spikes with DFW deny events (UC-18.2.1).
 - **Visualization:** Table (top talkers), Sankey (src to service), Timechart (bytes per domain).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -831,6 +878,8 @@ index=vmware sourcetype="vmware:nsx:dfw" earliest=-7d
 - **Visualization:** Heatmap (tier × rule hits), Bar chart (hits by tier), Table (zero-hit rules).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.2.16 · Edge Cluster BFD and Uplink Session Health
@@ -853,6 +902,12 @@ index=vmware sourcetype="vmware:nsx:edge_bfd" earliest=-4h
 - **Implementation:** (1) Ingest BFD telemetry from NSX Manager API or Edge syslog. (2) Join with `vmware:nsx:edge_status` (UC-18.2.8) for BGP state. (3) Page on any BFD not UP on production T0 uplinks.
 - **Visualization:** Status grid (edge × uplink), Timeline (BFD events), Table (non-UP sessions).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -878,6 +933,8 @@ index=vmware sourcetype="vmware:nsx:tn_iface" earliest=-24h
 - **Visualization:** Bar chart (issues by TN), Table (worst pnics), Single value (TNs with errors).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.2.18 · NSX Intelligence Recommended Firewall Rule Publish Queue
@@ -900,6 +957,12 @@ index=vmware sourcetype="vmware:nsx:intel_publish" earliest=-24h
 - **Implementation:** (1) Scripted input for Intelligence recommendation publish API. (2) Alert when depth exceeds agreed SLA or status non-success. (3) Link failures to NSX Manager cluster health (UC-18.2.13).
 - **Visualization:** Single value (max queue depth), Table (failed domains), Timechart (depth trend).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t latest(All_Changes.status) as agg_value from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - agg_value
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -927,6 +990,7 @@ index=kubernetes sourcetype="kube:cni:policy"
 - **Visualization:** Bar chart (policy hits by namespace), Table (denied flows), Heatmap (namespace-to-namespace traffic), Single value (namespaces without policies).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.2 · OpenStack Neutron Events
 
 - **Criticality:** 🟡 Medium
@@ -947,6 +1011,7 @@ index=openstack sourcetype="openstack:neutron"
 - **Visualization:** Table (recent operations), Bar chart (operations by type), Timeline (change events), Pie chart (operations by project).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.3 · SDN Controller Health
 
 - **Criticality:** 🔴 Critical
@@ -971,6 +1036,8 @@ index=sdn sourcetype="sdn:controller"
 - **Visualization:** Status grid (controller cluster), Timeline (cluster events), Single value (cluster health), Table (controller details).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.3.4 · VXLAN Tunnel and Overlay Health
@@ -990,6 +1057,8 @@ index=sdn sourcetype="vxlan:tunnel"
 - **Implementation:** Poll VXLAN tunnel and NVE stats from fabric devices. Alert on tunnel down or non-zero drops. Report on overlay health by VNI and leaf. Correlate with BGP and underlay events.
 - **Visualization:** Status grid (tunnel × state), Table (tunnels with drops), Line chart (drops over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1012,6 +1081,8 @@ index=sdn sourcetype="evpn:route"
 - **Visualization:** Line chart (mobility events over time), Table (top VNIs by churn), Bar chart (mobility by host).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.3.6 · ACI Contract Deny and Drop Statistics
@@ -1032,6 +1103,8 @@ index=aci sourcetype="aci:contract_stats"
 - **Implementation:** Ingest ACI contract statistics. Track deny and drop by contract and EPG pair. Alert on spike in denies. Report on top denied flows for policy review. Correlate with app and security events.
 - **Visualization:** Table (denied flows), Bar chart (denies by contract), Line chart (deny trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1054,6 +1127,8 @@ index=nsx sourcetype="nsx:segment"
 - **Visualization:** Table (segments near limit), Gauge (port utilization), Line chart (throughput trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.3.8 · SDN Configuration Change and Rollback Audit
@@ -1073,6 +1148,8 @@ index=sdn sourcetype="sdn:audit"
 - **Implementation:** Ingest controller and fabric audit logs. Alert on change to critical objects (e.g., tenant, contract, segment) without change ticket. Report on change frequency and rollback rate. Integrate with change management.
 - **Visualization:** Table (recent changes), Timeline (change events), Bar chart (changes by user).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1101,6 +1178,8 @@ index=network (sourcetype="cisco:nxos:nve_peers" OR sourcetype="arista:eos:vxlan
 - **Visualization:** Status grid (VTEP peer matrix by host), Table (down peers), Timechart (peer state changes), Single value (healthy VTEP peer count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.3.10 · EVPN Route Type Distribution
@@ -1124,6 +1203,7 @@ index=network sourcetype="evpn:route_summary"
 - **Visualization:** Timechart (route count by type over time), Table (current counts by host and type), Single value (total EVPN routes), Bar chart (route growth rate by type).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.11 · EVPN/VXLAN Tunnel Health
 
 - **Criticality:** 🔴 Critical
@@ -1145,6 +1225,7 @@ index=network (sourcetype="evpn:bgp" OR sourcetype="vxlan:tunnel") earliest=-24h
 - **Visualization:** Table (unhealthy tunnels), Geo/leaf map, Line chart (error count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.12 · SDN Controller High Availability
 
 - **Criticality:** 🔴 Critical
@@ -1165,6 +1246,7 @@ index=sdn sourcetype="sdn:controller_ha" earliest=-24h
 - **Visualization:** Status grid (cluster), Timeline (failover events), Single value (cluster up).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.13 · Fabric Upgrade Compliance
 
 - **Criticality:** 🟡 Medium
@@ -1186,6 +1268,7 @@ index=inventory sourcetype="network:inventory" role IN ("leaf","spine")
 - **Visualization:** Table (non-compliant nodes), Pie chart (compliance %), Bar chart (by site).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.14 · Spine-Leaf Topology Anomalies
 
 - **Criticality:** 🟠 High
@@ -1207,6 +1290,7 @@ index=network sourcetype="bgp:neighbor" earliest=-4h
 - **Visualization:** Graph (topology violations), Table (bad neighbors), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.15 · BGP EVPN Route Table Convergence
 
 - **Criticality:** 🟠 High
@@ -1229,6 +1313,7 @@ index=network sourcetype="evpn:route_summary" earliest=-24h
 - **Visualization:** Line chart (total routes), Table (churn events), Bar chart (max churn by leaf).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 ### UC-18.3.16 · VTEP Reachability and Loss
 
 - **Criticality:** 🟠 High
@@ -1250,6 +1335,7 @@ index=network sourcetype="vtep:probe" earliest=-24h
 - **Visualization:** Heatmap (VTEP × VTEP loss), Table (worst pairs), Line chart (loss trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 ### UC-18.3.17 · Leaf Switch Resource Utilization
 
 - **Criticality:** 🟠 High
@@ -1271,6 +1357,8 @@ index=snmp sourcetype="snmp:cpu" role="leaf" earliest=-1h
 - **Implementation:** Add FIB/ARP scale via `show forwarding` scripted input. Alert on sustained high CPU with EVPN churn.
 - **Visualization:** Heatmap (leaf × metric), Table (top peaks), Line chart (utilization).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1296,6 +1384,12 @@ index=network sourcetype="bgp:evpn_events" earliest=-1h
 - **Implementation:** (1) Stream BGP UPDATE syslog or BMP into `bgp:evpn_events` with normalized `event_type`. (2) Tune per-fabric scale; exclude RR-only peers if needed. (3) Correlate with spine-leaf neighbor state (UC-18.3.14).
 - **Visualization:** Timechart (withdrawals per minute), Table (worst peers), Single value (peak wdr).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest span=1m | sort - count
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1324,6 +1418,12 @@ index=network sourcetype="fabric:ecmp_member" earliest=-30m
 - **Implementation:** (1) Ingest per-member interface counters from telemetry at 30–60s. (2) Alert on sustained skew; verify hashing seeds and broken members. (3) Compare with interface errors on hot members.
 - **Visualization:** Heatmap (member_if × leaf skew), Bar chart (skew by spine), Table (outliers).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1350,6 +1450,8 @@ index=network sourcetype="fabric:route_scale" earliest=-24h
 - **Visualization:** Gauge (headroom %), Table (critical leafs), Timechart (host route growth).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.3.21 · EVPN Ethernet Segment (ESI) DF Election and BUM Stability
@@ -1374,6 +1476,8 @@ index=network sourcetype="evpn:esi" earliest=-24h
 - **Visualization:** Timeline (DF changes), Table (noisy ESIs), Single value (ESIs with recent DF churn).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.3.22 · VXLAN Underlay Path MTU and DF Bit Fragmentation Risk
@@ -1396,6 +1500,12 @@ index=network sourcetype="fabric:mtu_diag" earliest=-24h
 - **Implementation:** (1) Run scheduled jumbo ping/UDP probes between loopbacks with DF set. (2) Ingest syslog `ICMP unreachable` / `MTU` messages. (3) Document expected MTU (for example 9216) per site and alert on regression.
 - **Visualization:** Table (bad pairs), Diagram (site × path status), Single value (paths failing MTU).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **References:** [Cisco DC Networking Application for Splunk](https://splunkbase.splunk.com/app/7777), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1424,6 +1534,12 @@ index=cisco_dc sourcetype="cisco:ndi:anomaly" earliest=-24h
 - **Implementation:** Configure NDI to export anomalies via webhook to a Splunk HEC endpoint, or forward syslog. Map severity and category fields. Alert on critical/major anomalies. Use NDI anomaly correlation data to distinguish root causes from symptoms.
 - **Visualization:** Table (anomalies by category), Bar chart (anomaly count by severity), Timeline (anomaly events), Single value (open criticals).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1447,6 +1563,12 @@ index=cisco_dc sourcetype="cisco:ndfc:compliance"
 - **Implementation:** Poll NDFC compliance status via REST API daily or after change windows. Alert on Out-of-Sync devices. Track drift trends over time to identify switches that repeatedly drift. Trigger auto-remediation workflows when safe.
 - **Visualization:** Table (non-compliant switches), Pie chart (compliant vs drifted), Trend chart (drift count over time).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1470,6 +1592,12 @@ index=cisco_dc sourcetype="cisco:ndi:advisory"
 - **Implementation:** Export NDI advisories to Splunk via webhook or scheduled API poll. Correlate with asset inventory to calculate exposure percentage. Alert on critical PSIRTs or field notices affecting production fabrics.
 - **Visualization:** Table (active advisories), Single value (critical advisories), Bar chart (affected switches per advisory).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity | sort - count
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1495,6 +1623,8 @@ index=telegraf sourcetype="telegraf:internal" measurement="internal_gather"
 - **Visualization:** Table (collector health), Line chart (gather time), Single value (active subscriptions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-18.4.5 · NX-OS VXLAN EVPN Fabric Underlay BGP Health
@@ -1518,6 +1648,12 @@ index=network sourcetype="cisco:nexus" "BGP-5-ADJCHANGE" OR "BGP-3-NOTIFICATION"
 - **Implementation:** Forward NX-OS syslog to Splunk (facility BGP). Optionally stream BGP state via gNMI for sub-second detection. Alert on any peer leaving Established state. Correlate with interface flaps (UC-18.3.14) and VTEP reachability (UC-18.3.9).
 - **Visualization:** Status grid (peer status matrix), Table (non-established peers), Timeline (flap events).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1542,6 +1678,12 @@ index=network sourcetype="cisco:nexus:copp" OR (sourcetype="cisco:nexus" "COPP" 
 - **Implementation:** Poll CoPP counters via scripted input or gNMI every 60 seconds. Baseline normal drop rates per class. Alert on sustained drops exceeding baseline, particularly for BGP, OSPF, and management classes. Investigate as potential security events.
 - **Visualization:** Table (CoPP classes with drops), Bar chart (drops by class), Line chart (drop rate trending).
 - **CIM Models:** Intrusion Detection
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.dest | sort - count
+```
+
+- **References:** [CIM: Intrusion Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -1565,6 +1707,12 @@ index=cisco_dc sourcetype="cisco:ndo:audit" earliest=-24h
 - **Implementation:** Poll NDO deployment status via REST API. Detect schema deployment failures and pending diffs between sites. Alert on any site showing stale or failed deployment. Cross-reference with ACI multisite health (UC-18.1.17).
 - **Visualization:** Table (deployment status per site/template), Status grid (site consistency), Timeline (deployment events).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.status, All_Changes.user | sort - count
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1591,6 +1739,7 @@ index=cisco_dc sourcetype="cisco:ndfc:inventory"
 - **Visualization:** Table (switches approaching EoS), Pie chart (lifecycle status distribution), Single value (switches past EoS).
 - **CIM Models:** N/A
 
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777)
 ### UC-18.4.9 · Nexus Dashboard Site and Fabric Assurance Health Score
 
 - **Criticality:** 🟠 High
@@ -1611,6 +1760,12 @@ index=cisco_dc sourcetype="cisco:nd:site_health" earliest=-24h
 - **Implementation:** (1) Schedule API pull from Nexus Dashboard Assurance or ingest pre-aggregated JSON via HEC. (2) Map score scale to your SLA colors. (3) Correlate drops with NDI anomalies (UC-18.4.1) and compliance drift (UC-18.4.2).
 - **Visualization:** Single value (worst site score), Bar chart (score by fabric), Table (sites below threshold).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1635,6 +1790,12 @@ index=cisco_dc sourcetype="cisco:ndfc:inventory" earliest=-24h
 - **Implementation:** (1) Maintain `ndfc_golden_image.csv` with CAB-approved NX-OS per SKU. (2) Nightly diff from inventory API. (3) Drive remediation tickets with risk tier from PSIRT correlation (UC-18.4.3).
 - **Visualization:** Pie chart (compliant vs drift), Table (non-compliant switches), Bar chart (count by fabric).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1658,6 +1819,12 @@ index=cisco_dc sourcetype="cisco:ndfc:flow_export" earliest=-4h
 - **Implementation:** (1) Ingest NDFC telemetry health API or collector events with per-switch counters. (2) Baseline `eps` per site. (3) Alert on drops or sustained low export rate; verify CPU and sampler intervals on switches.
 - **Visualization:** Timechart (export rate), Table (switches with drops), Single value (total dropped flows).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1684,6 +1851,12 @@ index=cisco_dc sourcetype="cisco:ndi:anomaly" earliest=-7d
 - **Implementation:** (1) Ensure stable `category` mapping from webhook payload. (2) Tune multiplier for seasonal maintenance. (3) Feed noisy categories into NDI suppression workflow with Splunk approval ID.
 - **Visualization:** Line chart (daily alert volume), Stacked bar (category mix), Table (spike days).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity span=1d | sort - count
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1707,6 +1880,12 @@ index=cisco_dc sourcetype="cisco:ndfc:poap" earliest=-7d
 - **Implementation:** (1) Forward NDFC POAP/ZTP logs to Splunk with parsed `stage` milestones. (2) Alert on any failure before switch reaches `In-Sync`. (3) Join serial to inventory (UC-18.4.8) for asset context.
 - **Visualization:** Timeline (bootstrap attempts), Table (failed devices), Single value (open failures).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t latest(All_Changes.status) as agg_value from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - agg_value
+```
+
+- **References:** [Cisco DC Networking Application](https://splunkbase.splunk.com/app/7777), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 

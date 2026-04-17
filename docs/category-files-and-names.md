@@ -8,7 +8,7 @@ The build only turns a file into a **category** if its first `# N.` or `## N.` h
 |------|----------------------|
 | **cat-00-preamble.md** | No category heading. It's the repo intro and legend (field descriptions). |
 
-So: **20 category files** (cat-01 through cat-20) produce the 20 categories in the dashboard; **cat-00** is the only extra markdown file that does not become a category.
+So: **23 category files** (cat-01 through cat-23) produce the 23 categories in the dashboard; **cat-00** is the only extra markdown file that does not become a category.
 
 ---
 

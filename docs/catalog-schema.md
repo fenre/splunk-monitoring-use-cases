@@ -76,6 +76,10 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `hw` | string | **Equipment models:** specific hardware models (optional). |
 | `e` | array | **Equipment IDs:** from `EQUIPMENT` (matched by TA string). |
 | `em` | array | **Equipment model IDs** (optional). |
+| `status` | string | **Quality status:** `verified` \| `community` \| `draft` (optional, v5.1+). |
+| `reviewed` | string | **Last reviewed:** ISO date `YYYY-MM-DD` (optional, v5.1+). |
+| `sver` | string | **Splunk versions:** e.g. `9.2+`, `9.3+`, `Cloud` (optional, v5.1+). |
+| `rby` | string | **Reviewer:** GitHub handle or `N/A` (optional, v5.1+). |
 
 ---
 
@@ -113,7 +117,8 @@ Maps group names to lists of category IDs (numbers). Used by the dashboard filte
   "cloud":      [3, 4, 20],
   "app":        [7, 8, 11, 12, 13, 14, 16],
   "industry":   [21],
-  "compliance": [22]
+  "compliance": [22],
+  "business":   [23]
 }
 ```
 

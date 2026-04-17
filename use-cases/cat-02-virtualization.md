@@ -31,7 +31,7 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
   by Performance.host span=1h
 | where avg_cpu > 90
 ```
-- **References:** [Splunk Add-on for VMware](https://splunkbase.splunk.com/app/2913), [vSphere API](https://developer.vmware.com/)
+- **References:** [Splunk Add-on for VMware](https://splunkbase.splunk.com/app/3215), [vSphere API](https://developer.vmware.com/)
 - **Known false positives:** Short CPU ready spikes during boot or cloning; tune threshold or use rolling average.
 
 ---
@@ -63,6 +63,8 @@ index=vmware sourcetype="vmware:perf:mem" (counter="mem.vmmemctl.average" OR cou
 | where mem_pct > 95 OR swap_pct > 20
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-2.1.3 · Datastore Capacity Trending
@@ -91,6 +93,8 @@ index=vmware sourcetype="vmware:inv:datastore"
   by Performance.host Performance.mount span=1h
 | where disk_pct > 85
 ```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -121,6 +125,8 @@ index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.totalReadLat
 | where worst_ms > 20
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-2.1.5 · VM Snapshot Sprawl
@@ -143,6 +149,8 @@ index=vmware sourcetype="vmware:inv:vm" snapshot_name=*
 - **Visualization:** Table (VM, snapshot name, age, size), Bar chart (top VMs by snapshot size), Single value (total snapshots >3d).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.6 · vMotion Tracking
@@ -161,6 +169,8 @@ index=vmware sourcetype="vmware:events" event_type="VmMigratedEvent" OR event_ty
 - **Implementation:** TA-vmware collects vCenter events. Create a report for audit/change tracking. Alert on excessive vMotion frequency (>10 migrations per host per hour may indicate DRS instability).
 - **Visualization:** Table (timeline), Sankey diagram (source to destination host), Count by host/hour.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -181,6 +191,8 @@ index=vmware sourcetype="vmware:events" (event_type="DasVmPoweredOnEvent" OR eve
 - **Visualization:** Events timeline (critical alert), Table of affected VMs, Host status panel.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.8 · DRS Imbalance Detection
@@ -199,6 +211,8 @@ index=vmware sourcetype="vmware:events" event_type="DrsVmMigratedEvent"
 - **Implementation:** Monitor DRS migration frequency. High migration counts suggest oscillation. Also check for unapplied DRS recommendations (DRS set to manual mode). Correlate with CPU/memory utilization per host.
 - **Visualization:** Line chart (migrations per hour), Table of DRS events, Cluster balance comparison chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -222,6 +236,8 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Visualization:** Table (VM, state, days, resources), Pie chart (powered on vs. off), Bar chart (resource waste by team).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.10 · vSAN Health Monitoring
@@ -242,6 +258,8 @@ index=vmware sourcetype="vmware:perf:vsan"
 - **Visualization:** Status indicator per cluster, Table of health issues, Gauge (capacity).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.11 · ESXi Host Hardware Alerts
@@ -261,6 +279,8 @@ index=vmware sourcetype="vmware:events" (event_type="AlarmStatusChangedEvent") a
 - **Implementation:** vCenter triggers hardware alarms via CIM providers on ESXi hosts. TA-vmware collects these alarm events. Alert on red/yellow hardware alarms. Ensure CIM providers are installed on ESXi (vendor-specific VIBs).
 - **Visualization:** Host health grid (red/yellow/green), Events table, Alert panel.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -291,6 +311,8 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.usage.average"
 | where avg_cpu < 20
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-2.1.13 · vCenter Alarm Correlation
@@ -309,6 +331,8 @@ index=vmware sourcetype="vmware:events" event_type="AlarmStatusChangedEvent"
 - **Implementation:** TA-vmware automatically collects vCenter events including alarm state changes. Create a dashboard showing all active alarms. Correlate with time of changes, DRS events, and host health.
 - **Visualization:** Table of active alarms, Bar chart by alarm type, Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -331,6 +355,8 @@ index=vmware sourcetype="vmware:inv:hostsystem"
 - **Visualization:** Table (host, version, build, compliant), Pie chart (compliant %), Bar chart by version.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.15 · VM Creation/Deletion Audit
@@ -350,6 +376,8 @@ index=vmware sourcetype="vmware:events" (event_type="VmCreatedEvent" OR event_ty
 - **Implementation:** Collected automatically via TA-vmware vCenter events. Create daily report. Correlate with change management tickets. Alert on deletions of production VMs.
 - **Visualization:** Table (timeline), Bar chart (create/delete by user), Line chart (VM count trending).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -371,6 +399,8 @@ index=vmware sourcetype="vmware:perf:net" (counter="net.droppedRx.summation" OR 
 - **Implementation:** Collected via Splunk_TA_vmware performance counters. Alert when any VM shows >0 dropped packets sustained over 5 minutes. Correlate with VM network usage to determine if drops correlate with saturation. Check dvSwitch traffic shaping policies and physical NIC utilization on the host.
 - **Visualization:** Table (VM, host, throughput, drops), Line chart (drops over time), Bar chart (top VMs by drops).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -404,6 +434,8 @@ index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.numberReadAv
 | where total_iops > 500
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-2.1.18 · VMware Tools Status and Version Compliance
@@ -425,6 +457,8 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Visualization:** Pie chart (Tools status distribution), Table (non-compliant VMs), Bar chart (by guest OS).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.19 · Distributed vSwitch Port Health and Errors
@@ -444,6 +478,8 @@ index=vmware sourcetype="vmware:events" (event_type="*Dvs*" OR event_type="*dvPo
 - **Implementation:** Enable VDS health checks in vCenter (VLAN/MTU check, Teaming/Failover check). Collect vCenter events via Splunk_TA_vmware. Alert on VmnicDisconnectedEvent (physical uplink loss), DvsPortBlockedEvent, and any health check failure. Create a network topology dashboard showing VDS → uplink → VLAN mapping.
 - **Visualization:** Status grid (VDS health per host), Events table, Network topology diagram.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -466,6 +502,8 @@ index=vmware sourcetype="vmware:inv:resourcepool"
 - **Visualization:** Table (pool hierarchy, limits, utilization), Tree map (pools by resource allocation), Gauge (utilization vs limit).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.21 · ESXi Host Unexpected Reboot Detection
@@ -484,6 +522,8 @@ index=vmware sourcetype="vmware:events" (event_type="HostConnectionLostEvent" OR
 - **Implementation:** Collect vCenter events via Splunk_TA_vmware. Also forward ESXi syslog directly to Splunk for boot-time messages. Alert immediately on HostConnectionLostEvent (ungraceful). Correlate with IPMI/iLO/iDRAC logs if available. Differentiate planned reboots (HostShutdownEvent with a user) from unplanned (HostConnectionLostEvent).
 - **Visualization:** Timeline (host events), Status grid (host connectivity), Alert panel (critical).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -506,6 +546,8 @@ index=vmware sourcetype="syslog" source="/var/log/vmware/vpxd/*" ("ERROR" OR "CR
 - **Visualization:** Status grid (service health), Line chart (error rate over time), Table (recent errors).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.23 · VM Unexpected Power State Changes
@@ -526,6 +568,12 @@ index=vmware sourcetype="vmware:events" (event_type="VmPoweredOffEvent" OR event
 - **Implementation:** Collect vCenter events via Splunk_TA_vmware. Maintain a lookup of authorized service accounts and scheduled maintenance windows. Alert on any power-off or reset outside of maintenance windows or by non-authorized users. Cross-reference with guest OS event logs for crash evidence.
 - **Visualization:** Timeline (power events), Table (unplanned shutdowns), Bar chart (by VM and user).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -548,6 +596,8 @@ index=vmware sourcetype="vmware:inv:hostsystem"
 - **Visualization:** Table (host, NTP status, servers), Status grid (NTP health), Gauge (drift in ms).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.25 · Storage I/O Control (SIOC) Throttling
@@ -568,6 +618,8 @@ index=vmware sourcetype="vmware:perf:datastore" counter="datastore.sizeNormalize
 - **Implementation:** Collected via Splunk_TA_vmware. SIOC triggers when datastore latency exceeds its configured threshold. Monitor the sizeNormalizedDatastoreLatency counter which SIOC uses for its decisions. Alert when latency approaches the SIOC threshold (default 30ms). Correlate with per-VM IOPS from UC-2.1.17 to identify the VM causing contention.
 - **Visualization:** Line chart (datastore latency over time with SIOC threshold line), Table (datastores near threshold), Heatmap (datastores by latency).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -592,6 +644,8 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Visualization:** Pie chart (hardware version distribution), Table (VMs needing upgrade), Bar chart (versions by cluster).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.27 · VM Disk Consolidation Needed
@@ -610,6 +664,8 @@ index=vmware sourcetype="vmware:inv:vm" consolidationNeeded="true"
 - **Implementation:** Collected via Splunk_TA_vmware inventory. Alert immediately on any VM with consolidationNeeded=true. Consolidation should be performed during low-I/O periods as it can temporarily stun the VM. Track datastore free space for affected VMs as orphaned deltas grow continuously.
 - **Visualization:** Table (VMs needing consolidation), Single value (count), Status indicator.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -635,6 +691,8 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Visualization:** Table (VM, used vs provisioned), Gauge (datastore over-provisioning ratio), Line chart (growth trend with prediction).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.29 · VM Affinity and Anti-Affinity Rule Violations
@@ -653,6 +711,8 @@ index=vmware sourcetype="vmware:events" event_type="DrsRuleViolatedEvent"
 - **Implementation:** Collect vCenter events via Splunk_TA_vmware. DRS logs rule violations as events. Also create a scripted input using PowerCLI to enumerate cluster rules and check current VM placement. Alert immediately on anti-affinity violations in production. Review affinity rule compliance weekly.
 - **Visualization:** Table (violated rules), Status grid (rule compliance), Alert panel.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -675,6 +735,8 @@ index=vmware sourcetype="vmware:events" (event_type="StorageDrsRecommendation*" 
 - **Visualization:** Table (recommendations and actions), Bar chart (migrations per cluster), Line chart (cluster balance over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.31 · Fault Tolerance Status and Replication Lag
@@ -695,6 +757,8 @@ index=vmware sourcetype="vmware:inv:vm" ftInfo_role=*
 - **Implementation:** Collect VM inventory and events via Splunk_TA_vmware. Monitor FT state changes (enabled, disabled, failover occurred). Alert when FT is disabled on a protected VM or when FT failover events occur. Track FT vMotion log latency counters to detect replication lag.
 - **Visualization:** Status grid (FT-protected VMs), Events timeline (FT state changes), Table (FT configuration).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -717,6 +781,8 @@ index=vmware sourcetype="esxi_certificates"
 - **Visualization:** Table (host, cert, expiry), Single value (certs expiring within 30 days), Timeline (upcoming expirations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.33 · ESXi Host Lockdown Mode Compliance
@@ -736,6 +802,8 @@ index=vmware sourcetype="vmware:inv:hostsystem"
 - **Implementation:** Collect host inventory via Splunk_TA_vmware. Define expected lockdown mode per cluster (lockdownNormal or lockdownStrict). Alert when any production host has lockdown disabled or SSH enabled outside a maintenance window. Generate weekly compliance reports for security audits.
 - **Visualization:** Status grid (lockdown compliance), Table (non-compliant hosts), Pie chart (compliance rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -757,6 +825,8 @@ index=vmware sourcetype="datastore_orphans"
 - **Visualization:** Table (datastore, orphan count, wasted GB), Bar chart (waste by datastore), Single value (total waste).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.35 · VM Guest OS Disk Space via VMware Tools
@@ -777,6 +847,8 @@ index=vmware sourcetype="vmware:inv:vm" guest_disk_path=*
 - **Implementation:** Requires VMware Tools running in the guest. Splunk_TA_vmware collects guest disk info as part of VM inventory. Alert at 85% (warning) and 95% (critical). Note: this is less granular than an in-guest agent — it reports per-partition but with slower refresh intervals (typically 5-10 minutes).
 - **Visualization:** Table (VM, disk, usage), Gauge per critical VM, Bar chart (top full disks).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -800,6 +872,8 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Visualization:** Table (VM encryption status), Pie chart (encrypted vs not), Bar chart (compliance by department).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.37 · VM Template Inventory and Staleness
@@ -819,6 +893,8 @@ index=vmware sourcetype="vmware:inv:vm" isTemplate="true"
 - **Implementation:** Collect VM inventory via Splunk_TA_vmware (templates appear as VMs with isTemplate=true). Flag templates older than 30 days as needing refresh. Alert on templates older than 90 days. Track deployment frequency per template to identify popular templates that should be prioritized for updates.
 - **Visualization:** Table (template, OS, age), Bar chart (templates by age bucket), Single value (templates >90 days).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -844,6 +920,8 @@ index=vmware sourcetype="vmware:inv:hostsystem"
 - **Visualization:** Status grid (syslog health per host), Table (misconfigured hosts), Single value (hosts with gaps).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.39 · ESXi Host Firewall Rule Audit
@@ -863,6 +941,8 @@ index=vmware sourcetype="esxi_firewall"
 - **Implementation:** Create a PowerCLI scripted input: `Get-VMHost | Get-VMHostFirewallException | Where Enabled | Select VMHost, Name, Enabled, IncomingPorts, OutgoingPorts, Protocols`. Run daily. Alert on rules with AllHosts=true for sensitive services (SSH, NFC, vSAN). Compare against a baseline lookup of approved rules.
 - **Visualization:** Table (host, rule, ports, scope), Bar chart (rules allowing all IPs), Compliance percentage.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -889,6 +969,8 @@ index=vmware sourcetype="vmware:perf:mem" counter="mem.llSwapUsed.average"
 - **Visualization:** Table (VM, vCPUs, NUMA alignment), Scatter plot (VM size vs NUMA fit), Single value (misaligned VMs).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.41 · ESXi Host Coredump Configuration
@@ -909,6 +991,8 @@ index=vmware sourcetype="esxi_coredump"
 - **Implementation:** Create scripted input via PowerCLI or SSH: `esxcli system coredump network get` and `esxcli system coredump partition get`. Run daily. Alert on hosts without any dump target configured. For stateless/diskless hosts, ensure network dump collector is configured and reachable.
 - **Visualization:** Status grid (dump config per host), Table (unconfigured hosts), Compliance percentage.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -931,6 +1015,8 @@ index=vmware sourcetype="vmware:perf:cpu" counter="cpu.ready.summation"
 - **Implementation:** TA-vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.
 - **Visualization:** Heatmap (VMs vs hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (ready % trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -956,6 +1042,8 @@ index=vmware sourcetype="vmware:perf:datastore" (counter="datastore.totalReadLat
 - **Visualization:** Heatmap (VMs vs datastores, colored by latency), Table (top latency by VM/datastore), Line chart (latency trend per datastore).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.44 · ESXi Host Certificate Renewal Compliance
@@ -978,6 +1066,8 @@ index=vmware sourcetype="esxi_certificates"
 - **Visualization:** Table (host, cert, days to expiry), Single value (certs expiring within 30 days), Timeline (upcoming expirations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.45 · VM Snapshot Age Alerting
@@ -999,6 +1089,8 @@ index=vmware sourcetype="vmware:inv:vm" snapshot_name=*
 - **Implementation:** TA-vmware collects VM inventory including snapshot metadata. Define policy: alert on snapshots >7 days (high), >3 days (warning). Run daily report. Escalate to VM owners. Include snapshot size to prioritize cleanup. Correlate with datastore capacity for storage impact.
 - **Visualization:** Table (VM, snapshot, age, size), Bar chart (snapshots by age bucket), Single value (snapshots >7 days).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1024,6 +1116,8 @@ index=vmware sourcetype="vmware:events" event_type="AlarmStatusChangedEvent"
 - **Visualization:** Table (unacknowledged alarms, age), Timeline (alarm state changes), Single value (count unacknowledged >4h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.1.47 · VM Network Packet Loss and Retransmit
@@ -1046,6 +1140,8 @@ index=vmware sourcetype="vmware:perf:net" (counter="net.droppedRx.summation" OR 
 - **Implementation:** TA-vmware collects net.droppedRx/Tx.summation. Alert when any VM shows >0 dropped packets sustained over 5 minutes. Compute loss percentage when packet counters available. Correlate with net.usage.average for saturation. Check dvSwitch policies, physical NIC utilization, and VMXNET3 driver version.
 - **Visualization:** Table (VM, host, drops, loss %), Line chart (drops over time), Bar chart (top VMs by packet loss).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1070,6 +1166,8 @@ index=vmware sourcetype="vmware:events" (event_type="DrsVmMigratedEvent" OR even
 - **Implementation:** Collect DRS events via TA-vmware. Baseline migrations per hour per cluster. Alert when migrations exceed 2 stdev above mean (possible oscillation). For recommendations: query DrsRecommendationAppliedEvent vs. total recommendations. Manual DRS mode will show recommendations without corresponding applied events.
 - **Visualization:** Line chart (migrations per hour by cluster), Table (cluster, migrations, baseline), Bar chart (recommendations vs applied).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1103,6 +1201,8 @@ index=perfmon sourcetype="Perfmon:HyperV" object="Hyper-V Hypervisor Virtual Pro
 | where avg_cpu > 90
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-2.2.2 · Hyper-V Replication Health
@@ -1122,6 +1222,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin" 
 - **Visualization:** Table (VM, replication state, health, last sync), Status indicators, Events list.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.2.3 · Cluster Shared Volume Health
@@ -1140,6 +1242,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-FailoverClustering/O
 - **Implementation:** Enable Failover Clustering operational log. Alert on CSV ownership changes, redirected I/O mode, and disk health issues. Monitor Perfmon counters for CSV latency.
 - **Visualization:** Status panel per CSV, Events timeline, Table.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1161,6 +1265,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin" 
 - **Visualization:** Table (timeline), Count by host/day.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.2.5 · Integration Services Version
@@ -1179,6 +1285,8 @@ index=hyperv sourcetype=integration_services
 - **Implementation:** Replace `"latest"` in the SPL with the actual expected integration services version. Create a PowerShell scripted input on Hyper-V hosts: `Get-VM | Get-VMIntegrationService | Select VMName, Name, Enabled, PrimaryOperationalStatus`. Run daily.
 - **Visualization:** Table (VM, version, status), Pie chart (current vs. outdated).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1208,6 +1316,8 @@ index=perfmon sourcetype="Perfmon:HyperV" object="Hyper-V Hypervisor Logical Pro
 | where avg_cpu > 85
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-2.2.7 · Dynamic Memory Pressure and Effectiveness
@@ -1228,6 +1338,8 @@ index=perfmon sourcetype="Perfmon:HyperV" object="Hyper-V Dynamic Memory - VM" (
 - **Implementation:** Configure Perfmon inputs for `Hyper-V Dynamic Memory - VM` counters. Pressure >100 means the VM wants more memory than it has. Track over time — sustained pressure >80 indicates the VM needs a higher minimum RAM setting. Alert when pressure exceeds 100 for production VMs.
 - **Visualization:** Line chart (pressure over time per VM), Table (VMs under pressure), Gauge (average pressure).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1250,6 +1362,8 @@ index=hyperv sourcetype="hyperv_checkpoints"
 - **Visualization:** Table (VM, checkpoint, age, size), Bar chart (checkpoints by age bucket), Single value (total checkpoint count).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.2.9 · Virtual Switch Dropped Packets and Network Errors
@@ -1271,6 +1385,8 @@ index=perfmon sourcetype="Perfmon:HyperV" object="Hyper-V Virtual Network Adapte
 - **Visualization:** Table (adapter, host, drops), Line chart (drops over time), Bar chart (top adapters by drops).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.2.10 · Failover Cluster Node Health and Quorum
@@ -1290,6 +1406,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-FailoverClustering/O
 - **Implementation:** Collect Failover Clustering operational event log. Key EventCodes: 1135 (node removed), 1177 (quorum lost), 1069 (cluster resource failed), 1564 (quorum degraded). Alert immediately on quorum events. Also create a PowerShell scripted input: `Get-ClusterNode | Select Name, State, StatusInformation`. Run every 60 seconds.
 - **Visualization:** Status grid (node health), Events timeline, Single value (active nodes / total nodes), Alert panel.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1312,6 +1430,8 @@ index=hyperv sourcetype="s2d_health"
 - **Visualization:** Status grid (pool health), Table (disk status), Gauge (capacity utilization), Events (repair operations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.2.12 · VM Generation and Secure Boot Compliance
@@ -1333,6 +1453,8 @@ index=hyperv sourcetype="hyperv_vm_config"
 - **Implementation:** Create scripted input: `Get-VM | Select Name, Generation, @{N='SecureBoot';E={(Get-VMFirmware $_).SecureBoot}}`. Run daily. Define compliance policy — all new VMs should be Gen 2 with Secure Boot enabled. Generate weekly compliance reports. Note: Gen 1 → Gen 2 migration requires VM rebuild.
 - **Visualization:** Pie chart (Gen 1 vs Gen 2), Table (non-compliant VMs), Bar chart (by host).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1357,6 +1479,8 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-*" Type="Err
 - **Visualization:** Line chart (errors over time), Table (anomalous periods), Bar chart (error types).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.2.14 · VM Resource Metering for Chargeback
@@ -1378,6 +1502,8 @@ index=hyperv sourcetype="hyperv_metering"
 - **Implementation:** Enable resource metering: `Enable-VMResourceMetering -VMName *`. Create scripted input: `Measure-VM | Select VMName, AvgCPU, AvgRAM, TotalDisk*, AggregatedAverageNormalizedIOPS, AggregatedDiskDataRead, AggregatedDiskDataWritten, NetworkMeteredTrafficReport`. Run hourly. Maintain cost-per-unit lookups for chargeback calculations.
 - **Visualization:** Table (VM, resource usage, estimated cost), Bar chart (cost by department), Timechart (usage trending).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1408,6 +1534,8 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-Hyper-V-VMMS*"
 | sort -count
 ```
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### 2.3 KVM / Proxmox / oVirt
@@ -1433,6 +1561,8 @@ index=virtualization sourcetype=virsh_stats
 - **Visualization:** Table, Line chart per VM, Heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.2 · Host Overcommit Detection
@@ -1453,6 +1583,8 @@ index=virtualization sourcetype=kvm_capacity
 - **Implementation:** Create scripted input combining `virsh nodeinfo` (host resources) with `virsh dominfo <vm>` for each VM. Calculate aggregate allocation vs. physical capacity. Alert when memory overcommit >1.2x or CPU >4x.
 - **Visualization:** Table (host, allocated vs. physical), Gauge per host.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1475,6 +1607,8 @@ index=virtualization sourcetype=syslog source="/var/log/libvirt/*"
 - **Visualization:** Events timeline, Table (VM, event, time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.4 · KVM Guest Agent Heartbeat
@@ -1494,6 +1628,8 @@ index=virtualization sourcetype=kvm_guest_agent host=*
 - **Implementation:** Script that iterates VMs and runs `virsh qemu-agent-command <domain> '{"execute":"guest-ping"}'`. Ingest result (0/1) per VM. Run every 60 seconds. Alert when agent stops responding.
 - **Visualization:** Status grid (VM vs. agent OK), Table of VMs with no agent.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1517,6 +1653,8 @@ index=virtualization sourcetype=libvirt_nwfilter host=*
 - **Visualization:** Table (host, VM, filter, drift), Compliance count.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.6 · Virtual Disk Backing Chain and Snapshot Age
@@ -1537,6 +1675,8 @@ index=virtualization sourcetype=kvm_disk_chain host=*
 - **Implementation:** Script to list VM disks and snapshot chains (e.g. `virsh snapshot-list`, `qemu-img info`). Compute chain depth and oldest snapshot age. Alert when depth >3 or oldest snapshot >30 days.
 - **Visualization:** Table (VM, disk, depth, oldest snapshot), Bar chart of snapshot age.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1559,6 +1699,8 @@ index=virtualization sourcetype=kvm_cpu_compat host=*
 - **Visualization:** Table (host, VM, CPU model, compatible), Migration readiness matrix.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.8 · Virtio Driver and Balloon Status in Guests
@@ -1580,6 +1722,8 @@ index=virtualization sourcetype=kvm_balloon host=*
 - **Visualization:** Table (VM, balloon KB, ratio), Line chart (balloon over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.9 · QEMU Process Crash and Zombie Detection
@@ -1599,6 +1743,8 @@ index=os sourcetype=syslog ("qemu-kvm" AND ("killed" OR "segfault" OR "core dump
 - **Implementation:** Monitor syslog and `/var/log/libvirt/qemu/*.log` for qemu-kvm crash messages. Create a scripted input to detect zombie processes: `ps aux | grep qemu-kvm | grep -v grep | awk '{if($8=="Z") print}'`. Alert immediately on crash events. Cross-reference with libvirt domain list to detect processes without corresponding VMs.
 - **Visualization:** Timeline (crash events), Table (crashed VMs), Single value (active zombies).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -1620,6 +1766,8 @@ index=virtualization sourcetype=kvm_storage_pools
 - **Implementation:** Create scripted input: `for pool in $(virsh pool-list --name); do virsh pool-info $pool; done`. Parse capacity, allocation, and available fields. Run every 5 minutes. Alert at 80% (warning) and 90% (critical). Include pool type in output — LVM pools cannot auto-extend, while directory pools grow with the filesystem.
 - **Visualization:** Gauge (per pool), Table (pool status), Line chart (capacity trend with prediction).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1643,6 +1791,8 @@ index=virtualization sourcetype="proxmox_backup"
 - **Visualization:** Table (VM, status, duration, size), Bar chart (backup success rate), Timechart (backup duration trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.12 · Proxmox Cluster Corosync and Quorum Health
@@ -1664,6 +1814,8 @@ index=virtualization sourcetype="proxmox_cluster"
 - **Visualization:** Status grid (node health), Single value (quorum status), Timeline (membership changes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.13 · Proxmox HA Group and Fence Status
@@ -1683,6 +1835,8 @@ index=virtualization sourcetype="proxmox_ha"
 - **Implementation:** Create scripted input: `ha-manager status` to enumerate all HA-managed resources and their states. Monitor HA manager log (`/var/log/pve/ha-manager/`) for fence operations and migration events. Alert on failed fencing (node isolation), VMs in error state, and HA resources that cannot reach their requested state.
 - **Visualization:** Table (HA resources, state, node), Timeline (HA events), Status grid (resource health).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1705,6 +1859,8 @@ index=os sourcetype="zfs_pool_status"
 - **Visualization:** Status grid (pool health), Gauge (capacity per pool), Table (pool details), Line chart (capacity trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
+
 ---
 
 ### UC-2.3.15 · VM Disk Cache Mode Audit
@@ -1726,6 +1882,8 @@ index=virtualization sourcetype="kvm_disk_config"
 - **Visualization:** Table (VM, disk, cache mode, risk), Pie chart (cache mode distribution), Bar chart (risky VMs by host).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.3.16 · Libvirt Daemon Health and Responsiveness
@@ -1745,6 +1903,8 @@ index=os sourcetype=syslog "libvirtd" ("error" OR "warning" OR "failed" OR "time
 - **Implementation:** Monitor libvirtd syslog output for errors. Create a scripted input that runs `virsh list` and measures response time — if it takes >5 seconds, libvirtd is likely overloaded. Also monitor the systemd service status: `systemctl is-active libvirtd`. Alert if libvirtd is not active or response time exceeds 10 seconds.
 - **Visualization:** Status indicator (libvirtd per host), Line chart (response time), Events table (errors).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833)
 
 ---
 
@@ -1766,6 +1926,8 @@ index=virtualization sourcetype="proxmox_cluster_status"
 - **Implementation:** Create scripted input polling Proxmox API: `GET /api2/json/cluster/status` for node membership and quorum; `GET /api2/json/nodes/{node}/storage` for storage usage; `GET /api2/json/cluster/ha/status` for HA resources. Authenticate via API token or ticket. Run every 60 seconds. Alert on node offline, quorum loss, or storage >85% used. Correlate with Corosync logs for fence events.
 - **Visualization:** Status grid (node health per cluster), Table (storage usage by node), Timeline (HA fence events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1798,6 +1960,8 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Visualization:** Table (VM, OS, EOL date), Bar chart (VMs by EOL status), Timeline (upcoming EOL dates).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.4.2 · VM Backup Coverage Validation
@@ -1824,6 +1988,8 @@ index=vmware sourcetype="vmware:inv:vm" power_state="poweredOn"
 - **Visualization:** Table (unprotected VMs), Single value (backup coverage %), Pie chart (backed up vs unprotected), Bar chart (backup age distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-2.4.3 · VM-to-Host Density Trending
@@ -1844,6 +2010,8 @@ index=vmware sourcetype="vmware:inv:vm" power_state="poweredOn"
 - **Implementation:** Count powered-on VMs per host from inventory data. Track daily for trend analysis. Calculate vcpu-to-pcpu ratio and memory overcommit per host. Alert when any host exceeds your density threshold (e.g., >30 VMs, >4:1 vCPU ratio, or >1.5:1 memory overcommit). Useful after HA events to verify surviving hosts aren't overloaded.
 - **Visualization:** Bar chart (VMs per host), Line chart (density trend over months), Table (host, VM count, ratios), Heatmap (density by cluster).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1868,6 +2036,8 @@ index=vmware sourcetype="vmware:events" event_type="VmCreatedEvent"
 - **Visualization:** Bar chart (average provisioning time by DC), Line chart (trend over time), Table (slowest provisions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.4.5 · Virtualization License Compliance
@@ -1890,6 +2060,8 @@ index=vmware sourcetype="vmware:inv:hostsystem"
 - **Implementation:** Collect host hardware inventory (socket count, core count) from all hypervisors. Maintain a lookup table of license entitlements per cluster/site. Compare actual vs entitled. Alert when actual exceeds entitled. Generate monthly compliance reports. Track license utilization ratio — under-utilized licenses may be reassignable.
 - **Visualization:** Table (cluster, sockets, entitled, compliant), Gauge (license utilization), Bar chart (compliance by cluster).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -1914,6 +2086,11 @@ index=vmware sourcetype="vmware:inv:vm"
 - **Implementation:** Normalize VM inventory fields across all hypervisor platforms into a common schema (vm_name, platform, host, vcpus, mem_gb, power_state, guest_os). Use a scheduled search to populate a summary index or KV store for fast lookups. Enrich with CMDB data (owner, department, environment) via lookup. Generate weekly fleet reports showing total VM count, resource allocation, and platform distribution.
 - **Visualization:** Table (unified VM inventory), Pie chart (VMs by platform), Bar chart (resource allocation by platform), Treemap (VMs by department and platform).
 - **CIM Models:** Compute_Inventory
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Compute_Inventory.Hypervisor by Hypervisor.dest, Hypervisor.status | sort - count
+```
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742), [CIM: Compute_Inventory](https://docs.splunk.com/Documentation/CIM/latest/User/Compute_Inventory)
 
 ---
 
@@ -1934,6 +2111,8 @@ index=virtualization sourcetype="ovirt_datacenter"
 - **Implementation:** Create scripted input polling oVirt API: `GET /api/datacenters` and `GET /api/storagedomains`. Authenticate via oVirt SSO (username/password or token). Parse status (up/down/maintenance), active flag, and available space. Run every 5 minutes. Alert when data center status != "up" or storage domain status != "active". Create separate sourcetypes for datacenter and storagedomain events. Monitor storage domain available percentage for capacity. Correlate with oVirt engine logs for root cause.
 - **Visualization:** Status grid (data centers and storage domains), Table (operational status), Gauge (storage domain capacity).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1967,6 +2146,8 @@ index=endpoint sourcetype="igel:ums:inventory"
 - **Visualization:** Single value (fleet online %), Table (sites ranked by offline count), Status grid (device online/offline by site).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.5.2 · IGEL Firmware Version Compliance
@@ -1990,6 +2171,8 @@ index=endpoint sourcetype="igel:ums:inventory"
 - **Visualization:** Pie chart (compliant vs non-compliant), Table (firmware versions with device counts), Single value (compliance %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.5.3 · IGEL UMS Server Health Monitoring
@@ -2010,6 +2193,8 @@ index=endpoint sourcetype="igel:ums:health"
 - **Implementation:** Create a scripted input that polls `https://[server]:[port]/ums/check-status` every 60 seconds. The endpoint returns JSON with a `status` field (values: `init`, `ok`, `warn`, `err`) and optional `message` describing the issue. Parse the response and index as events. Alert immediately on `err` status (database connection failure, device communication port not ready). Alert on `warn` status (HA update mode, cloud gateway disconnection, certificate sync issues). Also alert if no health check event has been received in 5 minutes (endpoint unreachable).
 - **Visualization:** Single value (current status with color coding), Timeline (status changes over time), Table (all UMS servers with status).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2034,6 +2219,8 @@ index=endpoint sourcetype="igel:ums:inventory"
 - **Visualization:** Table (stale devices sorted by hours since contact), Bar chart (devices per site with lost heartbeat), Single value (total devices with lost heartbeat).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.5.5 · IGEL OS Endpoint Syslog Error Monitoring
@@ -2054,6 +2241,8 @@ index=endpoint sourcetype="igel:os:syslog" (severity="err" OR severity="crit" OR
 - **Implementation:** Configure IGEL OS syslog forwarding via UMS profile: System > Logging > Remote mode = Client, with TLS enabled and CA certificate at `/wfs/ca-certs/ca.pem`. Point to Splunk TCP/TLS input on port 6514. Create a props.conf entry for `sourcetype=igel:os:syslog` to parse syslog priority into `severity` and `facility` fields. Alert on cluster patterns (same error across many devices = systemic issue, repeated errors on one device = hardware fault). Exclude known benign messages via a lookup filter.
 - **Visualization:** Timechart (error count by severity), Table (top errors by frequency), Bar chart (affected devices by error type).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2082,6 +2271,12 @@ index=endpoint sourcetype="igel:ums:security"
 - **Implementation:** Deploy a Splunk Universal Forwarder on the UMS server (Windows or Linux). Monitor the security log files: `ums-server-security.log`, `ums-admin-security.log`, `wums-app-security.log`. Enable remote security logging in UMS Administration > Global Configuration > Logging. Parse events using source tags (`UMS-Server`, `ICG`, `IMI`, `UMS-Webapp`). Alert on: failed login attempts exceeding 5 within 10 minutes, administrator account creation/deletion, device factory reset commands, and off-hours policy modifications.
 - **Visualization:** Bar chart (events by category), Timeline (authentication events), Table (failed logins by user and source IP).
 - **CIM Models:** Authentication, Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
+```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2105,6 +2300,8 @@ index=endpoint sourcetype="igel:ums:inventory"
 - **Implementation:** Poll `GET /v3/thinclients?facets=details` to retrieve hardware specifications for each device. The API returns CPU speed, memory size, flash storage, battery level (mobile devices), and network speed. Index these as inventory events with the device `unitID` as a unique key. Build a fleet hardware profile to identify under-provisioned devices. Alert when battery level drops below 20% on mobile IGEL devices. Use trending to forecast flash storage exhaustion. Cross-reference hardware specs against minimum requirements for the VDI workload (e.g., Citrix Workspace App, VMware Horizon Client).
 - **Visualization:** Heatmap (memory tier x flash tier), Bar chart (devices by hardware class), Table (devices below minimum specs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2130,6 +2327,8 @@ index=endpoint sourcetype="igel:os:syslog" process="kernel" ("Linux version" OR 
 - **Visualization:** Table (devices with unscheduled reboots), Timechart (reboot events over time), Single value (unscheduled reboot count last 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.5.9 · IGEL Cloud Gateway Connection Health
@@ -2154,6 +2353,12 @@ index=endpoint sourcetype="igel:icg:security"
 - **Implementation:** Deploy a Splunk Universal Forwarder on the ICG server to monitor `/opt/IGEL/icg/usg/logs/icg-security.log`. The ICG security log records authentication events (success/failure), user creation/deletion, and file uploads. Also monitor the UMS check-status endpoint for ICG-related warnings (cloud gateway disconnection). Alert on: sustained authentication failures from ICG (possible certificate mismatch), ICG going offline (no events for 15+ minutes), or UMS reporting ICG disconnection in its health status.
 - **Visualization:** Timechart (ICG auth success vs failure), Single value (current ICG status), Table (failed auth sources).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t dc(Authentication.src) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=15m | sort - agg_value
+```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2182,6 +2387,12 @@ index=endpoint sourcetype="igel:ums:security" source_tag="UMS-Webapp" OR source_
 - **Implementation:** The UMS security audit log records all profile assignments, priority profile updates, and device configuration modifications with the acting administrator's username. Monitor for: bulk profile reassignments (more than 10 devices in 5 minutes — could be intentional rollout or accidental), off-hours configuration changes, changes by unauthorized users, and removal of security-related profiles (e.g., syslog forwarding, USB lockdown). Maintain a lookup of approved change windows and authorized administrators. Alert on changes outside approved windows or by non-authorized users.
 - **Visualization:** Timeline (configuration changes), Bar chart (changes by type), Table (recent changes with user and target details).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [uberAgent indexer app](https://splunkbase.splunk.com/app/2998), [Splunkbase app 1448](https://splunkbase.splunk.com/app/1448), [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -2216,6 +2427,8 @@ index=xd sourcetype="citrix:broker:events" event_type="SessionLogon"
 - **Visualization:** Stacked bar chart (logon phases), Line chart (logon duration trending), Table (slowest delivery groups).
 - **CIM Models:** N/A
 
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
+
 ---
 
 ### UC-2.6.2 · ICA/HDX Session Latency and Quality
@@ -2238,6 +2451,8 @@ index=xd_perfmon sourcetype="citrix:vda:perfmon" counter_name="ICA RTT"
 - **Visualization:** Line chart (ICA RTT over time by VDA), Heatmap (VDA x hour), Single value (fleet average RTT with color threshold).
 - **CIM Models:** N/A
 
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
+
 ---
 
 ### UC-2.6.3 · Citrix Connection Failure Analysis
@@ -2259,6 +2474,8 @@ index=xd sourcetype="citrix:broker:events" event_type="ConnectionFailure"
 - **Implementation:** Collect Broker Service events (Event IDs 1100–1199 for connection lifecycle) from Delivery Controllers. The Monitor Service OData API `ConnectionFailureLogs` endpoint provides structured failure data with `FailureType` (ClientConnectionFailure, MachineFailure, etc.) and `FailureReason`. Alert on: more than 3 failures in 15 minutes for any delivery group, any `MachineFailure` type (indicates infrastructure problem), or rising failure rates across the site. Correlate with machine power state and VDA registration status for root cause.
 - **Visualization:** Bar chart (failures by type), Timeline (failure events), Table (recent failures with user and machine details).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2285,6 +2502,8 @@ index=xd sourcetype="citrix:broker:events" event_type="MachineStatus"
 - **Visualization:** Single value (registration % with color), Bar chart (registered vs unregistered by delivery group), Table (unregistered machines with fault state).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.6.5 · Citrix Delivery Controller Service Health
@@ -2309,6 +2528,8 @@ index=xd_winevents sourcetype="WinEventLog:System" EventCode=7036
 - **Implementation:** Deploy Splunk Universal Forwarder on all Delivery Controllers and monitor Windows System Event Log. Windows Event ID 7036 records service state changes ("entered the running/stopped state"). Track all Citrix-specific services. Alert immediately when any critical Citrix service enters the stopped state. Correlate across controllers — if the Broker Service stops on all controllers simultaneously, escalate as P1. Also monitor Event IDs 7031 (service crash) and 7034 (unexpected termination).
 - **Visualization:** Status grid (service x controller), Timeline (state change events), Table (stopped services).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)
 
 ---
 
@@ -2335,6 +2556,8 @@ index=xd sourcetype="citrix:broker:events" event_type="PowerAction"
 - **Visualization:** Timechart (power actions by result), Bar chart (failures by delivery group), Single value (pending queue depth).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.6.7 · ICA/HDX Virtual Channel Bandwidth Consumption
@@ -2359,6 +2582,8 @@ index=xd_perfmon sourcetype="citrix:vda:perfmon"
 - **Visualization:** Stacked area chart (bandwidth by channel), Table (top bandwidth consumers), Bar chart (channel comparison by VDA).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.6.8 · Citrix Provisioning Services (PVS) vDisk Streaming Health
@@ -2381,6 +2606,8 @@ index=xd sourcetype="citrix:pvs:stream"
 - **Visualization:** Table (target devices with health metrics), Gauge (write cache utilization), Bar chart (boot times by PVS server).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.6.9 · Citrix Profile Management Load Time
@@ -2401,6 +2628,8 @@ index=xd sourcetype="citrix:upm:log" event_type="ProfileLoad"
 - **Implementation:** Citrix Profile Management logs to `%SystemRoot%\System32\LogFiles\UserProfileManager` on each VDA. Configure centralized log storage via UPM policy (store logs on a network share). Forward these logs to Splunk via Universal Forwarder. Parse for profile load/unload timing events. Track profile size growth per user over time. Alert on: p95 profile load time exceeding 15 seconds, individual profiles exceeding 500 MB, or UPM errors indicating profile corruption ("Error while processing profile" events). Validate that profile streaming is enabled and effective by comparing load times with/without streaming.
 - **Visualization:** Line chart (profile load time trending), Bar chart (top users by profile size), Table (slow profile loads with user details).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2427,6 +2656,12 @@ index=xd sourcetype="ms:iis:auto" s_sitename="*StoreFront*"
 - **Implementation:** Install the Splunk Add-on for Microsoft IIS on StoreFront servers. StoreFront uses a custom IIS log field order — adjust the `auto_kv_for_iis_default` transform field list per Splunk's Content Pack documentation. Monitor HTTP status codes: 401 (authentication failure), 500+ (server errors), and response times. Key URIs to track: `/Citrix/StoreWeb/` (web interface), `/Citrix/Store/resources/` (resource enumeration), `/Citrix/Authentication/` (auth endpoint). Alert on server error rate exceeding 5% or authentication failure rate exceeding 20%. Correlate StoreFront errors with Active Directory health and Delivery Controller connectivity.
 - **Visualization:** Timechart (requests by status code), Bar chart (error rates by StoreFront server), Table (slowest requests).
 - **CIM Models:** Web
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest span=5m | sort - count
+```
+
+- **References:** [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -2450,6 +2685,8 @@ index=xd sourcetype="citrix:licensing"
 - **Visualization:** Gauge (license utilization %), Timechart (license usage over time), Table (license types with expiry dates).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.6.12 · Citrix Application Usage and Popularity Analytics
@@ -2470,6 +2707,8 @@ index=xd sourcetype="citrix:broker:events" event_type="ApplicationLaunch"
 - **Implementation:** Collect application launch events from the Broker Service event log or Monitor Service OData API `ApplicationInstances` endpoint. Track application name, launching user, delivery group, and session duration. Generate weekly reports showing: most-used applications (by unique users and total launches), least-used applications (candidates for retirement), peak usage hours per application, and average session duration. Correlate with license costs per application for ROI analysis.
 - **Visualization:** Bar chart (top applications by users), Heatmap (application usage by hour), Table (unused applications).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2494,6 +2733,12 @@ index=xd sourcetype="citrix:fas:events"
 - **Implementation:** Deploy a Splunk Universal Forwarder on FAS servers and collect the Citrix FAS application event log. FAS logs certificate issuance attempts, CA connectivity status, and certificate signing operations. Monitor for: certificate issuance failures (CA unreachable, template misconfigured), slow certificate signing (>2 seconds impacts logon), RA certificate expiration (FAS's own registration authority certificate), and unauthorized certificate requests. FAS PowerShell cmdlets (`Get-FasRaCertificateMonitor`, `Test-FasUserCertificateCrypto`) can be used via scripted inputs for proactive health checks. Alert immediately on any certificate issuance failure as it blocks user authentication.
 - **Visualization:** Timechart (certificate issuance success vs failure), Single value (current CA reachability), Table (failed certificate requests with error details).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=15m | sort - count
+```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2515,6 +2760,8 @@ index=xd sourcetype="citrix:wem:agent" (action_type="CpuSpikeProtection" OR acti
 - **Implementation:** Collect WEM agent logs from VDAs. The WEM agent logs CPU spike protection events (process priority lowered) and CPU clamping events (process throttled) with the offending process name, CPU threshold that was exceeded, and duration of the intervention. Alert when a single VDA experiences more than 10 WEM interventions per hour (indicates capacity issue). Track the most frequently throttled processes — these are candidates for application optimization, isolation to dedicated delivery groups, or VDA resource increases. Compare WEM intervention frequency before and after VDA resource changes to validate capacity additions.
 - **Visualization:** Bar chart (top throttled processes), Timechart (WEM interventions over time), Table (VDAs with most frequent interventions).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2540,6 +2787,8 @@ index=xd sourcetype="citrix:sessionrecording"
 - **Visualization:** Single value (recording compliance %), Gauge (storage utilization), Table (failed recordings with error details).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-2.6.16 · Citrix Cloud Connector Health
@@ -2560,6 +2809,8 @@ index=xd sourcetype="citrix:cloudconnector"
 - **Implementation:** Deploy a Splunk Universal Forwarder on Cloud Connector hosts and monitor Windows Event Logs for Citrix Cloud Connector events. Also run the Cloud Health Check utility via scheduled PowerShell scripted input to validate connectivity to Citrix Cloud services. Track connectivity status (Connected, Disconnected), service health, and last successful cloud contact time. Alert when: any connector loses cloud connectivity for more than 15 minutes, all connectors in a resource location become disconnected (LHC mode imminent), or Cloud Connector services stop. Ensure at least 2 connectors per resource location for redundancy.
 - **Visualization:** Status grid (connector x resource location), Timeline (connectivity events), Single value (connected connectors count).
 - **CIM Models:** N/A
+
+- **References:** [uberAgent indexer app](https://splunkbase.splunk.com/app/2998), [Splunkbase app 1448](https://splunkbase.splunk.com/app/1448)
 
 ---
 
@@ -2589,6 +2840,8 @@ index=score_uberagent_uxm earliest=-4h
 - **Visualization:** Line chart (score over time), Gauge (fleet average), Heatmap (delivery group x hour), Table (worst-scoring users).
 - **CIM Models:** N/A
 
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
+
 ---
 
 ### UC-2.6.18 · Application Unresponsiveness (UI Hangs) Detection
@@ -2612,6 +2865,8 @@ index=uberagent sourcetype="uberAgent:Application:UIDelay" earliest=-24h
 - **Implementation:** uberAgent detects UI unresponsiveness automatically. No special configuration required. Use the data to identify problematic applications, correlate hangs with VDA resource contention (CPU, memory), and prioritise application remediation. Alert when a single application generates more than 20 hangs per hour across the fleet.
 - **Visualization:** Bar chart (hangs by application), Line chart (hang frequency over time), Table (worst applications with user impact).
 - **CIM Models:** N/A
+
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
 
 ---
 
@@ -2637,6 +2892,8 @@ index=uberagent sourcetype="uberAgent:Process:ProcessStartup" earliest=-24h
 - **Visualization:** Bar chart (p95 startup by app), Line chart (startup trending), Table (slowest applications).
 - **CIM Models:** N/A
 
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
+
 ---
 
 ### UC-2.6.20 · Browser Performance per Web Application
@@ -2660,6 +2917,8 @@ index=uberagent sourcetype="uberAgent:Application:BrowserWebRequests2" earliest=
 - **Implementation:** Deploy the uberAgent browser extension via Group Policy or Citrix Studio. The extension collects W3C Navigation Timing API data per page load. Alert when key internal web applications (intranet, CRM, EHR) exceed acceptable page load thresholds. Segment by Citrix delivery group vs physical endpoint to compare performance.
 - **Visualization:** Table (slowest websites), Line chart (page load trending), Bar chart (comparison by browser).
 - **CIM Models:** N/A
+
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
 
 ---
 
@@ -2685,6 +2944,8 @@ index=uberagent sourcetype="uberAgent:OnOffTransition:BootDetail2" earliest=-7d
 - **Visualization:** Bar chart (boot time by VDA), Stacked bar (boot phases), Line chart (boot time trending).
 - **CIM Models:** N/A
 
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
+
 ---
 
 ### UC-2.6.22 · Per-Application CPU and Memory Consumption
@@ -2707,6 +2968,12 @@ index=uberagent sourcetype="uberAgent:Process:ProcessDetail" earliest=-4h
 - **Implementation:** uberAgent collects process-level resource metrics continuously. Identify top resource consumers per VDA and per user. Alert when a single user's process exceeds thresholds that impact co-hosted sessions. Feed into capacity planning: if average RAM per user session is 2 GB and VDAs have 64 GB, the safe session density is ~28 sessions.
 - **Visualization:** Table (top consumers), Bar chart (CPU by application), Heatmap (user x VDA).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.CPU by Performance.host | sort - agg_value
+```
+
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2729,6 +2996,8 @@ index=uberagent sourcetype="uberAgent:Application:Errors" earliest=-7d
 - **Implementation:** uberAgent captures crash data automatically from WER. Trend crash rates per application version to detect regressions. Alert on crash rate spikes (>200% increase over 7-day baseline). Correlate exception codes with known bugs and vendor advisories. Track crash resolution over time after patching.
 - **Visualization:** Bar chart (crashes by application), Line chart (crash rate trending), Table (faulting modules).
 - **CIM Models:** N/A
+
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
 
 ---
 
@@ -2754,6 +3023,8 @@ index=uberagent sourcetype="uberAgent:Citrix:DesktopGroups"
 - **Visualization:** Table (delivery group capacity), Gauge (available capacity %), Bar chart (session counts by group).
 - **CIM Models:** N/A
 
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
+
 ---
 
 ### UC-2.6.25 · Citrix NetScaler ADC Performance via uberAgent
@@ -2775,6 +3046,8 @@ index=uberagent sourcetype="uberAgent:CitrixADC:AppliancePerformance"
 - **Implementation:** Configure uberAgent's NetScaler monitoring with NITRO API credentials. This provides a unified data source — VDA performance, user sessions, and ADC health all in one index. Correlate ADC gateway session counts with VDA session capacity. Alert on ADC resource utilisation exceeding thresholds.
 - **Visualization:** Single value (CPU, memory), Line chart (SSL TPS over time), Table (ADC fleet health).
 - **CIM Models:** N/A
+
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448)
 
 ---
 
@@ -2799,6 +3072,12 @@ index=uberagent sourcetype="uberAgent:Process:NetworkTargetPerformance" earliest
 - **Implementation:** Enable uberAgent's per-application network monitoring feature. Identify bandwidth-heavy applications and high-latency network targets. Use to validate that HDX redirection policies are routing multimedia traffic efficiently. Detect applications bypassing proxy or connecting to unexpected external hosts.
 - **Visualization:** Table (top bandwidth consumers), Bar chart (latency by target), Sankey diagram (app to network target flow).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
+```
+
+- **References:** [uberAgent UXM](https://splunkbase.splunk.com/app/1448), [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -2822,6 +3101,12 @@ index=uberagent sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging" earl
 - **Implementation:** Enable uberAgent ESA with default Sigma rule pack. Customise rules for Citrix-specific threats (e.g., lateral movement via published apps, credential dumping in shared sessions). Forward ESA events to Splunk Enterprise Security as notable events. The MITRE ATT&CK integration maps detections to tactics and techniques for SOC workflows.
 - **Visualization:** Table (threat detections), Bar chart (by MITRE tactic), Timeline (detection events), Single value (critical alerts).
 - **CIM Models:** Intrusion Detection, Endpoint
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.dest | sort - count
+```
+
+- **References:** [Splunkbase app 1448](https://splunkbase.splunk.com/app/1448), [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263), [CIM: Intrusion Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 

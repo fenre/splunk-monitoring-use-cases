@@ -35,18 +35,11 @@ window.SITE_CUSTOM = {
   phase4Heading: "Optimize & Automate",
   phase4Desc: "Add ML-driven anomaly detection, automated remediation, and executive reporting.",
 
-  // Use Case Categories section
-  categoriesTitle: "Use Case Categories",
-  categoriesSub: "Click any category to see the top quick-win use cases with ready-to-use SPL queries",
+  // Quick-win starters label
   starterListLabel: "Top Quick-Win Use Cases — ready to implement",
-  noStartersMessage: "No quick-win starters — click category in sidebar to explore all use cases",
 
   // Filter chip labels (Overview)
   filterAll: "Categories",
-  filterInfra: "Core Infrastructure",
-  filterSecurity: "Security",
-  filterCloud: "Cloud & Containers",
-  filterApp: "Applications",
 
   // Footer
   siteAuthor: "Fredrik Lima Sudmann",

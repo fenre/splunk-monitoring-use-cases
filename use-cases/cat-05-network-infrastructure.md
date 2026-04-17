@@ -39,6 +39,8 @@ index=network sourcetype="cisco:ios" "%LINEPROTO-5-UPDOWN" OR "%LINK-3-UPDOWN"
 - **Visualization:** Status grid (green/red per interface), Table, Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.2 · Interface Error Rates
@@ -59,6 +61,8 @@ index=network sourcetype="snmp:interface"
 - **Implementation:** Poll IF-MIB (ifInErrors, ifOutErrors, ifInDiscards) at 300s. Use `streamstats` for delta. Alert on increasing counts.
 - **Visualization:** Line chart (error rate), Table, Heatmap across devices.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -88,6 +92,8 @@ index=network sourcetype="snmp:interface"
 | where thruput_bps > 0
 ```
 
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-5.1.4 · BGP Peer State Changes
@@ -106,6 +112,8 @@ index=network sourcetype="cisco:ios" "%BGP-5-ADJCHANGE" OR "%BGP-3-NOTIFICATION"
 - **Implementation:** Forward syslog from all BGP speakers. Critical alert on adjacency down. Include neighbor IP and AS number.
 - **Visualization:** Events timeline (critical), Status panel per BGP session, Table.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -127,6 +135,8 @@ index=network sourcetype="cisco:ios" "%OSPF-5-ADJCHG"
 - **Visualization:** Events timeline, Table (router, neighbor, states).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.6 · Spanning Tree Topology Change
@@ -145,6 +155,8 @@ index=network sourcetype="cisco:ios" "%SPANTREE-5-TOPOTCHANGE" OR "%SPANTREE-2-R
 - **Implementation:** Forward syslog. Alert on root bridge changes (critical). Track topology change frequency per VLAN.
 - **Visualization:** Table, Timeline, Bar chart by VLAN.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -166,6 +178,8 @@ index=network sourcetype="cisco:ios" "%SYS-5-CONFIG_I"
 - **Visualization:** Table (device, user, time), Timeline, Single value (changes last 24h).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.8 · Device CPU/Memory Utilization
@@ -184,6 +198,8 @@ index=network sourcetype="snmp:cpu"
 - **Implementation:** Poll CISCO-PROCESS-MIB and CISCO-MEMORY-POOL-MIB every 300s. Alert CPU >80% or memory >85%.
 - **Visualization:** Line chart, Gauge, Table of high-utilization devices.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -204,6 +220,8 @@ index=network sourcetype="cisco:ios" "%SYS-5-RESTART" OR "%SYS-5-RELOAD"
 - **Visualization:** Table (device, uptime), Timeline, Single value (unexpected reboots).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.10 · VLAN Configuration Changes
@@ -222,6 +240,8 @@ index=network sourcetype="cisco:ios" "%VLAN_MANAGER-6-VLAN_CREATE" OR "%VLAN_MAN
 - **Implementation:** Forward syslog. Alert on VLAN creation/deletion. Correlate with change tickets.
 - **Visualization:** Table, Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -242,6 +262,8 @@ index=network sourcetype="cisco:ios" "%FAN-3-FAN_FAILED" OR "%PLATFORM_ENV-1-PSU
 - **Visualization:** Status indicator per device, Events list (critical).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.12 · ARP/MAC Table Anomalies
@@ -261,6 +283,8 @@ index=network sourcetype="cisco:ios" "%SW_MATM-4-MACFLAP_NOTIF"
 - **Implementation:** Forward syslog. Alert on MACFLAP events. Investigate the MAC to find the device.
 - **Visualization:** Table, Timeline, Bar chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -291,6 +315,8 @@ index=network sourcetype="cisco:ios" "%SEC-6-IPACCESSLOGP"
 | sort -count
 ```
 
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.1.14 · SNMP Authentication Failures
@@ -310,6 +336,8 @@ index=network sourcetype="cisco:ios" "%SNMP-3-AUTHFAIL"
 - **Visualization:** Table, Map, Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.15 · Environmental Monitoring
@@ -328,6 +356,8 @@ index=network sourcetype="snmp:environment"
 - **Implementation:** Poll ENVMON-MIB temperature sensors every 300s. Alert when >45°C.
 - **Visualization:** Gauge per device, Line chart (trending), Table.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -350,6 +380,8 @@ index=network sourcetype="cisco:ios" "ROUTING" OR "RT_ENTRY" OR "%DUAL-5-NBRCHAN
 - **Visualization:** Timeline (flapping events), Table (prefix, host, count), Line chart (change frequency).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.17 · Duplex Mismatch Detection
@@ -370,6 +402,8 @@ index=network sourcetype="cisco:ios" "%CDP-4-DUPLEX_MISMATCH"
 - **Implementation:** Enable CDP/LLDP on all interfaces. Monitor syslog for duplex mismatch messages. Cross-reference with SNMP interface counters showing late collisions.
 - **Visualization:** Table (local device/interface → remote device/interface), Alert list.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -393,6 +427,8 @@ index=network sourcetype="snmp:cdp"
 - **Visualization:** Table (host, interface, old neighbor, new neighbor), Change log timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.19 · PoE Power Budget Monitoring
@@ -414,6 +450,8 @@ index=network sourcetype="snmp:poe"
 - **Visualization:** Gauge (per switch), Line chart (utilization trending), Table (switch, budget, used, remaining).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.20 · EIGRP Neighbor Flapping
@@ -434,6 +472,8 @@ index=network sourcetype="cisco:ios" "%DUAL-5-NBRCHANGE"
 - **Implementation:** Collect syslog from Cisco routers. Alert on >2 EIGRP neighbor down events in 15 minutes. Correlate with interface flaps and CPU utilization.
 - **Visualization:** Timeline (up/down events), Table (neighbor, interface, flap count), Status grid.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -457,6 +497,8 @@ index=network sourcetype="snmp:interface"
 - **Visualization:** Line chart (error rate over time per interface), Heatmap (device × interface), Table.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.22 · Syslog Source Health
@@ -477,6 +519,8 @@ index=network sourcetype="snmp:interface"
 - **Implementation:** Maintain a device inventory lookup. Schedule a search comparing active syslog sources against inventory. Alert on devices missing for >1 hour.
 - **Visualization:** Table (silent devices), Single value (count of silent devices), Status grid (all devices).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -499,6 +543,8 @@ index=network sourcetype="cisco:ios" "%HSRP-5-STATECHANGE" OR "%VRRP-6-STATECHAN
 - **Visualization:** Timeline (state changes), Table (group, host, transition), Alert panel.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.24 · Network Device Configuration Backup Freshness
@@ -520,6 +566,8 @@ index=network sourcetype=config_backup OR sourcetype=oxidized OR sourcetype=ranc
 - **Implementation:** Ingest backup job output from Oxidized, RANCID, or NCM. Parse success/failure and timestamp. Create lookup or index with device→last_backup mapping. Alert when last successful backup exceeds 24 hours. Schedule backup jobs daily; verify Splunk receives logs via scripted input or syslog.
 - **Visualization:** Table (device, last backup, age), Single value (devices with stale backup), Gauge (hours since last backup).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -544,6 +592,8 @@ index=network sourcetype=config_drift OR sourcetype=git:commit
 - **Visualization:** Table (device, drift count, summary), Timeline (drift events), Single value (devices with drift).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.26 · Network Device Firmware Version Compliance
@@ -565,6 +615,8 @@ index=network sourcetype=snmp:sysinfo OR sourcetype=cisco:ios:version
 - **Implementation:** Poll SNMP sysDescr or ingest `show version` via scripted input. Create lookup table (ios_version, approved, eol_date) from vendor EOL/EOS bulletins. Alert on non-approved or past-EOL versions. Update lookup quarterly.
 - **Visualization:** Table (device, version, status), Bar chart (version distribution), Single value (non-compliant count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -590,6 +642,8 @@ index=network sourcetype=snmp:interface
 - **Visualization:** Line chart (error rate over time), Table (host, interface, rate), Heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.28 · STP Topology Change Rate
@@ -612,6 +666,8 @@ index=network (sourcetype=snmp:stp OR sourcetype="cisco:ios") ("dot1dStpTopChang
 - **Implementation:** Poll BRIDGE-MIB dot1dStpTopChanges every 300s; ingest syslog for SPANTREE events. Alert when topology changes exceed 3 in 10 minutes. Correlate with root bridge changes for critical alerts.
 - **Visualization:** Line chart (topology changes per host), Table (host, count), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -637,6 +693,8 @@ index=network sourcetype=snmp:arp OR sourcetype=cisco:ios:arp
 - **Visualization:** Line chart (ARP count over time), Gauge (utilization), Table.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.30 · MAC Address Table Capacity
@@ -660,6 +718,8 @@ index=network sourcetype=snmp:bridge OR sourcetype=cisco:ios:mac
 - **Implementation:** Poll dot1qTpFdbTable (count) or parse `show mac address-table count`. Create lookup with switch model→max_mac. Alert when CAM utilization exceeds 75%.
 - **Visualization:** Line chart (MAC count over time), Gauge, Table.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -686,6 +746,8 @@ index=network sourcetype=snmp:qos
 - **Visualization:** Table (host, class, drops, rate), Bar chart, Line chart (drops over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.32 · Network Device End-of-Life Tracking
@@ -709,6 +771,8 @@ index=network sourcetype=snmp:qos
 - **Visualization:** Table (device, model, days to EOL), Single value (devices within 6 months), Gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.33 · Half-Duplex Negotiation Anomaly
@@ -731,6 +795,8 @@ index=network (sourcetype=snmp:interface OR sourcetype="cisco:ios") ("duplex" OR
 - **Visualization:** Table (host, interface, duplex), Status grid, Single value.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.34 · PoE Power Budget Utilization
@@ -752,6 +818,8 @@ index=network sourcetype=snmp:poe
 - **Implementation:** Poll POWER-ETHERNET-MIB (pethMainPsePower, pethMainPseConsumptionPower) every 300s. Alert when utilization exceeds 80%. Track per PSE unit on modular switches.
 - **Visualization:** Gauge (utilization), Table (host, used, total), Line chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -776,6 +844,8 @@ index=network (sourcetype=snmp:lldp OR sourcetype=snmp:cdp OR sourcetype="cisco:
 - **Visualization:** Table (host, port, changes), Timeline, Single value (unexpected changes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -797,6 +867,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MS
 - **Visualization:** Table of congested ports; timeline showing peak congestion; port utilization heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.37 · Power over Ethernet (PoE) Consumption Tracking (Meraki MS)
@@ -817,6 +889,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MS poe_consumption=*
 - **Visualization:** Gauge showing power utilization percentage; stacked bar of PoE by port; capacity dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.38 · Spanning Tree Protocol (STP) Topology Changes (Meraki MS)
@@ -835,6 +909,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*STP*" O
 - **Implementation:** Monitor STP-related syslog events. Alert on excessive topology changes.
 - **Visualization:** Timeline of topology changes; table of affected switches; alert dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -856,6 +932,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Port Se
 - **Visualization:** Table of violations; timeline of events; network detail with affected ports.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.40 · Switch Interface Up/Down Events and Link Flapping (Meraki MS)
@@ -876,6 +954,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" 
 - **Visualization:** Time-series showing flap events; table of affected ports; link state history.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.41 · VLAN Configuration Mismatches and Tagging Violations (Meraki MS)
@@ -894,6 +974,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*VLAN*"
 - **Implementation:** Monitor VLAN-related error events. Cross-reference with API device VLAN config.
 - **Visualization:** Table of VLAN issues; timeline of configuration changes; network diagram with VLAN details.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -914,6 +996,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*MAC*" O
 - **Visualization:** Table of affected switches/ports; time-series of flood events; alert dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.43 · DHCP Snooping Violations (Meraki MS)
@@ -932,6 +1016,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*Sno
 - **Implementation:** Enable DHCP snooping on MS switches. Monitor syslog for violations.
 - **Visualization:** Table of violations; timeline of events; affected port details.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -952,6 +1038,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*broadcas
 - **Visualization:** Real-time alert dashboard; time-series of broadcast packets; affected port list.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.45 · Switch CPU and Memory Utilization (Meraki MS)
@@ -971,6 +1059,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MS
 - **Visualization:** Gauge charts for CPU/memory; time-series trends; capacity planning dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.46 · Stack Unit and Redundancy Health (Meraki MS)
@@ -989,6 +1079,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MS stack_id=*
 - **Implementation:** Monitor stack member status via device API. Alert on member removal or failure.
 - **Visualization:** Table of stack members and status; redundancy gauge; alert dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1010,6 +1102,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MS port_type="trunk"
 - **Visualization:** Trunk link utilization heatmap; timeline showing peak demand; capacity planning chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.48 · QoS Queue Drops and Priority Violations (Meraki MS)
@@ -1028,6 +1122,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*QoS*" O
 - **Implementation:** Monitor QoS-related syslog events and drops. Alert on significant drop rates.
 - **Visualization:** Table of drops by queue; time-series of drop events; traffic distribution pie chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1048,6 +1144,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*ACL*" ac
 - **Visualization:** Table of blocked traffic; timeline of ACL hits; top blocked addresses chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.50 · Cable Test Results and Port Diagnostics (Meraki MS)
@@ -1066,6 +1164,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*"
 - **Implementation:** Periodically run cable tests on switch ports. Ingest results into syslog.
 - **Visualization:** Table of failed cable tests; port detail with diagnostic results; failure timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1086,6 +1186,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Uplink*
 - **Visualization:** Uplink status dashboard; failover event timeline; connection health gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.52 · Cellular Gateway Signal Strength Trending (Meraki MG)
@@ -1104,6 +1206,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MG
 - **Implementation:** Query MG device API for signal metrics. Alert on degraded signal.
 - **Visualization:** Signal strength gauge; trend timeline; cellular quality status.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1124,6 +1228,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MG data_usage=*
 - **Visualization:** Data usage gauge per gateway; consumption timeline; overage alert table.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.1.54 · Carrier Connection Health and Network Performance (Meraki MG)
@@ -1142,6 +1248,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cellula
 - **Implementation:** Monitor carrier connection and network events. Alert on issues.
 - **Visualization:** Carrier health timeline; connection error table; network performance gauge.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1162,6 +1270,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MG
 - **Implementation:** Query MG API for SIM status and plan expiry. Alert before expiration.
 - **Visualization:** SIM status table; plan expiry countdown; renewal alert dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1186,6 +1296,12 @@ index=network sourcetype="juniper:junos:structured"
 - **Implementation:** Forward Junos structured syslog to Splunk; install `Splunk_TA_juniper` for field normalization. Tune `search` terms to your facility naming (CHASSISD, craftd). Alert on first major alarm and on minor alarms that repeat on the same FRU within 24h. Enrich with CMDB site and rack for dispatch.
 - **Visualization:** Chassis alarm table by host and FRU; timeline of major vs minor; single-value panel for open major alarms.
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.dest | sort - count
+```
+
+- **References:** [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1211,6 +1327,12 @@ index=network sourcetype="juniper:junos:structured"
 - **Implementation:** Ensure `interactive-commands` (or equivalent) is logged to the host that forwards to Splunk. Parse `UI_COMMIT` / `UI_COMMIT_COMPLETED` lines; if the TA already extracts `user`, prefer that field over `rex`. Alert on commits from break-glass accounts or when `_time` is outside approved windows (lookup). Join to change-management lookup by ticket ID when comments include ticket numbers.
 - **Visualization:** Commit timeline by device; table of last commit per host with user and comment; compliance panel for commits without matching change record.
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t latest(All_Changes.status) as agg_value from datamodel=Change.All_Changes by All_Changes.dest | sort - agg_value
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1236,6 +1358,8 @@ index=network sourcetype="juniper:junos:structured"
 - **Visualization:** Failover timeline per chassis; count of failovers per device last 30 days; list of recent raw messages for triage.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.59 · Junos Virtual Chassis Health (Juniper)
@@ -1258,6 +1382,8 @@ index=network sourcetype="juniper:junos:structured"
 - **Visualization:** VC member status matrix; event timeline for stack role changes; table of stacks with elevated event rate.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.60 · Arista MLAG Health and Consistency (Arista)
@@ -1279,6 +1405,8 @@ index=network sourcetype="arista:eos"
 - **Implementation:** Ingest syslog from both MLAG peers with synchronized clocks. Alert on peer-link down, partial connectivity, or config-sanity failure strings present in your EOS version. Use a lookup pairing `mlag_domain` or neighbor hostname to open one incident for the pair. Validate against `show mlag` snapshots if you periodically scrape CLI into Splunk.
 - **Visualization:** MLAG peer pair dashboard; red/amber status per domain; timeline of state transitions.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1303,6 +1431,8 @@ index=network sourcetype="arista:eos"
 - **Visualization:** Table of hosts with agent restart counts; bar chart by agent name; sparkline of restarts over time.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.62 · Arista CloudVision Telemetry Alerts (Arista)
@@ -1326,6 +1456,12 @@ index=network (source=*cvp* OR sourcetype="http:event_collector" OR sourcetype="
 - **Implementation:** Configure CVP notification to HEC with a dedicated token and index; normalize JSON keys in `props.conf` if needed. For syslog bridge, set `LINE_BREAKER` for multiline events. Map CVP severities to Splunk notable severity. Deduplicate repeated device-level alerts with throttle. Optionally lookup `deviceId` to site and customer.
 - **Visualization:** Alert volume by severity and category; top devices by alert count; timeline for compliance or config-drift categories.
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count
+```
+
+- **References:** [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1350,6 +1486,8 @@ index=network sourcetype=syslog
 - **Visualization:** Stack topology-style table (member ID, role, last event); timeline of conductor changes; heatmap of stacks with events.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.1.64 · Aruba CX VSX Redundancy Monitoring (HPE Aruba)
@@ -1371,6 +1509,8 @@ index=network (sourcetype=syslog OR sourcetype=snmptrapd OR sourcetype="snmp:tra
 - **Implementation:** Prefer synchronized clocks on VSX peers. Critical alert on keepalive loss, ISL down, or explicit split-brain / dual-primary messages. For SNMP, forward traps to Splunk and map OID to human-readable VSX state in `transforms.conf`. Correlate both peers’ logs into one notable event using a lookup of VSX pairs.
 - **Visualization:** VSX pair health dashboard; ISL and keepalive status indicators; timeline of sync state changes.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7523](https://splunkbase.splunk.com/app/7523), [Splunkbase app 2846](https://splunkbase.splunk.com/app/2846), [Splunkbase app 2847](https://splunkbase.splunk.com/app/2847)
 
 ---
 
@@ -1407,6 +1547,8 @@ index=firewall action="denied" OR action="drop"
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.2 · Policy Change Audit
@@ -1434,6 +1576,8 @@ index=firewall sourcetype="pan:config" cmd="set" OR cmd="edit" OR cmd="delete"
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.3 · Threat Detection Events
@@ -1460,6 +1604,8 @@ index=firewall sourcetype="pan:threat" severity="critical" OR severity="high"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1490,6 +1636,8 @@ index=firewall ("tunnel" OR "IPSec" OR "IKE") ("down" OR "failed" OR "establishe
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.5 · High-Risk Port Exposure
@@ -1517,6 +1665,8 @@ index=firewall action="allowed" (dest_port=3389 OR dest_port=445 OR dest_port=23
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1546,6 +1696,8 @@ index=firewall action="allowed" direction="outbound"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1578,6 +1730,8 @@ index=firewall
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.8 · Certificate Inspection Failures
@@ -1604,6 +1758,8 @@ index=firewall sourcetype="pan:decryption" action="ssl-error"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1633,6 +1789,8 @@ index=firewall sourcetype="pan:url" action="block-url"
 | sort -count
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.10 · Admin Access Audit
@@ -1661,6 +1819,8 @@ index=firewall sourcetype="pan:system" ("login" OR "logout" OR "auth")
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.11 · Firewall Resource Utilization
@@ -1688,6 +1848,8 @@ index=firewall ("session" AND "utilization") OR ("cpu" AND "dataplane")
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.12 · NAT Pool Exhaustion
@@ -1714,6 +1876,8 @@ index=firewall ("NAT" OR "nat") ("exhausted" OR "allocation failed" OR "out of")
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1744,6 +1908,8 @@ index=network sourcetype="pan:system" "session table"
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.14 · Firewall HA Failover Events
@@ -1771,6 +1937,8 @@ index=firewall (sourcetype="pan:system" "HA state change") OR (sourcetype="fgt_e
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1801,6 +1969,8 @@ index=network sourcetype="pan:threat" category="command-and-control" OR category
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.16 · SSL/TLS Decryption Failures
@@ -1828,6 +1998,8 @@ index=network sourcetype="pan:decryption" action="decrypt-error" OR action="no-d
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1857,6 +2029,8 @@ index=network sourcetype="pan:traffic"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -1888,6 +2062,8 @@ index=network sourcetype="pan:system" "threat version" OR "content update"
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_paloalto](https://splunkbase.splunk.com/app/2757), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 
@@ -1908,6 +2084,8 @@ index=cisco_network sourcetype="meraki" type=vpn
 - **Visualization:** VPN tunnel status matrix; site connectivity map; tunnel health sparklines.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.20 · Content Filtering and URL Category Blocks (Meraki MX)
@@ -1927,6 +2105,8 @@ index=cisco_network sourcetype="meraki" type=urls action="blocked"
 - **Implementation:** Ingest URL filtering events from MX syslog. Categorize by policy.
 - **Visualization:** Table of top blocked categories; bar chart by category; user detail table.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -1957,6 +2137,8 @@ index=cisco_network sourcetype="meraki" type=ids_alert
 | sort -bytes
 ```
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.22 · Malware Detection and AMP File Reputation Events (Meraki MX)
@@ -1976,6 +2158,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*malware
 - **Implementation:** Enable AMP on MX appliance. Ingest malware detection events.
 - **Visualization:** Threat timeline; infected hosts table; file reputation detail; incident dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2005,6 +2189,8 @@ index=cisco_network sourcetype="meraki" type=flow action="deny"
 | sort -bytes
 ```
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.24 · Traffic Shaping Effectiveness and QoS Policy Analysis (Meraki MX)
@@ -2032,6 +2218,8 @@ index=cisco_network sourcetype="meraki" type=flow priority_queue=*
 | sort -bytes
 ```
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.25 · Site-to-Site VPN Latency and Performance (Meraki MX)
@@ -2051,6 +2239,8 @@ index=cisco_network sourcetype="meraki" type=vpn latency=*
 - **Visualization:** Gauge of VPN latency; latency trend line; jitter comparison chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.26 · Client VPN Connections and Remote Access Patterns (Meraki MX)
@@ -2069,6 +2259,8 @@ index=cisco_network sourcetype="meraki" type=vpn client_vpn=true
 - **Implementation:** Filter VPN logs for client connections. Track by user and source IP.
 - **Visualization:** Connected users timeline; session duration histogram; geography map of remote users.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2090,6 +2282,8 @@ index=cisco_network sourcetype="meraki:api" nat_pool_usage=*
 - **Visualization:** Gauge of NAT pool usage; capacity timeline; pool exhaustion alert dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.28 · BGP Peering Status and Route Stability (Meraki MX)
@@ -2108,6 +2302,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*BGP*" (s
 - **Implementation:** Monitor BGP event syslog. Alert on neighbor state changes.
 - **Visualization:** BGP peer status table; route change timeline; peering stability gauge.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2130,6 +2326,8 @@ index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR typ
 - **Visualization:** IoC match timeline; threat severity breakdown; affected hosts table.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.30 · Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)
@@ -2149,6 +2347,8 @@ index=cisco_network sourcetype="meraki" type=urls action="blocked"
 - **Implementation:** Ingest URL logs with GeoIP enrichment. Track blocks by geography.
 - **Visualization:** Geo-block map; country block count chart; policy compliance dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2171,6 +2371,8 @@ index=cisco_network sourcetype="meraki" type=flow application=*
 - **Visualization:** App bandwidth pie chart; top apps bar chart; bandwidth timeline by app.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.32 · Bandwidth by Application and Department (Meraki MX)
@@ -2192,6 +2394,8 @@ index=cisco_network sourcetype="meraki" type=flow
 - **Visualization:** Stacked bar of bandwidth by dept/app; heatmap of app usage per dept.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.33 · WAN Link Quality Monitoring — Jitter, Latency, Packet Loss (Meraki MX)
@@ -2210,6 +2414,8 @@ index=cisco_network sourcetype="meraki:api" uplink=*
 - **Implementation:** Query appliance API for uplink WAN metrics. Monitor quality KPIs.
 - **Visualization:** Uplink quality scorecard; latency/jitter/loss timeline; quality gauge per uplink.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2230,6 +2436,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*failove
 - **Visualization:** Failover timeline; recovery time gauge; uplink failure cause pie chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.35 · Cellular Modem Failover Activation and Usage (Meraki MX)
@@ -2248,6 +2456,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*cellula
 - **Implementation:** Ingest cellular failover events. Track data consumption.
 - **Visualization:** Cellular usage timeline; failover event table; data usage gauge.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2268,6 +2478,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*warm sp
 - **Visualization:** HA status dashboard; failover timeline; redundancy health gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.37 · Auto VPN Path Changes and Tunnel Switching (Meraki MX)
@@ -2287,6 +2499,8 @@ index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR sign
 - **Visualization:** Path change timeline; tunnel path change distribution; convergence analysis.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.38 · Connection Rate Analysis and DOS Detection (Meraki MX)
@@ -2305,6 +2519,8 @@ index=cisco_network sourcetype="meraki" type=flow protocol="tcp" tcp_flags="SYN"
 - **Implementation:** Monitor TCP SYN rate by source IP. Alert on anomalous connection rates.
 - **Visualization:** Connection rate timeline; source IP detail table; DOS alert dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2326,6 +2542,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DLP*"
 - **Visualization:** DLP incident timeline; data type breakdown; source/destination detail.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.2.40 · Meraki VPN Tunnel and Failover Health
@@ -2345,6 +2563,8 @@ index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
 - **Implementation:** Poll Meraki API for VPN tunnel status or ingest MX syslog for tunnel events. Alert when any tunnel is down. Track failover events for active/standby links.
 - **Visualization:** Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2378,6 +2598,8 @@ index=network (sourcetype="juniper:junos:idp" OR sourcetype="juniper:junos:idp:s
 | where count > 0
 | sort -count
 ```
+
+- **References:** [Splunkbase app 2847](https://splunkbase.splunk.com/app/2847), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -2414,6 +2636,8 @@ index=network (sourcetype="juniper:junos:firewall:structured" OR sourcetype="jun
 | sort -count
 ```
 
+- **References:** [Splunkbase app 2847](https://splunkbase.splunk.com/app/2847), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
+
 ---
 
 ### UC-5.2.43 · Juniper SRX Cluster Failover Events (Juniper SRX)
@@ -2438,6 +2662,8 @@ index=network sourcetype="juniper:junos:structured"
 - **Visualization:** Timeline (failover markers), Table (RG, reason, node), Status panel (current primary per cluster).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 2847](https://splunkbase.splunk.com/app/2847)
+
 ---
 
 ### UC-5.2.44 · FortiGate Security Fabric Health Monitoring (Fortinet)
@@ -2460,6 +2686,8 @@ index=firewall sourcetype IN ("fgt_event","fortinet_fortios_event")
 - **Implementation:** Ensure FortiOS event logging includes system and fabric-related categories (varies by version). Install `TA-fortinet_fortigate` and send logs via syslog or reliable forwarding. Create alerts for authorization failures, certificate issues, or loss of FortiManager reachability strings in `logdesc`/`msg`. Validate FortiManager/Analyzer versions and time sync. Test by temporarily blocking management paths in a lab to confirm detection.
 - **Visualization:** Table (device, subtype, message), Timeline (fabric errors), Status grid (root vs leaf FortiGate health).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 2846](https://splunkbase.splunk.com/app/2846)
 
 ---
 
@@ -2493,6 +2721,8 @@ index=firewall sourcetype IN ("fgt_event","fortinet_fortios_event") type="system
 | sort -bytes
 ```
 
+- **References:** [Splunkbase app 2846](https://splunkbase.splunk.com/app/2846), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.46 · FortiGate Web Filter and Application Control Events (Fortinet)
@@ -2524,6 +2754,8 @@ index=firewall sourcetype IN ("fgt_utm","fortinet_fortios_utm")
 | sort -count
 ```
 
+- **References:** [Splunkbase app 2846](https://splunkbase.splunk.com/app/2846), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-5.2.47 · Check Point ClusterXL Failover Events (Check Point)
@@ -2531,7 +2763,7 @@ index=firewall sourcetype IN ("fgt_utm","fortinet_fortios_utm")
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Availability
 - **Value:** ClusterXL provides gateway high availability via active-standby or active-active clusters. Failover events — whether planned (manual switchover) or unplanned (process crash, NIC failure, sync timeout) — cause brief traffic interruption and may indicate underlying hardware or software instability. Monitoring failover frequency, duration, and trigger reason supports SLA reporting and proactive hardware replacement before repeated failovers degrade user experience.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (cluster/system logs), SNMP traps
 - **SPL:**
@@ -2546,6 +2778,8 @@ index=firewall sourcetype="cp_log" earliest=-30d
 - **Visualization:** Timeline (failover events), Table (clusters with recent failovers), Single value (failovers this week), Bar chart (failovers by reason).
 - **CIM Models:** N/A
 
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402)
+
 ---
 
 ### UC-5.2.48 · Check Point Policy Install and Publish Tracking (Check Point)
@@ -2553,7 +2787,7 @@ index=firewall sourcetype="cp_log" earliest=-30d
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Configuration
 - **Value:** Policy install pushes new rulebase and object changes from the management server (SmartConsole/Smart-1 Cloud) to enforcement gateways. A failed install leaves old policy active; a successful install with errors may silently break specific rules. Tracking install timestamps, success/failure, and who published enables change management correlation and root-cause analysis when traffic patterns shift unexpectedly after a policy push.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (audit/admin logs), SmartConsole audit trail
 - **SPL:**
@@ -2573,6 +2807,8 @@ index=checkpoint sourcetype="cp_log" earliest=-30d
   by All_Changes.user All_Changes.object span=1d
 ```
 
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
+
 ---
 
 ### UC-5.2.49 · Check Point SecureXL Acceleration Status (Check Point)
@@ -2580,7 +2816,7 @@ index=checkpoint sourcetype="cp_log" earliest=-30d
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** SecureXL offloads connection handling from the firewall kernel to an acceleration layer, increasing throughput by 2–10×. When SecureXL cannot accelerate a connection (due to complex NAT, certain blade inspections, or resource limits), traffic falls back to the slow path (Firewall kernel or even Medium path). A rising percentage of non-accelerated connections signals policy complexity growth, blade misconfiguration, or capacity limits — reducing effective throughput well before CPU saturation appears.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (performance/system logs), `fwaccel` CLI output via scripted input
 - **SPL:**
@@ -2608,6 +2844,8 @@ index=firewall sourcetype="cp_log" earliest=-24h
   by All_Performance.dest span=1h
 ```
 
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-5.2.50 · Check Point CoreXL CPU Distribution (Check Point)
@@ -2615,7 +2853,7 @@ index=firewall sourcetype="cp_log" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** CoreXL distributes firewall inspection across multiple CPU cores (Firewall Worker instances). Uneven load distribution — where one core saturates while others idle — reduces effective throughput and causes packet drops on that core. This often happens when large flows or specific protocols always hash to the same core. Detecting core imbalance before it causes visible packet loss prevents elusive intermittent connectivity issues.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (performance logs), `fw ctl multik stat` via scripted input
 - **SPL:**
@@ -2641,6 +2879,8 @@ index=firewall sourcetype="cp_log" earliest=-4h
   by All_Performance.dest span=1h
 ```
 
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-5.2.51 · Check Point Log Rate and Capacity (Check Point)
@@ -2648,7 +2888,7 @@ index=firewall sourcetype="cp_log" earliest=-4h
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance
 - **Value:** Check Point gateways forward logs to the management server or Log Server. When log rate exceeds the management capacity or network bandwidth, logs are queued, delayed, or dropped — creating blind spots in security monitoring. Tracking log rate per gateway and comparing to Log Server capacity prevents log loss before it impacts compliance and incident detection.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (system/management logs), log server statistics
 - **SPL:**
@@ -2665,6 +2905,8 @@ index=checkpoint sourcetype="cp_log" earliest=-24h
 - **Visualization:** Line chart (log rate per gateway), Single value (current aggregate rate), Table (anomalies), Bar chart (rate by gateway).
 - **CIM Models:** N/A
 
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402)
+
 ---
 
 ### UC-5.2.52 · Check Point Anti-Spoofing Violations (Check Point)
@@ -2672,7 +2914,7 @@ index=checkpoint sourcetype="cp_log" earliest=-24h
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security
 - **Value:** Anti-spoofing validates that packets arriving on an interface have source IPs consistent with the interface's defined topology. Violations indicate either network misconfiguration (asymmetric routing, missing routes) or actual IP spoofing attacks. High violation rates from specific sources warrant immediate investigation as they may mask data exfiltration or DDoS reflection.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (firewall logs with anti-spoofing drops)
 - **SPL:**
@@ -2693,6 +2935,8 @@ index=firewall sourcetype="cp_log" earliest=-24h
   by All_Traffic.src All_Traffic.dest span=1h
 ```
 
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.53 · Check Point HTTPS Inspection Status and Bypass (Check Point)
@@ -2700,7 +2944,7 @@ index=firewall sourcetype="cp_log" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security
 - **Value:** HTTPS inspection (SSL/TLS decryption) enables deep packet inspection of encrypted traffic. Connections that bypass inspection — due to certificate pinning, bypass rules, or resource limits — create visibility gaps. Monitoring bypass rates ensures that security coverage remains effective and identifies applications or categories that need policy updates.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (firewall/HTTPS inspection logs)
 - **SPL:**
@@ -2723,6 +2967,8 @@ index=firewall sourcetype="cp_log" earliest=-24h
   by All_Traffic.action span=1h
 ```
 
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.2.54 · Check Point Gateway Connection Table Utilization (Check Point)
@@ -2730,7 +2976,7 @@ index=firewall sourcetype="cp_log" earliest=-24h
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Performance
 - **Value:** Each Check Point gateway has a finite concurrent connection table (configurable, typically 500K–25M depending on appliance). When utilization approaches the limit, new connections are dropped — causing application failures and user complaints. Unlike CPU, connection table exhaustion can happen suddenly during attacks or application bursts with little warning.
-- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 3435), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
+- **App/TA:** `Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)
 - **Equipment Models:** Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)
 - **Data Sources:** `sourcetype=cp_log` (system/performance logs), `fw tab -t connections -s` via scripted input
 - **SPL:**
@@ -2754,6 +3000,8 @@ index=firewall sourcetype="cp_log" earliest=-4h
   from datamodel=Performance.All_Performance
   by All_Performance.dest span=1h
 ```
+
+- **References:** [Check Point App for Splunk](https://splunkbase.splunk.com/app/4293), [CCX Add-on for Checkpoint Smart-1 Cloud](https://splunkbase.splunk.com/app/7259), [Splunkbase app 5402](https://splunkbase.splunk.com/app/5402), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -2789,6 +3037,8 @@ index=network sourcetype="f5:bigip:syslog" ("pool member" AND ("down" OR "up" OR
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.3.2 · Virtual Server Availability (F5 BIG-IP)
@@ -2813,6 +3063,8 @@ index=network sourcetype="f5:bigip:syslog" "virtual" ("disabled" OR "offline" OR
   by Web.src Web.dest Web.uri_path Web.status span=1h
 | sort -count
 ```
+
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
 
 ---
 
@@ -2840,6 +3092,8 @@ index=network sourcetype="snmp:f5"
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.3.4 · SSL Certificate Expiry (F5 BIG-IP)
@@ -2858,6 +3112,8 @@ index=network sourcetype="f5:certificate_inventory"
 - **Implementation:** Scripted input querying iControl REST for certs. Run daily. Alert at 90/60/30/7 day thresholds.
 - **Visualization:** Table sorted by days to expiry, Single value (expiring <30d), Status indicator.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680)
 
 ---
 
@@ -2887,6 +3143,8 @@ index=network sourcetype="f5:bigip:ltm:http"
 | sort -count
 ```
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-5.3.6 · Response Time Degradation (F5 BIG-IP)
@@ -2912,6 +3170,8 @@ index=network sourcetype="f5:bigip:ltm:http"
 | sort -avg_bytes
 ```
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680), [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
+
 ---
 
 ### UC-5.3.7 · Session Persistence Issues (F5 BIG-IP)
@@ -2930,6 +3190,8 @@ index=network sourcetype="f5:bigip:syslog" "persistence" ("failed" OR "expired")
 - **Visualization:** Table, Line chart, Bar chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680)
+
 ---
 
 ### UC-5.3.8 · WAF Policy Violations (F5 BIG-IP ASM)
@@ -2947,6 +3209,8 @@ index=network sourcetype="f5:bigip:asm:syslog"
 - **Implementation:** Enable F5 ASM logging. Dashboard showing top violations, attack sources, and targeted URIs.
 - **Visualization:** Table, Bar chart by violation, Map (source IPs), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680)
 
 ---
 
@@ -2975,6 +3239,8 @@ index=network sourcetype="f5:bigip:ltm"
 | sort -bytes
 ```
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.3.10 · Backend Server Error Code Distribution (F5 BIG-IP)
@@ -2995,6 +3261,8 @@ index=network sourcetype="f5:bigip:ltm:http"
 - **Visualization:** Bar chart (errors by backend), Table (member, error code, count), Timechart.
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680)
+
 ---
 
 ### UC-5.3.11 · Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)
@@ -3014,6 +3282,8 @@ index=network sourcetype="f5:bigip:asm" attack_type="*dos*" OR violation="Rate L
 - **Visualization:** Timechart (events over time), Table (source IPs, attack types), Single value (blocked requests).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680)
+
 ---
 
 ### UC-5.3.12 · iRule/Policy Errors (F5 BIG-IP)
@@ -3032,6 +3302,8 @@ index=network sourcetype="f5:bigip:ltm" "TCL error" OR "rule error" OR "aborted"
 - **Implementation:** Enable iRule logging (sparingly — high volume). Monitor for TCL runtime errors. Alert on any iRule abort events. Review and test iRules in staging before production.
 - **Visualization:** Table (rule name, error count, host), Timechart (errors over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_f5-bigip](https://splunkbase.splunk.com/app/2680)
 
 ---
 
@@ -3054,6 +3326,8 @@ index=network sourcetype="citrix:netscaler:syslog" "Vserver" ("DOWN" OR "UP" OR 
 - **Implementation:** Configure Citrix ADC to send syslog to Splunk via Splunk Connect for Syslog (SC4S). The ADC generates syslog messages for vServer state transitions (SNMP trap equivalent). Alternatively, use the NITRO API via scripted input to poll `lbvserver` statistics including `state`, `curclntconnections`, `tothits`, and `health` (percentage of UP services). Alert immediately on any vServer transitioning to DOWN. Track vServer health percentage — a vServer at 50% health means half its services are down and may be approaching failure. Correlate with service group member health checks for root cause.
 - **Visualization:** Status grid (vServer name x state), Timeline (state transitions), Table (DOWN vServers with service count).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3078,6 +3352,8 @@ index=network sourcetype="citrix:netscaler:syslog" "monitor" ("DOWN" OR "UP") "s
 - **Visualization:** Table (service groups with DOWN members), Bar chart (DOWN members by service group), Timeline (member state changes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.3.15 · Citrix ADC SSL Certificate Expiration Monitoring (NetScaler)
@@ -3099,6 +3375,12 @@ index=network sourcetype="citrix:netscaler:ssl"
 - **Implementation:** Create a scripted input that polls the NITRO API `sslcertkey` resource on each ADC. The API returns `certkey` name, `subject`, `issuer`, `serial`, `clientcertnotbefore`, `clientcertnotafter`, `daystoexpiration`, and `expirymonitor` status. Also enable the built-in `expirymonitor` on the ADC with a `notificationperiod` (10–100 days). Run the scripted input daily. Alert at 90 days (plan renewal), 30 days (action required), 7 days (critical), and immediately when `daystoexpiration` reaches 0. Track all certificates bound to vServers — unbound certificates can be ignored or flagged for cleanup.
 - **Visualization:** Table (certificates sorted by expiry), Single value (certificates expiring within 30 days), Gauge (soonest expiry).
 - **CIM Models:** Certificates
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.dest | sort - count
+```
+
+- **References:** [CIM: Certificates](https://docs.splunk.com/Documentation/CIM/latest/User/Certificates)
 
 ---
 
@@ -3122,6 +3404,8 @@ index=network sourcetype="citrix:netscaler:syslog" ("HA state" OR "failover" OR 
 - **Visualization:** Timeline (failover events), Status grid (node x state), Table (sync status per HA pair).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.3.17 · Citrix ADC GSLB Site and Service Health (NetScaler)
@@ -3143,6 +3427,8 @@ index=network sourcetype="citrix:netscaler:syslog" ("GSLB" OR "MEP") ("DOWN" OR 
 - **Implementation:** The ADC logs GSLB service state changes and MEP connectivity events via syslog. MEP runs on TCP ports 3011 (standard) or 3009 (secure) between GSLB sites. Additionally, poll the NITRO API `gslbsite` and `gslbservice` resources for site status, MEP status, and GSLB service health. Alert on: any GSLB service going DOWN, MEP status changing to DOWN between any pair of sites (fallback to Round Robin), and GSLB site becoming unreachable. When MEP fails, all GSLB decisions for that site pair become unaware of the remote site's health — traffic may be sent to a degraded or offline site.
 - **Visualization:** Status grid (GSLB site x MEP status), Table (DOWN GSLB services), Timeline (GSLB state changes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3169,6 +3455,12 @@ index=network sourcetype="citrix:netscaler:syslog" ("SSLVPN" OR "ICA" OR "AAA") 
 - **Implementation:** The ADC logs all AAA (Authentication, Authorization, Accounting) events via syslog, including Gateway login successes, failures, and logouts with client IP and username. Configure syslog with appflow and audit logging enabled. Alert on: authentication failure rate exceeding 30% (possible brute force), concurrent sessions exceeding licensed capacity, a single source IP attempting more than 20 failed logins in 15 minutes, or unusual login times/locations for known users. Track peak concurrent Gateway sessions for capacity planning.
 - **Visualization:** Timechart (logins vs failures), Bar chart (failures by source IP), Single value (concurrent sessions).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t dc(Authentication.src) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=15m | sort - agg_value
+```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -3192,6 +3484,8 @@ index=network sourcetype="citrix:netscaler:cs"
 - **Visualization:** Bar chart (hit rate by policy), Table (policies with hit counts), Timechart (default policy hit rate trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.3.20 · Citrix ADC System Resource Utilization (NetScaler)
@@ -3214,6 +3508,12 @@ index=network sourcetype="citrix:netscaler:perf"
 - **Implementation:** Poll the NITRO API `ns` (system) resource for CPU utilization, memory usage, and packet engine stats. Also poll `ssl` stats for SSL transactions per second (TPS). Run every 5 minutes. Key thresholds: CPU above 70% average (capacity planning), CPU spike above 90% (performance impact imminent), memory above 80% (connection table pressure), SSL TPS approaching licensed limit (SSL offload bottleneck). Track packet engine CPU separately from management CPU — high management CPU with low packet CPU indicates control plane issues. Trend resource utilization to forecast when additional ADC capacity is needed.
 - **Visualization:** Line chart (CPU and memory over time), Gauge (current utilization), Table (ADCs above threshold).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t avg(Performance.cpu_load_percent) as agg_value from datamodel=Performance.Network by Performance.host span=5m | sort - agg_value
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -3236,6 +3536,8 @@ index=network sourcetype="citrix:netscaler:policy"
 - **Visualization:** Table (policies with undef hits), Bar chart (error ratio by policy type), Timeline (undef hits trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.3.22 · Citrix ADC SSL Offload Performance (NetScaler)
@@ -3256,6 +3558,8 @@ index=network sourcetype="citrix:netscaler:ssl" metric_type="ssl_stats"
 - **Implementation:** Poll the NITRO API `ssl` statistics endpoint for SSL transaction counters: `ssltotsessions`, `ssltotnewsessions`, `ssltottlsv12sessions`, `ssltottlsv13sessions`, and session reuse rates. Calculate TPS as delta of `ssltotsessions` over the poll interval. Key thresholds: SSL TPS approaching 80% of licensed/hardware capacity (plan upgrade), session reuse rate below 50% (misconfigured session caching — excessive full handshakes), and TLS 1.0/1.1 session count > 0 (deprecated protocols in use). Track cipher suite distribution to ensure compliance with security policies (disable weak ciphers like RC4, DES, 3DES).
 - **Visualization:** Line chart (SSL TPS over time), Gauge (current TPS vs capacity), Pie chart (protocol version distribution).
 - **CIM Models:** N/A
+
+- **References:** [Aruba Networks Add-on for Splunk](https://splunkbase.splunk.com/app/4668), [HPE Aruba ClearPass App for Splunk](https://splunkbase.splunk.com/app/7865), [Splunk Add-on for Cisco Meraki](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3282,6 +3586,8 @@ index=network sourcetype="meraki" type="access point" ("went offline" OR "unreac
 - **Implementation:** For Meraki: configure syslog in Dashboard, or use Meraki API TA. For WLC: forward syslog. Alert when APs go offline. Maintain AP inventory lookup for location context.
 - **Visualization:** Map (AP locations with status), Table, Status grid, Single value (APs offline).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3310,6 +3616,8 @@ index=network sourcetype="cisco:wlc" ("association" OR "authentication") AND ("f
 | where count > 10
 ```
 
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-5.4.3 · Channel Utilization
@@ -3330,6 +3638,8 @@ index=network sourcetype="meraki:api"
 - **Visualization:** Heatmap (APs by utilization), Table, Line chart (trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.4.4 · Rogue AP Detection
@@ -3348,6 +3658,8 @@ index=network sourcetype="cisco:wlc" "rogue" ("detected" OR "alert" OR "containe
 - **Implementation:** Forward WLC rogue detection events. Enable rogue detection policies. Alert on rogue APs, especially those broadcasting your corporate SSID.
 - **Visualization:** Table (rogue MAC, detecting AP, channel), Map, Single value.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3368,6 +3680,8 @@ index=network sourcetype="meraki:api"
 - **Visualization:** Line chart (clients over time), Table (AP, count), Heatmap.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.4.6 · RF Interference Events
@@ -3386,6 +3700,8 @@ index=network sourcetype="cisco:wlc" ("radar" OR "DFS" OR "interference" OR "cha
 - **Implementation:** Forward AP/WLC syslog. Alert on DFS radar events. Track channel change frequency per AP.
 - **Visualization:** Table (AP, event type, count), Timeline, Bar chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3414,6 +3730,8 @@ index=network sourcetype="cisco:ise:syslog" ("Passed" OR "Failed") AND "Wireless
   by Authentication.user Authentication.src Authentication.dest span=1h
 | where count > 5
 ```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -3444,6 +3762,8 @@ index=network sourcetype="cisco:ise:syslog" "Authentication failed"
 | where count > 10
 ```
 
+- **References:** [Splunk_TA_cisco-ise](https://splunkbase.splunk.com/app/1915), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-5.4.9 · Client Roaming Analysis
@@ -3466,6 +3786,8 @@ index=network sourcetype="cisco:wlc" "roam" OR "reassociation"
 - **Visualization:** Table (client, SSID, roam count), Heatmap (AP-to-AP roaming), Choropleth (floor plan).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.4.10 · Wireless IDS/IPS Events
@@ -3485,6 +3807,8 @@ index=network sourcetype="cisco:wlc" "IDS Signature" OR "wIPS"
 - **Implementation:** Enable wireless IDS on the WLC/AP. Forward alerts to Splunk. Alert on deauth floods, rogue AP impersonation, and client spoofing events. Correlate with rogue AP detection.
 - **Visualization:** Table (signature, attacker MAC, count), Timeline, Single value (alerts today).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -3508,6 +3832,8 @@ index=network sourcetype="cisco:wlc" "associated"
 - **Visualization:** Pie chart (band distribution), Bar chart (by SSID), Timechart (trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -3528,6 +3854,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*Associat
 - **Visualization:** Table with top APs/clients by failure count; time-series chart of failures over time by AP.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.13 · RSSI/Signal Strength Degradation Detection (Meraki MR)
@@ -3547,6 +3875,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Implementation:** Ingest Meraki API client data periodically; analyze RSSI distribution by AP and SSID. Set thresholds for "poor" signal (< -70 dBm).
 - **Visualization:** Heatmap of RSSI by AP location; histogram of signal strength distribution; gauge charts for coverage quality by SSID.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3569,6 +3899,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*Roaming
 - **Visualization:** Table of heavy roamers; line chart of roaming frequency by client; network diagram showing roam paths.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.15 · SSID Performance Ranking and Trend Analysis (Meraki MR)
@@ -3588,6 +3920,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Implementation:** Aggregate client connection metrics by SSID. Compare average connection duration, client count, and signal strength.
 - **Visualization:** Bar chart comparing SSID performance; sparklines for trend; scorecard showing top/bottom performers.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3610,6 +3944,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 - **Visualization:** Stacked bar chart of channel utilization by band; channel heatmap over time; interference event timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.17 · Rogue and Unauthorized AP Detection — Air Marshal (Meraki MR)
@@ -3629,6 +3965,8 @@ index=cisco_network sourcetype="meraki" type=air_marshal signature="*Rogue*" OR 
 - **Implementation:** Enable Air Marshal on MR APs and ingest syslog events. Create alert for new rogue AP detections with risk scoring.
 - **Visualization:** Table of detected rogues with threat indicators; map showing rogue AP locations; timeline of detections.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3650,6 +3988,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Visualization:** Pie chart of device types; bar chart by OS; treemap of device distribution; trend sparklines.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.19 · Band Steering Effectiveness Assessment (Meraki MR)
@@ -3669,6 +4009,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Implementation:** Query clients API to get current band distribution. Compare against expected ratio for band steering policy.
 - **Visualization:** Gauge showing 5GHz percentage; pie chart of band distribution; trend line showing steering progress.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3691,6 +4033,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*802.1X*
 - **Visualization:** Table of failing clients; time-series of auth failures; client-level detail dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.21 · Wireless Latency Analysis by SSID and Location (Meraki MR)
@@ -3712,6 +4056,8 @@ index=cisco_network sourcetype="meraki:api" latency=*
 - **Visualization:** Heatmap of latency by AP; line chart of latency trends; SLA compliance dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.22 · Splash Page Engagement and Redirection Analytics (Meraki MR)
@@ -3730,6 +4076,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*Splash*"
 - **Implementation:** Capture splash page interaction events from syslog. Track accepts vs. denies.
 - **Visualization:** Pie chart of acceptance rates; funnel chart of splash interactions; time-series trending.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3751,6 +4099,8 @@ index=cisco_network sourcetype="meraki" type=flow dest="255.255.255.255" OR dest
 - **Visualization:** Table of broadcast sources; time-series of broadcast packets; alert threshold dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.24 · Wireless Health Score Trending (Meraki MR)
@@ -3769,6 +4119,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 - **Implementation:** Pull health_score metric from MR devices API. Aggregate across network.
 - **Visualization:** Gauge of overall health; bar chart of individual AP health; trend sparkline; KPI dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3791,6 +4143,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Visualization:** Bubble chart of capacity by AP; stacked bar of clients by SSID; capacity gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.26 · Top Talker Analysis and Bandwidth Hogs (Meraki MR)
@@ -3812,6 +4166,8 @@ index=cisco_network sourcetype="meraki" type=flow
 - **Visualization:** Table of top talkers; horizontal bar chart of data usage; Sankey diagram of flows.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.27 · Connection Duration and Session Quality (Meraki MR)
@@ -3831,6 +4187,8 @@ index=cisco_network sourcetype="meraki:api" connection_duration=*
 - **Visualization:** Histogram of session durations; time-of-day heatmap; SSID comparison chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.28 · AP Uptime and Availability Monitoring (Meraki MR)
@@ -3849,6 +4207,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MR
 - **Implementation:** Monitor device status API for all MR devices. Alert on status="offline".
 - **Visualization:** Status table with last seen time; uptime percentage gauge; event alert dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3870,6 +4230,8 @@ index=cisco_network sourcetype="meraki:api" device_type=MR mesh_link_quality=*
 - **Visualization:** Network topology showing link quality; color-coded links; detail table with metrics.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.30 · Guest Network Access Patterns and Usage (Meraki MR)
@@ -3888,6 +4250,8 @@ index=cisco_network sourcetype="meraki:api" ssid="guest"
 - **Implementation:** Filter clients API results for guest SSIDs. Track concurrent count over time.
 - **Visualization:** Time-series of guest users; daily/weekly heatmap; trend dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3908,6 +4272,8 @@ index=cisco_network sourcetype="meraki:api" ap_name=*
 - **Visualization:** Heat map by physical location; AP heat map overlay; zone traffic comparison.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.4.32 · Wireless Client Association and Roaming Failures (Meraki MR)
@@ -3927,6 +4293,8 @@ index=cisco_network sourcetype=meraki:wireless (event_type="association_failed" 
 - **Implementation:** Ingest wireless client events from Meraki or WLC. Extract association and roam outcomes. Alert when failure rate exceeds threshold per AP or SSID. Dashboard by location and time.
 - **Visualization:** Table (AP, SSID, failures), Line chart (failure rate over time), Heatmap (AP by location).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -3952,6 +4320,8 @@ index=network sourcetype="aruba:syslog"
 - **Implementation:** Forward Mobility Controller / gateway syslog to Splunk with the Aruba TA (field aliases for `ap_name`, per-radio operational state, CPU/memory, uptime). Optionally poll Aruba Central for AP inventory and merge with syslog for sites without local controllers. Alert on any radio not `up`, sustained high CPU/memory, or APs with abnormal uptime resets.
 - **Visualization:** Table (AP, band, radio state, CPU, memory, uptime), Single value (APs with down radios), Timechart (unhealthy AP count), Map or site breakdown (by `ap_group` / zone).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 4668](https://splunkbase.splunk.com/app/4668)
 
 ---
 
@@ -3987,6 +4357,8 @@ index=network sourcetype="aruba:clearpass" ("RADIUS" OR TipsService="RADIUS" OR 
 | where count > 10
 ```
 
+- **References:** [Splunkbase app 7865](https://splunkbase.splunk.com/app/7865), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-5.4.35 · Aruba Air Monitor — WIDS/WIPS Events (HPE Aruba)
@@ -4016,6 +4388,8 @@ index=network sourcetype="aruba:syslog" (category="SECURITY" OR subsystem="wids"
 | where count > 0
 | sort -count
 ```
+
+- **References:** [Splunkbase app 4668](https://splunkbase.splunk.com/app/4668), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
 
 ---
 
@@ -4049,6 +4423,8 @@ index=network (sourcetype="aruba:syslog" OR sourcetype="aruba:clearpass") ("role
 | where count > 5
 ```
 
+- **References:** [Splunkbase app 4668](https://splunkbase.splunk.com/app/4668), [Splunkbase app 7865](https://splunkbase.splunk.com/app/7865), [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
+
 ---
 
 ### UC-5.4.37 · Aruba Client Experience and Connectivity Score (HPE Aruba)
@@ -4071,6 +4447,8 @@ index=network sourcetype="aruba:central" OR sourcetype="aruba:central:client"
 - **Implementation:** Use Aruba Central API credentials with least privilege; poll client health/experience endpoints on a schedule or stream via a forwarder, normalizing to JSON on HEC with indexed fields `client_mac`, `ap_name`, `ssid`, `connectivity_score`, and timing breakdowns when available. Baseline per site and SSID; alert on drops after code upgrades or RF changes.
 - **Visualization:** Timechart (mean connectivity score by SSID), Table (worst APs and SSIDs), Histogram (score distribution), Scatter (clients vs score) for drill-down.
 - **CIM Models:** N/A
+
+- **References:** [Cato Networks Events App](https://splunkbase.splunk.com/app/8037)
 
 ---
 
@@ -4108,6 +4486,8 @@ index=sdwan sourcetype="cisco:sdwan:bfd"
 | sort -bytes
 ```
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.5.2 · Site Availability
@@ -4127,6 +4507,8 @@ index=sdwan sourcetype="cisco:sdwan:device"
 - **Implementation:** Poll vManage device inventory API. Alert when any edge device becomes unreachable. Include site name and location.
 - **Visualization:** Map (site locations with status), Table, Status grid.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4148,6 +4530,8 @@ index=sdwan sourcetype="cisco:sdwan:approute"
 - **Visualization:** Table (site, app, violations), Bar chart by app, Timechart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
+
 ---
 
 ### UC-5.5.4 · Path Failover Events
@@ -4166,6 +4550,8 @@ index=sdwan sourcetype="cisco:sdwan:events" ("failover" OR "path-change" OR "tra
 - **Implementation:** Collect vManage alarm/event data. Track path changes and failover frequency. Alert on frequent failovers.
 - **Visualization:** Table, Sankey diagram (from/to transport), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4187,6 +4573,8 @@ index=sdwan sourcetype="cisco:sdwan:control"
 - **Visualization:** Status panel, Table, Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
+
 ---
 
 ### UC-5.5.6 · Certificate Expiration
@@ -4206,6 +4594,8 @@ index=sdwan sourcetype="cisco:sdwan:certificate"
 - **Implementation:** Poll vManage for certificate status. Alert at 60/30/7 day thresholds.
 - **Visualization:** Table, Single value, Status indicator.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4234,6 +4624,8 @@ index=sdwan sourcetype="cisco:sdwan:interface"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -4264,6 +4656,8 @@ index=network sourcetype="cisco:sdwan:approute"
 | sort -bytes
 ```
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.5.9 · Application Routing Decisions
@@ -4286,6 +4680,8 @@ index=network sourcetype="cisco:sdwan:flow"
 - **Visualization:** Sankey diagram (app → transport), Table (app, path, volume), Pie chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
+
 ---
 
 ### UC-5.5.10 · WAN Link Utilization per Transport
@@ -4306,6 +4702,8 @@ index=network sourcetype="cisco:sdwan:interface"
 - **Implementation:** Collect interface stats per WAN transport type (MPLS, Internet, LTE). Compare utilization across links. Alert on >70% sustained utilization. Use for capacity planning.
 - **Visualization:** Line chart (utilization per transport), Stacked bar (site comparison), Table.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4329,6 +4727,7 @@ index=sdwan sourcetype="cisco:sdwan:omp"
 - **Visualization:** Line chart (route count over time per site), Table (devices below baseline), Single value (total OMP peers).
 - **CIM Models:** N/A
 - **Known false positives:** Planned network changes that withdraw routes intentionally; correlate with change management windows.
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4353,6 +4752,7 @@ index=sdwan sourcetype="cisco:sdwan:bfd"
 - **Visualization:** Status grid (BFD sessions by color/site), Timeline (session state changes), Table (flapping tunnels).
 - **CIM Models:** N/A
 - **Known false positives:** Planned ISP maintenance windows; carrier circuit cutovers.
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4384,6 +4784,8 @@ index=sdwan sourcetype="cisco:sdwan:device"
 | where cpu_pct > 80
 ```
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538), [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
+
 ---
 
 ### UC-5.5.14 · Firmware Version Compliance
@@ -4408,6 +4810,8 @@ index=sdwan sourcetype="cisco:sdwan:device"
 - **Implementation:** Poll vManage device inventory for software versions and model types. Define a target version per device family. Report on compliance percentage. Alert when devices fall more than two minor versions behind the target. Use to prioritize upgrade batches by site criticality.
 - **Visualization:** Pie chart (version distribution), Table (non-compliant devices), Single value (compliance percentage).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4439,6 +4843,8 @@ index=sdwan sourcetype="cisco:sdwan:dpi"
 | sort -bytes | head 20
 ```
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538), [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.5.16 · Cloud OnRamp Performance
@@ -4461,6 +4867,7 @@ index=sdwan sourcetype="cisco:sdwan:cloudx"
 - **Visualization:** Line chart (vQoE score trending per app), Table (underperforming apps), Bar chart (DIA vs gateway comparison).
 - **CIM Models:** N/A
 - **Known false positives:** SaaS provider outages will degrade scores regardless of WAN path; cross-reference with provider status pages.
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4492,6 +4899,8 @@ index=sdwan sourcetype="cisco:sdwan:utd"
 | sort -count
 ```
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538), [CIM: Intrusion_Detection](https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection)
+
 ---
 
 ### UC-5.5.18 · vManage Cluster Health
@@ -4512,6 +4921,8 @@ index=sdwan sourcetype="cisco:sdwan:vmanage"
 - **Implementation:** Poll vManage cluster health API. Monitor CPU, memory, disk usage, NMS database replication status, and running services. For clustered deployments, verify all nodes are in sync. Alert when any node exceeds 70% CPU, 80% memory, or 75% disk, or when database replication falls behind. Schedule regular config database backups independently.
 - **Visualization:** Single value panels (CPU, memory, disk per node), Status indicator (cluster health), Table (services status).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4536,6 +4947,8 @@ index=sdwan sourcetype="cisco:sdwan:bfd"
 - **Visualization:** Table (circuit SLA compliance), Line chart (latency trending per carrier), Single value (overall SLA compliance %).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
+
 ---
 
 ### UC-5.5.20 · Hub-and-Spoke vs Full-Mesh Topology Validation
@@ -4559,6 +4972,7 @@ index=sdwan sourcetype="cisco:sdwan:bfd" state="up"
 - **Visualization:** Network graph (nodes = sites, edges = tunnels), Table (site, peer count, topology type), Bar chart (topology distribution).
 - **CIM Models:** N/A
 - **Known false positives:** On-demand dynamic tunnels (TLOC extension) may create temporary additional peers that do not indicate misconfiguration.
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 
 ---
 
@@ -4592,6 +5006,8 @@ index=dns sourcetype="infoblox:dns" OR sourcetype="MSAD:NT6:DNS"
 | sort -count
 ```
 
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 ### UC-5.6.2 · NXDOMAIN Spike Detection
@@ -4620,6 +5036,8 @@ index=dns reply_code="NXDOMAIN" OR rcode="3"
 | sort -count
 ```
 
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 ### UC-5.6.3 · SERVFAIL Rate Monitoring
@@ -4637,6 +5055,8 @@ index=dns reply_code="SERVFAIL" OR rcode="2"
 - **Implementation:** Track SERVFAIL response codes. Alert on increases. Investigate which domains are failing and which resolvers are affected.
 - **Visualization:** Line chart, Table (failing domains), Single value.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4666,6 +5086,8 @@ index=dns
 | where unique_queries > 500
 ```
 
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 ### UC-5.6.5 · DHCP Scope Exhaustion
@@ -4686,6 +5108,8 @@ index=dhcp sourcetype="DhcpSrvLog" OR sourcetype="infoblox:dhcp"
 - **Visualization:** Gauge per scope, Table, Bar chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.6.6 · DHCP Rogue Server Detection
@@ -4703,6 +5127,8 @@ index=network "DHCP" AND ("rogue" OR "conflict" OR "unauthorized" OR "snooping v
 - **Implementation:** Enable DHCP snooping on switches. Forward syslog. Alert on any rogue DHCP server detection events.
 - **Visualization:** Events list (critical), Table, Map.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4729,6 +5155,8 @@ index=dns sourcetype="infoblox:audit" ("Added" OR "Deleted" OR "Modified") AND (
 | sort -count
 ```
 
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 ### UC-5.6.8 · DNS Latency Monitoring
@@ -4754,6 +5182,8 @@ index=dns sourcetype="dns:latency"
   by DNS.src DNS.query DNS.record_type span=5m
 | sort -count
 ```
+
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
 
 ---
 
@@ -4782,6 +5212,8 @@ index=network sourcetype="infoblox:dns"
 | sort -count
 ```
 
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 ### UC-5.6.10 · DNSSEC Validation Failures
@@ -4809,6 +5241,8 @@ index=network sourcetype="named" "DNSSEC" ("validation failure" OR "SERVFAIL" OR
 | sort -count
 ```
 
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 ### UC-5.6.11 · DHCP Lease Duration Analysis
@@ -4828,6 +5262,8 @@ index=network sourcetype="infoblox:dhcp" "DHCPACK"
 - **Implementation:** Collect DHCP server logs. Analyze lease durations per scope. Identify scopes with unusually short leases (frequent renewals) or extremely long leases. Adjust based on network type (guest vs. corporate).
 - **Visualization:** Table (scope, avg lease, renewal count), Bar chart (renewals by scope).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4857,6 +5293,8 @@ index=network sourcetype="stream:dns"
 | sort -count
 ```
 
+- **References:** [CIM: Network_Resolution](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution)
+
 ---
 
 
@@ -4878,6 +5316,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*" (
 - **Visualization:** Table of DHCP failures by AP; time-series showing failure spike; alert dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.6.14 · DNS Resolution Performance and Failures (Meraki)
@@ -4896,6 +5336,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*DNS*" re
 - **Implementation:** Extract DNS query timing from syslog events. Set SLA thresholds (e.g., <100ms average).
 - **Visualization:** Gauge showing average DNS time; histogram of query times; slow query detail table.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -4916,6 +5358,8 @@ index=cisco_network sourcetype="meraki:api" dhcp_pool=*
 - **Implementation:** Query appliance API for DHCP metrics by VLAN. Alert on >85% allocation.
 - **Visualization:** DHCP pool gauge per VLAN; timeline of pool usage; alert dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -4938,6 +5382,8 @@ index=network sourcetype=dhcp_scope
 - **Visualization:** Gauge per scope, Table (scope, used, size, %), Line chart (utilization trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.6.17 · DNS Query Latency and Resolution Failure by Resolver
@@ -4958,6 +5404,8 @@ index=network sourcetype=dns_query
 - **Implementation:** Run synthetic DNS probes (e.g. dig to critical domains) from multiple hosts; ingest response time and result. Optionally ingest resolver query logs. Alert when latency exceeds 200ms or failure rate exceeds 5%.
 - **Visualization:** Line chart (latency by resolver), Table (resolver, avg ms, fail rate), Single value (p95 latency).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -4994,6 +5442,8 @@ index=netflow
 | sort -bytes
 ```
 
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.7.2 · Anomalous Traffic Patterns
@@ -5022,6 +5472,8 @@ index=netflow
 | sort -bytes
 ```
 
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.7.3 · Bandwidth by Application
@@ -5048,6 +5500,8 @@ index=netflow
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5076,6 +5530,8 @@ index=netflow
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5107,6 +5563,8 @@ index=netflow direction="outbound"
 | sort -bytes
 ```
 
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.7.6 · Port Scan Detection
@@ -5134,6 +5592,8 @@ index=netflow
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5164,6 +5624,8 @@ index=network sourcetype="netflow"
 | sort -bytes
 ```
 
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 ### UC-5.7.8 · Multicast Traffic Monitoring
@@ -5191,6 +5653,8 @@ index=network sourcetype="netflow" dest="224.0.0.0/4"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5220,6 +5684,8 @@ index=network sourcetype="netflow"
 | eval bytes=bytes_in+bytes_out
 | sort -bytes
 ```
+
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -5251,6 +5717,8 @@ index=network sourcetype="netflow"
 | sort -bytes
 ```
 
+- **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
 ---
 
 
@@ -5276,6 +5744,8 @@ index=network sourcetype="cisco:dnac:issues"
 - **Visualization:** Table (issue, priority, category), Bar chart, Single value.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
+
 ---
 
 ### UC-5.8.2 · Meraki Organization Monitoring
@@ -5296,6 +5766,8 @@ index=network sourcetype="meraki:api"
 - **Visualization:** Map (device locations), Table, Status grid, Single value (offline count).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.3 · SNMP Trap Consolidation
@@ -5313,6 +5785,8 @@ index=network sourcetype="snmp:trap"
 - **Implementation:** Configure Splunk SNMP trap receiver (UDP 162). Map trap OIDs to human-readable names via lookup. Correlate with syslog events from the same device.
 - **Visualization:** Table (device, trap, severity), Bar chart, Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -5332,6 +5806,8 @@ index=network sourcetype="snmp:system"
 - **Implementation:** Poll SNMP sysDescr, sysName, sysLocation from all devices. Cross-reference with NMS discovery exports. Maintain inventory lookup for enrichment.
 - **Visualization:** Table (device, model, location, version), Pie chart (by model/vendor).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -5354,6 +5830,8 @@ index=network sourcetype="oxidized"
 - **Visualization:** Table (device, status, days since backup), Single value (compliance %), Status grid.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.8.7 · Network Configuration Drift Detection
@@ -5375,6 +5853,8 @@ index=network sourcetype="config:diff"
 - **Visualization:** Table (device, changes, last modified), Timeline (change events), Single value (devices with drift).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.8.8 · SNMP Polling Gap Detection
@@ -5395,6 +5875,8 @@ index=network sourcetype="config:diff"
 - **Implementation:** Track SNMP data arrival per device using `tstats`. Compare expected vs. actual poll count. Alert when gap exceeds 20%. Investigate SNMP community/credential issues.
 - **Visualization:** Table (device, expected, actual, gap %), Single value (devices with gaps), Heatmap.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -5418,6 +5900,8 @@ index=cisco_network sourcetype="meraki:api" certificate_expiry=*
 - **Visualization:** Expiration countdown gauge; timeline of expiring certs; alert table.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.10 · Firmware Update Compliance and Version Tracking (Meraki)
@@ -5438,6 +5922,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Visualization:** Firmware version table by device type; compliance percentage gauge; outdated device list.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.11 · API Call Rate Monitoring and Rate Limit Alerts (Meraki)
@@ -5457,6 +5943,8 @@ index=cisco_network sourcetype="meraki:api:*"
 - **Implementation:** Log all API calls with timestamps. Monitor call rate by endpoint.
 - **Visualization:** API call timeline; rate limit gauge; endpoint usage breakdown.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -5479,6 +5967,8 @@ index=cisco_network sourcetype="meraki:api" license_expiry=*
 - **Visualization:** License expiration countdown; renewal timeline; license detail table.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.13 · Network Device Inventory and Change Audit (Meraki)
@@ -5499,6 +5989,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Visualization:** Inventory summary table; device count by type pie chart; change log timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.14 · Admin Activity Logging and Access Control Audit (Meraki)
@@ -5517,6 +6009,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*admin*"
 - **Implementation:** Enable admin audit logging. Ingest login and action events.
 - **Visualization:** Admin activity timeline; action type breakdown; user activity detail table.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -5537,6 +6031,8 @@ index=cisco_network sourcetype="meraki" type=security_event (signature="*privile
 - **Visualization:** Privilege change timeline; role change audit table; escalation alert dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.16 · Alert Volume Trending and Alert Fatigue Analysis (Meraki)
@@ -5555,6 +6051,8 @@ index=cisco_network sourcetype="meraki:webhook"
 - **Implementation:** Ingest webhook alerts. Track volume and types over time.
 - **Visualization:** Alert volume timeline; alert type pie chart; trend sparklines.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -5576,6 +6074,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Visualization:** Network health gauge; health trend sparkline; status KPI dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.18 · Device Online/Offline Status Monitoring (Meraki)
@@ -5596,6 +6096,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Visualization:** Device status table; offline count gauge; status change timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.19 · Multi-Organization Comparison and Benchmarking (Meraki)
@@ -5614,6 +6116,8 @@ index=cisco_network sourcetype="meraki:api"
 - **Implementation:** Aggregate metrics across multiple organizations. Create comparison views.
 - **Visualization:** Organization comparison bar chart; health rank table; benchmark line chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -5636,6 +6140,8 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*config*"
 - **Visualization:** Change compliance timeline; out-of-window change alert table.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.21 · Webhook Delivery Failure Tracking (Meraki)
@@ -5654,6 +6160,8 @@ index=cisco_network sourcetype="meraki:webhook" (status="failure" OR status="err
 - **Implementation:** Log webhook delivery attempts. Alert on sustained failures.
 - **Visualization:** Webhook failure timeline; failure cause breakdown; affected org list.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -5675,6 +6183,8 @@ index=cisco_network sourcetype="meraki:api:*" (http_status_code=4* OR http_statu
 - **Visualization:** API error timeline; endpoint error breakdown; error rate gauge.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.23 · Dashboard Configuration and Export Backup (Meraki)
@@ -5695,6 +6205,8 @@ index=cisco_network sourcetype="meraki:api" backup_timestamp=*
 - **Visualization:** Last backup timestamp by org; backup recency gauge; backup history timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
+
 ---
 
 ### UC-5.8.24 · Network Device Configuration Backup and Drift
@@ -5714,6 +6226,8 @@ index=network sourcetype=config_backup
 - **Implementation:** Run config backup (RANCID, Oxidized, or vendor API) on schedule. Ingest success/failure and timestamp. Alert when backup fails or last successful backup is older than 24 hours. Optionally diff current vs. last backup for drift.
 - **Visualization:** Table (device, last backup, status), Single value (devices without backup today), Timeline (backup runs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -5737,6 +6251,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Configure Splunk SNMP trap input or forward traps from snmptrapd. Parse trap OID and host. Alert when trap rate from a single device exceeds 100/min or 3 standard deviations above baseline. Trap storms often indicate device failure, link flapping, or misconfiguration.
 - **Visualization:** Line chart (traps per host over time), Table (host, count, threshold), Single value (devices in storm).
 - **CIM Models:** N/A
+
+- **References:** [Cisco ThousandEyes App for Splunk](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -5766,6 +6282,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (latency per agent over time), Single value (avg latency), Table (agent, server, latency).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.2 · Network Packet Loss Monitoring
@@ -5785,6 +6303,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Configure Agent-to-Server tests in ThousandEyes and stream metrics to Splunk via HEC. The OTel metric `network.loss` reports packet loss as a percentage. Alert when average loss exceeds 0.5% for critical paths.
 - **Visualization:** Line chart (loss % over time per agent/server), Single value (current loss), Table sorted by loss.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -5806,6 +6326,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (jitter ms over time), Combined chart (latency + jitter + loss), Table.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.4 · Agent-to-Agent Latency and Throughput
@@ -5825,6 +6347,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Create Agent-to-Agent tests in ThousandEyes between sites and stream metrics. The `network.io.direction` attribute distinguishes `transmit`, `receive`, and `round-trip` measurements. Compare forward and reverse paths to identify asymmetric routing issues.
 - **Visualization:** Table (source agent, target agent, direction, latency, loss, jitter), Line chart per direction.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -5846,6 +6370,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Single value (min hops per target), Table (agent, server, min hops, max hops), Line chart (hop count trending).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.6 · Network Path Change Detection
@@ -5865,6 +6391,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Path Visualization data must be enabled in the Tests Stream input. This use case requires building a path fingerprint (hash of intermediate hops) over time windows to detect when routes shift. Correlate with `network.latency` from the metrics stream to identify performance-impacting path changes.
 - **Visualization:** Timeline (path changes over time), Table (agent, server, unique paths), Drilldown to ThousandEyes via `thousandeyes.permalink`.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -5889,6 +6417,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Gauge (quality score per link), Table (all links ranked), Trend line chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.8 · BGP Reachability Monitoring
@@ -5909,6 +6439,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Map (BGP reachability by monitor location), Single value (overall reachability %), Table (monitor, prefix, reachability).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.9 · BGP Path Change Trending
@@ -5927,6 +6459,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (path changes over time per monitor), Bar chart (total changes per monitor), Table with drilldown.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.10 · BGP Update Volume Tracking
@@ -5944,6 +6478,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The OTel metric `bgp.updates.count` tracks the number of BGP updates. The Splunk App Network dashboard includes a "BGP Updates Count" line chart. Set alerts when update volume exceeds 3 standard deviations from baseline.
 - **Visualization:** Line chart (updates over time), Single value (current update rate), Table (monitor, prefix, update count).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -5964,6 +6500,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The OTel attribute `network.as.path` provides the full AS path as a space-separated list of ASNs. By tracking distinct AS paths over time for each prefix and monitor, you can detect when routing changes introduce new transit providers. Combine with `bgp.path_changes.count` spikes to focus investigation.
 - **Visualization:** Table (prefix, monitor, AS paths seen), Timeline of path changes, Alert on new AS path appearance.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -5990,6 +6528,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Map (reachability by monitor location), Table (region, prefix, reachability), Column chart comparing regions.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.13 · DNS Availability Monitoring
@@ -6010,6 +6550,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (availability % over time), Single value (current availability), Table (question, server, availability).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.14 · DNS Resolution Time Trending
@@ -6028,6 +6570,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The OTel metric `dns.lookup.duration` reports DNS resolve time in seconds. The Splunk App Network dashboard includes a "DNS Duration (s)" line chart. Alert when resolution time exceeds 200 ms consistently — this adds noticeable delay to every new connection.
 - **Visualization:** Line chart (resolution time over time by domain), Table with drilldown to ThousandEyes.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6049,6 +6593,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (validity % over time), Single value (current validity), Table.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.16 · DNS Provider Comparison
@@ -6068,6 +6614,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Create DNS Server tests in ThousandEyes for the same domain against multiple DNS server addresses. Each test targets a different resolver. Compare `dns.lookup.duration` and `dns.lookup.availability` across server addresses.
 - **Visualization:** Column chart (resolution time by provider), Table (provider, domain, duration, availability), Comparison dashboard.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6090,6 +6638,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (duration over time), Table (domain, agent, availability, duration), Alert on failures.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.18 · Network Outage Event Detection
@@ -6108,6 +6658,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Configure the Event input in the Cisco ThousandEyes App with a ThousandEyes user and account group. Update the `event_index` macro to point to the correct index. Events are fetched at a configurable interval via the ThousandEyes API. Event types include "Network Outage", "Network Path Issue", "DNS Issue", "Server Issue", "Proxy Issue", and "Local Agent Issue".
 - **Visualization:** Events timeline, Table (type, severity, state, count), Pie chart by severity.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6128,6 +6680,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Pie chart (alerts by severity), Bar chart (alert timeline), Table (rule, test, severity, count).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.20 · DNS Issue Event Tracking
@@ -6146,6 +6700,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Events with type "DNS Issue" are fetched via the Event input at the configured interval. Filter by `severity` (high, medium, low) and `state` (active, resolved) to focus on current issues. Correlate with DNS availability metrics from UC-5.10.6.
 - **Visualization:** Events timeline, Table (test, severity, state), Single value (active DNS issues).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6166,6 +6722,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Events timeline, Table, Single value (active proxy issues).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.22 · Local Agent Issue Monitoring
@@ -6184,6 +6742,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** "Local Agent Issue" events indicate that the test failure originated at the agent's local environment, not the remote target. These help filter out false positives in outage detection. Correlate with agent health data to identify sites with recurring local problems.
 - **Visualization:** Events timeline, Table by agent, Single value (active local issues).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6209,6 +6769,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Combined timeline (TE events + internal alerts), Table, Dashboard with dual panels.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.24 · Endpoint Experience Score Monitoring
@@ -6229,6 +6791,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Gauge (experience score per user), Table (agent, score, CPU, memory), Trend line chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.25 · Remote Worker Connectivity Health
@@ -6248,6 +6812,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Endpoint Experience Local Network data reports metrics per segment: `target.type` can be "dns", "proxy", "gateway", or "vpn". The `network.score` composite metric simplifies multi-segment health assessment. Identify whether connectivity problems are in the local network, VPN, proxy, or DNS layer.
 - **Visualization:** Table (agent, segment type, latency, loss, score), Heatmap by segment, Drilldown per agent.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6270,6 +6836,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Table (agent, VPN vendor, gateway, latency, loss, score), Column chart by VPN vendor, Trend line chart.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.27 · Endpoint Connection Type and Network Score
@@ -6290,6 +6858,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Column chart (score by connection type), Table (connection type, avg score, latency, loss, count), Pie chart (user distribution by type).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.28 · Geographic Workforce Performance Comparison
@@ -6309,6 +6879,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Endpoint agent metrics include geographic attributes: `thousandeyes.source.agent.geo.country.iso_code` and `thousandeyes.source.agent.geo.region.iso_code`. Aggregate network quality metrics by region to identify poorly performing locations. Combine with `thousandeyes.source.agent.location` for more specific site-level analysis.
 - **Visualization:** Map (score by region), Table (region, score, latency, loss, agent count), Column chart comparing regions.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6331,6 +6903,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Dual-panel comparison (overlay vs underlay), Table (test, latency, loss, jitter), Line chart side-by-side.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.30 · SASE Secure Edge Performance
@@ -6351,6 +6925,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Create Agent-to-Server tests in ThousandEyes that route through your SASE secure edge. Name tests descriptively to include the SASE provider. Compare latency with and without the secure edge to quantify the security overhead. Correlate with Endpoint Agent `target.type="proxy"` data for end-to-end visibility.
 - **Visualization:** Line chart (latency through secure edge over time), Table (agent, SASE test, latency, loss), Comparison chart.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6373,6 +6949,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Column chart (latency by cloud provider), Table (agent, cloud target, latency, loss), Map (agent-to-cloud paths).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.32 · CDN Edge Network Performance
@@ -6394,6 +6972,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Column chart (TTFB by CDN edge), Table (agent, CDN edge, TTFB, throughput), Map.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.33 · Cloud Provider Path Visualization
@@ -6413,6 +6993,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Enable "Include Network Path Data" in the Tests Stream input for cloud-targeted tests. Path Visualization data shows every hop between the agent and target. The `path_viz_index` macro must be configured. For detailed path analysis, use the `thousandeyes.permalink` to drill into the ThousandEyes UI path visualization view.
 - **Visualization:** Table (test, agent, hop list), Drilldown to ThousandEyes path viz, Network topology diagram.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6435,6 +7017,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (availability % over time), Single value (current availability), Table (test, server, agent, availability).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.35 · HTTP Server Response Time Tracking (ThousandEyes)
@@ -6453,6 +7037,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The OTel metric `http.client.request.duration` reports TTFB in seconds. The Splunk App Application dashboard includes an "HTTP Server Request Duration (s)" line chart. Alert when TTFB exceeds your SLA threshold (e.g., 2 seconds). Correlate with `http.response.status_code` to distinguish slow responses from errors.
 - **Visualization:** Line chart (TTFB over time by test), Single value (avg TTFB), Table with drilldown to ThousandEyes.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6474,6 +7060,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (throughput MB/s over time), Table (test, agent, throughput), Column chart by agent.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.37 · Page Load Completion Rate (ThousandEyes)
@@ -6494,6 +7082,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, server, completion).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.38 · Page Load Duration Trending (ThousandEyes)
@@ -6511,6 +7101,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The OTel metric `web.page_load.duration` reports total page load time in seconds. The Splunk App Application dashboard includes a "Page Load Duration (s)" line chart with permalink drilldown to ThousandEyes waterfall views. Alert when load duration exceeds your performance budget.
 - **Visualization:** Line chart (load time over time), Single value (avg load time), Table with permalink drilldown.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6532,6 +7124,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, completion).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.40 · API Response Time Monitoring (ThousandEyes)
@@ -6549,6 +7143,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The OTel metric `api.duration` reports total API test execution time in seconds. For per-step analysis, use `api.step.duration` filtered by `thousandeyes.test.step`. The Splunk App Application dashboard includes an "API Request Duration (s)" line chart with permalink drilldown.
 - **Visualization:** Line chart (API duration over time), Table (test, duration), Column chart (duration by step).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6570,6 +7166,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Single value (completion %), Line chart (completion over time), Table (test, completion, errors).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.42 · Transaction Duration Analysis (ThousandEyes)
@@ -6587,6 +7185,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The OTel metric `web.transaction.duration` reports total transaction execution time in seconds (only reported when the transaction completes without errors). The Splunk App Application dashboard includes a "Transaction Duration (s)" line chart with permalink drilldown to ThousandEyes. ThousandEyes also supports OpenTelemetry traces for transaction tests, providing detailed span-level timing.
 - **Visualization:** Line chart (transaction duration over time), Table (test, agent, duration), Drilldown to ThousandEyes trace view.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6609,6 +7209,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Column chart (TTFB by SaaS app per location), Table (app, location, availability, TTFB), Comparison dashboard.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.44 · Multi-Region SaaS Availability (ThousandEyes)
@@ -6628,6 +7230,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Deploy the same HTTP Server tests across ThousandEyes Cloud Agents in Americas, EMEA, and APAC regions. Use `thousandeyes.source.agent.geo.country.iso_code` and `thousandeyes.source.agent.location` attributes to group results by region. A service that is available from US agents but not from EU agents indicates a regional issue.
 - **Visualization:** Map (availability by agent location), Table (region, app, availability), Column chart (availability by region).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6649,6 +7253,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Line chart (availability and throughput over time), Table (server, availability, throughput, response time), Single value.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.46 · ThousandEyes Alert Severity Distribution
@@ -6668,6 +7274,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Pie chart (alerts by severity), Bar chart (alerts by type), Table (rule, test, severity, count), Single value (active critical alerts).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.47 · ThousandEyes Alert Timeline Trending
@@ -6685,6 +7293,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** The Splunk App Alerts dashboard includes a "Alerts Timeline" line chart and a "Severity Distribution Trend" chart. Use these pre-built panels or customize with the `stream_index` macro. Set adaptive alerts on alert volume increases — a sudden spike in ThousandEyes alerts often precedes user-reported incidents. Correlate alert timing with change management windows.
 - **Visualization:** Line chart (alerts over time by severity), Stacked bar chart (alerts per hour), Table (trending alert rules).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6705,6 +7315,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** Table (event type, account group, count), Timeline (activity events), Pie chart (activity by event type).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.49 · ThousandEyes Data Collection Health Monitoring
@@ -6723,6 +7335,8 @@ index=network sourcetype=snmptrap
 - **Implementation:** Monitor the data flow from ThousandEyes to Splunk by tracking event volume per collection interval. A drop to zero events indicates a pipeline failure — possible causes include expired ThousandEyes API tokens, HEC token issues, or ThousandEyes streaming configuration changes. Combine with `index=_internal sourcetype=splunkd component=HttpInputDataHandler` to monitor HEC health. The Splunk App Health dashboard provides data freshness panels.
 - **Visualization:** Line chart (event volume over time), Single value (events in last 5 min), Alert on zero events for >15 min.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6744,6 +7358,8 @@ index=network sourcetype=snmptrap
 - **Visualization:** ITSI Service Tree, Glass Table, KPI cards (latency, loss, availability, MOS), Service health score.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.51 · Splunk On-Call Incident Routing from ThousandEyes
@@ -6763,6 +7379,8 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 - **Visualization:** Table (incidents by state and routing key), Timeline (incident creation/resolution), Single value (active incidents from ThousandEyes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.9.52 · ThousandEyes Trace Span Analysis and Drill-Down
@@ -6781,6 +7399,8 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 - **Implementation:** Enable the Tests Stream — Traces input in the Cisco ThousandEyes App. Traces are emitted for Transaction tests and provide span-level timing for each step of the scripted workflow. The trace data follows OpenTelemetry conventions with `trace_id`, `span_id`, `parent_span_id`, `service.name`, `span.name`, `duration`, and custom attributes. Traces can be correlated with Splunk APM traces using shared context propagation.
 - **Visualization:** Table (spans by duration), Trace waterfall (via Splunk APM or custom visualization), Bar chart (avg span duration by step).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6808,6 +7428,8 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 - **Visualization:** Table (endpoint, network latency, app latency, root cause), Dual-axis chart (network vs app latency), Dashboard with network and app panels side-by-side.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-5.9.54 · MTTR Reduction via Network vs Application Isolation
@@ -6833,6 +7455,8 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 - **Implementation:** This meta-analysis use case measures how ThousandEyes data accelerates incident resolution. Track the time from ThousandEyes alert trigger to resolution (MTTR). Compare MTTR for incidents where ThousandEyes data was available vs. those without. Over time, this demonstrates the ROI of the ThousandEyes + Splunk integration. Combine with ITSM data (ServiceNow, Jira Service Management) for complete MTTR tracking.
 - **Visualization:** Single value (avg MTTR with ThousandEyes), Comparison chart (MTTR with vs. without TE data), Table (incidents and isolation times), Trend line (MTTR improvement over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -6861,6 +7485,8 @@ sourcetype="stream:diameter"
 - **Visualization:** Single value (overall Diameter success rate with color-coded threshold: green >99%, yellow 95-99%, red <95%), Pie chart (failure breakdown by command_code), Table (origin_host, command_code, result_code, count — sortable), Line chart (success rate trend over 24h with 15-min buckets).
 - **CIM Models:** N/A
 
+- **References:** [REJECTED](https://splunkbase.splunk.com/app/5003)
+
 ---
 
 ### UC-5.10.2 · Diameter Subscriber Data Accounting
@@ -6886,6 +7512,8 @@ sourcetype="stream:diameter" command_code=271
 - **Visualization:** Bar chart (top 20 subscribers by data usage in MB), Table (calling_station_id, origin_host, total_data_MB, session_count — sortable), Line chart (aggregate data volume trend over 7 days), Single value (total Diameter accounting sessions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.10.3 · Mobile Subscriber RADIUS Session Tracking
@@ -6910,6 +7538,8 @@ sourcetype="stream:radius" code="Accounting-Request"
 - **Visualization:** Column chart (active sessions by SGSN address), Table (sgsn_address, sgsn_mcc_mnc, sessions, unique_subscribers, avg_duration_min — sortable), Timechart (session count over 24h), Pie chart (session distribution by MCC-MNC for roaming analysis).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.10.4 · Carrier SIP Trunk Failure Analysis
@@ -6933,6 +7563,8 @@ sourcetype="stream:sip" method="INVITE"
 - **Implementation:** Configure Splunk App for Stream to capture SIP signaling on trunk-facing interfaces. Enable SIP protocol extraction for fields `method`, `reply_code`, `caller`, `callee`, and `dest`. Focus on INVITE transactions as these represent call attempts. Group by `dest` to identify problematic trunks or destinations. SIP 4xx codes indicate client errors (e.g., 404 Not Found, 486 Busy Here), 5xx codes indicate server errors, and 6xx codes indicate global failures. Alert when failure rate exceeds 5% sustained over 15 minutes.
 - **Visualization:** Single value (overall SIP trunk success rate with thresholds: green >95%, yellow 90-95%, red <90%), Column chart (failure count by dest), Table (dest, total attempts, failures, failure_rate — sortable), Timechart (SIP 4xx/5xx/6xx responses over 24h by response code class).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -6960,6 +7592,8 @@ sourcetype="stream:sip" method="REGISTER"
 - **Visualization:** Line chart (REGISTER count over time with dynamic baseline threshold line), Single value (current spike factor vs. baseline), Table (time bucket, register_count, unique_sources, baseline, threshold — highlighting rows above threshold), Area chart (unique sources over time to correlate with storms).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.10.6 · SIP Post-Dial Delay Monitoring
@@ -6984,6 +7618,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Implementation:** Configure Splunk App for Stream to capture SIP INVITE and response transactions. The `setup_delay` field measures the time from INVITE to the first non-100 response (typically 180 Ringing or 200 OK). Monitor by `dest` to identify slow destinations or trunks. ITU-T E.721 recommends post-dial delay under 3 seconds for national calls and under 5 seconds for international calls. Create tiered alerts: warning at p95 >3s, critical at p95 >5s. Trend analysis reveals degradation patterns across time of day and destination.
 - **Visualization:** Gauge (p95 post-dial delay with thresholds: green <2s, yellow 2-3s, red >3s), Line chart (average PDD trend by dest over 24h), Table (dest, calls, avg_pdd_ms, p95_pdd_ms, max_pdd_ms — sortable), Histogram (PDD distribution across all calls).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -7017,6 +7653,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Visualization:** Line chart (Mbps in/out per interface), Heatmap (utilization % across fabric), Single value (peak utilization).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.11.2 · Interface Error and Discard Streaming
@@ -7037,6 +7675,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Implementation:** Subscribe to `/interfaces/interface/state/counters` at 30s sample intervals. Use `rate_avg()` to convert cumulative counters to per-second rates. Alert on any non-zero FCS error rate (indicates physical-layer problems). Alert on discard rates exceeding baseline (indicates congestion or QoS policy drops). Correlate with optic health (UC-5.11.5) for root cause.
 - **Visualization:** Line chart (error rates over time), Table (interfaces with active errors), Heatmap (errors across fabric).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -7060,6 +7700,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Visualization:** Status grid (BGP peer matrix — green=Established, red=down), Timeline (state change events), Table (non-established peers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.11.4 · System CPU and Memory Utilization Streaming
@@ -7080,6 +7722,12 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Implementation:** Subscribe to `/system/cpus/cpu/state` at 30s intervals. For Cisco IOS XR, use native YANG `system-monitoring/cpu-utilization/total-cpu-one-minute`. Alert at 80% sustained for 5 minutes. Correlate with BGP update storms (UC-5.11.8) and interface flaps. Track per-process CPU if platform supports `/system/processes/process/state`.
 - **Visualization:** Gauge (current CPU per device), Line chart (CPU trend), Table (devices above threshold).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -7103,6 +7751,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Visualization:** Table (optics near threshold), Line chart (Rx/Tx power trend over weeks), Heatmap (temperature across all ports), Gauge (worst-case margin).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.11.6 · QoS Queue Depth and Drop Streaming
@@ -7125,6 +7775,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Visualization:** Bar chart (drops by queue class), Line chart (drop rate over time per queue), Table (queues with active drops), Heatmap (drop severity across fabric).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.11.7 · LLDP Topology Change Detection
@@ -7146,6 +7798,12 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Implementation:** Subscribe to `/lldp/interfaces/interface/neighbors` using ON_CHANGE mode. Build a baseline LLDP topology table as a lookup (host, interface, expected_neighbor). Alert on any deviation from baseline. In data centers, unexpected LLDP changes often indicate cabling errors during maintenance. In campus networks, new neighbors on access ports may indicate unauthorized switches.
 - **Visualization:** Network topology map (overlay LLDP changes), Table (recent topology changes), Status grid (ports with unexpected neighbors).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.dest | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -7170,6 +7828,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Visualization:** Line chart (prefix count per peer over time), Table (peers with recent churn), Single value (total fabric prefix count), Alert list (abnormal changes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.11.9 · Hardware Component Health (Fan, PSU, Temperature)
@@ -7191,6 +7851,12 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Implementation:** Subscribe to `/components/component/state` at 60s intervals. Filter for component types FAN, POWER_SUPPLY, and SENSOR. Set thresholds per component type: chassis inlet >40°C warning, ASIC >85°C critical, fan speed <2000 RPM warning. Alert on PSU state changes (redundancy loss). Track temperature trends to detect environmental issues (HVAC failure, hot aisle containment breach).
 - **Visualization:** Gauge (temperature per component), Status grid (fan/PSU status across fabric), Line chart (temperature trend), Table (components above threshold).
 - **CIM Models:** Performance
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Performance.CPU by Performance.host | sort - count
+```
+
+- **References:** [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 
 ---
 
@@ -7214,6 +7880,8 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Visualization:** Table (collector health matrix), Line chart (gather time per device), Single value (total active subscriptions), Alert list (stale collectors).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.11.11 · ACL Hit Counter Analysis via Streaming Telemetry
@@ -7235,6 +7903,12 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 - **Implementation:** Subscribe to `/acl/acl-sets/acl-set/acl-entries/acl-entry/state` at 30s intervals. Identify deny rules with increasing hit counts — these represent blocked attack traffic. Identify permit rules with zero hits over 30 days — candidates for cleanup. Cross-reference with firewall logs and IDS alerts for security correlation. Generate monthly ACL effectiveness reports for compliance.
 - **Visualization:** Table (ACL rules sorted by hit rate), Bar chart (top 10 deny rules by hits), Stacked chart (permit vs deny hits over time), List (zero-hit rules for cleanup).
 - **CIM Models:** Network Traffic
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
+```
+
+- **References:** [CIM: Network Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
 
 ---
 
@@ -7263,6 +7937,8 @@ index=voip sourcetype="cdr:voip"
 - **Visualization:** Stacked area (causes over time), Pie chart (cause mix), Single value (fail %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.12.2 · Call Volume Trending by Destination
@@ -7283,6 +7959,8 @@ index=voip sourcetype="cdr:voip"
 - **Implementation:** Mask PANI for privacy dashboards; use HMAC of full number for drilldown in secured role.
 - **Visualization:** Line chart (calls by prefix), Map (if geo-lookup on prefix), Table (top routes).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -7307,6 +7985,8 @@ index=voip sourcetype="cdr:voip" call_status="answered"
 - **Visualization:** Histogram (duration), Line chart (percentile trend via `eventstats perc*`).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.12.4 · SIP Trunk Utilization
@@ -7330,6 +8010,8 @@ index=voip sourcetype="stream:sip" OR sourcetype="snmp:sbc"
 - **Visualization:** Area chart (concurrency), Gauge (utilization %), Table (trunk groups at risk).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.12.5 · VoIP MOS Score Monitoring
@@ -7350,6 +8032,8 @@ index=voip (sourcetype="qos:rtcp" OR sourcetype="cdr:voip")
 - **Implementation:** ITU-T G.107 E-model targets; correlate with jitter/loss from same leg_id; segment by radio access (VoLTE) vs. Wi-Fi.
 - **Visualization:** Line chart (MOS trend), Scatter (loss vs. MOS), Table (worst calls).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -7374,6 +8058,8 @@ index=signaling (sourcetype="stream:sip" OR sourcetype="diameter:cap")
 - **Visualization:** Timeline (spike detection), Table (method × source ASN), Single value (peak RPS).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.12.7 · IMS Registration Failure Rate
@@ -7396,6 +8082,8 @@ index=ims sourcetype="ims:sip" method="REGISTER"
 - **Visualization:** Line chart (fail rate), Bar chart (SIP reason by S-CSCF), Table (IMSI hash top failures).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.12.8 · Number Portability Request Tracking
@@ -7416,6 +8104,8 @@ index=telco sourcetype="lnp:order"
 - **Implementation:** SLA alerts for orders >72h in PENDING; root-cause codes joined to carrier contact list.
 - **Visualization:** Funnel (order states), Table (aging ports), Bar chart (reject reasons).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -7440,6 +8130,8 @@ index=telco sourcetype="roaming:usage"
 - **Visualization:** Map (visited countries), Table (suspicious subscribers), Line chart (roaming $ trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-5.12.10 · Toll Fraud Detection
@@ -7462,6 +8154,8 @@ index=voip sourcetype="cdr:voip"
 - **Implementation:** Hotline to NOC + auto-block high-risk destinations on SBC after threshold; require PIN for international on suspect trunks.
 - **Visualization:** Table (top fraud legs), Map (destination countries), Timeline (attack window).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 

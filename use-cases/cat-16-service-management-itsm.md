@@ -22,6 +22,8 @@ index=itsm sourcetype="snow:incident"
 - **Visualization:** Line chart (incident volume trend), Stacked bar (by priority), Pie chart (by category), Table (today's incidents).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.2 · SLA Compliance Monitoring
@@ -43,6 +45,8 @@ index=itsm sourcetype="snow:incident"
 - **Visualization:** Gauge (SLA compliance %), Bar chart (compliance by priority), Table (tickets approaching breach), Line chart (compliance trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.3 · MTTR by Category
@@ -63,6 +67,8 @@ index=itsm sourcetype="snow:incident" state="resolved"
 - **Visualization:** Bar chart (MTTR by category), Line chart (MTTR trend), Table (category MTTR summary), Histogram (resolution time distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.4 · Change Success Rate
@@ -81,6 +87,8 @@ index=itsm sourcetype="snow:change_request"
 - **Implementation:** Ingest change request records. Track outcomes (successful, failed, backed out). Calculate success rate by change type (standard, normal, emergency). Alert on failed changes. Report on DORA change failure rate metric.
 - **Visualization:** Pie chart (change outcomes), Bar chart (success rate by type), Line chart (success rate trend), Single value (overall success rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -101,6 +109,8 @@ index=itsm sourcetype="snow:change_request" state="scheduled"
 - **Implementation:** Analyze scheduled change windows for overlapping CIs. Cross-reference CI relationships for dependent systems. Alert when changes to related systems overlap. Create change calendar view for CAB review.
 - **Visualization:** Calendar view (change windows), Table (colliding changes), Gantt chart (change timeline).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -123,6 +133,8 @@ index=itsm sourcetype="snow:incident"
 - **Visualization:** Table (top recurring incidents), Bar chart (repeat incidents by category), Line chart (repeat rate trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.7 · Ticket Reassignment Rate
@@ -142,6 +154,8 @@ index=itsm sourcetype="snow:incident"
 - **Implementation:** Track assignment group changes per ticket. Calculate average reassignments. Identify tickets with >2 reassignments (ping-pong tickets). Report on routing accuracy by category. Improve auto-routing rules.
 - **Visualization:** Bar chart (avg reassignments by category), Table (most-reassigned tickets), Line chart (reassignment rate trend), Single value (avg reassignments).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -165,6 +179,8 @@ index=itsm sourcetype="snow:incident" state IN ("new","in_progress","on_hold")
 - **Visualization:** Table (aging tickets), Bar chart (aging by priority), Single value (total aging tickets), Line chart (aging trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.9 · Change-Incident Correlation
@@ -187,6 +203,8 @@ index=itsm sourcetype="snow:incident" priority IN (1,2)
 - **Visualization:** Table (incident-change correlation), Single value (% incidents with recent change), Timeline (changes + incidents overlaid).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.10 · Service Request Fulfillment Time
@@ -206,6 +224,8 @@ index=itsm sourcetype="snow:sc_request"
 - **Implementation:** Track service request lifecycle from submission to fulfillment. Calculate fulfillment time per catalog item. Identify items with slow fulfillment for automation opportunities. Report on catalog efficiency.
 - **Visualization:** Bar chart (avg fulfillment by item), Table (catalog item performance), Line chart (fulfillment time trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -232,6 +252,8 @@ index=itsm sourcetype="snow:incident:audit" field_name="state"
 - **Visualization:** Single value (reopen rate %), Bar chart (reopen rate by assignment group), Line chart (reopen rate trend), Table (reopened tickets with resolution notes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-16.1.12 · Incident Priority Distribution Trending
@@ -252,6 +274,8 @@ index=itsm sourcetype="snow:incident"
 - **Implementation:** Ingest incident creation events with priority and created timestamp. Normalize priority values (ServiceNow: 1–5; Jira: Critical/High/Medium/Low). Run daily timechart by priority. Compute P1+P2 share of total for executive summary. Alert when P1/P2 percentage exceeds 7-day rolling average by >20%. Export weekly/monthly reports for management. Compare against previous quarter for trend narrative.
 - **Visualization:** Stacked area chart (priority distribution over time), Line chart (P1+P2 count trend), Single value (P1/P2 % this week), Table (priority counts by week).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -274,6 +298,8 @@ index=oncall sourcetype IN ("pagerduty:incidents","opsgenie:alerts")
 - **Implementation:** Ingest PagerDuty or Opsgenie incidents via REST API (scheduled input or scripted input). Map fields: `escalation_count`, `escalation_policy_used`, `acknowledged_at`, `triggered_at`. Compute escalation rate (escalated / total) per day or per service. Alert when escalation rate exceeds 15% over 7 days. Track acknowledgment time (SLA); alert when avg ack time exceeds 15 minutes for P1. Report by service and escalation policy to identify overloaded rotations.
 - **Visualization:** Line chart (escalation rate trend), Bar chart (escalations by service), Single value (escalation rate %), Table (slowest-acknowledged incidents).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -298,6 +324,8 @@ index=itsm sourcetype="snow:task_sla"
 - **Visualization:** Table (at-risk tickets), Single value (at-risk count), Gauge (% SLA time consumed), Timeline (SLA burn-down).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.15 · Incident Reassignment Frequency
@@ -319,6 +347,8 @@ index=itsm sourcetype="snow:incident:audit" field_name="assignment_group"
 - **Implementation:** Ingest audit rows where `assignment_group` changes; each row is one reassignment event. Timechart daily volume; compare to 30-day average to detect spikes. Break down by `category` and `assignment_group` with `stats count by _time, category` in a separate panel.
 - **Visualization:** Line chart (reassignment events per day), Bar chart (events by category), Single value (30-day total).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -342,6 +372,8 @@ index=itsm sourcetype="snow:incident" state IN ("new","in_progress","on_hold")
 - **Visualization:** Stacked bar (age buckets by priority), Heatmap (priority × bucket), Table (raw counts).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.17 · Auto-Close Compliance
@@ -362,6 +394,8 @@ index=itsm sourcetype="snow:incident" state="closed" earliest=-30d
 - **Implementation:** Map your ServiceNow fields: auto-close may appear as `resolution_code`, workflow user, or `sys_mod_count` patterns. Adjust `auto_closed` logic to match internal policy. Report fleet auto-close % and by category; investigate outliers.
 - **Visualization:** Single value (auto-close %), Bar chart (auto-close % by category), Table (top auto-closed categories).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -385,6 +419,8 @@ index=itsm sourcetype="snow:incident" earliest=-30d
 - **Visualization:** Table (recurring clusters), Bar chart (count by key), Timeline (spikes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.19 · Problem Management Root Cause Linking
@@ -406,6 +442,8 @@ index=itsm sourcetype="snow:incident" state="closed" earliest=-90d
 - **Implementation:** Map `problem_id` or `caused_by` from incident to problem. Report link rate by category and assignment group. Alert when categories with high volume have low problem linkage. Exclude categories excluded by policy.
 - **Visualization:** Bar chart (problem link % by category), Table (gaps), Single value (overall link %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -429,6 +467,8 @@ index=itsm sourcetype="snow:incident" u_major_incident=true state="closed" earli
 - **Visualization:** Table (non-compliant MIs), Single value (compliance %), Line chart (compliance trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.21 · War Room Activation Tracking
@@ -450,6 +490,8 @@ index=itsm (sourcetype="snow:incident:activity" OR sourcetype="chat:war_room")
 - **Implementation:** Normalize on `incident_number`. Ingest chat or activity logs where bridges are declared. Measure delay from incident open to first war-room event. Report monthly activations and average delay.
 - **Visualization:** Table (MI + bridge times), Line chart (activations per month), Histogram (bridge delay).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -474,6 +516,8 @@ index=itsm sourcetype="snow:incident:audit" field_name="assignment_group"
 - **Visualization:** Table (unexpected paths), Sankey (escalation flow), Single value (audit exceptions).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.23 · Service Request Fulfillment Rate
@@ -497,6 +541,8 @@ index=itsm sourcetype="snow:sc_request" earliest=-30d
 - **Visualization:** Bar chart (fulfill rate by catalog item), Single value (overall fulfill %), Table (bottom performers).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 
@@ -518,6 +564,12 @@ index=itsi_grouped_alerts status!=5
 - **Implementation:** Configure ServiceNow integration in ITSI: map episode severity to ServiceNow priority, define assignment groups, and enable bidirectional status updates. Episodes auto-create incidents; ServiceNow resolution closes episodes. Monitor sync latency and failure rate. Requires Splunk Add-on for ServiceNow 5.5+.
 - **Visualization:** Table (sync status by severity), Single value (unsynced episode count), Time chart (sync latency).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841), [Splunk Add-on for ServiceNow](https://splunkbase.splunk.com/app/1928), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -544,6 +596,12 @@ index=itsm sourcetype="snow:incident" earliest=-30d
 - **Implementation:** (1) Map ServiceNow response timestamps to `first_response_time`/`responded_at` in the TA props; (2) Align `target_mins` with your published response SLAs per priority; (3) Schedule the search daily and alert when `breach_pct` exceeds policy for two consecutive intervals for any `assignment_group`.
 - **Visualization:** Bar chart (breach % by assignment group), Table (group medians vs target), Line chart (weekly breach % trend).
 - **CIM Models:** Ticket_Management
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Ticket_Management](https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management)
 
 ---
 
@@ -567,6 +625,8 @@ index=itsm sourcetype="snow:sc_req_item" earliest=-14d
 - **Visualization:** Bar chart (WIP by catalog item), Table (top queues with median age), Heatmap (assignment_group × cat_item).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.1.27 · On-Hold Time Impact on Resolution SLA
@@ -588,6 +648,12 @@ index=itsm sourcetype="snow:incident" earliest=-30d state IN ("closed","resolved
 - **Implementation:** (1) Confirm whether `on_hold_duration` is seconds from ServiceNow or use `business_stc`/`calendar_stc` fields if your instance stores pause separately; (2) Exclude incidents with invalid timestamps; (3) Alert when `hold_share_pct` exceeds agreed thresholds for customer-facing categories.
 - **Visualization:** Bar chart (hold share % by category), Table (top categories), Line chart (weekly hold hours trend).
 - **CIM Models:** Ticket_Management
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.category | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Ticket_Management](https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management)
 
 ---
 
@@ -616,6 +682,8 @@ index=itsm sourcetype="snow:cmdb_ci"
 - **Visualization:** Gauge (quality score), Line chart (quality trend), Bar chart (quality by dimension), Table (worst-scoring CIs).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.2.2 · CI Discovery Reconciliation
@@ -636,6 +704,8 @@ index=itsm sourcetype="snow:cmdb_ci"
 - **Visualization:** Table (unmatched discovered assets), Single value (CMDB gap count), Pie chart (matched vs unmatched), Line chart (gap trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-16.2.3 · Orphaned CI Detection
@@ -654,6 +724,8 @@ index=itsm sourcetype="snow:cmdb_ci" operational_status="operational"
 - **Implementation:** Query CMDB for operational CIs missing key attributes (owner, support group, service mapping). Report on orphaned CI inventory. Assign ownership through automated or manual workflow. Track orphan reduction over time.
 - **Visualization:** Table (orphaned CIs), Pie chart (by CI class), Bar chart (orphans by missing attribute), Single value (total orphaned CIs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -675,6 +747,8 @@ index=itsm sourcetype="snow:cmdb_ci" ci_class IN ("cmdb_ci_server","cmdb_ci_app_
 - **Visualization:** Table (CIs without relationships), Network graph (CI dependency map), Single value (% CIs with relationships).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.2.5 · CMDB Change Audit
@@ -693,6 +767,8 @@ index=itsm sourcetype="snow:cmdb_audit"
 - **Implementation:** Ingest CMDB audit records. Track all CI attribute changes. Alert on changes to critical CIs outside change windows. Report on change volume by CI class and source (manual vs discovery). Validate accuracy of discovery updates.
 - **Visualization:** Table (CI changes), Timeline (change events), Bar chart (changes by CI class), Line chart (change volume trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -716,6 +792,8 @@ index=itsm sourcetype="snow:cmdb_rel_ci" earliest=-7d@d
 - **Visualization:** Table (drifted relationships), Single value (drift count), Timeline (relationship changes).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.2.7 · Asset Discovery Reconciliation
@@ -737,6 +815,8 @@ index=discovery sourcetype="discovery:asset" earliest=-1d
 - **Implementation:** Normalize hostnames (FQDN strip). Map discovery tool serial/IP to CMDB. Report `stale_or_missing` counts weekly. Drive CMDB update tasks for unmatched discovery rows.
 - **Visualization:** Pie chart (synced vs stale), Table (unmatched assets), Single value (reconciliation gap %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -760,6 +840,8 @@ index=itsm sourcetype="snow:cmdb_ci" ci_class IN ("cmdb_ci_server","cmdb_ci_netg
 - **Visualization:** Table (upcoming EOL), Bar chart (EOL by quarter), Single value (CIs past EOL).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.2.9 · CMDB Accuracy Scoring
@@ -780,6 +862,8 @@ index=cmdb sourcetype="cmdb:validation" earliest=-7d
 - **Implementation:** Ingest periodic validation (e.g., “IP matches DNS,” “server responds to agent,” “owner replied”). Aggregate pass rate per class and region. Trend monthly for governance scorecards.
 - **Visualization:** Bar chart (accuracy % by class), Gauge (fleet accuracy), Line chart (trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -803,6 +887,8 @@ index=inventory sourcetype="vmware:inv:vm" earliest=-4h
 - **Visualization:** Table (undocumented hosts), Single value (gap count), Line chart (gap trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-16.2.12 · Software Asset Management Compliance
@@ -824,6 +910,8 @@ index=sam sourcetype="sam:install" product_name="Microsoft*Visio*"
 - **Implementation:** Normalize product SKUs. Join installs to entitlement table. Alert when `over_deployed>0` or compliance below policy. Refresh entitlements monthly.
 - **Visualization:** Table (SKU compliance), Single value (non-compliant SKUs), Bar chart (overage).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -847,6 +935,8 @@ index=itsm sourcetype="snow:cmdb_ci" operational_status="operational"
 - **Visualization:** Table (warranty expiring), Timeline (expiry by month), Single value (CIs <30d).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.2.14 · CI Lifecycle Management
@@ -868,6 +958,8 @@ index=itsm sourcetype="snow:cmdb_ci"
 - **Implementation:** Adjust `install_status` values to your list. Flag CIs stuck in procurement or “pending install” beyond SLA. Report retired CIs still `operational` in error.
 - **Visualization:** Table (stuck lifecycles), Bar chart (count by stuck state), Line chart (backlog trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -891,6 +983,8 @@ index=itsm sourcetype="snow:change_request" state="Closed" earliest=-30d
 - **Visualization:** Table (failed decom verification), Single value (open exceptions), Bar chart (by team).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-16.2.16 · Stale CI Discovery Freshness
@@ -912,6 +1006,8 @@ index=itsm sourcetype="snow:cmdb_ci" operational_status="operational" earliest=-
 - **Implementation:** (1) Tune the 90-day threshold to your discovery schedule; (2) Exclude classes intentionally not discovered (e.g., logical groups) via `where ci_class!=...`; (3) Publish a weekly remediation list to CMDB owners with `stale_days` for prioritization.
 - **Visualization:** Bar chart (stale count by CI class), Table (stale CIs with stale_days), Single value (total stale operational CIs).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -936,6 +1032,8 @@ index=itsm sourcetype="snow:cmdb_ci" earliest=-1d
 - **Visualization:** Table (duplicate name clusters), Single value (duplicate name count), Bar chart (duplicates by CI class).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.2.18 · Application CI Business Service Coverage
@@ -959,6 +1057,8 @@ index=itsm sourcetype="snow:cmdb_ci" earliest=-1d
 - **Visualization:** Bar chart (coverage % by support group), Table (unmapped application CIs), Gauge (overall coverage %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.2.19 · CMDB Mandatory Attribute Completeness by Class
@@ -980,6 +1080,8 @@ index=itsm sourcetype="snow:cmdb_ci" earliest=-1d
 - **Implementation:** (1) Expand `core_ok` with `assigned_to` or `company` if those are mandatory in your data model; (2) Exclude retired CIs with `install_status`; (3) Publish monthly scorecards and alert when any major `ci_class` drops below the governance threshold two months in a row.
 - **Visualization:** Bar chart (completeness % by CI class), Table (worst classes), Line chart (completeness trend from summary index).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1023,6 +1125,8 @@ index=monitoring sourcetype IN (server_health, app_health, db_health, network_he
 - **Visualization:** Service Analyzer glass table (ITSI), Radial gauge (health score per process), Sankey diagram (component → process → business unit), Single value tiles (one per business process with color coding).
 - **CIM Models:** N/A
 
+- **References:** [Splunk IT Service Intelligence](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-16.3.2 · Infrastructure Service Availability Heatmap
@@ -1052,6 +1156,8 @@ index=monitoring sourcetype IN (server_health, service_check, network_health)
 - **Visualization:** Heatmap (host × time, color = availability%), Table (hosts sorted by lowest monthly availability), Single value (fleet-wide availability %), Line chart (fleet availability trend), Bar chart (downtime hours by host).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_nix](https://splunkbase.splunk.com/app/833), [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-16.3.3 · First Contact Resolution Rate by Group
@@ -1074,6 +1180,8 @@ index=itsm sourcetype="incident"
 - **Visualization:** Bar chart (FCR rate by group), Table (group × category FCR), Line chart (FCR trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-16.3.4 · Escalation and Handoff Latency
@@ -1094,6 +1202,8 @@ index=itsm sourcetype="incident:history"
 - **Implementation:** Ingest assignment and state change history. Compute time between assignments. Alert when average handoff exceeds threshold. Report on escalation paths and slow handoffs.
 - **Visualization:** Table (handoff latency by path), Bar chart (avg handoff by group), Sankey (escalation flow).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1116,6 +1226,8 @@ index=itsm sourcetype="kb:usage"
 - **Visualization:** Table (articles by usage), Bar chart (linked incidents vs views), Pie chart (top articles).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-16.3.6 · Major Incident and Post-Mortem Tracking
@@ -1136,6 +1248,8 @@ index=itsm sourcetype="incident"
 - **Implementation:** Ingest major incident and post-mortem status. Alert when post-mortem is overdue. Report on major incident count, MTTR, and post-mortem completion rate. Track root cause categories.
 - **Visualization:** Table (overdue post-mortems), Single value (major incidents this month), Line chart (post-mortem completion rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1158,6 +1272,8 @@ index=itsm sourcetype="request"
 - **Implementation:** Ingest request and approval lifecycle events. Compute approval and fulfillment duration. Alert when average exceeds target. Report on slow catalog items and approvers.
 - **Visualization:** Table (cycle time by catalog item), Bar chart (approval vs fulfillment time), Line chart (trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1182,6 +1298,8 @@ index=itsm (sourcetype="kb:views" OR sourcetype="snow:incident")
 - **Implementation:** Ingest KB view events (ServiceNow KB, Confluence, SharePoint) and incident creation events. Normalize to daily buckets. Compute deflection ratio (views / tickets) — higher ratio suggests effective self-service. Track 7-day rolling average; alert when ratio drops >20% vs prior week. Segment by category: compare KB views for "password reset" vs ticket volume for same category. Identify high-ticket categories with low KB coverage for content creation prioritization.
 - **Visualization:** Line chart (KB views vs ticket volume over time), Single value (deflection ratio), Bar chart (ratio by category), Table (top-deflecting articles).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1209,6 +1327,8 @@ index=itsm sourcetype="snow:incident" state="closed" cmdb_ci=*
 - **Implementation:** Ingest incidents with `cmdb_ci` (or equivalent CI linkage). Ensure resolved timestamps are indexed. For each CI, compute time between consecutive incident resolutions (MTBF). Exclude same-incident reopen/resolve cycles. Join CMDB for CI metadata (class, age, warranty). Alert when MTBF for critical CIs drops below 30-day baseline by >30%. Report top 50 lowest-MTBF CIs for replacement planning. Segment by CI class (server, network device, storage) for fleet-level reliability comparison.
 - **Visualization:** Table (CI, MTBF days, incident count, warranty), Bar chart (MTBF by CI class), Line chart (MTBF trend per CI), Heatmap (CI × time, color = MTBF).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1238,6 +1358,8 @@ index=monitoring sourcetype IN (server_health, app_health, db_health) earliest=-
 - **Visualization:** Single value (composite SLA % per service), Bar chart (SLA vs target), Table (breaching services), ITSI Service Analyzer (if licensed).
 - **CIM Models:** N/A
 
+- **References:** [Splunk ITSI](https://splunkbase.splunk.com/app/1841)
+
 ---
 
 ### UC-16.3.11 · Batch Job Schedule Compliance
@@ -1260,6 +1382,8 @@ index=batch sourcetype="controlm:job" earliest=-7d@d
 - **Visualization:** Table (missed jobs), Calendar (job success by day), Line chart (miss rate trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 
@@ -1280,6 +1404,8 @@ index=cicd sourcetype="controlm:job"
 - **Implementation:** Poll Control-M Automation API for job status and history. Ingest job_id, job_name, status, order_date, end_time, sla_met. Alert on Failed or Ended Not OK. Alert on SLA violations. Track success rate by folder and job. Report on batch job health and SLA compliance percentage.
 - **Visualization:** Table (failed/late jobs), Single value (success rate %), Timeline (job outcomes), Bar chart (failures by folder).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1304,6 +1430,8 @@ index=itsm sourcetype="snow:sc_req_item" earliest=-30d
 - **Visualization:** Bar chart (p90 cycle hours by catalog item), Table (top slow items), Line chart (weekly median cycle time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.3.14 · Priority 1–2 First-Assignment Latency
@@ -1327,6 +1455,12 @@ index=itsm sourcetype="snow:incident" earliest=-30d priority IN (1,2)
 - **Implementation:** (1) Confirm which timestamp represents first assignment in your instance; (2) Exclude bot-created tickets with `caller_id` filters if needed; (3) Alert when `p90_lag_mins` exceeds the response playbook target for two rolling weeks for any group supporting P1/P2.
 - **Visualization:** Bar chart (p90 first-assignment minutes by group), Table (group medians), Line chart (weekly p90 trend).
 - **CIM Models:** Ticket_Management
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Ticket_Management](https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management)
 
 ---
 
@@ -1348,6 +1482,8 @@ index=itsm sourcetype="snow:problem" earliest=-180d
 - **Implementation:** (1) Map `state` values for your problem workflow; (2) Add filters for known backlog categories excluded from SLA; (3) Weekly review of `max_age` with problem managers and link to related `snow:incident` volume via `problem_id` in a companion panel.
 - **Visualization:** Table (open problem aging by group), Bar chart (open count by category), Single value (total open problems).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1373,6 +1509,8 @@ index=itsm sourcetype="snow:incident" earliest=-90d state IN ("closed","resolved
 - **Implementation:** (1) Map the fields your instance uses for article linkage (`task_knowledge`, related lists ingested as multivalue); (2) If `xyseries` is sparse, pivot with `chart median(mttr_hrs) over category by has_kb` instead; (3) Share findings with knowledge coaches when `delta_hrs` is negligible for high-volume categories.
 - **Visualization:** Grouped bar chart (median MTTR with vs without KB by category), Table (delta hours), Line chart (deflection-linked MTTR trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1401,6 +1539,8 @@ index=itsm sourcetype="snow:change_request"
 - **Visualization:** Table (flagged changes), Single value (unauthorized count — target: 0), Timeline (violations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.4.2 · Change Window Compliance Monitoring
@@ -1424,6 +1564,8 @@ index=itsm sourcetype="snow:change_request" state IN ("Closed","Implemented")
 - **Implementation:** Map `planned_start`/`planned_end` and actual work `start_date`/`end_date` from the change record (field names vary—use transforms). Flag implementations that begin early or finish late versus the approved window. Report by assignment group and business service. Exclude emergency changes with documented extensions via change task.
 - **Visualization:** Bar chart (breach % by team), Table (non-compliant CHGs), Line chart (weekly compliance %).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1451,6 +1593,8 @@ index=itsm sourcetype="snow:change_request" state="Closed"
 - **Visualization:** Table (failed CHG + incident count), Timeline (CHG vs incidents), Sankey (change → CI → incidents).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.4.4 · Release Deployment Success Rate Tracking
@@ -1471,6 +1615,8 @@ index=itsm sourcetype="snow:change_request" (category="Release" OR type="Release
 - **Implementation:** Classify changes or release records that represent deployments (release catalog, RFC templates). Normalize `close_code`/`u_outcome`. Optionally join Jenkins/GitHub deployment events by `correlation_id`. Report weekly success rate by application and environment. Alert below target (e.g., 95%).
 - **Visualization:** Line chart (success rate trend), Single value (rolling success %), Bar chart (by application).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1495,6 +1641,8 @@ index=itsm sourcetype="snow:change_request"
 - **Visualization:** Line chart (emergency CHGs per week), Bar chart (by team), Table (recent emergencies with cause).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.4.6 · Change Advisory Board (CAB) Approval Compliance
@@ -1515,6 +1663,8 @@ index=itsm sourcetype="snow:change_request" u_risk IN ("High","1 - High")
 - **Implementation:** Map risk, CAB meeting date, and decision fields from ServiceNow. Define policy: high-risk changes require CAB approval before `Implement`. Allow documented emergency exceptions with `CHG` tasks. Weekly report of violations; integrate with GRC dashboards.
 - **Visualization:** Table (non-compliant CHGs), Single value (CAB compliance %), Pie chart (approved vs missing CAB).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1539,6 +1689,8 @@ index=itsm sourcetype="snow:change_request" u_pir_required="true"
 - **Visualization:** Table (open PIRs), Single value (overdue PIR count), Bar chart (PIR completion SLA by team).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.4.8 · Change Risk Assessment Accuracy
@@ -1562,6 +1714,8 @@ index=itsm sourcetype="snow:change_request" state="Closed"
 - **Visualization:** Matrix heatmap (predicted vs actual), Table (low-risk failures), Line chart (calibration trend quarter over quarter).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.4.9 · Change Backout and Rollback Rate
@@ -1582,6 +1736,12 @@ index=itsm sourcetype="snow:change_request" state="Closed" earliest=-90d
 - **Implementation:** (1) Normalize vendor-specific `close_code` values into the `backed_out` logic; (2) Exclude duplicate closure events by `dedup number` if replays occur; (3) Alert when `backout_pct` exceeds the rolling baseline by 50% for two consecutive weeks.
 - **Visualization:** Line chart (weekly backout %), Single value (90-day backout %), Bar chart (backouts by assignment group from `stats` panel).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user span=1w | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1607,6 +1767,12 @@ index=itsm sourcetype="snow:change_request" state IN ("Closed","Implemented") ea
 - **Implementation:** (1) Convert string timestamps with `strptime` if your TA stores strings instead of epoch—mirror UC-16.4.2 field mappings; (2) Exclude emergency changes with documented extensions via a lookup; (3) Feed chronic overruns into release planning retrospectives.
 - **Visualization:** Table (top overruns), Bar chart (overrun % by assignment group), Histogram (overrun distribution).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1637,6 +1803,12 @@ index=itsm sourcetype="snow:change_request" earliest=-14d
 - **Implementation:** (1) If changes link multiple CIs, pivot from `snow:task_ci` or your m2m table before this join; (2) Keep `max=` tuned (for example 20–100) so the join stays bounded on busy CMDBs; (3) Alert CAB when `overlap_count` exceeds zero for production CIs in the next 72 hours.
 - **Visualization:** Table (CI with overlapping CHG numbers), Timeline (overlapping windows), Single value (collision pairs detected).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1662,6 +1834,12 @@ index=itsm sourcetype="snow:change_request" earliest=-90d
 - **Implementation:** (1) Align `type` values with your change models; (2) Tune the 1.4 multiplier to your risk appetite; (3) Pair with UC-16.4.5 emergency trends to distinguish healthy pre-approval uptake from policy drift.
 - **Visualization:** Line chart (standard % by week), Table (groups exceeding mix guardrail), Stacked bar (change type mix).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user span=1w | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1691,6 +1869,8 @@ index=itsm sourcetype="snow:backlog_daily" earliest=-30d@d
 - **Visualization:** Stacked area or column chart (buckets over 30 days), Line chart (trendline overlays per bucket), Single value (90d+ share of open backlog).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.5.2 · Change Success Rate Trending
@@ -1714,6 +1894,8 @@ index=itsm sourcetype="snow:change_request" earliest=-365d@d state="Closed"
 - **Visualization:** Line chart (weekly success % with trendline), Single value (rolling 13-week average), Table (worst assignment groups).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.5.3 · Knowledge Article Deflection Rate Trending
@@ -1736,6 +1918,8 @@ index=itsm sourcetype="snow:incident" earliest=-180d@d
 - **Implementation:** Map the fields your instance uses for “resolved with knowledge” or portal self-solve. If deflection is only visible on closure codes, translate codes via a lookup. Include chatbot-assisted resolutions if they write back to the incident. Review monthly with content owners when `deflect_pct` flatlines despite new articles.
 - **Visualization:** Line chart (deflection % and trend), Bar chart (deflected count by category), Table (top knowledge articles linked from incidents).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1763,6 +1947,8 @@ index=itsm sourcetype="snow:incident" earliest=-365d@d
 - **Visualization:** Line chart (MTTR hours by priority over quarters), Heatmap (priority × quarter), Optional overlay (overall MTTR from a companion search).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.5.5 · Escalation Rate Trending
@@ -1785,6 +1971,8 @@ index=itsm sourcetype="snow:incident" earliest=-90d@d
 - **Implementation:** Define “escalation” consistently—for example, reassignment to a major-incident queue counts, but simple handoffs within L1 may not. Ingest assignment history if escalation is inferred from group changes. Exclude mass-test records. When `spike=1` for two weeks, trigger a problem review with service owners.
 - **Visualization:** Line chart (escalation % of incidents with trendline), Stacked bar (escalations versus total), Table (assignment groups with highest esc_rate_pct).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
 
 ---
 
@@ -1814,6 +2002,12 @@ index=itsm sourcetype="snow:incident" earliest=-180d@d
 - **Implementation:** (1) Align `target_mins` with contractual priorities; (2) Use `close_ts` instead of `resp_ts` for `_time` if you measure compliance at closure in your KPI model; (3) Alert when `frt_compliance_pct` drops more than 8 points below the trailing 8-week average for two consecutive weeks.
 - **Visualization:** Line chart (weekly first-response compliance % with trendline), Single value (last week compliance), Table (weekly totals).
 - **CIM Models:** Ticket_Management
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category span=1w | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Ticket_Management](https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management)
 
 ---
 
@@ -1839,6 +2033,8 @@ index=itsm sourcetype="snow:incident" earliest=-180d@d
 - **Visualization:** Stacked area chart (channel share % over weeks), Line chart (portal % trend), Table (raw counts by channel).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928)
+
 ---
 
 ### UC-16.5.8 · Open Incident WIP Trending by Priority
@@ -1859,6 +2055,12 @@ index=itsm sourcetype="snow:backlog_daily" earliest=-90d@d
 - **Implementation:** (1) Publish a daily aggregate with `snapshot_date`, `priority`, and `open_count` (open incidents at end of day) to match UC-16.5.1; (2) Normalize `priority` labels from ServiceNow display values; (3) Alert when P1 or P2 `open_count` exceeds a static threshold or 2× the trailing 30-day median for three consecutive snapshots.
 - **Visualization:** Multi-series line chart (P1/P2/P3 WIP per day), Single value (latest P1 WIP), Table (daily snapshot rows).
 - **CIM Models:** Ticket_Management
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category span=1d | sort - count
+```
+
+- **References:** [Splunk_TA_snow](https://splunkbase.splunk.com/app/1928), [CIM: Ticket_Management](https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management)
 
 ---
 

@@ -30,6 +30,8 @@ index=o365 sourcetype="ms:o365:messageTrace"
 | sort -count
 ```
 
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110), [CIM: Email](https://docs.splunk.com/Documentation/CIM/latest/User/Email)
+
 ---
 
 ### UC-11.1.2 · Mailbox Audit Logging
@@ -48,6 +50,8 @@ index=o365 sourcetype="ms:o365:management" Workload="Exchange" Operation IN ("Ma
 - **Implementation:** Enable mailbox audit logging in Exchange Online. Ingest via O365 Management Activity API. Alert on non-owner access to sensitive mailboxes. Track delegate activity. Monitor SendAs events for potential impersonation.
 - **Visualization:** Table (non-owner mailbox access), Bar chart (access by user), Timeline (audit events).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -68,6 +72,8 @@ index=o365 sourcetype="ms:o365:messageTrace"
 - **Visualization:** Pie chart (message classification), Line chart (threat volume trend), Bar chart (top blocked senders).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.1.4 · Teams Usage Analytics
@@ -86,6 +92,8 @@ index=o365 sourcetype="ms:o365:management" Workload="MicrosoftTeams"
 - **Implementation:** Ingest Teams activity reports via Graph API. Track meetings, messages, calls, and file sharing volumes. Monitor call quality metrics (jitter, packet loss). Report on adoption trends per department.
 - **Visualization:** Line chart (Teams activity trend), Bar chart (activity by type), Table (call quality issues).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -106,6 +114,8 @@ index=o365 sourcetype="ms:o365:management" Workload="SharePoint" Operation IN ("
 - **Visualization:** Table (external sharing events), Bar chart (sharing by user), Line chart (sharing trend), Pie chart (sharing type distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.1.6 · DLP Policy Events
@@ -125,6 +135,8 @@ index=o365 sourcetype="ms:o365:management" Workload="Dlp"
 - **Visualization:** Bar chart (violations by policy), Table (top violators), Line chart (violation trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.1.7 · Admin Activity Audit
@@ -143,6 +155,8 @@ index=o365 sourcetype="ms:o365:management" RecordType=1
 - **Implementation:** Ingest O365 admin audit log. Track admin operations by administrator. Alert on sensitive operations (user creation, role changes, policy modifications). Correlate with change management tickets.
 - **Visualization:** Table (admin activities), Timeline (admin events), Bar chart (actions by admin).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -164,6 +178,8 @@ index=o365 sourcetype="ms:o365:management" Operation IN ("New-InboxRule","Set-In
 - **Visualization:** Table (suspicious inbox rules), Single value (external forwarding rules — target: 0), Timeline (rule creation events).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.1.9 · Service Health Monitoring
@@ -182,6 +198,8 @@ index=m365 sourcetype="m365:servicehealth"
 - **Implementation:** Poll M365 Service Health API every 5 minutes. Alert on service degradations and incidents. Track incident duration and frequency. Correlate with internal ticket volumes to measure user impact.
 - **Visualization:** Status grid (service × health), Table (active incidents), Timeline (incident history).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -202,6 +220,8 @@ index=m365 sourcetype="m365:licenses"
 - **Implementation:** Poll M365 license reports via Graph API weekly. Track assigned vs consumed licenses per SKU. Identify inactive users (no activity in 90 days with assigned license). Report on cost optimization opportunities.
 - **Visualization:** Table (license utilization), Gauge (% utilized per SKU), Bar chart (unused licenses by SKU).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -227,6 +247,8 @@ index=m365 sourcetype="m365:licenses"
 - **Visualization:** Line chart (queue depth over time by queue), Single value (max queue depth), Table (queues exceeding threshold), Bar chart (peak depth by server).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### UC-11.1.12 · Exchange Database Copy Queue Length
@@ -251,6 +273,8 @@ index=exchange sourcetype="exchange:dag_status"
 - **Visualization:** Line chart (copy/replay queue over time by database), Table (lagging copies), Single value (max copy queue), Heat map (database × server queue status).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_windows](https://splunkbase.splunk.com/app/742)
+
 ---
 
 ### 11.2 Google Workspace
@@ -274,6 +298,8 @@ index=gws sourcetype="gws:admin" event_name IN ("CREATE_USER","DELETE_USER","CHA
 - **Implementation:** Configure Google Workspace TA to ingest admin audit logs via Reports API. Track user management, policy changes, and configuration modifications. Alert on sensitive operations (role changes, 2FA disablement).
 - **Visualization:** Table (admin events), Timeline (admin activity), Bar chart (events by admin).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -301,6 +327,8 @@ index=gws sourcetype="gws:gmail"
 | sort -count
 ```
 
+- **References:** [CIM: Email](https://docs.splunk.com/Documentation/CIM/latest/User/Email)
+
 ---
 
 ### UC-11.2.3 · Drive Sharing Anomalies
@@ -319,6 +347,8 @@ index=gws sourcetype="gws:drive" event_name="change_user_access"
 - **Implementation:** Ingest Drive audit logs. Alert on external sharing, "anyone with link" sharing, and bulk sharing events. Track sharing patterns per user. Flag sharing of sensitive folders or documents.
 - **Visualization:** Table (sharing events), Bar chart (external sharing by user), Line chart (sharing activity trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -339,6 +369,8 @@ index=gws sourcetype="gws:login" event_name="login_failure"
 - **Visualization:** Table (suspicious logins), Geo map (login locations), Line chart (failure rate), Bar chart (failures by user).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.2.5 · Meet Quality Monitoring
@@ -358,6 +390,8 @@ index=gws sourcetype="gws:meet"
 - **Visualization:** Table (poor quality meetings), Line chart (quality metrics trend), Bar chart (issues by location).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.2.6 · Third-Party App Access
@@ -376,6 +410,8 @@ index=gws sourcetype="gws:token" event_name="authorize"
 - **Implementation:** Ingest token audit logs. Track OAuth grants by application and scope. Identify high-risk scopes (full Drive access, Gmail read). Alert on new third-party apps accessing sensitive scopes. Report for governance review.
 - **Visualization:** Table (third-party apps with scope), Bar chart (apps by user count), Pie chart (scope distribution).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -397,6 +433,8 @@ index=gws sourcetype="gws:drive" event_name="change_user_access"
 - **Visualization:** Table (external shares), Bar chart (domains), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.2.8 · Admin Console Audit (Security Settings)
@@ -416,6 +454,12 @@ index=gws sourcetype="gws:admin"
 - **Implementation:** Alert on SSO IdP changes, 2SV exemptions, and new OAuth client authorizations. Correlate actor with known break-glass accounts.
 - **Visualization:** Timeline (security admin events), Table (actor, event), Single value (critical events 24h).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -437,6 +481,8 @@ index=gws sourcetype="gws:admin" event_name="CHANGE_EMAIL_SETTING"
 - **Visualization:** Table (forwarding changes), Single value (external forwards), Timeline.
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.2.10 · Chrome Management Policy Compliance
@@ -456,6 +502,12 @@ index=gws sourcetype="gws:chrome_management" OR sourcetype="gws:admin" event_nam
 - **Implementation:** Ingest Chrome Enterprise Connector or admin audit for policy pushes. Alert on devices not checking in >7 days. Map OUs to sensitivity.
 - **Visualization:** Table (non-compliant browsers), Bar chart (by OU), Line chart (compliance %).
 - **CIM Models:** Endpoint
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
+```
+
+- **References:** [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
 
 ---
 
@@ -476,6 +528,8 @@ index=gws sourcetype="gws:vault" OR (sourcetype="gws:admin" event_name="VAULT_*"
 - **Visualization:** Timeline (hold changes), Table (matters affected), Single value (hold deletions 90d).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.2.12 · Workspace Marketplace App Review
@@ -490,12 +544,14 @@ index=gws sourcetype="gws:vault" OR (sourcetype="gws:admin" event_name="VAULT_*"
 index=gws sourcetype="gws:token" event_name="authorize"
 | stats values(scope) as scopes by app_name, actor.email
 | mvexpand scopes limit=500
-| search scopes="https://www.googleapis.com/auth/drive*" OR scopes="*gmail*"
+| search scopes="https://www.googleapis.com/auth/drive" OR scopes="*gmail*"
 | sort app_name
 ```
 - **Implementation:** Maintain allowlist of approved apps. Alert on new apps with sensitive scopes. Quarterly access review with app owners.
 - **Visualization:** Table (high-risk grants), Bar chart (apps by user count), Pie chart (scope categories).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -517,6 +573,12 @@ index=gws sourcetype="gws:groups" OR (sourcetype="gws:admin" event_name="GROUP_*
 - **Implementation:** Tag high-impact groups in lookup. Alert on adds to groups with external posting or shared drives.
 - **Visualization:** Table (membership changes), Timeline, Bar chart (changes by group).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -537,6 +599,12 @@ index=gws sourcetype="gws:endpoint" OR sourcetype="gws:mobile"
 - **Implementation:** Ingest device inventory daily. Alert on lost/stolen, rooted/jailbroken, or encryption-off. Integrate with Chrome management (UC-11.2.10).
 - **Visualization:** Table (non-compliant devices), Map (last sync location if available), Line chart (fleet compliance %).
 - **CIM Models:** Endpoint
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
+```
+
+- **References:** [CIM: Endpoint](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)
 
 ---
 
@@ -557,6 +625,8 @@ index=gws sourcetype="gws:meet_quality"
 - **Implementation:** Enable Meet quality logging in Admin. Ingest via BigQuery export or Reports API. Baseline per office ASN. Alert when median MOS proxy metrics exceed SLA.
 - **Visualization:** Table (worst conferences), Line chart (loss/jitter trend), Bar chart (by network location).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -579,6 +649,8 @@ index=gws sourcetype="gws:gmail" event_name="PHISHING_REPORT"
 - **Visualization:** Line chart (reports per hour), Table (top reporters), Bar chart (campaign hash if extracted).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.2.17 · Workspace DLP Rule Violations
@@ -598,6 +670,11 @@ index=gws sourcetype="gws:dlp"
 - **Implementation:** Schedule DLP API or BigQuery export of incidents. Map rules to data classes. Alert on exfiltration-blocked events to external domains.
 - **Visualization:** Bar chart (violations by rule), Table (repeat offenders), Line chart (incident trend).
 - **CIM Models:** DLP
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Data_Loss_Prevention.DLP_Incidents by DLP_Incidents.signature | sort - count
+```
+- **References:** [CIM: DLP](https://docs.splunk.com/Documentation/CIM/latest/User/DLP)
 
 ---
 
@@ -617,6 +694,8 @@ index=gws sourcetype="gws:admin" event_name="REQUEST_DATA_EXPORT"
 - **Implementation:** Alert on any Takeout request for privileged users. Require HR/legal approval lookup for departing employees. Block self-service takeout for high-risk OUs via policy.
 - **Visualization:** Table (export requests), Single value (exports 7d), Timeline.
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -645,6 +724,8 @@ index=voip sourcetype="cisco:ucm:cmr"
 - **Visualization:** Gauge (average MOS), Line chart (MOS trend), Table (poor quality calls), Heatmap (site × quality).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.2 · Call Volume Trending (Cisco CUCM)
@@ -665,6 +746,8 @@ index=voip sourcetype="cisco:ucm:cdr"
 - **Visualization:** Line chart (call volume with prediction), Bar chart (calls by site), Area chart (hourly distribution).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.3 · VoIP Jitter/Latency/Packet Loss (Cisco CUCM)
@@ -684,6 +767,8 @@ index=voip sourcetype="cisco:ucm:cmr"
 - **Implementation:** Parse transport quality metrics from CMR. Alert on jitter >30ms, latency >150ms, or packet loss >1%. Correlate with WAN/LAN performance metrics. Track per-site to identify network segments needing attention.
 - **Visualization:** Multi-metric chart (jitter, latency, packet loss), Table (calls with poor transport), Heatmap (site × metric).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -706,6 +791,8 @@ index=voip sourcetype="cisco:ucm:cdr"
 - **Visualization:** Line chart (trunk utilization), Gauge (% capacity per trunk), Table (trunk utilization summary).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.5 · Conference Bridge Capacity (Cisco CUCM)
@@ -725,6 +812,8 @@ index=voip sourcetype="webex:meetings"
 - **Implementation:** Track conference bridge resource utilization and concurrent participant counts. Alert when approaching capacity limits. Monitor meeting quality metrics at scale. Report on peak usage patterns for capacity planning.
 - **Visualization:** Line chart (concurrent participants), Single value (peak participants today), Bar chart (meetings by size).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -748,6 +837,8 @@ index=voip sourcetype="cisco:ucm:cdr"
 - **Visualization:** Table (suspicious calls), Bar chart (international calls by destination), Timeline (unusual calling activity), Geo map (call destinations).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.7 · Phone Registration Status (Cisco CUCM)
@@ -769,6 +860,8 @@ index=voip sourcetype="cisco:ucm:syslog"
 - **Visualization:** Single value (registered phones), Line chart (registration count trend), Table (recently de-registered devices).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.8 · Webex Meeting Analytics
@@ -788,6 +881,8 @@ index=webex sourcetype="webex:meetings"
 - **Implementation:** Poll Webex API for meeting data. Track meeting counts, participants, duration, and quality. Report on adoption metrics per department. Identify power users and underutilized licenses.
 - **Visualization:** Bar chart (meetings by department), Line chart (meeting volume trend), Table (usage summary), Pie chart (meeting types).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -811,6 +906,8 @@ index=o365 sourcetype="exchange:mailbox_stats"
 - **Visualization:** Table (mailboxes near quota), Bar chart (size by user), Line chart (growth trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.10 · Email Forwarding Rule and Auto-Reply Audit
@@ -832,6 +929,8 @@ index=o365 sourcetype="o365:audit"
 - **Visualization:** Table (rule changes), Timeline (events), Bar chart (changes by user).
 - **CIM Models:** N/A
 
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
+
 ---
 
 ### UC-11.3.11 · Collaboration App Permission and Consent Audit
@@ -852,6 +951,8 @@ index=o365 sourcetype="azure:audit"
 - **Implementation:** Ingest Entra ID consent and app role assignment events. Alert on new high-privilege consents or consent by non-admin. Report on app usage and permission scope.
 - **Visualization:** Table (consent events), Bar chart (apps by consent count), Timeline (consent over time).
 - **CIM Models:** N/A
+
+- **References:** [Splunk_TA_microsoft-cloudservices](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -875,6 +976,8 @@ index=ucm sourcetype="voicemail:metadata"
 - **Visualization:** Table (items past retention), Single value (total over-retained), Bar chart (by mailbox).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.13 · Outbound Email Volume and Domain Anomaly
@@ -896,6 +999,8 @@ index=mail sourcetype="exchange:message_trace" direction=outbound
 - **Implementation:** Ingest message trace or gateway logs for outbound mail. Baseline volume per user and domain. Alert on volume spike or high volume to new domains. Correlate with DLP and sign-in data.
 - **Visualization:** Line chart (outbound volume by user), Table (anomalous senders), Bar chart (recipient domains).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -919,6 +1024,8 @@ index=webex sourcetype="webex:meeting_quality"
 - **Implementation:** Configure a modular input to poll the Webex Meeting Qualities API every 10 minutes (the minimum interval allowed). Requires Pro Pack licensing and an integration with the `analytics:read_all` scope. Quality data is available 10 minutes after a meeting starts and up to 7 days after. Set alert thresholds: MOS < 3.5, packet loss > 5%, jitter > 30 ms, latency > 300 ms. Correlate with participant location and network data to pinpoint root causes.
 - **Visualization:** Line chart (MOS trend over time), Heat map (quality by location/building), Table (worst participants by avg MOS), Single value panels (current avg MOS, packet loss).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -944,6 +1051,8 @@ index=webex sourcetype="webex:calling_cdr"
 - **Visualization:** Timechart (call volume by hour/day), Sankey diagram (call routing flow), Table (CDR detail with filters), Bar chart (calls by location/department).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.16 · Webex Calling Queue Performance and SLA
@@ -968,6 +1077,8 @@ index=webex sourcetype="webex:calling_queue"
 - **Visualization:** Real-time single value panels (current queue depth, avg wait), Line chart (abandon rate over time), Column chart (calls by queue), Table (SLA compliance by queue and time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.17 · Webex Admin Audit Trail
@@ -989,6 +1100,12 @@ index=webex sourcetype="webex:admin_audit"
 - **Implementation:** Register a Webex integration with the `audit:events_read` scope and full admin credentials. Poll the Admin Audit Events API every 5 minutes. Enrich events with admin role information from the People API. Alert on: changes outside business hours, bulk user deletions (>10 in 1 hour), security policy modifications, and admin actions from new IP addresses or locations.
 - **Visualization:** Timeline (admin changes over time), Table (audit log with filters), Bar chart (changes by admin), Pie chart (change types).
 - **CIM Models:** Change
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
+```
+
+- **References:** [CIM: Change](https://docs.splunk.com/Documentation/CIM/latest/User/Change)
 
 ---
 
@@ -1014,6 +1131,11 @@ index=webex sourcetype="webex:compliance"
 - **Implementation:** Enable real-time file DLP in Webex Control Hub (requires Pro Pack and Compliance Officer role). Configure organization-level webhooks with `ownedBy=org` to receive file events. Integrate with your DLP provider (Cisco Cloudlock, Microsoft DLP, Symantec, etc.) for policy enforcement. Forward webhook events to Splunk via HEC. Alert on: any blocked file, users with >3 violations per day, and DLP bypasses (default approved when DLP scanner is unreachable).
 - **Visualization:** Table (DLP violations with file type and actor), Bar chart (violations by user), Timechart (violation trend), Single value (total blocks today).
 - **CIM Models:** DLP
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Data_Loss_Prevention.DLP_Incidents by DLP_Incidents.action, DLP_Incidents.src, DLP_Incidents.user | sort - count
+```
+- **References:** [CIM: DLP](https://docs.splunk.com/Documentation/CIM/latest/User/DLP)
 
 ---
 
@@ -1038,6 +1160,8 @@ index=webex sourcetype="webex:devices"
 - **Visualization:** Map (device locations with status), Table (offline/unhealthy devices), Line chart (environmental trends by room), Single value panels (devices online, firmware compliance %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.20 · Webex License Utilization and Adoption Tracking
@@ -1060,6 +1184,8 @@ index=webex sourcetype="webex:licenses"
 - **Implementation:** Poll the Webex Licenses API daily to track assigned vs. consumed license counts. Cross-reference with meeting and calling activity data to identify users who have licenses but haven't used them in 30/60/90 days. Create a lookup mapping users to departments for group-level reporting. Flag users inactive for >60 days as reclamation candidates. Report license utilization weekly to finance and IT leadership.
 - **Visualization:** Bar chart (license utilization by type), Table (inactive users with assigned licenses), Timechart (license consumption trend), Single value panels (total cost, waste estimate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1084,6 +1210,8 @@ index=webex sourcetype="webex:events" resource="messages"
 - **Implementation:** Register a Webex Compliance integration with the `spark-compliance:events_read` scope to access organization-wide message events. Poll the Events API every 5 minutes for near-real-time visibility. Build user activity baselines over 30 days before enabling anomaly alerting. Alert on: message volume exceeding 3 standard deviations from baseline, bulk file uploads (>20 files in 1 hour), and messages containing URLs to known-bad domains (cross-reference with threat intel). Combine with DLP data for comprehensive messaging security.
 - **Visualization:** Timechart (message volume by department), Table (anomalous users), Bar chart (top active spaces), Line chart (adoption trend over 90 days).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1110,6 +1238,8 @@ index=sharepoint sourcetype="sharepoint:site_usage"
 - **Visualization:** Table (sites near quota), Bar chart (usage by site), Gauge (overall tenant usage %), Line chart (storage growth trend).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.23 · SharePoint Search Crawl Health
@@ -1133,6 +1263,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Implementation:** For on-prem SharePoint, query crawl logs via Search Admin API or `Get-SPEnterpriseSearchCrawlLog` and stream to Splunk. For M365, use Search & Intelligence admin center APIs or export crawl health reports. Ingest crawl start/end, error count, item count, and last successful crawl per content source. Alert on error count spike (>10 errors in 1 hour) or last successful crawl >24 hours ago for critical sources. Track crawl duration and index freshness.
 - **Visualization:** Line chart (crawl errors over time), Table (content sources with errors), Single value (sources with stale index), Bar chart (errors by content source).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1158,6 +1290,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Visualization:** Line chart (availability % over time), Single value (current availability), Table (test, server, agent, availability).
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-11.3.26 · SIP Registration Time Tracking (ThousandEyes)
@@ -1179,6 +1313,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Visualization:** Line chart (TTFB and total time over time), Table (test, TTFB, total time), Single value.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-11.3.27 · RTP MOS Score Monitoring (ThousandEyes)
@@ -1199,6 +1335,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Implementation:** Create RTP (Voice Layer) tests in ThousandEyes targeting voice infrastructure. RTP tests are paired with SIP Server tests. The OTel metric `rtp.client.request.mos` reports MOS (1-5), `rtp.client.request.loss` reports packet loss percentage, `rtp.client.request.pdv` reports Packet Delay Variation in seconds, and `rtp.client.request.discards` reports discarded packets percentage. The Splunk App Voice dashboard includes "RTP MOS" and "RTP Loss (%)" panels. MOS below 3.5 indicates poor call quality.
 - **Visualization:** Line chart (MOS over time), Single value (current MOS), Table (test, agent, MOS, loss, PDV, discards).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -1222,6 +1360,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Visualization:** Line chart (latency to Webex over time), Table (agent, latency, loss, jitter), Dashboard combining TE network data with Webex meeting quality.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-11.3.29 · Microsoft Teams Network Readiness (ThousandEyes)
@@ -1243,6 +1383,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Implementation:** Create Agent-to-Server tests targeting Microsoft Teams media relay IPs and Microsoft 365 front-door endpoints from each office Enterprise Agent. Microsoft publishes recommended network requirements: latency <50ms, loss <1%, jitter <30ms for optimal Teams quality. ThousandEyes provides Microsoft 365 monitoring best practices. Name tests with "Teams" or "M365" for easy filtering.
 - **Visualization:** Table (agent, latency, loss, jitter, readiness status), Single value (sites meeting requirements), Map (readiness by location).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -1266,6 +1408,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Visualization:** Line chart (latency to Zoom over time), Table (agent, latency, loss, jitter), Comparison dashboard across collaboration platforms.
 - **CIM Models:** N/A
 
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
+
 ---
 
 ### UC-11.3.31 · RoomOS Device Network Health via ThousandEyes
@@ -1287,6 +1431,8 @@ index=sharepoint sourcetype="sharepoint:search_crawl"
 - **Implementation:** Enable ThousandEyes agent on Cisco RoomOS devices via Webex Control Hub or xAPI. The agent runs integrated tests from the room device itself, providing true end-to-end network quality measurement from the meeting room. Name agents with a "RoomOS-" or "Room-" prefix for filtering. Tests run from RoomOS devices provide the exact network perspective of the video endpoint.
 - **Visualization:** Table (room device, target, latency, loss, jitter), Map (room locations with quality indicators), Dashboard per building/floor.
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 7719](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -1310,6 +1456,8 @@ sourcetype="stream:rtp"
 - **Implementation:** Install Splunk App for Stream and configure it to capture RTP traffic on voice network segments. Enable the RTP protocol for full field extraction including `mos_session`, `rfactor`, `lost`, `unseq`, and `codec_name`. The MOS is calculated by Stream from RTP statistics (jitter, loss, codec type) per session. Deploy Stream forwarders on network taps or SPAN ports that see voice traffic. Alert when average MOS drops below 3.5 (ITU-T G.107 threshold for acceptable quality). Segment analysis by `codec_name` to identify if codec choice affects quality.
 - **Visualization:** Gauge (average MOS score with thresholds: green >4.0, yellow 3.5-4.0, red <3.5), Line chart (MOS trend over 24h in 15-min buckets), Table (codec_name, avg_mos, avg_rfactor, avg_loss_pct, streams — sortable), Bar chart (stream count by quality category).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1337,6 +1485,8 @@ sourcetype="cisco:ucm:cdr"
 - **Visualization:** Single value (emergency call answer rate — target: 100%, red if <99%), Table (calledPartyNumber, total_calls, answered, answer_rate, avg_answer_sec), Timeline (emergency calls over 30 days), Bar chart (emergency calls by hour of day).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.34 · Answer Seizure Ratio (ASR) by Route Group
@@ -1361,6 +1511,8 @@ sourcetype="cisco:ucm:cdr"
 - **Implementation:** Ingest Cisco UCM CDR data. The `destCause_value=16` (Normal Call Clearing) indicates a successfully answered call. Group by `destDeviceName` (which represents the route group or gateway) to calculate ASR per trunk. Industry standard ASR benchmarks: >50% is acceptable for international routes, >70% is good for domestic routes. For SIP-based tracking via Stream, use `sourcetype="stream:sip"` with `method=INVITE` and calculate the ratio of `reply_code=200` to total INVITEs per `dest`. Alert when ASR drops below historical baseline by more than 10 percentage points.
 - **Visualization:** Gauge (overall ASR with thresholds: green >70%, yellow 50-70%, red <50%), Column chart (ASR by destDeviceName/trunk), Line chart (ASR trend over 7 days), Table (destDeviceName, total_attempts, answered_calls, ASR — sortable, highlighted red below 50%).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1387,6 +1539,8 @@ index=voip sourcetype="cisco:ucm:cdr"
 - **Visualization:** Sankey diagram (call flow from origin → redirect → destination), Table (failed paths with cause codes), Bar chart (failures by cause code), Line chart (path failure rate over 24 hours).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.36 · CUCM CMR Call Quality Heatmap
@@ -1411,6 +1565,8 @@ index=voip sourcetype="cisco:ucm:cmr"
 - **Implementation:** Join CMR records with CDR data on `globalCallID_callId` to obtain device names and caller information. Build a `cucm_device_location` lookup mapping device names to site/location codes from CUCM device pools or locations configuration. Aggregate quality metrics by site-pair to produce the heatmap matrix. Track `severelyConcealedSeconds` as a leading indicator — it measures seconds where >5% of audio frames were interpolated, indicating packet loss that may not yet impact MOS. Schedule hourly during business hours. Alert when any site-pair avg MOS drops below 3.5 for more than 2 consecutive hours. Feed results into SD-WAN QoS policy reviews.
 - **Visualization:** Heatmap (origin site × destination site, colored by avg MOS), Table (site-pairs with worst quality), Line chart (avg MOS per site-pair over 7 days), Gauge (overall fleet MOS).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1437,6 +1593,8 @@ index=voip sourcetype="cisco:ucm:syslog" "%CCM_CALLMANAGER-CALLMANAGER-7-DeviceR
 - **Implementation:** CUCM generates `DeviceRegistered` syslog messages each time a phone registers or re-registers, containing the device name, firmware version (ActiveLoadID), and IP address. Forward CUCM syslog via Splunk Connect for Syslog. Build a `phone_firmware_baseline` lookup with columns: model, recommended_fw, eol_fw (populated from Cisco's firmware recommendations). Schedule daily to track fleet compliance. Alert when compliance percentage drops below 90% or any EOL firmware is detected. For more complete inventory, add a scripted input querying CUCM RIS API for real-time registered device data. Track firmware rollout progress during upgrade campaigns with a timechart of compliant vs non-compliant counts.
 - **Visualization:** Single value (fleet compliance %), Bar chart (compliance by model), Table (non-compliant devices with firmware and IP), Pie chart (firmware version distribution).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1465,6 +1623,8 @@ index=voip sourcetype="cisco:ucm:cdr"
 - **Visualization:** Line chart (utilization % per gateway over 24 hours), Gauge (peak utilization per gateway), Table (gateways above 80%), Bar chart (concurrent calls by gateway at peak hour).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.39 · CUCM Cluster Database Replication Health
@@ -1491,6 +1651,8 @@ index=voip sourcetype="cisco:ucm:syslog" ("DBReplication" OR "Replication" OR "%
 - **Visualization:** Single value (nodes with replication OK vs broken), Table (node replication status), Timeline (replication events), Line chart (replication event rate over 7 days).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.40 · CUCM Call Admission Control (CAC) Rejection Trending
@@ -1516,6 +1678,8 @@ index=voip sourcetype="cisco:ucm:cdr" destCause_value=47
 - **Implementation:** CUCM CDR cause code 47 (Resource Unavailable) indicates CAC rejection. Map `origNodeId` and `destNodeId` to location names via a CUCM location lookup extracted from CUCM Admin. Trend rejections by hour and location pair to identify peak congestion windows. Correlate with WAN utilization data from SD-WAN (cat-05) to validate whether the location bandwidth configuration matches actual link capacity. Alert when any location pair exceeds 5 rejections in an hour — this indicates active user impact. Use this data to justify bandwidth upgrades or QoS policy changes. Track week-over-week trends to measure whether capacity additions reduce rejections.
 - **Visualization:** Line chart (CAC rejections per location pair over 7 days), Heatmap (hour of day × location pair), Table (top rejected location pairs), Single value (total rejections today vs yesterday).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1546,6 +1710,8 @@ index=voip sourcetype="cisco:ucm:cdr"
 - **Implementation:** Ingest CUCM CDR data. The `huntPilotDN` field identifies calls that entered a hunt pilot. `lastRedirectDn` shows where the call was ultimately redirected — if it differs from the hunt pilot, the call overflowed. Calls landing on devices named VM* or Unity* went to voicemail. Calculate answer rate, overflow rate, and voicemail rate per hunt pilot per hour. Alert when overflow exceeds 20% or voicemail exceeds 30% during business hours (8am-6pm). Provide daily reports to department managers showing their hunt group performance. Correlate with agent availability data if integrated with contact center (UC-11.3.42). Use trends to recommend hunt group membership changes or additional line group members during peak periods.
 - **Visualization:** Bar chart (answer/overflow/voicemail split per hunt pilot), Line chart (overflow rate trend over 5 business days), Table (hunt pilots with highest overflow), Single value (fleet-wide answer rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1578,6 +1744,8 @@ index=contact_center sourcetype="wxcc:agent_activity"
 - **Visualization:** Stacked bar chart (state distribution per agent), Gauge (team occupancy), Table (agents with low occupancy or high NotReady), Line chart (team occupancy trend over 30 days).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.43 · Webex Contact Center IVR Containment Rate
@@ -1604,6 +1772,8 @@ index=contact_center sourcetype="wxcc:call_legs"
 - **Implementation:** Ingest WxCC call leg data which tracks each call's journey through the IVR flow. A call is "contained" if it completes with a successful disposition without ever being connected to an agent. Track containment rate daily by entry point (phone number or IVR menu). Industry benchmarks vary: 30-50% for complex support, 60-80% for billing/account inquiries. Alert when containment drops more than 10 percentage points from the 7-day average — this usually indicates an IVR integration failure (e.g., backend API timeout causing the "try again later" path). Correlate IVR path data with specific menu choices to identify where callers bail out. Report weekly to operations leadership with trend and top escalation reasons.
 - **Visualization:** Line chart (containment rate trend over 30 days), Funnel chart (IVR path flow from entry to exit), Bar chart (containment by entry point), Single value (today's containment vs target).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1632,6 +1802,8 @@ index=contact_center sourcetype="wxcc:call_legs" queue_name=*
 - **Visualization:** Table (skill groups with SLA status — green/red), Gauge (SLA % per skill group), Line chart (SLA trend per skill group over 30 days), Bar chart (p95 wait time by skill group).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.45 · UCCX Real-Time Queue and Agent Monitoring
@@ -1657,6 +1829,8 @@ index=contact_center sourcetype="uccx:csq_stats"
 - **Implementation:** Deploy a scripted input that polls the UCCX REST API (available on port 9443) for CSQ statistics every 60 seconds. The API returns calls waiting, calls handled, calls abandoned, average/max wait times, and available agents per CSQ. Parse into structured events and index. For agent-level data, poll the Finesse REST API for agent state and call details. Alert when any CSQ has calls waiting with zero available agents (immediate customer impact). Provide a wallboard-style dashboard with auto-refresh for supervisors. Track historical queue performance trends to validate workforce management forecasts. Combine with UCCX Historical Reporting data for end-of-day analytics.
 - **Visualization:** Single value tiles (calls waiting, longest wait, available agents — per CSQ), Table (all CSQs with status), Line chart (calls waiting trend over shift), Bar chart (handled vs abandoned by CSQ).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1685,6 +1859,8 @@ index=contact_center sourcetype="wxcc:call_legs" disposition="Abandoned"
 - **Implementation:** Ingest both contact center abandon events and network quality metrics (ThousandEyes voice tests, CUCM CMR data, or SD-WAN quality metrics) into Splunk. Classify abandons by timing: calls abandoned within 10 seconds likely experienced a technical failure (no ring, one-way audio, poor quality); calls abandoned after 2+ minutes are likely frustrated by wait time. Correlate with concurrent ThousandEyes MOS scores and packet loss on the voice path. When a cluster of short-duration abandons coincides with network quality degradation, classify as network-caused and alert the network team rather than the workforce management team. Build a daily report showing abandon root cause distribution to drive targeted improvements.
 - **Visualization:** Stacked bar chart (abandons by time bucket), Line chart (abandon count overlaid with MOS score), Table (hourly breakdown with likely cause), Pie chart (root cause distribution).
 - **CIM Models:** N/A
+
+- **References:** [Cisco ThousandEyes App for Splunk](https://splunkbase.splunk.com/app/7719)
 
 ---
 
@@ -1716,6 +1892,8 @@ index=voip sourcetype="cisco:ucm:syslog" "%CCM_CALLMANAGER-CALLMANAGER-7-DeviceR
 - **Visualization:** Pie chart (version distribution per client type), Single value (fleet compliance %), Table (non-compliant devices with version and last seen), Bar chart (compliance by client type).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.48 · IM and Presence Service Availability
@@ -1745,6 +1923,8 @@ index=voip sourcetype="cisco:imp:syslog"
 - **Implementation:** Forward IM&P node syslog via Splunk Connect for Syslog. Key events to monitor: XMPPConnectionFailed (client-facing messaging down), SIPSubscriptionFailed (presence status not updating), PeGroupNode errors (inter-cluster peering broken), and DBReplication issues (configuration sync failures). Classify events by service impact area. Alert when XMPP or Presence events spike above 3 per 5-minute window — this indicates active service degradation. For capacity monitoring, deploy a scripted input collecting IM&P RTMT perfmon counters: active XMPP sessions, SIP subscriptions, message rate, and PE node status. Track session counts against licensed capacity. Correlate IM&P health with CUCM cluster health (UC-11.3.39) as they share infrastructure.
 - **Visualization:** Single value (IM&P service status — green/yellow/red), Timeline (service impact events), Bar chart (events by impact area), Line chart (XMPP session count over 24 hours).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1780,6 +1960,8 @@ index=voip sourcetype="cisco:unity:syslog"
 - **Visualization:** Gauge (port utilization %), Single value (message store capacity %), Timeline (component events), Table (affected components with severity), Line chart (port utilization trend over 24 hours).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.50 · Unity Connection Mailbox Usage and Retention Compliance
@@ -1804,6 +1986,8 @@ index=voip sourcetype="cisco:unity:mailbox"
 - **Implementation:** Deploy a scripted input that queries the Unity Connection CUPI REST API (`/vmrest/users` and `/vmrest/mailbox`) daily to extract per-user mailbox statistics: size, message count, unread count, oldest message date, and quota allocation. Store in a dedicated sourcetype. Build compliance rules: (1) Messages older than 90 days violate standard retention (adjust threshold per organizational policy). (2) Mailboxes above 80% quota need notification. (3) Users where all messages are unread and count exceeds 5 are likely inactive — flag for deprovisioning review. Provide monthly compliance reports to IT governance. Track storage growth trends to forecast Unity Connection storage capacity needs.
 - **Visualization:** Table (users with compliance issues), Pie chart (quota utilization distribution), Bar chart (top 20 mailboxes by size), Single value (total retention violations), Line chart (storage growth trend over 90 days).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1836,6 +2020,8 @@ index=pexip sourcetype="pexip:conference_history"
 - **Implementation:** Deploy a scripted input that polls the Pexip Management REST API at `/api/admin/history/v1/conference/` every 5 minutes. The API returns up to 10,000 conference instances with participant counts and timestamps. Parse the JSON response and index with sourcetype `pexip:conference_history`. Build a `pexip_capacity_lookup` CSV mapping node pools to their maximum participant capacity. Calculate utilization as total concurrent participants divided by capacity. Use `predict` to forecast peak demand 24 hours ahead. Alert when utilization exceeds 80% or when predicted peaks will exceed capacity. Track weekly and monthly growth to support procurement cycles. Correlate with calendar events (all-hands, training) using a `corporate_events` lookup for context.
 - **Visualization:** Line chart (concurrent participants over 24 hours with prediction band), Gauge (current utilization %), Column chart (conference count by hour of day), Single value (peak concurrency today vs capacity).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -1871,6 +2057,8 @@ index=pexip sourcetype="pexip:media_stream"
 - **Visualization:** Pie chart (quality distribution: Good/OK/Bad/Terrible), Heatmap (quality by location pair), Table (worst participants with quality metrics), Line chart (poor stream percentage trend over 7 days).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.53 · Pexip Conferencing Node Capacity and Load
@@ -1897,11 +2085,13 @@ index=pexip sourcetype="pexip:event_sink" event_type="conference*" OR event_type
 - **Visualization:** Column chart (load % per node, colored by status), Line chart (per-node participant count over 24 hours), Single value (cluster-wide utilization %), Table (node status with load metrics).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.54 · Pexip License Consumption Tracking
 - **Criticality:** 🟠 High
-- **Difficulty:** 🟢 Basic
+- **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Capacity, Compliance
 - **Value:** Pexip licensing is typically based on concurrent ports or participants. Exceeding licensed capacity prevents new participants from joining conferences. Under-utilization means wasted license spend. Tracking actual consumption against purchased licenses supports renewal negotiations with real data, identifies peak usage patterns for right-sizing, and provides early warning when growth trends approach license limits.
 - **App/TA:** Custom Pexip TA (scripted input polling Management REST API)
@@ -1922,11 +2112,13 @@ index=pexip sourcetype="pexip:conference_history"
 - **Visualization:** Line chart (daily peak vs average license usage with license limit line), Single value (current usage % with traffic-light color), Gauge (peak usage vs total licenses), Table (monthly summary: peak, avg, growth %).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.55 · Pexip Alarm and Service Health Monitoring
 - **Criticality:** 🔴 Critical
-- **Difficulty:** 🟢 Basic
+- **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Availability, Fault
 - **Value:** Pexip Infinity generates alarms for infrastructure problems: database connectivity loss, licensing errors, node unreachability, certificate expiry, and media resource exhaustion. These alarms represent active service risks that can escalate to conference failures. Centralizing alarm monitoring in Splunk provides correlation with other infrastructure events and enables faster incident response than checking the Pexip management console manually.
 - **App/TA:** Custom Pexip TA (Event Sink API via HEC), `Splunk Connect for Syslog`
@@ -1951,6 +2143,12 @@ index=pexip (sourcetype="pexip:event_sink" event_type="alarm*") OR (sourcetype="
 - **Implementation:** Pexip Event Sink API delivers alarm events to HEC. Also forward Management Node and Conferencing Node syslog via Splunk Connect for Syslog using facility codes local0 (admin) and local2 (support). Classify alarms into categories: Licensing (approaching or exceeding limits), Database (replication or connectivity), Certificate (expiry within 30 days), Node Health (unreachable or degraded nodes), and Media Resources (port or transcoding exhaustion). Alert immediately on Node Health and Media Resources alarms (service-affecting). Alert within 1 hour on Licensing and Database alarms. Certificate alarms should trigger 30 days before expiry. Track alarm frequency over time — increasing alarm rates indicate systemic degradation.
 - **Visualization:** Single value (active alarm count by severity), Timeline (alarm events over 24 hours), Table (active alarms with category and affected hosts), Column chart (alarm count by category over 7 days).
 - **CIM Models:** Alerts
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Alerts.Alerts by Alerts.severity, Alerts.signature, Alerts.app | sort - count
+```
+
+- **References:** [CIM: Alerts](https://docs.splunk.com/Documentation/CIM/latest/User/Alerts)
 
 ---
 
@@ -1984,6 +2182,8 @@ index=pexip sourcetype="pexip:conference_history"
 - **Visualization:** Pie chart (call volume by protocol), Table (routing paths with failure rates), Line chart (calls per protocol over 7 days), Column chart (failure rate by call direction).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.57 · Pexip Participant Join Failure Analysis
@@ -2013,11 +2213,13 @@ index=pexip (sourcetype="pexip:event_sink" event_type="participant_disconnected"
 - **Visualization:** Column chart (failures by category over 24 hours), Single value (total failures last hour), Table (recent failures with participant, conference, reason), Line chart (failure trend by category over 7 days).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.3.58 · Pexip Interoperability and Protocol Mix
 - **Criticality:** 🟡 Medium
-- **Difficulty:** 🟢 Basic
+- **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Performance, Compliance
 - **Value:** Pexip's core value proposition is interoperability — connecting participants across SIP, H.323, WebRTC, Microsoft Teams, and Google Meet. Understanding the protocol mix reveals how the platform is actually being used versus its intended deployment. A shift from H.323 to WebRTC signals endpoint modernization. Growing Teams Connector traffic validates the hybrid meeting room investment. Protocol distribution also affects capacity planning because different protocols consume different amounts of transcoding resources on Conferencing Nodes.
 - **App/TA:** Custom Pexip TA (scripted input polling Management REST API)
@@ -2042,6 +2244,8 @@ index=pexip sourcetype="pexip:participant"
 - **Implementation:** Poll `/api/admin/history/v1/participant/` via the custom Pexip TA. Each participant record includes protocol, user_agent, call quality, and duration. Map user_agent strings to vendor categories using eval case logic. Track protocol distribution over time to identify migration trends (e.g., H.323 declining, WebRTC growing). Compare call quality by protocol and vendor — if Cisco endpoints consistently show higher quality than Poly endpoints, this informs procurement decisions. Generate monthly interoperability reports showing protocol mix, vendor distribution, and quality-by-protocol. This data also supports Pexip license negotiations by showing which features (Teams Connector, WebRTC gateway) drive the most value.
 - **Visualization:** Pie chart (participant count by protocol), Stacked area chart (protocol distribution trend over 30 days), Table (vendor breakdown with quality metrics), Column chart (average quality by protocol).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2073,6 +2277,8 @@ index=mail (sourcetype=syslog process=postfix* OR sourcetype="postfix:syslog")
 - **Visualization:** Single value (SMTP hosts down), Timeline (downtime events), Line chart (event rate per mail host), Table (host, MTA type, last event timestamp).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.4.2 · POP3 / IMAP Mail Retrieval Service Availability
@@ -2095,6 +2301,8 @@ index=mail sourcetype=syslog (process=dovecot OR process=imap OR process=pop3)
 - **Visualization:** Table (host, protocol, port, status), Timeline (downtime events), Single value (services down count), Line chart (login event rate as proxy for service health).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.4.3 · Mail Queue Depth and Deferred Message Backlog
@@ -2114,6 +2322,8 @@ index=mail sourcetype=mail_queue host=*
 - **Implementation:** Run `mailq` or equivalent every 5 minutes. Parse queue depth and deferred count. Alert when queue exceeds 100 or deferred exceeds 50. Correlate with rejection logs and recipient domains.
 - **Visualization:** Line chart (queue depth over time), Table (host, queue, deferred), Single value (max queue).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2135,6 +2345,12 @@ index=mail sourcetype=syslog (process=postfix OR process=sendmail) ("authenticat
 - **Implementation:** Forward mail server logs. Extract auth and relay outcomes. Alert on high volume of auth failures from single IP or relay denied for internal IPs (possible misconfiguration).
 - **Visualization:** Table (IP, user, action, count), Timechart of failures, Map (GeoIP).
 - **CIM Models:** Authentication
+- **CIM SPL:**
+```spl
+| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src, Authentication.action | sort - count
+```
+
+- **References:** [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
 ---
 
@@ -2156,6 +2372,8 @@ index=mail sourcetype=mail_delivery
 - **Implementation:** Parse delivery and bounce events by recipient domain. Compute hourly delivery and bounce rate. Alert when bounce rate exceeds 5% or delivery volume drops significantly for critical domains.
 - **Visualization:** Line chart (delivery and bounce rate by domain), Table (domain, delivered, bounces, %), Bar chart (bounce rate by domain).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2179,6 +2397,8 @@ index=mail sourcetype=mail_send
 - **Visualization:** Table (sender, count, recipients, z-score), Line chart (volume by sender), Bar chart (top senders).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.4.7 · Mail Server TLS and Certificate Expiration
@@ -2200,6 +2420,8 @@ index=mail sourcetype=mail_tls host=*
 - **Visualization:** Table (host, port, days left), Single value (soonest expiry), Gauge (days remaining).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.4.8 · SMTP Relay Monitoring
@@ -2219,6 +2441,8 @@ index=mail sourcetype="postfix:syslog" OR sourcetype=syslog process=postfix
 - **Implementation:** Parse relay lines for authorized vs denied. Alert on high relay denied from single IP (scanning) or high accepted relay to external domains (misconfiguration).
 - **Visualization:** Table (relay domain, count), Line chart (relay attempts), Single value (relay denied rate).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -2245,6 +2469,8 @@ index=zoom sourcetype="zoom:metrics"
 - **Visualization:** Line chart (jitter, loss, RTT over time), Heatmap (participant × metric), Table (worst meetings in window).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.5.2 · Zoom Call Drop Rate Monitoring
@@ -2268,6 +2494,8 @@ index=zoom sourcetype="zoom:meetings"
 - **Visualization:** Line chart (drop rate % over time), Bar chart (drops by region), Single value (drop rate last hour).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.5.3 · Zoom Participant Join Failures
@@ -2286,6 +2514,8 @@ index=zoom sourcetype="zoom:participant" join_result!="success"
 - **Implementation:** Capture join attempts with result, error code, meeting type, and IdP correlation if SAML. Alert on spikes in specific codes (e.g., 3000-series). Compare with Okta/Azure AD sign-in success for the same window.
 - **Visualization:** Table (error_code, count), Line chart (failed joins over time), Bar chart (failures by client type).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2306,6 +2536,8 @@ index=webex sourcetype="webex:device"
 - **Implementation:** Ingest Control Hub device inventory and health APIs. Poll or stream alerts for offline, warning, or error states. Track firmware version drift. Alert on sustained high CPU or temperature before automatic thermal throttling.
 - **Visualization:** Status grid (device × health), Table (devices over threshold), Line chart (CPU/temperature trend).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2329,6 +2561,8 @@ index=webex sourcetype="webex:device"
 - **Visualization:** Line chart (uptime ratio by room), Single value (fleet uptime %), Table (rooms below SLA).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.5.6 · Video Conferencing License Utilization
@@ -2349,6 +2583,8 @@ index=saas (sourcetype="zoom:account" OR sourcetype="webex:license" OR sourcetyp
 - **Visualization:** Bar chart (utilization % by platform), Table (SKU detail), Line chart (assigned licenses over time).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.5.7 · Meeting Recording Storage Trending
@@ -2367,6 +2603,8 @@ index=saas (sourcetype="zoom:recording" OR sourcetype="webex:recording" OR sourc
 - **Implementation:** Ingest recording completion events with byte size and retention class. Sum daily growth per platform. Project growth with linear regression or `predict` on a single series for 30-day forecast. Alert when projected storage crosses budget tiers. Pair with legal hold tags where applicable.
 - **Visualization:** Area chart (storage growth by platform), Line chart (daily_gb trend), Table (largest tenants or sites).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
 
 ---
 
@@ -2387,6 +2625,8 @@ index=m365 sourcetype="m365:teams_cqd"
 - **Implementation:** Ingest CQD or Call Records via Graph / data export. Join subnet or building names from network inventory. Baseline per site. Alert when poor stream percentage or packet loss exceeds SLA. Feed top offenders to network ops.
 - **Visualization:** Table (users/sites with worst quality), Line chart (poor stream % trend), Map or bar chart (quality by building).
 - **CIM Models:** N/A
+
+- **References:** [Splunk Add-on for Microsoft Cloud Services](https://splunkbase.splunk.com/app/3110)
 
 ---
 
@@ -2417,6 +2657,8 @@ index=collaboration sourcetype="webex:room_analytics"
 - **Implementation:** Combine Webex RoomOS room analytics data (PeoplePresence and PeopleCount sensors) with calendar booking data (Exchange/O365 room resource calendar or Webex calendar integration). A room is a "no-show" if it was booked but PeoplePresence remained "No" for the entire booking duration (allow 10-minute grace period). A meeting is an "early release" if it ended more than 50% before the booked end time. Track daily trends per room and building. Identify chronically wasted rooms (>30% no-show rate) for policy intervention. Feed data to Cisco Spaces for automated room release workflows. Provide monthly reports to facilities management with cost-per-wasted-hour calculations based on floor space cost allocation.
 - **Visualization:** Bar chart (no-show % by room), Line chart (fleet-wide no-show rate trend over 90 days), Heatmap (room × day-of-week waste), Table (worst rooms with waste percentage), Single value (weekly wasted hours).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2449,6 +2691,8 @@ index=collaboration sourcetype="webex:room_analytics" people_count=*
 - **Implementation:** Ingest RoomOS PeopleCount data via Webex device telemetry or Cisco Spaces API. Build a `room_inventory` lookup with room ID, name, capacity, type (huddle, conference, boardroom, training), building, and floor. Calculate utilization as people count divided by room capacity. Classify each meeting as oversized, underutilized, right-sized, or overcrowded. Aggregate over 30-90 days to identify persistent patterns (not single outliers). Generate monthly right-sizing recommendations: rooms consistently below 25% utilization are candidates for subdivision or repurposing. Rooms consistently overcrowded need capacity upgrades or booking restrictions. Feed findings into corporate real estate planning with cost per square foot context.
 - **Visualization:** Scatter plot (avg attendees vs room capacity), Bar chart (room utilization by category), Table (rooms with optimization recommendations), Heatmap (building × floor utilization), Single value (fleet-wide average utilization %).
 - **CIM Models:** N/A
+
+- **References:** [Splunkbase app 5580](https://splunkbase.splunk.com/app/5580)
 
 ---
 
@@ -2485,6 +2729,8 @@ index=webex sourcetype="webex:device"
 - **Visualization:** Status grid (room × equipment status — green/red), Table (rooms with active issues), Bar chart (failures by equipment type), Line chart (daily failure count trend), Single value (rooms with issues vs total rooms).
 - **CIM Models:** N/A
 
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
 ---
 
 ### UC-11.5.12 · Digital Signage and Room Scheduler Device Health
@@ -2517,3 +2763,4 @@ index=webex sourcetype="webex:device" (product="Room Navigator" OR mode="Signage
 - **Implementation:** Ingest Webex device telemetry for Room Navigator and signage-mode devices via the Webex Add-on. Room Navigators operate in RoomScheduler mode mounted outside meeting rooms, displaying availability and allowing booking via touch. Digital signage devices display content on lobby screens, wayfinding displays, or cafeteria menus. Monitor connection status (Connected/Disconnected), health state, and firmware version. Alert when any device goes offline for more than 30 minutes during business hours. Track stale devices that haven't checked in recently — these may have power issues or network disconnects that don't generate explicit offline events. Provide a daily health report grouped by building for facilities teams. Track firmware version compliance across the signage fleet.
 - **Visualization:** Status grid (device × status), Table (offline/unhealthy devices), Pie chart (device type distribution), Single value (fleet online percentage), Bar chart (issues by building).
 - **CIM Models:** N/A
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
