@@ -55,14 +55,42 @@ jobs:
           name: junit-dry-run
           path: test-results/
 
+  # Precheck: determine whether the repo has the secrets required to spin up
+  # the Splunk Enterprise service container. We cannot reference
+  # `secrets.*` directly in a job-level `if:` expression, so we expose the
+  # presence of the secret as a boolean output here and gate `splunk-e2e`
+  # on it. This keeps CI green on forks and repos that haven't configured
+  # the optional `UC_TEST_SPLUNK_PASSWORD` / `UC_TEST_HEC_TOKEN` secrets.
+  precheck:
+    name: Precheck secrets
+    runs-on: ubuntu-latest
+    outputs:
+      has-secrets: ${{ steps.check.outputs.has-secrets }}
+    steps:
+      - id: check
+        env:
+          PWD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+        run: |
+          if [ -n "${PWD}" ]; then
+            echo "has-secrets=true" >> "$GITHUB_OUTPUT"
+            echo "UC_TEST_SPLUNK_PASSWORD is configured — E2E job will run."
+          else
+            echo "has-secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::UC_TEST_SPLUNK_PASSWORD not set; skipping E2E run. See docs/enterprise-deployment.md for how to configure."
+          fi
+
   # End-to-end job that spins up Splunk Enterprise and runs every eligible
   # UC against its sample fixture. Gated behind `workflow_dispatch` and
-  # `main` pushes to control runner cost.
+  # `main` pushes to control runner cost, AND on the `precheck` job
+  # confirming that the required secrets are configured.
   splunk-e2e:
     name: Run against Splunk Enterprise
+    needs: precheck
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      needs.precheck.outputs.has-secrets == 'true' && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:

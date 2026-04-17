@@ -114,6 +114,19 @@ Other `scripts/*` files are generators or one-off tools, not part of the default
 
 On pull requests (when paths under use-cases, `build.py`, `non-technical-view.js`, `scripts/`, `CHANGELOG.md`, `index.html`, `VERSION`, etc. change), CI runs all audits above, Node eval on `non-technical-view.js`, **version triple consistency**, then **`python3 build.py`** and fails if `data.js` or `catalog.json` would change (stale generated files).
 
+## UC test harness secrets (`.github/workflows/uc-tests.yml`)
+
+The end-to-end test job spins up a Splunk Enterprise 9.4 service container and runs every UC with a `samples/UC-*/positive.log` fixture against its SPL. Two repository secrets gate the E2E run:
+
+| Secret | Used for |
+|---|---|
+| `UC_TEST_SPLUNK_PASSWORD` | Bootstraps the Splunk service container (admin password) and authenticates REST/HEC calls from `scripts/run_uc_tests.py`. |
+| `UC_TEST_HEC_TOKEN` | HEC token that `run_uc_tests.py` uses to ingest each `positive.log` into the container. |
+
+Set both under *Settings → Secrets and variables → Actions → New repository secret*. Any strong value is acceptable — they only exist for the disposable container; they do not authenticate anywhere else.
+
+When the password secret is missing, the `precheck` job in `uc-tests.yml` short-circuits and the E2E job is skipped cleanly (CI stays green). The pre-flight `Validate fixtures` job always runs and does not require secrets.
+
 ## Build workflow
 
 After **any** catalog content or parser change:
