@@ -10,7 +10,7 @@ This document visualizes the repository structure, build pipeline, and data flow
 flowchart LR
     subgraph sources["Source (Markdown)"]
         INDEX["INDEX.md\ncategory metadata\nicons, starters"]
-        CAT["cat-01 … cat-20\nuse case content\nSPL, CIM, TAs"]
+        CAT["cat-01 … cat-23\nuse case content\nSPL, CIM, TAs"]
     end
 
     subgraph build["Build"]
@@ -54,7 +54,7 @@ flowchart TB
             index_md["INDEX.md"]
             cat1["cat-01-server-compute.md"]
             cat2["cat-02-virtualization.md"]
-            catN["… cat-03 … cat-20"]
+            catN["… cat-03 … cat-23"]
         end
 
         subgraph docs["docs/"]
@@ -65,6 +65,7 @@ flowchart TB
             D5["category-files-and-names.md"]
             D6["github-pages-setup.md"]
             D7["splunk-apps-use-cases-comparison.md"]
+            D8["catalog-schema.md"]
         end
     end
 
@@ -82,7 +83,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph inputs["Inputs"]
-        A["cat-*.md\n(20 files)"]
+        A["cat-*.md\n(23 files)"]
         B["INDEX.md"]
     end
 
@@ -97,7 +98,7 @@ flowchart LR
     subgraph js["data.js"]
         D["DATA\ncategories → subs → UCs"]
         M["CAT_META\nicon, description per cat"]
-        G["CAT_GROUPS\ninfra, security, cloud, app, industry, compliance"]
+        G["CAT_GROUPS\ninfra, security, cloud, app, industry, compliance, business"]
         E["EQUIPMENT\nvendor → model mapping"]
     end
 
@@ -168,6 +169,7 @@ flowchart LR
         app["app\n7,8,11,12,13,14,16"]
         industry["industry\n21"]
         compliance["compliance\n22"]
+        business["business\n23"]
     end
 
     subgraph examples["Category examples"]
@@ -178,6 +180,7 @@ flowchart LR
         E5["Databases"]
         E6["Industry Verticals"]
         E7["Regulatory & Compliance"]
+        E8["Business Analytics"]
     end
 
     infra --> E1
@@ -187,6 +190,7 @@ flowchart LR
     app --> E5
     industry --> E6
     compliance --> E7
+    business --> E8
 ```
 
 ---

@@ -1,0 +1,163 @@
+name: Release
+
+# Packages and publishes the three Splunk content packs (TA, ITSI, ES)
+# as a GitHub Release whenever a semantic-version tag is pushed:
+#
+#     git tag -a v5.2.0 -m "Release v5.2.0" && git push origin v5.2.0
+#
+# It can also be triggered manually via "workflow_dispatch"; the user
+# supplies the version string in that case.
+#
+# The workflow is **read-only** on the repo filesystem (nothing is
+# committed back) and uses the built-in GITHUB_TOKEN with
+# `contents: write` scope only for creating the release and uploading
+# the .spl artefacts.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (without leading v, e.g. 5.2.0)"
+        required: true
+        default: "5.2.0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build content packs
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VER="${{ inputs.version }}"
+          else
+            # Strip leading "v" from the tag ref (refs/tags/v5.2.0 -> 5.2.0).
+            VER="${GITHUB_REF_NAME#v}"
+          fi
+          echo "Resolved version: ${VER}"
+          echo "version=${VER}" >> "${GITHUB_OUTPUT}"
+
+      - name: Sanity-check VERSION / CHANGELOG alignment
+        run: |
+          VER="${{ steps.resolve.outputs.version }}"
+          FILE_VER=$(tr -d '[:space:]' < VERSION)
+          CL_VER=$(grep -m1 '^## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
+          if [ "${FILE_VER}" != "${VER}" ]; then
+            echo "::error::VERSION file (${FILE_VER}) does not match release (${VER})"
+            exit 1
+          fi
+          if [ "${CL_VER}" != "${VER}" ]; then
+            echo "::error::CHANGELOG top entry (${CL_VER}) does not match release (${VER})"
+            exit 1
+          fi
+
+      - name: Regenerate catalog artefacts
+        run: python3 build.py
+
+      - name: Package TA (TA-splunk-use-cases)
+        run: scripts/package_ta.sh dist/
+
+      - name: Package ITSI content pack (DA-ITSI-monitoring-use-cases)
+        run: scripts/package_itsi.sh dist/
+
+      - name: Package ES content pack (DA-ESS-monitoring-use-cases)
+        run: scripts/package_es.sh dist/
+
+      - name: Generate release manifest
+        working-directory: dist
+        run: |
+          ls -1 *.spl | sort > files.txt
+          shasum -a 256 *.spl > SHA256SUMS.txt
+          {
+            echo "## SHA-256 checksums"
+            echo
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+            echo
+            echo "## File sizes"
+            echo
+            echo "| File | Size |"
+            echo "|------|------|"
+            for f in *.spl; do
+              SIZE=$(du -h "${f}" | cut -f1)
+              echo "| \`${f}\` | ${SIZE} |"
+            done
+          } > manifest.md
+          cat manifest.md
+
+      - name: Upload packs as workflow artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: splunk-packs-${{ steps.resolve.outputs.version }}
+          path: |
+            dist/*.spl
+            dist/*.sha256
+            dist/SHA256SUMS.txt
+            dist/manifest.md
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: splunk-packs-${{ needs.build.outputs.version }}
+          path: dist/
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          python3 scripts/extract_release_notes.py \
+            "${{ needs.build.outputs.version }}" \
+            dist/release-body.md
+          echo "--- release body preview ---"
+          cat dist/release-body.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Release v${{ needs.build.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          body_path: dist/release-body.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.spl
+            dist/*.sha256
+            dist/SHA256SUMS.txt
+            dist/manifest.md

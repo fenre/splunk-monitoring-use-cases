@@ -29,8 +29,11 @@ REQUIRED_SPLUNK_APP_KEYS = ("name", "id", "url", "tas", "desc")
 
 
 def parse_si_paths_keys(html_text: str) -> set[str]:
-    start = html_text.find("var SI_PATHS = ")
-    if start == -1:
+    for prefix in ("var SI_PATHS = ", "var SI_PATHS=", "var SI = ", "var SI="):
+        start = html_text.find(prefix)
+        if start != -1:
+            break
+    else:
         return set()
     brace = html_text.find("{", start)
     depth = 0
@@ -43,7 +46,7 @@ def parse_si_paths_keys(html_text: str) -> set[str]:
             depth -= 1
             if depth == 0:
                 block = html_text[brace : i + 1]
-                return set(re.findall(r"(?m)^\s+(\w+)\s*:\s*'", block))
+                return set(re.findall(r"(?m)^\s+(\w+)\s*:\s*['\"]", block))
         i += 1
     return set()
 

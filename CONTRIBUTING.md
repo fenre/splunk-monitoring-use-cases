@@ -106,6 +106,7 @@ python3 scripts/audit_uc_ids.py && python3 scripts/audit_uc_structure.py --full
 | `audit_non_technical_sync.py` | `non-technical-view.js` UC ids exist in markdown; every `cat-NN` category and `## X.Y` subcategory has JS coverage |
 | `audit_changelog_uc_refs.py` | `CHANGELOG.md` version headers (shape, dates, ordering, duplicates); `UC-*` references in markdown point to real headers |
 | `audit_repo_consistency.py` | `INDEX.md` vs `cat-NN-*.md`, icons vs `index.html` `SI_PATHS`, Quick Start UCs, `build.py` `CAT_GROUPS` / `SPLUNK_APPS` |
+| `audit_catalog_schema.py` | `catalog.json` schema validation: category/subcategory/UC structure, required fields, enum values |
 
 Other `scripts/*` files are generators or one-off tools, not part of the default validation loop.
 

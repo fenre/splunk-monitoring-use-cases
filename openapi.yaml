@@ -1,0 +1,463 @@
+openapi: 3.1.0
+info:
+  title: Splunk Monitoring Use Cases — Catalog API
+  summary: >-
+    Read-only JSON API serving the 6,300+ curated Splunk use cases published
+    by the splunk-monitoring-use-cases project.
+  description: |
+    The catalog ships as a collection of **static JSON files** hosted on
+    GitHub Pages.  There is no authentication, rate-limiting, or server-side
+    processing — every endpoint is a plain `GET` returning the same file the
+    `build.py` script generates from the canonical Markdown.
+
+    ## When to use which endpoint
+
+    | Use case                                      | Endpoint                     |
+    |-----------------------------------------------|------------------------------|
+    | Build a navigation or summary page            | `GET /api/index.json`        |
+    | Fetch every UC for a specific category        | `GET /api/cat-{n}.json`      |
+    | Local full-text search, ML pipelines          | `GET /catalog.json`          |
+    | Filter / badge UCs by authoritative source    | `GET /provenance.json`       |
+    | Per-category quality scorecard                | `GET /scorecard.json`        |
+    | LLM retrieval grounding (compact)             | `GET /llms.txt`              |
+    | LLM retrieval grounding (full)                | `GET /llms-full.txt`         |
+    | Search-engine indexing                        | `GET /sitemap.xml`           |
+
+    ## Versioning
+
+    This API follows the repository version in `VERSION`.  The OpenAPI spec
+    itself is regenerated as part of `build.py`; clients should pin on the
+    `X-Catalog-Version` response header (served by GitHub Pages via the
+    file's `Last-Modified` timestamp).
+
+    ## Upstream
+
+    - GitHub repository: <https://github.com/fenre/splunk-monitoring-use-cases>
+    - Interactive dashboard: <https://fenre.github.io/splunk-monitoring-use-cases/>
+  version: "6.0.0"
+  license:
+    name: MIT
+    url: https://github.com/fenre/splunk-monitoring-use-cases/blob/main/LICENSE
+  contact:
+    name: Splunk Monitoring Use Cases contributors
+    url: https://github.com/fenre/splunk-monitoring-use-cases
+
+servers:
+  - url: https://fenre.github.io/splunk-monitoring-use-cases
+    description: GitHub Pages (production)
+  - url: http://localhost:8000
+    description: Local static file server (e.g. `python3 -m http.server 8000`)
+
+tags:
+  - name: index
+    description: Lightweight category summaries for dashboards and navigation.
+  - name: category
+    description: Per-category detail with every UC and sub-category.
+  - name: catalog
+    description: Full catalog artefacts for agents, ML pipelines and bulk sync.
+  - name: llm
+    description: LLM-friendly flat text files.
+
+paths:
+  /api/index.json:
+    get:
+      tags: [index]
+      summary: Category summary list
+      operationId: listCategories
+      description: |
+        Returns an array with one entry per category.  Use this endpoint to
+        build a top-level navigation or table of contents; fetch the full
+        category via `/api/cat-{n}.json` when a user drills in.
+      responses:
+        "200":
+          description: Array of category summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategorySummary'
+              examples:
+                firstEntry:
+                  value:
+                    - number: 1
+                      name: Server & Compute
+                      subcategory_count: 4
+                      uc_count: 275
+
+  /api/cat-{n}.json:
+    get:
+      tags: [category]
+      summary: Category detail with all UCs
+      operationId: getCategory
+      description: |
+        Returns the full JSON for a single category including its
+        sub-categories and every use case.
+      parameters:
+        - in: path
+          name: n
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 23
+          description: Category number (1–23).
+      responses:
+        "200":
+          description: Category detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        "404":
+          description: Category number is outside the supported range.
+
+  /catalog.json:
+    get:
+      tags: [catalog]
+      summary: Full catalog (every UC)
+      operationId: getFullCatalog
+      description: |
+        Returns the complete catalog: every category, sub-category, and
+        use case.  Typical size: 5–10 MB.  Prefer the per-category endpoints
+        above when only a subset is needed.
+      responses:
+        "200":
+          description: Full catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+
+  /provenance.json:
+    get:
+      tags: [catalog]
+      summary: Provenance ledger (per-UC source classification)
+      operationId: getProvenance
+      description: |
+        For every UC, records the *primary origin* of the SPL technique
+        (e.g. `splunk-official`, `vendor-official`, `mitre-attack`,
+        `threat-intel`, `community`) plus the classified list of citation
+        URLs and each UC's last-reviewed date.
+
+        Use this endpoint to filter the catalogue by authoritative source
+        (e.g. "only show UCs backed by official Splunk docs") or to surface
+        provenance badges in your own tooling.
+
+        Regenerated on every `build.py` run by
+        `scripts/build_provenance.py`.
+      responses:
+        "200":
+          description: Provenance ledger
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schema_version, generated_at, total_ucs, entries]
+                properties:
+                  schema_version:
+                    type: integer
+                    example: 1
+                  generated_at:
+                    type: string
+                    format: date-time
+                  total_ucs:
+                    type: integer
+                  origin_counts:
+                    type: object
+                    additionalProperties: {type: integer}
+                  per_category:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      additionalProperties: {type: integer}
+                  entries:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required: [uc_id, origin, origin_label, references]
+                      properties:
+                        uc_id: {type: string}
+                        origin:
+                          type: string
+                          enum: [splunk-official, vendor-official, mitre-attack, nist-compliance, threat-intel, splunk-blog, community, unclassified, contributor]
+                        origin_label: {type: string}
+                        last_reviewed:
+                          type: [string, "null"]
+                          format: date
+                        status:
+                          type: [string, "null"]
+                        references:
+                          type: array
+                          items:
+                            type: object
+                            required: [url, category]
+                            properties:
+                              url: {type: string, format: uri}
+                              category: {type: string}
+
+  /scorecard.json:
+    get:
+      tags: [catalog]
+      summary: Per-category quality scorecard
+      operationId: getScorecard
+      description: |
+        Quality rollup for each top-level category measuring six dimensions —
+        references, provenance authority, freshness, known false positives,
+        MITRE ATT&CK coverage, and sample-fixture coverage — combined into a
+        weighted composite score (0–100) and a letter grade:
+
+        - **Gold** (≥ 85) — production-ready
+        - **Silver** (70–84) — solid, minor gaps
+        - **Bronze** (55–69) — usable, needs attention
+        - **Needs work** (< 55) — authoring effort required
+
+        Regenerated on every `build.py` run by
+        `scripts/generate_scorecard.py`.  See
+        [`docs/scorecard.md`](docs/scorecard.md) for the rendered report.
+      responses:
+        "200":
+          description: Scorecard rollup
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schema_version, generated_at, dimension_weights, categories]
+                properties:
+                  schema_version: {type: integer, example: 1}
+                  generated_at: {type: string, format: date-time}
+                  dimension_weights:
+                    type: object
+                    additionalProperties: {type: number}
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required: [cat_num, name, uc_count, composite, grade]
+                      properties:
+                        cat_num: {type: string}
+                        name: {type: string}
+                        uc_count: {type: integer}
+                        security_count: {type: integer}
+                        references_pct: {type: number}
+                        kfp_pct: {type: number}
+                        mitre_pct: {type: number}
+                        freshness_score: {type: number}
+                        freshness_median_days:
+                          type: [number, "null"]
+                        provenance_authority: {type: number}
+                        samples_pct: {type: number}
+                        composite: {type: number}
+                        grade:
+                          type: string
+                          enum: [Gold, Silver, Bronze, Needs work]
+                        status_distribution:
+                          type: object
+                          additionalProperties: {type: integer}
+                        origin_distribution:
+                          type: object
+                          additionalProperties: {type: integer}
+
+  /llms.txt:
+    get:
+      tags: [llm]
+      summary: Compact LLM context (titles + summaries)
+      operationId: getLlmsCompact
+      description: |
+        Markdown-formatted list of every UC with title, criticality,
+        difficulty, and a single-sentence value statement.  Suitable for
+        grounding LLM responses without exhausting context windows.
+      responses:
+        "200":
+          description: Markdown text
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /llms-full.txt:
+    get:
+      tags: [llm]
+      summary: Full LLM context (all fields flattened)
+      operationId: getLlmsFull
+      description: Markdown text file containing every UC with every field.
+      responses:
+        "200":
+          description: Markdown text
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /sitemap.xml:
+    get:
+      tags: [catalog]
+      summary: XML sitemap for search engines
+      operationId: getSitemap
+      responses:
+        "200":
+          description: sitemap.xml
+          content:
+            application/xml:
+              schema:
+                type: string
+
+components:
+  schemas:
+    CategorySummary:
+      type: object
+      required: [number, name, subcategory_count, uc_count]
+      properties:
+        number:
+          type: integer
+          description: Category number (1–23).
+          minimum: 1
+          maximum: 23
+          examples: [1]
+        name:
+          type: string
+          examples: ["Server & Compute"]
+        subcategory_count:
+          type: integer
+          examples: [4]
+        uc_count:
+          type: integer
+          examples: [275]
+
+    Category:
+      type: object
+      required: [i, n, s]
+      properties:
+        i:
+          type: integer
+          description: Category number.
+          examples: [1]
+        n:
+          type: string
+          description: Category display name.
+          examples: ["Server & Compute"]
+        src:
+          type: string
+          description: Source markdown file (relative path).
+          examples: ["use-cases/cat-1.md"]
+        s:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subcategory'
+
+    Subcategory:
+      type: object
+      required: [i, n, u]
+      properties:
+        i:
+          type: string
+          description: Dotted identifier — `{category}.{subcategory}`.
+          examples: ["1.1"]
+        n:
+          type: string
+          examples: ["Linux Servers"]
+        u:
+          type: array
+          items:
+            $ref: '#/components/schemas/UseCase'
+
+    UseCase:
+      type: object
+      description: |
+        A single monitoring use case.  Field names are abbreviated one-letter
+        keys to minimise payload size; see `docs/use-case-fields.md` for the
+        human-readable schema.
+      required: [i, n]
+      properties:
+        i:
+          type: string
+          description: Dotted UC ID — `{category}.{subcategory}.{uc}`.
+          examples: ["1.1.1"]
+        n:
+          type: string
+          description: UC name.
+          examples: ["CPU Utilization Trending (Linux)"]
+        c:
+          type: string
+          description: Criticality.
+          enum: [critical, high, medium, low]
+        f:
+          type: string
+          description: Difficulty / friction to implement.
+          enum: [beginner, intermediate, advanced]
+        v:
+          type: string
+          description: Business value / outcome (single paragraph).
+        t:
+          type: string
+          description: Technology / app identifier, Markdown-formatted.
+          examples: ["`Splunk_TA_nix`"]
+        d:
+          type: string
+          description: Data source description (Markdown).
+        q:
+          type: string
+          description: SPL query (verbatim, may contain newlines).
+        m:
+          type: string
+          description: Implementation / method guide.
+        z:
+          type: string
+          description: Visualisation hint.
+        kfp:
+          type: string
+          description: Known false positives.
+        refs:
+          type: string
+          description: Markdown-formatted references (links).
+        mitre:
+          type: array
+          description: MITRE ATT&CK technique IDs (e.g. `T1110`, `T1078.004`).
+          items:
+            type: string
+        dtype:
+          type: string
+          description: Device type tag (for OT use cases).
+        sdomain:
+          type: string
+          description: Security domain tag.
+        reqf:
+          type: string
+          description: Required data fields (comma-separated).
+        md:
+          type: string
+          description: Full Markdown rendering of the UC.
+        status:
+          type: string
+          description: Draft / reviewed / deprecated.
+          enum: [draft, reviewed, deprecated]
+        last_reviewed:
+          type: string
+          format: date
+          description: ISO-8601 date of the most recent review.
+        splunk_versions:
+          type: string
+          description: Comma-separated Splunk versions where the UC has been validated.
+        reviewer:
+          type: string
+          description: GitHub handle of the most recent reviewer.
+        qs:
+          type: boolean
+          description: Marked as a Quick Start UC in `use-cases/INDEX.md`.
+
+    Catalog:
+      type: object
+      required: [DATA]
+      properties:
+        DATA:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        VERSION:
+          type: string
+          description: Catalog version copied from the repository's `VERSION` file.
+          examples: ["5.2.0"]
+        GENERATED_AT:
+          type: string
+          format: date-time
+          description: UTC ISO-8601 timestamp when `build.py` produced the artefact.
