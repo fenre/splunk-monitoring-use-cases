@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/peer-review-signoff.schema.json",
+  "title": "Peer-review signoff record (Phase 4.5a)",
+  "description": "Machine-readable sign-off entry recording that a second engineer has reviewed a compliance-gated pull request against the six-point rubric in docs/peer-review-guide.md.",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "required": ["generated_at", "baseline_commit", "signoffs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri-reference",
+      "description": "Optional IDE-tooling hint pointing to this schema."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the last time this file was updated (hand-editing is fine; the value is informational)."
+    },
+    "baseline_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$",
+      "description": "Short or long SHA of the commit that introduced this file. Peer-review gating applies to commits AFTER this baseline; earlier content is grandfathered (see docs/peer-review-guide.md \u00a76)."
+    },
+    "documentation": {
+      "type": "string",
+      "description": "Human-readable pointer to the rubric (docs/peer-review-guide.md)."
+    },
+    "signoffs": {
+      "type": "array",
+      "description": "One record per PR or direct commit that passed the peer-review gate. Append-only \u2014 never rewrite history.",
+      "items": { "$ref": "#/$defs/signoff" }
+    }
+  },
+  "$defs": {
+    "signoff": {
+      "type": "object",
+      "required": [
+        "pr",
+        "date",
+        "commit",
+        "author",
+        "reviewer",
+        "scope",
+        "checks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pr": {
+          "type": "string",
+          "pattern": "^(#[0-9]+|direct-commit)$",
+          "description": "GitHub PR number with leading '#', or the literal string 'direct-commit' for landings that bypass a PR (discouraged)."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO-8601 date (UTC) the sign-off was recorded."
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Short or long SHA of the commit being signed off."
+        },
+        "author": {
+          "type": "string",
+          "minLength": 2,
+          "description": "GitHub handle (with or without leading '@') of the PR author. MUST differ from reviewer."
+        },
+        "reviewer": {
+          "type": "string",
+          "minLength": 2,
+          "description": "GitHub handle (with or without leading '@') of the peer reviewer. MUST differ from author."
+        },
+        "secondReviewer": {
+          "type": "string",
+          "minLength": 2,
+          "description": "Optional second reviewer for major refactors or 10+ UC PRs (see docs/peer-review-guide.md \u00a75)."
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "description": "UC IDs reviewed, plus meta-scope markers for non-UC paths (see enum pattern).",
+          "items": {
+            "type": "string",
+            "pattern": "^((0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)|regulations\\.json|schema|primer|evidence-pack:[a-z0-9-]+|crosswalks|golden-tests|data/provenance/.+|docs/.+)$"
+          }
+        },
+        "checks": {
+          "type": "object",
+          "required": [
+            "clausePrecision",
+            "assuranceHonesty",
+            "mitreOscalCrossRefs",
+            "provenance",
+            "derivatives",
+            "buildHygiene"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "clausePrecision":     { "$ref": "#/$defs/checkResult" },
+            "assuranceHonesty":    { "$ref": "#/$defs/checkResult" },
+            "mitreOscalCrossRefs": { "$ref": "#/$defs/checkResult" },
+            "provenance":          { "$ref": "#/$defs/checkResult" },
+            "derivatives":         { "$ref": "#/$defs/checkResult" },
+            "buildHygiene":        { "$ref": "#/$defs/checkResult" }
+          }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text reviewer note. REQUIRED when any check is 'fail' (explain the fix applied) or when 'derivatives' is 'n/a' (state why the UC is not derivative content). The author-differs-from-reviewer invariant is enforced by scripts/audit_peer_review_signoffs.py, not by this schema (JSON Schema cannot cross-compare sibling field values)."
+        }
+      }
+    },
+    "checkResult": {
+      "type": "string",
+      "enum": ["pass", "fail", "n/a"],
+      "description": "pass = reviewer verified; fail = rubric point failed and was fixed before merge (note required); n/a = rubric point does not apply to this PR (note required only for 'derivatives')."
+    }
+  }
+}

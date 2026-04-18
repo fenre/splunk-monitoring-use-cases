@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.12.38",
+  "title": "SOX-ITGC ChangeMgmt.Testing — Financial-system change test-evidence completeness",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CFO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT judge test quality; attests each financial-system change has test evidence (UAT artefact, attachment or ticket) linked to it before deploy.",
+  "evidence": "Saved search 'sox_itgc_change_testing' (hourly) emits per change: change_id, system, test_evidence_present, tester, deployed_at, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Testing",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX-ITGC ChangeMgmt.Testing — test-evidence presence is direct evidence."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOC 2 CC8.1 Change management — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.32",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.32 Change management — directly evidenced."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "6.4.6",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI-DSS 6.4.6 Impact of changes — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Implementing a financial-system change with no UAT subtask returns test_evidence_present=0.",
+    "negativeScenario": "A change with a closed-complete UAT subtask is absent.",
+    "fixtureRef": "sample-data/uc-22.12.38-fixture.json"
+  },
+  "dataSources": "`index=change` sourcetype=servicenow:change; test evidence sub-table sourcetype=servicenow:change_task (type=UAT).",
+  "app": "Splunk Add-on for ServiceNow",
+  "spl": "index=change sourcetype=servicenow:change state=implemented earliest=-7d\n| lookup financial_systems_apps.csv system OUTPUT in_scope\n| where in_scope=\"yes\"\n| stats latest(_time) AS deployed_at latest(change_id) AS change_id BY change_id system\n| join type=outer change_id\n  [search index=change sourcetype=servicenow:change_task task_type=uat state=closed_complete earliest=-60d\n   | stats latest(assigned_to) AS tester count AS uat_tasks BY change_id]\n| eval test_evidence_present=if(uat_tasks>=1,1,0)\n| where test_evidence_present=0\n| table change_id system tester deployed_at test_evidence_present",
+  "description": "For every change to a financial system, assert a closed-complete UAT task exists. SOX-ITGC ChangeMgmt.Testing requires documented test evidence.",
+  "value": "Converts a common sampling control into full-coverage evidence, reducing audit sampling and cost.",
+  "implementation": "(1) Maintain financial_systems_apps.csv; (2) configure ServiceNow to require a UAT subtask; (3) schedule UC hourly; (4) test_evidence_present=0 triggers a deficiency record.",
+  "visualization": "Table of missing-test changes, bar chart by system, single value 'missing test evidence'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "SOX-ITGC PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Automated changes (configuration as code) may use automated test jobs rather than UAT tasks — accept sourcetype=cicd:tests result=pass as equivalent evidence.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "change_id",
+    "system",
+    "state",
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

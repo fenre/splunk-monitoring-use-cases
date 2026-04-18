@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/sme-review-signoff.schema.json",
+  "title": "SME review signoff record (Phase 5.2)",
+  "description": "Machine-readable sign-off entry recording that a qualified subject-matter expert has reviewed a UC (or a pack of UCs) for technical correctness against the authoring data source and for regulatory-evidence acceptability. Distinct from the Phase 4.5a peer review (engineering rubric) and the Phase 4.5b legal review (regulatory claim surface). See docs/sme-review-guide.md for the full process.",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "required": ["generated_at", "baseline_commit", "signoffs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri-reference",
+      "description": "Optional IDE-tooling hint pointing to this schema."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the last time this file was updated (hand-editing is fine; the value is informational)."
+    },
+    "baseline_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$",
+      "description": "Short or long SHA of the commit that introduced this file. SME-review gating applies to commits AFTER this baseline; earlier tier-1 content is grandfathered (see docs/sme-review-guide.md \u00a77)."
+    },
+    "documentation": {
+      "type": "string",
+      "description": "Human-readable pointer to the rubric (docs/sme-review-guide.md)."
+    },
+    "signoffs": {
+      "type": "array",
+      "description": "One record per PR (or direct commit) that passed the SME-review gate. Append-only \u2014 never rewrite history.",
+      "items": { "$ref": "#/$defs/signoff" }
+    }
+  },
+  "$defs": {
+    "signoff": {
+      "type": "object",
+      "required": [
+        "pr",
+        "date",
+        "commit",
+        "reviewer",
+        "reviewerRole",
+        "scope",
+        "outcome",
+        "checks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pr": {
+          "type": "string",
+          "pattern": "^(#[0-9]+|direct-commit)$",
+          "description": "GitHub PR number with leading '#', or the literal string 'direct-commit' for landings that bypass a PR (discouraged)."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO-8601 date (UTC) the SME signed off."
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Short or long SHA of the commit the SME reviewed (the final commit after any requested revisions)."
+        },
+        "reviewer": {
+          "type": "string",
+          "minLength": 2,
+          "description": "SME's name and firm/role. Full name is intentional \u2014 the signoff file is public and auditors need an attributable review chain. Reviewers may redact to firm + role if they prefer not to be named (see docs/sme-review-guide.md \u00a75)."
+        },
+        "reviewerRole": {
+          "type": "string",
+          "enum": [
+            "splunk-engineer",
+            "regulatory-auditor",
+            "security-architect",
+            "industry-sme",
+            "internal-review-board"
+          ],
+          "description": "splunk-engineer: professional-services / customer-success Splunk engineer who has deployed the data source. regulatory-auditor: qualified auditor (CISA, CIPP/E, QSA, HITRUST CCSFP, ISO 27001 Lead Auditor, etc.). security-architect: enterprise security architect validating detection logic. industry-sme: industry-specific expert (clinician for HIPAA, CFO/controller for SOX-ITGC, power-system engineer for NERC CIP). internal-review-board: multi-member internal panel (used when no single SME covers the scope). See docs/sme-review-guide.md \u00a72."
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 2
+          },
+          "description": "Optional list of recognised credentials (e.g. 'QSA', 'CIPP/E', 'CISA', 'Splunk Core Certified Consultant'). Serves as auditor-facing evidence of competency. Recommended for reviewerRole='regulatory-auditor'."
+        },
+        "scope": {
+          "type": "object",
+          "required": ["ucs"],
+          "additionalProperties": false,
+          "properties": {
+            "ucs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+              },
+              "description": "UC IDs reviewed. Minimum one entry \u2014 an SME signoff without UC scope is meaningless (SME review is always anchored to a concrete UC)."
+            },
+            "regulations": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "GDPR",
+                  "UK-GDPR",
+                  "PCI-DSS",
+                  "HIPAA",
+                  "SOX-ITGC",
+                  "SOC2",
+                  "ISO-27001",
+                  "NIST-CSF",
+                  "NIST-800-53",
+                  "NIS2",
+                  "DORA",
+                  "CMMC"
+                ]
+              },
+              "description": "Tier-1 regulations in scope for the SME review. SME review is mandatory whenever a UC claims a tier-1 clause with assurance='full' OR carries a controlTest that cites SPL for a tier-1 audit-evidence clause (see docs/sme-review-guide.md \u00a71)."
+            },
+            "fixtures": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 3 },
+              "description": "Optional list of sample-data fixture paths the SME verified (e.g. 'sample-data/uc-22.14.3/positive.json'). Populated when the SME replayed the fixture against the SPL and confirmed the expected polarity."
+            },
+            "evidencePacks": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 3 },
+              "description": "Optional list of evidence-pack paths reviewed (e.g. 'docs/evidence-packs/hipaa.md'). Populated when the SME validated the evidence-pack claims against their industry knowledge of what an auditor would accept."
+            }
+          }
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "approved",
+            "approved-with-revisions",
+            "rejected",
+            "conditional",
+            "scope-downgrade"
+          ],
+          "description": "See docs/sme-review-guide.md \u00a73 for the effect of each outcome on the PR."
+        },
+        "checks": {
+          "type": "object",
+          "required": [
+            "splCorrectness",
+            "dataSourceRealism",
+            "splunkCompat",
+            "evidenceCompleteness",
+            "regulationApplicability",
+            "falsePositiveAssessment"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "splCorrectness":           { "$ref": "#/$defs/checkResult" },
+            "dataSourceRealism":        { "$ref": "#/$defs/checkResult" },
+            "splunkCompat":             { "$ref": "#/$defs/checkResult" },
+            "evidenceCompleteness":     { "$ref": "#/$defs/checkResult" },
+            "regulationApplicability":  { "$ref": "#/$defs/checkResult" },
+            "falsePositiveAssessment":  { "$ref": "#/$defs/checkResult" }
+          }
+        },
+        "revisionsRequested": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 10 },
+          "description": "REQUIRED when outcome is 'approved-with-revisions'. One string per revision the SME required before sign-off. Each entry MUST describe the before/after (e.g. 'UC-22.14.3 SPL changed from base search `index=main` to `index=wineventlog EventCode=4625 OR EventCode=4740` to remove the acknowledged FP on Windows lockout events')."
+        },
+        "caveats": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 10 },
+          "description": "REQUIRED when outcome is 'conditional'. Each caveat is propagated into an smeCaveat field on the relevant UC sidecar \u2014 typically field-extraction prerequisites, data-source version constraints, or industry-scope limitations (e.g. 'Only applies to deployments where Windows Event Forwarding is enabled; legacy wmic collection will miss the event in ~8% of cases')."
+        },
+        "rejectionReason": {
+          "type": "string",
+          "minLength": 20,
+          "description": "REQUIRED when outcome is 'rejected'. Explain why the UC cannot land as-authored (factually wrong SPL, data source that does not produce the claimed fields, clause cited at an unattainable assurance level, etc.)."
+        },
+        "fixtureReplayResult": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "replayed": { "type": "boolean" },
+            "positiveDetected": { "type": "boolean" },
+            "negativeSilent": { "type": "boolean" },
+            "notes": { "type": "string" }
+          },
+          "description": "Optional structured record of the SME's fixture replay. When present, it MUST be self-consistent: 'replayed=false' implies 'positiveDetected' and 'negativeSilent' are not decisive, and the checks.splCorrectness result should therefore be 'n/a' rather than 'pass'. When 'replayed=true', both 'positiveDetected' and 'negativeSilent' are expected to be populated; any mismatch with checks.splCorrectness is flagged by the audit script. Keep this open-ended enough to record 'close-but-not-exact' polarity where the UC's intended detection fires in a compensating way."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text reviewer note. Typical content: data-source version tested, Splunk release tested against, industry-specific context (e.g. 'Reviewed against an Epic EHR deployment on Windows Server 2022; HL7 MSH segment parsing relies on the default Epic HL7 modular input and falls back to the TA-hl7 if the input is absent.'), or notes on the difference between the intended detection and what the fixture actually exercised."
+        }
+      }
+    },
+    "checkResult": {
+      "type": "string",
+      "enum": ["pass", "fail", "n/a"],
+      "description": "pass = SME verified. fail = rubric point failed and was fixed before merge (rationale required in 'notes' or 'revisionsRequested'). n/a = rubric point does not apply (e.g. 'falsePositiveAssessment' is 'n/a' when the UC is a satisfies-only record-keeping control with no detection SPL)."
+    }
+  }
+}

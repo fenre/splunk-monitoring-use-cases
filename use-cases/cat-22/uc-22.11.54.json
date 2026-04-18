@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.54",
+  "title": "Service Account Inventory Reconciliation — Unexpected SPN or Delegation Changes",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "8.6.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` EventCode 4742,4738,5136 (Directory Service Changes for `servicePrincipalName`)",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (4742,4738) earliest=-7d\n| where match(_raw,\"(?i)servicePrincipalName|TrustedToAuthForDelegation|msDS-AllowedToDelegateTo)\")\n| lookup pci_service_accounts.csv SamAccountName OUTPUT pci_svc\n| where pci_svc=\"true\"\n| stats earliest(_time) as first_change, values(EventCode) as codes by SamAccountName, SubjectUserName\n| sort - first_change",
+  "value": "Tracks modifications to Kerberos SPNs and constrained delegation on payment-related service accounts so non-human identities stay inventoried and cannot silently gain broader authentication rights.",
+  "implementation": "(1) Maintain `pci_service_accounts.csv` from CMDB. (2) Map EventCode descriptions for auditors. (3) Require CAB for SPN edits. (4) Daily diff email to identity team.",
+  "visualization": "Table (changes), timeline, single value (weekly change count).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

@@ -1,0 +1,114 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.36.2",
+  "title": "Right-to-erasure propagation completeness across downstream systems",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "DPO",
+  "controlFamily": "data-subject-request-lifecycle",
+  "exclusions": "Does NOT validate erasure from third-party processors (see UC-22.44.1) or legitimately-retained records under Art.17(3) exceptions.",
+  "evidence": "Saved search 'erasure_propagation_gap' runs hourly and writes system-by-system deletion evidence to compliance_summary; evidence-pack report per erasure request.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.17 right to erasure requires that the data be erased 'without undue delay'. The UC tracks completion across every downstream system listed in the ROPA."
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.17(2)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.17(2) requires reasonable measures to inform third parties; this UC surfaces the subset of third-party processors that acknowledged the erasure, but the DPO must verify the remainder manually."
+    },
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.105",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "§1798.105 consumer right to delete; the UC tracks deletion across every system registered in the business's consumer-facing record."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.17 (parent assurance='full'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.17",
+        "parentAssurance": "full",
+        "inheritanceMode": "identity"
+      }
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.17(2)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.17(2) (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.17(2)",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When an erasure ticket is closed but at least one registered downstream system has no deletion_ack within 7 days, the UC fires naming the subject_token and the system(s) missing the ack.",
+    "negativeScenario": "Systems covered by a lawful-retention exception (retention_hold=true in erasure_exceptions.csv) do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.36.2-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=dsar subject_token=* action=erasure earliest=-180d\n| stats values(system) as acked_systems by subject_token ticket_id\n| lookup ropa_system_map.csv ticket_id OUTPUT systems_in_scope\n| eval missing=mvfilter(NOT match(acked_systems, system))\n| where mvcount(missing)>0\n| table ticket_id subject_token systems_in_scope acked_systems missing",
+  "description": "Enforces that every registered downstream system reports a deletion acknowledgement for each accepted erasure request within seven days. A subject_token that persists past the SLA in any system is a direct Art.17 / CPRA §1798.105 finding.",
+  "value": "Moves the erasure claim from 'we believe it propagated' to 'we proved it propagated, system by system' — exactly the evidence supervisory authorities ask for on first inspection.",
+  "implementation": "(1) Publish a ropa_system_map.csv lookup keyed by ticket_id → list of systems-in-scope; (2) ingest deletion-ack events from each system (DB TTL jobs, DWH deletion manifests, app-level hooks); (3) run hourly; (4) integrate with SOAR to auto-reopen tickets with missing acks.",
+  "visualization": "Matrix of ticket_id × system with green/red cells; aging histogram; single-value for 'in-scope systems with ack in SLA'.",
+  "cimModels": [
+    "Ticket Management"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=CIV&division=3.&title=1.81.5.&part=4.&chapter=&article=",
+      "title": "California Consumer Privacy Act (CCPA/CPRA)",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Systems that hold data under a legitimate retention obligation (tax law, medical records) will 'miss' an ack. Use erasure_exceptions.csv to exclude them per ticket.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

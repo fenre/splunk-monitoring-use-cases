@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.1",
+  "title": "GDPR PII Detection in Application Log Data",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.5/6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=main` OR `index=web` OR `index=app` — any high-volume text-bearing sourcetype such as `sourcetype=\"access_combined\"`, `sourcetype=\"log4j\"`, or custom application sourcetypes",
+  "app": "Splunk Edge Processor (Splunk Cloud Platform — ingest-time PII rules), Splunk Common Information Model Add-on (Splunkbase 1621)",
+  "spl": "(index=main OR index=web OR index=app) earliest=-24h\n| regex _raw=\"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\"\n| eval pii_type=\"email\"\n| append [\n    search (index=main OR index=web OR index=app) earliest=-24h\n    | regex _raw=\"\\b\\d{3}-\\d{2}-\\d{4}\\b\"\n    | eval pii_type=\"ssn_pattern\"\n  ]\n| stats count by index, sourcetype, host, pii_type\n| sort - count",
+  "value": "Detects email, phone, and SSN patterns in indexed application and web logs so controllers can prove technical measures for data minimisation and lawful processing under Arts. 5-6.",
+  "implementation": "(1) In Splunk Cloud, configure Edge Processor pipelines with built-in PII detection rules for net-new data to mask at ingest; (2) run this SPL against existing indexes to find residual PII; (3) route hits to a restricted summary index for DPO review; (4) remediate at source (masking, log redaction, field drops in props.conf/transforms.conf) and re-run to verify reduction.",
+  "visualization": "Bar chart (hits by sourcetype/host), Table (top offending sources by PII type), Single value (total PII pattern matches vs prior period).",
+  "cimModels": [
+    "Web (for `access_combined` when CIM-tagged)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1005"
+  ],
+  "equipment": [
+    "hardware_bmc"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ]
+}

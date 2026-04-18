@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.30",
+  "title": "Malware Detection Volume Trend by Store and Server Tier",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "5.3.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=edr` `sourcetype=\"crowdstrike:detection\"`; ES `malware` data model if accelerated",
+  "app": "Splunk Add-on for CrowdStrike FDR (5082), Splunk Enterprise Security (263)",
+  "spl": "index=edr sourcetype=\"crowdstrike:detection\" earliest=-30d\n| lookup pci_site_codes.csv aid OUTPUT store_region, pci_tier\n| where pci_tier IN (\"pos\",\"store_server\",\"corp_payment\")\n| bin _time span=1d\n| stats count by _time, store_region, pci_tier\n| eventstats sum(count) as daily_total by _time\n| eval share_pct=if(daily_total>0, round(100*count/daily_total,2), null())\n| sort _time, store_region",
+  "value": "Trends malware blocks and quarantines where payment systems exist so regional infection campaigns are visible before they spread into the CDE.",
+  "implementation": "(1) Map CrowdStrike `aid` to store metadata. (2) Filter out benign test detections via `severity` threshold. (3) Compare to seasonal retail baseline. (4) Include in monthly security committee pack.",
+  "visualization": "Stacked area (count by pci_tier), line (`share_pct` by region), heatmap (region x day).",
+  "cimModels": [
+    "Malware"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Malware.Malware_Attacks by Malware_Attacks.action, Malware_Attacks.signature, Malware_Attacks.dest span=1d | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for CrowdStrike FDR",
+      "url": "https://splunkbase.splunk.com/app/5082"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for CrowdStrike FDR",
+      "url": "https://splunkbase.splunk.com/app/5994"
+    },
+    {
+      "title": "CIM: Malware",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "crowdstrike"
+  ]
+}

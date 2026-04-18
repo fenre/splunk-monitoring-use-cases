@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.16",
+  "title": "DORA Vulnerability Assessment and Penetration Test Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.25",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vulnerability` (scan results), `dora_testing_schedule.csv` (planned test calendar), `index=itsm` (remediation tickets)",
+  "app": "Tenable Add-On for Splunk (Splunkbase 4060), Splunk Add-on for Qualys (Splunkbase 2964)",
+  "spl": "| inputlookup dora_testing_schedule.csv\n| eval planned_date=strptime(scheduled_date, \"%Y-%m-%d\")\n| eval days_until_due=round((planned_date - now())/86400, 0)\n| eval test_status=case(\n    completed=\"yes\", \"COMPLETED\",\n    days_until_due < 0, \"OVERDUE\",\n    days_until_due <= 30, \"DUE_SOON\",\n    1=1, \"SCHEDULED\")\n| append [\n    search index=vulnerability sourcetype IN (\"tenable:vuln\",\"qualys:hostdetection\") state=\"Active\" earliest=-90d\n    | lookup dora_critical_systems.csv system_name AS host OUTPUT critical_function\n    | where isnotnull(critical_function)\n    | eval sla_days=case(severity=\"Critical\",7, severity=\"High\",30, severity=\"Medium\",90, 1=1,180)\n    | eval age_days=round((now()-first_found)/86400,1)\n    | eval sla_breach=if(age_days > sla_days, 1, 0)\n    | stats sum(sla_breach) as overdue_vulns, count as total_vulns by critical_function\n    | eval test_type=\"Vulnerability_Remediation\", test_status=if(overdue_vulns > 0, \"REMEDIATION_OVERDUE\", \"ON_TRACK\")\n    | table test_type, critical_function, total_vulns, overdue_vulns, test_status\n]\n| table test_type, critical_function, scheduled_date, test_status, total_vulns, overdue_vulns\n| sort test_status",
+  "value": "Article 25 requires vulnerability assessments, network security assessments, source code reviews, scenario-based tests, and penetration testing for all ICT systems supporting critical functions. This use case tracks test execution, coverage, and finding remediation — ensuring the full testing program required by DORA is executed on schedule and that identified vulnerabilities are remediated within defined SLAs.",
+  "implementation": "(1) Create `dora_testing_schedule.csv` with all planned vulnerability assessments, pen tests, source code reviews, and scenario tests per Art. 25 requirements; (2) alert when tests are overdue; (3) track vulnerability remediation SLAs for DORA-critical systems; (4) report testing coverage and finding trends to management body; (5) for central securities depositories and central counterparties, ensure pre-deployment vulnerability assessments per Art. 25(2).",
+  "visualization": "Table (test schedule with status), Bar chart (overdue tests by type), Single value (testing coverage %), Pie chart (test status distribution).",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "cimSpl": "| tstats summariesonly=t sum(Vulnerabilities.cvss) as agg_value from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - agg_value",
+  "references": [
+    {
+      "title": "Tenable Add-On for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "Splunk Add-on for Qualys",
+      "url": "https://splunkbase.splunk.com/app/2964"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1562"
+  ],
+  "equipment": [
+    "m365",
+    "qualys",
+    "tenable"
+  ]
+}

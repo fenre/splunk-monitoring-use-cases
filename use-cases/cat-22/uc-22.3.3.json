@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.3",
+  "title": "DORA Digital Operational Resilience Testing",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.24-27",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=itsi_summary` (service_name, kpi_name, alert_value, severity_value, is_service_in_maintenance, _time)",
+  "app": "Splunk IT Service Intelligence (Splunkbase 1841)",
+  "spl": "index=itsi_summary earliest=-90d is_service_in_maintenance=0\n| eval kpi_l=lower(kpi_name)\n| where match(kpi_l,\"(dr|disaster|resilience|failover|recovery|rto|rpo|backup|restore)\")\n| bin _time span=1d\n| stats latest(alert_value) as last_value, latest(severity_value) as last_severity by _time, service_name, kpi_name\n| eval test_fail=if(last_severity>=4 OR last_value>0, 1, 0)\n| timechart span=7d sum(test_fail) as failed_observations, dc(service_name) as impacted_services",
+  "value": "Tracks scheduled resilience test outcomes via ITSI KPI breaches and highlights testing gaps (missing runs, failed thresholds) for Board/ICT oversight reporting on digital resilience.",
+  "implementation": "(1) Standardize KPI naming for resilience tests with tokens like `DR`, `Failover`, `Restore` in `kpi_name`; (2) ensure ITSI services represent regulated business services; (3) exclude maintenance noise via `is_service_in_maintenance`; (4) add a lookup of expected test windows and compare expected vs observed runs for gap detection.",
+  "visualization": "Timechart (failed observations), Heatmap (service x week), Table (last failures with drilldown to deep dives).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk IT Service Intelligence",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "itsi"
+  ],
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence (ITSI)"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.2",
+  "title": "GDPR Data Subject Access Request Fulfillment Tracking",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.15-22",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.16",
+      "clauseUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "GDPR Art.16 Right to rectification — UC fulfilment tracker covers Art.15-22 data-subject rights end-to-end, including rectification workflow timestamps and SLA adherence."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.16",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.16 (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.16",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "dataSources": "`index=itsm` `sourcetype=\"snow:sc_req_item\"` (number, cat_item, opened_at, closed_at, state, short_description) or `sourcetype=\"snow:incident\"` (number, category, opened_at, closed_at, short_description, priority)",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "index=itsm (sourcetype=\"snow:sc_req_item\" OR sourcetype=\"snow:incident\")\n    (cat_item=\"*Subject Access*\" OR short_description=\"*DSAR*\" OR short_description=\"*data subject*\")\n| eval opened_epoch=strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| eval closed_epoch=if(isnotnull(closed_at), strptime(closed_at, \"%Y-%m-%d %H:%M:%S\"), null())\n| eval age_days=round((now()-opened_epoch)/86400, 1)\n| eval sla_met=if(isnotnull(closed_epoch) AND (closed_epoch-opened_epoch)<=2592000, \"Met\", \"Missed\")\n| eval open_breach=if(isnull(closed_epoch) AND age_days>30, \"Open_SLA_Breach\", null())\n| table _time, number, sourcetype, state, age_days, sla_met, open_breach, short_description\n| sort - age_days",
+  "value": "Measures DSAR ticket lifecycle from opened to closed against a 30-calendar-day SLA so privacy and audit teams can evidence timely handling of access, rectification, erasure, and portability requests.",
+  "implementation": "(1) Install Splunk Add-on for ServiceNow (1928) with sc_req_item and incident inputs enabled; (2) align `cat_item`/`short_description` filters with your DSAR catalogue naming; (3) confirm timestamp format in `opened_at`/`closed_at` and adjust `strptime` format if needed; (4) schedule daily and alert on `open_breach`.",
+  "visualization": "Column chart (Met vs Missed), Time chart (DSAR volume), Table (open breaches), Single value (% within 30 days).",
+  "cimModels": [
+    "Ticket Management (ServiceNow TA mappings)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Ticket Management",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "servicenow"
+  ]
+}

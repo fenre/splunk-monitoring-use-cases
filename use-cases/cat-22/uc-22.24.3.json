@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.24.3",
+  "title": "Trust Service Availability and Error Rate Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "eIDAS",
+      "version": "Regulation (EU) 2024/1183",
+      "clause": "eIDAS",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=trust` `qtsp:service:health` — trust_service, serial, not_after, ocsp_url, http_status, wallet_id",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=trust sourcetype=\"qtsp:service:health\" earliest=-7d\n| eval eidas_tag=\"avail\"\n| eval exp_epoch=strptime(not_after,\"%Y-%m-%dT%H:%M:%SZ\")\n| eval days_to_exp=round((exp_epoch-now())/86400,1)\n| stats count as events, min(days_to_exp) as min_days, sum(eval(http_status>=400)) as http_err by trust_service, eidas_tag\n| eval uc_id=\"22.24.3\"\n| where min_days < 30 OR http_err>0 OR eidas_tag=\"susp\"\n| sort min_days\n| head 200",
+  "value": "Supports qualified trust service auditing, wallet security monitoring, and PKI integrity evidence expected under eIDAS trust frameworks.",
+  "implementation": "(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review.",
+  "visualization": "Single value (min_days), Table (trust_service), Time chart (http_err)",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

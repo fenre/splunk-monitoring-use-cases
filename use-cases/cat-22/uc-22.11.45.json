@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.45",
+  "title": "Shared and Break-Glass Account Usage on Payment Infrastructure",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "8.6.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` EventCode 4624; `index=linux` `linux:secure`",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833)",
+  "spl": "(index=windows sourcetype=\"WinEventLog:Security\" EventCode=4624 earliest=-24h)\n OR (index=linux sourcetype=\"linux:secure\" earliest=-24h)\n| eval acct=coalesce(TargetUserName,user)\n| lookup pci_shared_accounts.csv account AS acct OUTPUT shared_flag\n| where shared_flag=\"true\"\n| lookup pci_in_scope_hosts.csv host OUTPUT in_scope\n| where in_scope=\"true\"\n| stats values(src_ip) as src_ips, count by acct, host\n| sort - count",
+  "value": "Tracks authentications to shared admin or break-glass accounts on in-scope systems so unique identification requirements are enforced except for documented emergency scenarios.",
+  "implementation": "(1) Inventory all shared accounts with approvers. (2) Require ticket number in logon script where possible. (3) Alert on concurrent src_ips. (4) Quarterly review of `src_ips` diversity.",
+  "visualization": "Table (acct, host, src_ips), chord or link chart (acct to src_ip), single value (distinct shared logons).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

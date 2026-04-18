@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.55",
+  "title": "TCA Scan-Before-Connect Compliance from NAC or Agent Logs",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-010-4 R5 Part 5.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=network` `sourcetype=cisco:ise:radius` or `sourcetype=pan:globalprotect`",
+  "app": "Splunk Enterprise Security (263)",
+  "spl": "index=network sourcetype=cisco:ise:radius earliest=-24h Acct-Status-Type=Start\n| lookup tca_device_registry.csv calling_station_id OUTPUT asset_tag\n| where isnotnull(asset_tag)\n| join type=left calling_station_id [\n    search index=endpoint sourcetype=defender:scan earliest=-24h\n    | rename device_id as calling_station_id\n    | stats latest(scan_result) as scan by calling_station_id\n  ]\n| where scan!=\"clean\" OR isnull(scan)\n| table _time, calling_station_id, user, scan, asset_tag",
+  "value": "We verify transient cyber assets received a successful posture or malware scan before being granted ESP network access.",
+  "implementation": "(1) Align RADIUS calling-station IDs with endpoint inventory keys. (2) Tune for your NAC vendor sourcetype. (3) Block or quarantine integration outside Splunk. (4) Retain pass/fail for audits.",
+  "visualization": "Table (non-compliant TCA), Single value (count), Timeline",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "cisco_ise",
+    "paloalto_globalprotect"
+  ]
+}

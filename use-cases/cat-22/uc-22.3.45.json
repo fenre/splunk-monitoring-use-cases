@@ -1,0 +1,105 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.45",
+  "title": "DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does NOT assess the quality of the test (not a TLPT scope tool); attests that the annual testing programme executed on time and the per-test evidence is present.",
+  "evidence": "Saved search 'dora_art24_testing_attest' (daily) emits per test: test_id, test_type, scope_service, planned_date, actual_run_date, pass_fail, finding_count, evidence_complete (boolean), to the compliance_summary index.",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.24",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.24 requires an established digital operational-resilience testing programme; evidencing that the plan executed with per-test evidence is the direct control output."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.29",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.29 Information security during disruption — related; DR scope overlaps with the testing programme."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CA-8",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NIST 800-53 CA-8 Penetration Testing — contributing evidence for the penetration-test subset of the plan."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Removing a planned test's execution record from index=testing past its planned_date+14d causes the UC to flag evidence_complete=0 on the next daily run.",
+    "negativeScenario": "A test with a recorded actual_run_time within the tolerance window reports evidence_complete=1, on_time=1.",
+    "fixtureRef": "sample-data/uc-22.3.45-fixture.json",
+    "attackTechnique": "T1562"
+  },
+  "dataSources": "`index=testing` sourcetype=test:plan_execution (BAS/TLPT/DR runs); `index=ticketing` sourcetype=jira:issue (findings tickets); test-plan register `dora_test_plan.csv`.",
+  "app": "Splunk Enterprise Security",
+  "spl": "| inputlookup dora_test_plan.csv\n| eval planned_date_et=strptime(planned_date,\"%Y-%m-%d\")\n| join type=outer test_id\n  [search index=testing sourcetype=test:plan_execution\n   | stats latest(_time) AS actual_run_time latest(pass_fail) AS pass_fail sum(finding_count) AS finding_count BY test_id]\n| eval evidence_complete=if(isnotnull(actual_run_time),1,0)\n| eval on_time=if(actual_run_time<=planned_date_et+86400*14,1,0)\n| table test_id test_type scope_service planned_date actual_run_time pass_fail finding_count evidence_complete on_time",
+  "description": "Pivots the DORA test-plan register against the actual execution telemetry from the BAS/TLPT/DR tooling. Each planned test either has matching execution evidence within a 14-day tolerance or it does not — the latter is a direct Art.24 non-conformance.",
+  "value": "Gives the CISO and the ICT risk committee a single-query attestation that the operational-resilience testing programme executed as planned, replacing an email-based reconciliation that typically slips by weeks.",
+  "implementation": "(1) Maintain dora_test_plan.csv as the approved annual programme; (2) normalise execution output from BAS/DR tools to sourcetype=test:plan_execution; (3) schedule UC daily; (4) evidence_complete=0 past planned_date + 14d escalates to CISO; (5) per-quarter report to Board; (6) missing TLPT for significant entities escalates immediately.",
+  "visualization": "Calendar heatmap of test executions, bar chart of findings per scope service, single value 'tests past due'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/",
+      "title": "MITRE ATT&CK — T1562",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Tests rescheduled due to change freeze produce a legitimate gap — record the rescheduled_date and rebase the 14d tolerance.",
+  "mitreAttack": [
+    "T1562"
+  ],
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "test_id",
+    "planned_date",
+    "actual_run_time",
+    "pass_fail"
+  ],
+  "equipment": [
+    "jira"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

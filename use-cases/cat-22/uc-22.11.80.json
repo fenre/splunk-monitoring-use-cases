@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.80",
+  "title": "External Network Scan Job Failures and Timeout Trending",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.3.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vm` `qualys:scan_summary` or vendor API log `qualys:scan_target`",
+  "app": "Splunk Add-on for Qualys (2964)",
+  "spl": "index=vm sourcetype=\"qualys:scan_summary\" earliest=-180d\n| where match(scan_title,\"(?i)external|perimeter|PCI)\")\n| eval failed=if(match(status,\"(?i)error|cancel|timeout|auth\\\\s*fail\"),1,0)\n| timechart span=30d sum(failed) as failed_jobs, count as jobs\n| eval fail_rate=if(jobs>0, round(100*failed_jobs/jobs,2), null())\n| trendline sma2(fail_rate) as fail_trend",
+  "value": "Trends scan job timeouts and authentication failures so external vulnerability scanning remains reliable and gaps do not cause missed quarterly compliance windows.",
+  "implementation": "(1) Deduplicate rescheduled runs by `scan_id`. (2) Correlate auth fails with credential vault rotations. (3) Alert when `fail_rate` exceeds 10%. (4) Document compensating manual scans if needed.",
+  "visualization": "Line (`fail_rate`, `fail_trend`), column (`failed_jobs`), table (last error text truncated).",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "cimSpl": "| tstats summariesonly=t sum(Vulnerabilities.cvss) as agg_value from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest span=30d | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Add-on for Qualys",
+      "url": "https://splunkbase.splunk.com/app/2964"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "hashicorp",
+    "qualys"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ]
+}

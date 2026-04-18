@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.79",
+  "title": "Quarterly Internal Scan Remediation Aging Buckets",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.3.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vm` `qualys:host` with `FIRST_FOUND_DATETIME`, `STATUS`",
+  "app": "Splunk Add-on for Qualys (2964)",
+  "spl": "index=vm sourcetype=\"qualys:host\" earliest=-120d\n| where match(TAGS,\"(?i)PCI|CDE)\")\n| where match(STATUS,\"(?i)active|new|reopened)\")\n| eval age_days=round((now()-strptime(FIRST_FOUND_DATETIME,\"%Y-%m-%dT%H:%M:%SZ\"))/86400,1)\n| eval bucket=case(age_days<=30,\"0-30d\", age_days<=60,\"31-60d\", age_days<=90,\"61-90d\",1=1,\"90+d\")\n| stats count by bucket, SEVERITY_LEVEL\n| sort bucket",
+  "value": "Buckets open internal scan findings by age so quarterly rescan and fix cycles for high-risk issues remain on schedule and visible to management dashboards.",
+  "implementation": "(1) Confirm Qualys timestamp format for `strptime`. (2) Map `SEVERITY_LEVEL` to PCI risk. (3) Executive stack chart weekly. (4) Align `90+d` alerts with remediation charter.",
+  "visualization": "Stacked column (bucket x severity), pie (90+d share), table (raw host list drilldown).",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Qualys",
+      "url": "https://splunkbase.splunk.com/app/2964"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "qualys"
+  ]
+}

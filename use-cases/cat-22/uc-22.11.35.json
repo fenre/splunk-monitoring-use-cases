@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.35",
+  "title": "Web Application Firewall Blocks and Anomalies on Checkout URIs",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.4.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=waf` `sourcetype=\"aws:waf:logs\"`; `sourcetype=\"modsec:json\"`",
+  "app": "Splunk Add-on for AWS (1876), Splunk Enterprise Security (263)",
+  "spl": "index=waf (sourcetype=\"aws:waf:logs\" OR sourcetype=\"modsec:json\") earliest=-24h\n| where match(coalesce(uri,httpRequest.uri),\"(?i)/checkout|/payment|/cart|/token\")\n| where action IN (\"BLOCK\",\"block\",\"deny\",\"403\")\n| stats count by terminatingRuleId, coalesce(uri,httpRequest.uri) as path, clientIp\n| sort - count\n| head 200",
+  "value": "Aggregates ModSecurity, AWS WAF, or commercial WAF denies on payment paths so public-facing web applications retain active attack detection between code releases.",
+  "implementation": "(1) Normalize field names with CIM aliases. (2) Enrich `clientIp` with threat intel. (3) Tune out scanner noise using rate limits. (4) Feed spikes to application on-call.",
+  "visualization": "Column chart (by rule ID), geomap (clientIp), table (path, count).",
+  "cimModels": [
+    "Web"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws"
+  ]
+}

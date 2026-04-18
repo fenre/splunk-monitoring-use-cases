@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.8",
+  "title": "NIS2 One-Month Final Incident Report Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.23(4)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`` `notable` `` macro, `index=itsm` `sourcetype=\"snow:incident\"` (PIR/RCA records)",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "`notable` urgency IN (\"high\",\"critical\") status=\"Closed\" earliest=-60d\n| eval days_since_close=round((now()-_time)/86400, 1)\n| eval final_report_due=if(days_since_close>=30, 1, 0)\n| eval final_report_approaching=if(days_since_close>=21 AND days_since_close<30, 1, 0)\n| lookup pir_completion_lookup notable_id AS event_id OUTPUT pir_status, pir_date, root_cause_documented\n| fillnull value=\"NOT_SUBMITTED\" pir_status\n| where (final_report_due=1 AND pir_status!=\"Complete\") OR final_report_approaching=1\n| table _time, rule_name, urgency, owner, days_since_close, pir_status, root_cause_documented, final_report_due\n| sort - final_report_due, - days_since_close",
+  "value": "Article 23(4) requires a comprehensive final report within one month of the incident notification, containing root cause analysis, detailed description, mitigation measures applied, and cross-border impact assessment. This use case tracks whether closed significant incidents have completed post-incident reviews within the mandated timeframe.",
+  "implementation": "(1) Create `pir_completion_lookup` linking notable IDs to post-incident review (PIR) records from ServiceNow or Confluence; (2) alert at 21 days for incidents without started PIRs; (3) escalate at 30 days for overdue final reports; (4) require root cause analysis, timeline, mitigation actions, and cross-border assessment fields before marking PIR as complete.",
+  "visualization": "Table (overdue final reports), Single value (PIRs due this week), Bar chart (PIR status distribution), Timeline (incident-to-PIR lifecycle).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1048"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

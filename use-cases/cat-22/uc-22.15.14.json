@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.14",
+  "title": "Weak OTP or Missing MFA Step for OT VPN",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "SR 1.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`pan:globalprotect` or `pan:auth`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=vpn sourcetype=\"pan:globalprotect\" earliest=-7d\n| eval mfa=coalesce(factor_type, auth_method, mfa_mechanism)\n| where stage=\"login\" AND (isnull(mfa) OR mfa=\"none\" OR mfa=\"password-only\")\n| lookup ot_vpn_profiles.csv portal OUTPUT requires_mfa\n| where requires_mfa=\"true\"\n| stats count by user, portal, public_ip, host\n| sort - count",
+  "value": "Identifies VPN authentications that skip second factor or reuse legacy token methods for paths into OT jump zones.",
+  "implementation": "(1) Map portals to MFA policy; (2) upgrade GP app versions enforcing MFA; (3) block legacy profiles; (4) weekly exception report to IAM.",
+  "visualization": "Table, Single value (violations), Time chart.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ]
+}

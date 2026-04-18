@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.1",
+  "title": "HIPAA Risk Analysis Evidence — Asset & ePHI System Inventory",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.308(a)(1)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=assets` (CMDB/ES assets), `index=vulnerability` (Tenable), `index=epic` `sourcetype=epic:integration` (interface engine hosts), Windows Security 4688/5156 for clinical app servers",
+  "app": "Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621)",
+  "spl": "(index=assets sourcetype IN (\"cmdb:server\",\"es:assets\")) OR (index=vulnerability sourcetype=\"tenable:vuln\")\n| eval ephi_system=if(match(lower(_raw),\"epic|cerner|clarity|caboodle|emr|ehr|phi|hipaa\"),1,0)\n| stats latest(_time) as last_seen values(sourcetype) as sources dc(host) as hosts by system_name, ip\n| lookup ephi_system_register.csv ip OUTPUT contains_ephi, data_owner, baa_id\n| where contains_ephi=\"true\" OR ephi_system=1\n| sort - last_seen",
+  "value": "Correlates systems that store or transmit ePHI with vulnerability and patch posture so security leaders can evidence an ongoing, documented risk analysis aligned with the Security Rule.",
+  "implementation": "(1) Maintain `ephi_system_register.csv` with IP/CIDR, owner, and BAA ID; (2) normalize host/IP fields across CMDB and vuln feeds; (3) schedule weekly and route gaps to GRC for formal risk register updates; (4) attach CVSS and compensating controls in ticketing.",
+  "visualization": "Table (system, owner, last vuln scan), Bar chart (critical findings by ePHI tier), Single value (unscanned ePHI hosts).",
+  "cimModels": [
+    "Vulnerabilities (when Tenable is CIM-tagged)",
+    "N/A for mixed CMDB"
+  ],
+  "cimSpl": "| tstats summariesonly=t dc(Vulnerabilities.dest) as agg_value from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "tenable"
+  ]
+}

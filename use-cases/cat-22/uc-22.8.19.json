@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.19",
+  "title": "SOC 2 CC6 — Timeliness of Access Removal After HR Termination Events",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=hr` `sourcetype=\"workday:termination\"` (employee_id, term_effective_ts); `index=identity` `sourcetype=\"okta:system\"` (eventType, target_user_id, published)",
+  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Workday/Okta logs via HEC",
+  "spl": "index=hr sourcetype=\"workday:termination\" earliest=-30d\n| eval term=strptime(term_effective_ts,\"%Y-%m-%dT%H:%M:%SZ\")\n| join type=left employee_id [\n    search index=identity sourcetype=\"okta:system\" eventType=\"user.lifecycle.deactivate\" earliest=-30d\n    | eval deactivated=strptime(published,\"%Y-%m-%dT%H:%M:%SZ\")\n    | stats min(deactivated) as first_deact by target_user_id\n    | rename target_user_id as employee_id\n  ]\n| eval lag_sec=first_deact-term\n| eval lag_min=round(lag_sec/60,1)\n| where lag_min>120 OR isnull(first_deact)\n| table employee_id, term, first_deact, lag_min",
+  "value": "CC6 expects removal of access when no longer required. Measuring lag between HR termination timestamp and last successful disablement event across IdM and key SaaS apps proves offboarding SLAs are met—high-risk evidence for every SOC examination.",
+  "implementation": "(1) Align `employee_id` across HR and IdM; (2) tune 120 minutes to contractual SLA; (3) add parallel tracks for AD disable and VPN revoke; (4) page IAM on breach; (5) monthly median lag KPI for management review.",
+  "visualization": "Table (breaches), Histogram (lag_min), Single value (p95 lag).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "equipment": [
+    "okta"
+  ]
+}

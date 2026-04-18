@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.15",
+  "title": "ESP Inbound First-Seen External Source Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-005-6 R1 Part 1.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=network` `sourcetype=pan:traffic`, lookup `esp_inbound_baseline.csv`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757), Splunk Enterprise Security (263)",
+  "spl": "index=network sourcetype=pan:traffic dest_zone=\"ESP_DMZ\" action=allowed earliest=-24h\n| eval ext_src=if(cidrmatch(\"10.0.0.0/8\",src) OR cidrmatch(\"172.16.0.0/12\",src) OR cidrmatch(\"192.168.0.0/16\",src),null(),src)\n| where isnotnull(ext_src)\n| lookup esp_inbound_baseline.csv ext_src AS ext_src OUTPUT approved_vendor\n| where isnull(approved_vendor)\n| stats earliest(_time) as first_seen values(dest) as targets by ext_src, rule\n| sort - first_seen",
+  "value": "We detect new external sources allowed through ESP entry rules so undocumented inbound paths are reviewed before they become normal traffic.",
+  "implementation": "(1) Seed `esp_inbound_baseline.csv` with known vendor ranges. (2) Promote reviewed sources into the baseline. (3) Create ES notable for first-seen. (4) Map rules to EAP register fields.",
+  "visualization": "Table (new sources), Map (geo), Time chart (first-seen rate)",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

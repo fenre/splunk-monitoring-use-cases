@@ -1,0 +1,90 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.44.1",
+  "title": "Supplier attestation currency — stale SOC 2 / ISO 27001 reports for critical vendors",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Procurement",
+  "controlFamily": "third-party-activity",
+  "exclusions": "Does NOT evaluate findings in the supplier's report; focuses on currency only.",
+  "evidence": "Daily 'supplier_attestation_currency' writes expiring/expired attestations to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.28",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DORA Art.28 ICT third-party risk — requires currency of supplier risk information."
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.21(2)(d) supply-chain security — continuous tracking of attestation currency."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "SR-3",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SR-3 supply chain controls — attestations are one of the control artefacts."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a critical supplier's SOC 2 or ISO 27001 attestation is within 30 days of expiry or already expired, the UC fires.",
+    "negativeScenario": "Suppliers with a current attestation ≥30 days from expiry do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.44.1-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| inputlookup vrm_attestations.csv\n| where criticality IN (\"critical\",\"high\")\n| eval days_to_expiry=round((strptime(expires,\"%Y-%m-%d\")-now())/86400,0)\n| where days_to_expiry<=30\n| table vendor attestation_type expires days_to_expiry",
+  "description": "Tracks supplier attestation lifecycles against the TPRM policy and surfaces expiring evidence before the risk committee sees it as an overdue item.",
+  "value": "Makes vendor-risk currency a live signal rather than an annual gap report.",
+  "implementation": "(1) Push attestation metadata from OneTrust/ServiceNow VRM into vrm_attestations.csv nightly; (2) run daily; (3) on finding, email supplier contact and assigned procurement lead.",
+  "visualization": "Table of expiring attestations, Sankey of attestation types per vendor, single-value 'critical vendors with current attestation'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "Regulation (EU) 2022/2554 — DORA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "title": "Directive (EU) 2022/2555 — NIS2",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Re-certification in progress produces a brief 'expired' window; tolerate with an in-progress flag.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

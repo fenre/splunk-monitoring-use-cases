@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.8",
+  "title": "SOC 2 Fraud Risk and Anomalous Privileged Activity Correlation",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "CC9.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` `sourcetype=\"WinEventLog:Security\"` (EventCode, TargetUserName, _time, LogonType); `index=_audit` `action=search` (user, search, _time)",
+  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Enterprise core auditing (`_audit` index)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode=4624 LogonType=10 earliest=-7d\n| eval hour=strftime(_time,\"%H\")\n| where hour<6 OR hour>22\n| lookup domain_admins.csv TargetUserName OUTPUT is_privileged\n| where is_privileged=\"true\"\n| stats earliest(_time) as first_priv, latest(_time) as last_priv by TargetUserName\n| join type=left max=0 TargetUserName [\n    search index=_audit action=search info=completed earliest=-7d\n    | where match(search, \"(?i)index\\\\s*=\\\\s*(pci|hr|finance)\")\n    | stats earliest(_time) as first_search by user\n    | rename user as TargetUserName\n  ]\n| eval suspicious=if(isnotnull(first_search) AND first_search>=first_priv AND first_search<=relative_time(last_priv,\"+2h\"), 1, 0)\n| where suspicious=1\n| table TargetUserName, first_priv, first_search, suspicious",
+  "value": "CC9.2 addresses risks of fraud, including fraud due to management override. Correlating after-hours privileged logons with Splunk `_audit` searches touching high-sensitivity indexes surfaces potential override paths for investigator review without presuming guilt.",
+  "implementation": "(1) Tune RDP (`LogonType=10`) vs your jump host patterns; (2) maintain `domain_admins.csv`; (3) adjust sensitive index regex to your taxonomy; (4) route hits to SOC insider-threat queue; (5) document investigation outcomes for CC4 monitoring activities.",
+  "visualization": "Table (correlated events), Timeline (first_priv vs first_search), Single value (suspicious sessions).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1048"
+  ]
+}

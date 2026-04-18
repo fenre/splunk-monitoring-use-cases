@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.3",
+  "title": "Information System Activity Review — Cross-Source ePHI Access Summary",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.308(a)(1)(ii)(D)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=epic` `sourcetype=epic:audit`, `index=citrix` `sourcetype=citrix:session`, `index=vpn` `sourcetype=paloalto:globalprotect`",
+  "app": "Splunk DB Connect (2686), Splunk Add-on for Citrix (2757), Splunk Common Information Model Add-on (1621)",
+  "spl": "(index=epic sourcetype=\"epic:audit\" AccessType=\"PatientChart\") OR (index=cerner sourcetype=\"cerner:audit\" Action=\"PatientChartView\") OR (index=citrix sourcetype=\"citrix:session\" Application=\"*Hyperspace*\") OR (index=vpn sourcetype=\"paloalto:globalprotect\" status=\"success\")\n| eval user=coalesce(USER_ID, PractitionerId, user, src_user)\n| eval PAT_ID=coalesce(PAT_ID, PatientId)\n| bin _time span=1d\n| stats dc(PAT_ID) as patients_touched dc(host) as systems by _time, user\n| sort - patients_touched",
+  "value": "Produces a daily leadership-ready rollup of who touched ePHI across EHR, VPN, and databases so workforce activity review obligations are operationally met, not ad hoc.",
+  "implementation": "(1) Align user ID formats via `identity_lookup.csv`; (2) restrict index ACLs to privacy/security; (3) schedule daily PDF/dashboard to HIPAA committee; (4) retain per legal record retention policy.",
+  "visualization": "Heatmap (users x day), Table (top reviewers), Single value (distinct users accessing charts).",
+  "cimModels": [
+    "Authentication (VPN when CIM-tagged)",
+    "N/A for Epic native"
+  ],
+  "cimSpl": "| tstats summariesonly=t dc(Authentication.dest) as agg_value from datamodel=Authentication.Authentication by Authentication.user span=1d | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk Add-on for Citrix",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "citrix",
+    "db_connect",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ]
+}

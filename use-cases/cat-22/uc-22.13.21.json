@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.21",
+  "title": "Vendor Interactive Remote Access — Encryption and Session Recording Evidence",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-005-6 R3 Part 3.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=network` `sourcetype=pan:globalprotect` or SSL VPN logs, `index=pam` `sourcetype=cyberark:ptalog`, `sourcetype=cyberark:session_recording`",
+  "app": "Splunk Add-on for CyberArk (4295), Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=network sourcetype=pan:globalprotect earliest=-24h\n| eval tls_version=coalesce(tls_version,ssl_tls_version)\n| eval tls_ok=if(match(tls_version,\"TLSv1\\.[23]\"),1,0)\n| where tls_ok=0 AND isnotnull(user)\n| stats count by user, public_ip, tls_version, gateway\n| sort - count",
+  "value": "We verify vendor interactive remote access uses approved encryption (for example TLS versions on VPN or SSH) and that PAM session recording identifiers exist for the same sessions.",
+  "implementation": "(1) Map GlobalProtect or SSL VPN field names to `tls_version`. (2) Run a companion saved search on `index=pam` for vendor sessions missing `recording_id` in `cyberark:session_recording`. (3) Alert on weak TLS or missing recording for vendor users. (4) Document compensating controls for legacy jump hosts.",
+  "visualization": "Table (encryption and recording gaps), Timeline, Single value (violation count)",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/4295"
+    },
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cyberark",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ]
+}

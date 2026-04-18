@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.15",
+  "title": "Short or Default Password Patterns in OT Authentication Logs",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "SR 1.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Security` 4625; `fortigate_traffic` or `sslvpn` auth failures",
+  "app": "Windows TA (742), FortiGate TA",
+  "spl": "(index=windows EventCode=\"4625\" Status!=\"0x0\") OR (index=fw sourcetype=\"fortigate_event\" subtype=\"vpn\")\n| eval user=coalesce(Account_Name, user, vpnuser)\n| where match(user,\"(?i)hmi|operator|ot_\")\n| bin _time span=1h\n| stats count as fails by _time, user, src_ip\n| where fails>30\n| sort - fails",
+  "value": "Uses policy checks on authentication metadata (where available) and heuristics on failed logon bursts to catch weak password hygiene in OT accounts.",
+  "implementation": "(1) Never log cleartext passwords—use failure reason codes only; (2) pair with AD password policy audit offline; (3) enforce lockout thresholds on jump hosts; (4) reset compromised accounts via PAM.",
+  "visualization": "Time chart (fail spikes), Table (user, src), Single value (distinct users).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.src span=1h | sort - count",
+  "references": [
+    {
+      "title": "Windows TA",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "fortinet"
+  ],
+  "equipmentModels": [
+    "fortinet_fortigate"
+  ]
+}

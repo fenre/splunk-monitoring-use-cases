@@ -1,9 +1,18 @@
 name: Release
 
-# Packages and publishes the three Splunk content packs (TA, ITSI, ES)
-# as a GitHub Release whenever a semantic-version tag is pushed:
+# Packages and publishes the official Splunk artefacts as a GitHub
+# Release whenever a semantic-version tag is pushed:
 #
 #     git tag -a v5.2.0 -m "Release v5.2.0" && git push origin v5.2.0
+#
+# Shipped artefacts:
+#   * TA-splunk-use-cases               (TA content pack)
+#   * DA-ITSI-monitoring-use-cases      (ITSI content pack)
+#   * DA-ESS-monitoring-use-cases       (Enterprise Security content pack)
+#   * splunk-uc-recommender             (Cloud-safe recommender + bundled
+#                                        compliance saved searches)
+#   * splunk-uc-recommender-ta          (Optional Enterprise-only TA that
+#                                        adds the deep-scan modular input)
 #
 # It can also be triggered manually via "workflow_dispatch"; the user
 # supplies the version string in that case.
@@ -26,6 +35,15 @@ on:
 
 permissions:
   contents: write
+  # id-token: write is required for actions/attest-build-provenance@v2 to
+  # request an OIDC token that Sigstore Fulcio uses to mint a short-lived
+  # signing certificate bound to this workflow run. It grants nothing beyond
+  # the GitHub identity of this run and cannot be used to sign other refs.
+  id-token: write
+  # attestations: write lets the action push the resulting Sigstore bundle
+  # to the GitHub attestations store so `gh attestation verify` can resolve
+  # it by subject hash.
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -86,11 +104,84 @@ jobs:
       - name: Package ES content pack (DA-ESS-monitoring-use-cases)
         run: scripts/package_es.sh dist/
 
+      - name: Regenerate the unified Splunk recommender app (+ TA)
+        # The unified splunk-uc-recommender app already bundles every
+        # tier-1 compliance UC as disabled saved searches plus a
+        # filterable Compliance view, so we no longer ship the legacy
+        # per-regulation packs.  scripts/generate_splunk_app.py is kept
+        # in-tree for maintainers who want to slice individual
+        # frameworks for an internal audit, but it is *not* part of the
+        # release workflow.
+        run: python3 scripts/generate_recommender_app.py
+
+      - name: Package the unified Splunk recommender app (+ TA)
+        # Default behaviour packages only splunk-uc-recommender and
+        # splunk-uc-recommender-ta into .spl archives with per-file
+        # SHA-256 and a combined SHA256SUMS.txt.
+        run: scripts/package_splunk_apps.sh dist/
+
+      # ------------------------------------------------------------------
+      # Phase 5.4 — signed provenance ledger for compliance mappings
+      # ------------------------------------------------------------------
+      # The in-repo data/provenance/mapping-ledger.json is always produced
+      # with signature.state="unsigned" so PR builds are byte-for-byte
+      # deterministic. At release time we:
+      #   1. Verify the ledger is current (generator --check).
+      #   2. Audit the ledger end-to-end (schema + hash chain + referential
+      #      integrity).
+      #   3. Copy to dist/ and promote signature.state to "attested",
+      #      populating runId / workflowRef / commit from the live run.
+      #   4. Attest the stamped file via actions/attest-build-provenance@v2
+      #      (Sigstore + GitHub transparency log).
+      #   5. Re-audit the dist/ copy with --require-signature and
+      #      --verify-signature to fail the release on any drift.
+      - name: Regenerate mapping ledger
+        run: |
+          python3 scripts/generate_mapping_ledger.py --check
+          python3 scripts/audit_mapping_ledger.py
+
+      - name: Stamp ledger with release metadata
+        env:
+          RELEASE_VERSION: ${{ steps.resolve.outputs.version }}
+          GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: python3 scripts/stamp_ledger_release.py
+
+      - name: Attest mapping ledger provenance (Sigstore / SLSA v1)
+        uses: actions/attest-build-provenance@v2
+        id: ledger-attest
+        with:
+          subject-path: dist/mapping-ledger.json
+
+      - name: Place attestation bundle at canonical path
+        # actions/attest-build-provenance@v2 writes the Sigstore bundle to a
+        # workflow-defined path. We copy it to the filename that the stamped
+        # ledger's signature.bundlePath references so offline consumers can
+        # verify with `gh attestation verify mapping-ledger.json --bundle
+        # mapping-ledger.sigstore.bundle.json` from a single download folder.
+        run: |
+          BUNDLE_SRC="${{ steps.ledger-attest.outputs.bundle-path }}"
+          if [ -z "${BUNDLE_SRC}" ] || [ ! -f "${BUNDLE_SRC}" ]; then
+            echo "::error::attestation bundle was not produced at expected path"
+            exit 1
+          fi
+          cp "${BUNDLE_SRC}" dist/mapping-ledger.sigstore.bundle.json
+          shasum -a 256 dist/mapping-ledger.sigstore.bundle.json
+
+      - name: Verify attested ledger end-to-end
+        # Temporarily swap the stamped copy into the audit source position so
+        # the audit script exercises the full release path (attested state,
+        # bundle present on disk, gh CLI verification). Restore afterwards.
+        run: |
+          cp data/provenance/mapping-ledger.json /tmp/ledger.bak.json
+          cp dist/mapping-ledger.json data/provenance/mapping-ledger.json
+          python3 scripts/audit_mapping_ledger.py --require-signature --verify-signature
+          cp /tmp/ledger.bak.json data/provenance/mapping-ledger.json
+
       - name: Generate release manifest
         working-directory: dist
         run: |
           ls -1 *.spl | sort > files.txt
-          shasum -a 256 *.spl > SHA256SUMS.txt
+          shasum -a 256 *.spl *.json > SHA256SUMS.txt
           {
             echo "## SHA-256 checksums"
             echo
@@ -102,7 +193,8 @@ jobs:
             echo
             echo "| File | Size |"
             echo "|------|------|"
-            for f in *.spl; do
+            for f in *.spl *.json; do
+              [ -f "${f}" ] || continue
               SIZE=$(du -h "${f}" | cut -f1)
               echo "| \`${f}\` | ${SIZE} |"
             done
@@ -118,6 +210,9 @@ jobs:
             dist/*.sha256
             dist/SHA256SUMS.txt
             dist/manifest.md
+            dist/mapping-ledger.json
+            dist/mapping-ledger.manifest.md
+            dist/mapping-ledger.sigstore.bundle.json
           retention-days: 30
 
   release:
@@ -161,3 +256,6 @@ jobs:
             dist/*.sha256
             dist/SHA256SUMS.txt
             dist/manifest.md
+            dist/mapping-ledger.json
+            dist/mapping-ledger.manifest.md
+            dist/mapping-ledger.sigstore.bundle.json

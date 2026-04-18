@@ -1,0 +1,138 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.39.3",
+  "title": "Data-subject breach communication timeline tracker (Art.34 / §164.404)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "DPO",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does NOT evaluate risk assessment that drives the Art.34 threshold — that classification is input to this UC.",
+  "evidence": "Daily search 'data_subject_comm_sla' writes the fan-out state of every Art.34 / §164.404 communication campaign to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.34",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.34 high-risk breach communication to data subjects — the UC tracks message dispatch, delivery, and failure rates."
+    },
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.404",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "§164.404 notification to individuals within 60 days; the UC measures completion rate and flags overdue individuals."
+    },
+    {
+      "regulation": "APPI",
+      "version": "2022 amendments",
+      "clause": "Art.26",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.34 (parent assurance='full'). Clause mapped per data/regulations.json derivesFrom graph; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.34",
+        "parentAssurance": "full",
+        "inheritanceMode": "mapped"
+      }
+    },
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.150",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.34 (parent assurance='full'). Clause mapped per data/regulations.json derivesFrom graph; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.34",
+        "parentAssurance": "full",
+        "inheritanceMode": "mapped"
+      }
+    },
+    {
+      "regulation": "LGPD",
+      "version": "Lei nº 13.709/2018",
+      "clause": "Art.48",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.34 (parent assurance='full'). Clause mapped per data/regulations.json derivesFrom graph; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.34",
+        "parentAssurance": "full",
+        "inheritanceMode": "mapped"
+      }
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.34",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.34 (parent assurance='full'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.34",
+        "parentAssurance": "full",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When an Art.34 / §164.404 campaign is open and fewer than 95% of in-scope data subjects have a confirmed delivery or bounced-and-retried event 50 days after classification, the UC fires.",
+    "negativeScenario": "Campaigns that hit the 95% threshold, or individual bounces handled via registered post fall-back, do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.39.3-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=comms sourcetype=breach:notification earliest=-90d\n| stats count(eval(status=\"delivered\")) as delivered count(eval(status=\"bounced_handled\")) as fallback count as total by campaign_id\n| eval ok=(delivered+fallback)/total\n| lookup breach_campaigns.csv campaign_id OUTPUT classification classified_at\n| eval age_days=round((now()-strptime(classified_at,\"%Y-%m-%dT%H:%M:%SZ\"))/86400,0)\n| where age_days>=50 AND ok<0.95\n| table campaign_id classified_at age_days total delivered fallback ok",
+  "description": "Measures every open high-risk-breach communication campaign against the statutory clocks (GDPR 'without undue delay', HIPAA 60 days). Campaigns falling behind the completion-rate threshold are surfaced to the DPO for intervention.",
+  "value": "Data-subject communication is routinely cited in enforcement decisions (Meta, Uber, British Airways); measuring it is the only credible evidence of 'taken reasonable efforts'.",
+  "implementation": "(1) Ingest campaign events from the messaging platform; (2) join to breach_campaigns.csv with classification timestamps; (3) run daily; (4) escalate via SOAR.",
+  "visualization": "Per-campaign completion funnel, aging bar chart, single-value '% of campaigns on track'.",
+  "cimModels": [
+    "Ticket Management"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Subjects without deliverable contact info require the fall-back channel; bounces without fall-back handling should be followed up manually.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "threat",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

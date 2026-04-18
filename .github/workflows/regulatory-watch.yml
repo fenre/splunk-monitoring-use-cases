@@ -1,0 +1,156 @@
+# Phase 5.3 — scheduled regulatory change-watch.
+#
+# Every Monday at 09:00 UTC, and on manual dispatch, we probe each tracked
+# regulatory source (NIST OSCAL catalogs, MITRE ATT&CK, PCI SSC, HHS HIPAA
+# RSS, EUR-Lex pages, etc.) using ``scripts/audit_regulatory_change_watch.py
+# --fetch``. Deltas are written back into ``data/regulations-watch.json`` and
+# ``reports/regulatory-change-watch.json``.
+#
+# If any entry acquires an ``openFinding`` (i.e. the publisher's artefact
+# changed since the last observation), we:
+#   1) commit the refreshed manifest + report to main with a bot message,
+#   2) open a GitHub issue (or update an existing one) summarising the
+#      findings so the compliance team can triage them before the next
+#      release.
+#
+# The hermetic ``--check`` step in ``.github/workflows/validate.yml`` enforces
+# that the manifest stays fresh; this workflow is what keeps it fresh.
+name: Regulatory change-watch
+
+on:
+  schedule:
+    # Mondays 09:00 UTC → European business hours start. Cadence picked to
+    # catch US-Friday-evening OSCAL pushes and EU-Monday-morning EUR-Lex
+    # publication windows in the same run.
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: "Fail the job if any probe returned an error."
+        type: boolean
+        default: false
+
+# Never run two scheduled fetches concurrently; the manifest is a singleton.
+concurrency:
+  group: regulatory-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install jsonschema==4.23.0
+
+      - name: Run change-watch fetch
+        id: fetch
+        run: |
+          set -u
+          strict_flag=""
+          if [ "${{ inputs.strict }}" = "true" ]; then
+            strict_flag="--strict"
+          fi
+          python3 scripts/audit_regulatory_change_watch.py --fetch ${strict_flag} | tee fetch.log
+
+          # Extract open findings for the issue body.
+          python3 - <<'PYEOF'
+          import json, os, pathlib
+          report = pathlib.Path("reports/regulatory-change-watch.json")
+          findings = []
+          if report.exists():
+              payload = json.loads(report.read_text())
+              findings = payload.get("openFindings", [])
+          out = os.environ["GITHUB_OUTPUT"]
+          with open(out, "a") as fh:
+              fh.write(f"findings_count={len(findings)}\n")
+              # Render a compact markdown list for the issue.
+              if findings:
+                  lines = ["| Regulation | Observed | Summary |", "| --- | --- | --- |"]
+                  for f in findings:
+                      lines.append(
+                          f"| `{f.get('regulationId','?')}` "
+                          f"| {f.get('observedAt','?')} "
+                          f"| {f.get('summary','?')} |"
+                      )
+                      body = "\n".join(lines)
+                  fh.write("findings_md<<EOT\n" + body + "\nEOT\n")
+              else:
+                  fh.write("findings_md<<EOT\n(none)\nEOT\n")
+          PYEOF
+
+      - name: Commit manifest + report (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/regulations-watch.json reports/regulatory-change-watch.json
+          if git diff --cached --quiet; then
+            echo "No manifest/report changes; skipping commit."
+            exit 0
+          fi
+          git commit -m "chore(regwatch): refresh regulatory change-watch manifest $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Open or update change-watch issue
+        if: steps.fetch.outputs.findings_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Regulatory change-watch findings — $(date -u +%Y-%m-%d)"
+          body=$(cat <<'EOF'
+          The weekly regulatory change-watch detected upstream changes. See
+          `reports/regulatory-change-watch.json` and
+          `data/regulations-watch.json` for the authoritative records.
+
+          ## Open findings
+
+          ${{ steps.fetch.outputs.findings_md }}
+
+          ## Next steps
+
+          1. Review each finding against the publisher (URL in
+             `data/regulations-watch.json` → `watchlist[*].strategy`).
+          2. If the change is material, bump the backing
+             `data/provenance/ingest-manifest.json` entry and re-run the
+             ingest scripts (see `docs/ingestion.md`).
+          3. Update affected UC sidecars / `data/regulations.json` clauses.
+          4. Clear the `openFinding` block on each reviewed watchlist
+             entry and request SME sign-off
+             (`docs/sme-review-guide.md`).
+          EOF
+          )
+          # If an open issue with the same title prefix exists, comment on it;
+          # otherwise open a new one.
+          existing=$(gh issue list --state open --label regulatory-change-watch --json number --jq '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create \
+              --title "$title" \
+              --body "$body" \
+              --label regulatory-change-watch,compliance
+          fi
+
+      - name: Upload fetch log + report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: regulatory-change-watch
+          path: |
+            fetch.log
+            reports/regulatory-change-watch.json
+            data/regulations-watch.json
+          if-no-files-found: ignore

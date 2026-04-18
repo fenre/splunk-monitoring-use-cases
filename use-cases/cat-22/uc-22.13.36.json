@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.36",
+  "title": "Shared Account Justification Review Queue",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-007-6 R5 Part 5.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=wineventlog` `EventCode=4624`, `shared_accounts_register.csv`",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4624 earliest=-30d\n| lookup shared_accounts_register.csv Account_Name OUTPUT shared_owner review_due\n| where isnotnull(shared_owner)\n| eval due_epoch=strptime(review_due,\"%Y-%m-%d\")\n| where due_epoch < now() OR isnull(review_due)\n| stats dc(ComputerName) as systems values(bes_system) as sites by Account_Name, shared_owner, review_due",
+  "value": "We track shared or functional accounts that logged onto BES assets against a justification register due for periodic review.",
+  "implementation": "(1) Maintain register with review due dates. (2) Quarterly export for access governance. (3) Require re-approval tickets. (4) Remove retired shared accounts from register.",
+  "visualization": "Table (accounts overdue), Timeline (reviews), Single value (count)",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

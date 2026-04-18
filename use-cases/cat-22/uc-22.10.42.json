@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.42",
+  "title": "Patient Portal — Suspicious MyChart Password Reset & MFA Changes",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.312(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.530(c)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=mychart` `sourcetype=epic:mychart_audit` (`action`, `user_mrn`, `src_ip`), optional Okta/Azure AD B2C logs",
+  "app": "HTTP Event Collector (HEC), Splunk Add-on for Microsoft Office 365 (4055)",
+  "spl": "index=mychart sourcetype=\"epic:mychart_audit\" earliest=-7d (action=\"PasswordReset\" OR action=\"MFAEnrollmentChanged\" OR action=\"EmailChanged\")\n| stats earliest(_time) as first latest(_time) as last dc(src_ip) as src_dc values(action) as actions by user_mrn\n| where src_dc>=3 OR (last-first)<300 AND mvcount(actions)>=2\n| sort - src_dc",
+  "value": "Detects takeover patterns on patient portals that could expose ePHI and undermine patient trust and access controls.",
+  "implementation": "(1) Mask MRN in non-production; (2) integrate fraud scoring from vendor if available; (3) patient outreach playbook for suspected takeover.",
+  "visualization": "Table (MRN hash, actions, IPs), Timeline (burst resets).",
+  "cimModels": [
+    "Authentication (if federated IdP logs are CIM-tagged)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "azure",
+    "m365",
+    "okta"
+  ]
+}

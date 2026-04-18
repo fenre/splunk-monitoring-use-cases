@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.8",
+  "title": "Low-Impact BES Cyber System Electronic Access Path Enforcement",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-003-8 R4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=network` `sourcetype=pan:traffic`, `bes_low_impact_hosts.csv`, `cip003_approved_remote_paths.csv`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=network sourcetype=pan:traffic action=allowed earliest=-24h\n| lookup bes_low_impact_hosts.csv ip AS dest OUTPUT asset_id impact\n| where impact=\"low\"\n| lookup cip003_approved_remote_paths.csv app src_zone dest_zone OUTPUT approved\n| where isnull(approved)\n| stats sum(bytes_out) as bytes_out count by dest, app, rule, user\n| sort - bytes_out",
+  "value": "We catch remote access sessions to low-impact assets that bypass approved intermediaries or applications, reducing undocumented electronic access paths.",
+  "implementation": "(1) Maintain low-impact asset IP list from CIP-002 outputs. (2) Define approved app and zone tuples. (3) Daily alert on violations. (4) Feed confirmed exceptions to the CIP-003 exception workflow.",
+  "visualization": "Table (violations), Bar chart (disallowed apps), Single value (distinct assets)",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t sum(All_Traffic.bytes_out) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest, All_Traffic.app | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

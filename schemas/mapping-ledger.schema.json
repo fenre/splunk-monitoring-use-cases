@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/mapping-ledger.schema.json",
+  "title": "Signed compliance-mapping ledger (Phase 5.4)",
+  "description": "Content-addressable, append-structured ledger of every compliance mapping declared across UC sidecars. Each entry is hashed independently; the ledger root is a merkle-style SHA256 over all sorted entry hashes. A detached signature (produced at release time via GitHub attestations / Sigstore) binds the root to a specific workflow run, commit, and repository.",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "catalogueCommit",
+    "merkleRoot",
+    "hashAlgorithm",
+    "canonicalisation",
+    "entryCount",
+    "signature",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri-reference",
+      "description": "Optional IDE-tooling hint pointing to this schema."
+    },
+    "$comment": { "type": "string" },
+    "schemaVersion": {
+      "const": "1.0.0",
+      "description": "Major.minor.patch. Bumped on any breaking change to the ledger record structure or hash formulation."
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of the last deterministic regeneration via scripts/generate_mapping_ledger.py."
+    },
+    "catalogueCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$",
+      "description": "Short or long SHA of the commit whose UC sidecars this ledger was computed from. --check regenerates the ledger at HEAD and compares to this field; a mismatch indicates either a missed regeneration or out-of-band edit."
+    },
+    "hashAlgorithm": {
+      "const": "sha256",
+      "description": "Hash function used for both per-entry canonicalHash and the merkleRoot. Pinned to sha256 for reproducibility; a v2.0.0 schema may introduce sha3-256 or BLAKE3."
+    },
+    "canonicalisation": {
+      "type": "object",
+      "description": "Pins how each entry's canonicalHash is computed so third parties can verify independently.",
+      "required": ["algorithm", "jsonForm", "fieldOrder"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "rfc8785",
+          "description": "JSON Canonicalization Scheme (RFC 8785). The ledger generator uses a compatible subset (sorted keys, no whitespace, UTF-8 NFC, IEEE-754 canonical number form). See docs/signed-provenance.md \u00a73."
+        },
+        "jsonForm": {
+          "const": "utf-8-nfc-sorted-keys-no-whitespace"
+        },
+        "fieldOrder": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Ordered list of fields that participate in the canonicalHash. Presence here documents the ledger contract; absence from this list means the field is ledger-metadata and does NOT feed the hash.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "mappingId",
+              "ucId",
+              "regulationId",
+              "regulationVersion",
+              "clause",
+              "mode",
+              "assurance",
+              "derivationSource"
+            ]
+          }
+        }
+      }
+    },
+    "entryCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of entries; MUST equal entries.length. Primarily a cheap sanity check."
+    },
+    "merkleRoot": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Lowercase hex SHA256 over the concatenation of each entry's canonicalHash, with entries sorted lexicographically by mappingId. Leaf-count does not pad to a power of two; the structure is a sorted-leaf rolling hash (documented in docs/signed-provenance.md \u00a74)."
+    },
+    "signature": {
+      "type": "object",
+      "description": "Detached attestation over merkleRoot. In normal development the state is `unsigned` and CI treats it as informational; release automation upgrades to `attested` and pins the GitHub attestation URL.",
+      "oneOf": [
+        {
+          "required": ["state"],
+          "additionalProperties": false,
+          "properties": {
+            "state": { "const": "unsigned" },
+            "reason": {
+              "type": "string",
+              "description": "Optional free-text note (e.g., 'development iteration' or 'pre-release dry-run')."
+            }
+          }
+        },
+        {
+          "required": [
+            "state",
+            "signedAt",
+            "signer",
+            "signatureAlgorithm",
+            "attestationUrl",
+            "workflowRef",
+            "runId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "state": { "const": "attested" },
+            "signedAt": { "type": "string", "format": "date-time" },
+            "signer": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identity that produced the attestation (e.g., GitHub workflow identity, Sigstore Fulcio subject)."
+            },
+            "signatureAlgorithm": {
+              "enum": ["sigstore-cosign-bundle-v0.3", "ecdsa-p256-sha256-asn1"],
+              "description": "Signature format. Primary flow uses GitHub's attest-build-provenance, which emits a Sigstore bundle."
+            },
+            "attestationUrl": {
+              "type": "string",
+              "format": "uri",
+              "description": "Public URL to the attestation (GitHub transparency-log anchor). Verifies via `gh attestation verify`."
+            },
+            "bundlePath": {
+              "type": "string",
+              "description": "Optional repo-relative path to the Sigstore bundle artifact (e.g., 'data/provenance/mapping-ledger.sig'). Absent when the bundle is only published via GitHub's API."
+            },
+            "workflowRef": {
+              "type": "string",
+              "description": "GitHub workflow ref that produced the signature (e.g., '.github/workflows/release.yml@refs/tags/v5.4.0')."
+            },
+            "runId": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "GitHub Actions run id (string because 64-bit integers are unsafe in JSON)."
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7,40}$",
+              "description": "Commit signed. MUST equal the top-level catalogueCommit."
+            }
+          }
+        }
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "description": "All compliance-mapping ledger entries. MUST be sorted lexicographically by mappingId. The audit rejects duplicate mappingIds.",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": [
+        "mappingId",
+        "ucId",
+        "regulationId",
+        "regulationVersion",
+        "clause",
+        "mode",
+        "assurance",
+        "firstSeenCommit",
+        "lastModifiedCommit",
+        "canonicalHash",
+        "signoffStatus"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mappingId": {
+          "type": "string",
+          "minLength": 15,
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+::[a-z0-9][a-z0-9-]*@.+::.+::(satisfies|detects-violation-of|supports|contributes-to)::(full|partial|contributing)$",
+          "description": "Stable identifier: '<ucId>::<regulationId>@<regulationVersion>::<clause>::<mode>::<assurance>'. Deterministic from the sidecar fields; never includes commentary, timestamps, or author identity. regulationVersion and clause are free-form strings because real regulation corpora use whitespace, parentheses, \u00a7, and other punctuation (e.g., 'Montpellier (2025)', 'Regulation (EU) 2024/1689', '\u00a724', 'Art.5 \u00a72'). The stricter format invariants live on the individual entry fields."
+        },
+        "ucId": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "UC identifier (e.g., '22.1.1')."
+        },
+        "regulationId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "Regulation slug matching data/regulations.json frameworks[].id. Canonicalised from the UC sidecar's human-readable name via the generator's name\u2192id table (documented in docs/signed-provenance.md \u00a72)."
+        },
+        "regulationVersion": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Specific version the clause belongs to (matches regulations.json versions[].version)."
+        },
+        "clause": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Clause reference as quoted in the UC sidecar. Trimmed of leading/trailing whitespace; inner whitespace is preserved (the clause grammar treats whitespace as significant in ranges like 'Art. 25 \u00a7 2')."
+        },
+        "mode": {
+          "enum": ["satisfies", "detects-violation-of", "supports", "contributes-to"],
+          "description": "Mapping mode (same enum as schemas/uc.schema.json compliance[].mode)."
+        },
+        "assurance": {
+          "enum": ["full", "partial", "contributing"],
+          "description": "Assurance tier (same enum as schemas/uc.schema.json compliance[].assurance)."
+        },
+        "derivationSource": {
+          "type": "object",
+          "description": "Present when the entry was propagated via the Phase 3.3 derivesFrom graph. Preserves the parent (parentRegulation, parentVersion, parentClause) so auditors can walk the chain. Field names mirror schemas/uc.schema.json compliance[].derivationSource (do not rename).",
+          "required": [
+            "parentRegulation",
+            "parentVersion",
+            "parentClause",
+            "inheritanceMode"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "parentRegulation": {
+              "type": "string",
+              "description": "Parent regulation id (matches data/regulations.json frameworks[].id)."
+            },
+            "parentVersion": { "type": "string" },
+            "parentClause": { "type": "string" },
+            "parentAssurance": {
+              "enum": ["full", "partial", "contributing"],
+              "description": "Assurance tier inherited from the parent before one-step degradation."
+            },
+            "inheritanceMode": {
+              "enum": ["identity", "mapped"],
+              "description": "Matches data/regulations.json derivesFrom[].inheritanceMode. 'identity' = UK-GDPR-style byte-for-byte derivative; 'mapped' = CCPA/LGPD/nFADP/APPI style where the clauseMapping table renames numbering."
+            },
+            "divergenceNote": {
+              "type": "string",
+              "description": "Optional note copied from data/regulations.json derivesFrom[].divergences[] when the parent clause was flagged as diverging."
+            }
+          }
+        },
+        "firstSeenCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Short or long SHA of the commit that first introduced this (ucId, regulationId, clause, mode, assurance) tuple. Derived from `git log --diff-filter=A --follow`; falls back to catalogueCommit when git history is unavailable (shallow clones)."
+        },
+        "lastModifiedCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Short or long SHA of the most recent commit that modified any ledger-relevant field for this mapping. Tracks mode upgrades (e.g., 'satisfies' \u2192 'detects-violation-of') and assurance lifts."
+        },
+        "signoffStatus": {
+          "type": "object",
+          "description": "Snapshot of peer/legal/SME review state for the mapping at generation time. Informational: Phase 5.4 records the state; gating is enforced by the existing Phase 4.5a/4.5b/5.2 audits.",
+          "required": ["peer", "legal", "sme"],
+          "additionalProperties": false,
+          "properties": {
+            "peer": { "$ref": "#/$defs/signoffState" },
+            "legal": { "$ref": "#/$defs/signoffState" },
+            "sme": { "$ref": "#/$defs/signoffState" }
+          }
+        },
+        "canonicalHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Lowercase hex SHA256 over canonicalisation.fieldOrder fields. Recomputed by the audit; mismatch is a fatal error."
+        }
+      }
+    },
+    "signoffState": {
+      "type": "object",
+      "required": ["required", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Whether the mapping's assurance or mode triggers the gate (e.g., legal review is required for any 'full' assurance; SME review is required for any 'detects-violation-of' mode)."
+        },
+        "status": {
+          "enum": ["signed", "pending", "not-required", "grandfathered"],
+          "description": "'grandfathered' = mapping predates the gate's baseline_commit and is exempt; 'pending' = gate is required and open; 'signed' = at least one matching signoff is on file; 'not-required' = gate does not apply."
+        },
+        "latestSignoffPr": {
+          "type": "string",
+          "pattern": "^(#[0-9]+|direct-commit)$",
+          "description": "PR reference (or 'direct-commit') of the most recent qualifying signoff."
+        }
+      }
+    }
+  }
+}

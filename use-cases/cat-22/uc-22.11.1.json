@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.1",
+  "title": "Scheduled Firewall Rule Review Evidence for CDE NSCs",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "1.2.8",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=netfw` `sourcetype IN (\"pan:config\",\"pan:system\")` — commits, admin user, rule object names; optional `sourcetype=\"cisco:asa\"` configuration events",
+  "app": "Splunk Add-on for Palo Alto Networks (2757), Splunk Enterprise Security (263)",
+  "spl": "index=netfw sourcetype IN (\"pan:config\",\"pan:system\") earliest=-185d\n| where match(_raw,\"(?i)commit|policy|rule|security|nat\")\n| lookup pci_cde_device_groups.csv device_group OUTPUT in_cde\n| where in_cde=\"true\"\n| rex field=_raw \"(?i)admin@?(?<fw_admin>\\\\S+)\"\n| bin _time span=30d\n| stats values(fw_admin) as reviewers, dc(_raw) as change_events by _time, host\n| sort - _time",
+  "value": "Produces a repeatable inventory of firewall policy changes touching the cardholder data environment so assessors can see that network security controls are formally reviewed at least every six months.",
+  "implementation": "(1) Maintain `pci_cde_device_groups.csv` mapping Panorama device groups or firewall hostnames to `in_cde`. (2) Align the search window to your documented six-month review cycle. (3) Export the stats table monthly and attach the export ID to the GRC ticket. (4) Exclude template pushes that do not alter enforced policy using a `commit_id` dedupe if available.",
+  "visualization": "Column chart (change_events by month), table (reviewers per device group), single value (distinct review months with activity).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.dest span=30d | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "cisco_asa",
+    "paloalto_pan_firewall"
+  ]
+}

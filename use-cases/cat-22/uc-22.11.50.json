@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.50",
+  "title": "Account Lifecycle — New AD Users with Immediate CDE Group Assignment",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "8.2.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` EventCode 4720 (user created), 4728 (member added to security-enabled global group)",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (4720,4728) earliest=-24h\n| transaction TargetUserName maxspan=60m startswith=EventCode=4720 endswith=EventCode=4728\n| lookup pci_cde_ad_groups.csv GroupName OUTPUT cde_group\n| where cde_group=\"true\"\n| table duration, TargetUserName, GroupName, SubjectUserName",
+  "value": "Detects user creations followed within a short window by addition to CDE-privileged groups so provisioning follows lifecycle controls and management approval for access to account data.",
+  "implementation": "(1) Map `TargetUserName` alignment between events—may require `rename` on 4720 field `TargetUserName` as new user and 4728 `MemberName`. (2) Adjust `transaction` keys per environment testing. (3) Alert IAM for out-of-band adds. (4) Evidence for user identification procedures.",
+  "visualization": "Timeline (transactions), table (new users to CDE groups), single value (count per day).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

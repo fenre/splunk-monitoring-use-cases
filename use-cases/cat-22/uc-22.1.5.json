@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.5",
+  "title": "GDPR Consent Management Audit Trail",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=web` `sourcetype=\"access_combined\"` (clientip, uri, method, status, useragent) for consent page interactions; or custom HEC JSON events with explicit consent fields",
+  "app": "Splunk Add-on for Apache Web Server (Splunkbase 3186), HTTP Event Collector (HEC — platform capability for structured JSON from consent APIs)",
+  "spl": "index=web sourcetype=\"access_combined\" earliest=-7d\n    (uri=\"*/consent*\" OR uri=\"*/privacy-preferences*\")\n| rex field=uri_query \"action=(?<consent_action>[^&]+)\"\n| eval consent_event=coalesce(consent_action, if(status=200, \"page_view\", \"error\"))\n| stats count by clientip, uri, consent_event, status\n| sort - count",
+  "value": "Preserves a searchable trail of consent grant, refuse, and withdraw events from web applications for accountability and consent withdrawal parity requirements.",
+  "implementation": "(1) Ingest Apache/nginx access logs via TA 3186 or Universal Forwarder file inputs; (2) for richer evidence, emit HEC JSON from the consent microservice with explicit `action`, `purpose_id`, and hashed subject ID fields; (3) map URIs to consent purposes via a lookup `consent_uri_map.csv`; (4) restrict index ACLs to privacy teams; (5) schedule weekly reporting for consent withdrawal ratio monitoring.",
+  "visualization": "Time chart (consent page hits), Stacked bar (grant vs revoke/withdraw), Table (top consent events by URI).",
+  "cimModels": [
+    "Web (when CIM-tagged via TA 3186)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.status | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Apache Web Server",
+      "url": "https://splunkbase.splunk.com/app/3186"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "apache",
+    "nginx"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "nginx_open"
+  ]
+}

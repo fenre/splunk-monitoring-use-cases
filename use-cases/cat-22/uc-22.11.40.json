@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.40",
+  "title": "Role-Based Group Membership Drift for Active Directory CDE OU",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "7.2.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` `WinEventLog:Security` EventCode 4728,4732,4756; `sourcetype=\"msad:change\"` if Splunk AD TA",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (4728,4732,4756) earliest=-24h\n| lookup pci_cde_ad_groups.csv GroupName OUTPUT cde_group\n| where cde_group=\"true\"\n| stats earliest(_time) as added_time, values(MemberName) as members by GroupName, SubjectUserName\n| sort - added_time",
+  "value": "Detects additions to privileged groups tied to the CDE organizational unit so access restrictions remain aligned with documented roles and least privilege between quarterly access reviews.",
+  "implementation": "(1) Maintain `pci_cde_ad_groups.csv` for Domain Admins subset used in CDE. (2) Correlate `SubjectUserName` with privileged account inventory. (3) Immediate alert to IAM. (4) Snapshot daily to summary index for reviews.",
+  "visualization": "Timeline (4728 events), table (GroupName, members), single value (daily adds).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

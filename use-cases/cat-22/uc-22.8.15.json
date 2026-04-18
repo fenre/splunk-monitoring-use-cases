@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.15",
+  "title": "SOC 2 CC5 — Change Impact Analysis Completeness for Production Releases",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Change"
+  ],
+  "splunkPillar": "Observability",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=itsm` `sourcetype=\"snow:change_request\"` (number, state, u_impact_analysis, u_rollback_plan, u_security_review, start_date, cmdb_ci)",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "index=itsm sourcetype=\"snow:change_request\" state IN (\"Implement\",\"Closed\") earliest=-60d\n| eval missing=mvjoin(\n    if(isnull(u_impact_analysis) OR u_impact_analysis=\"\",\"impact\",null()),\n    if(isnull(u_rollback_plan) OR u_rollback_plan=\"\",\"rollback\",null()),\n    if(isnull(u_security_review) OR u_security_review=\"false\",\"sec_review\",null()),\n    \",\")\n| where missing!=\"\"\n| stats count by missing, cmdb_ci\n| sort - count",
+  "value": "CC5 expects consideration of fraud and other changes. Verifying every production change record carries impact analysis, rollback plan, and security review flags demonstrates change-related risks were evaluated before deployment.",
+  "implementation": "(1) Map Snow fields to your CMDB CI classes requiring analysis; (2) exclude standard changes via `chg_model=standard`; (3) integrate with CAB workflow to block closure in source system, Splunk mirrors drift; (4) monthly metric for % changes with complete analysis; (5) attach search export to change management KPI deck.",
+  "visualization": "Table (defective changes), Bar chart (missing field counts), Single value (% complete inverse).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "servicenow"
+  ]
+}

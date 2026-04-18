@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.5",
+  "title": "Security Policy Exception Register with Expiration Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-003-8 R1 Part 1.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=grc` `sourcetype=cip:policy_exception` (exception_id, control_ref, expires_on, status)",
+  "app": "Splunk Enterprise Security (263)",
+  "spl": "index=grc sourcetype=cip:policy_exception status=\"active\" earliest=-120d\n| eval exp_epoch=strptime(expires_on,\"%Y-%m-%d\")\n| eval expired=if(now()>exp_epoch,1,0)\n| eval days_left=round((exp_epoch-now())/86400,1)\n| where expired=1 OR days_left<14\n| table exception_id, control_ref, owner, expires_on, expired, days_left",
+  "value": "We prevent policy exceptions from silently exceeding approved dates so security management controls stay within delegated risk acceptance.",
+  "implementation": "(1) Ingest the exception register via HEC or DB Connect on change. (2) Map `control_ref` to CIP-003 policies. (3) Alert at fourteen days and on expiration. (4) Require closure events to flip status.",
+  "visualization": "Table (near-expired), Single value (expired count), Time chart (open exceptions)",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect"
+  ]
+}

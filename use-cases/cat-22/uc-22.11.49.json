@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.49",
+  "title": "Failed Authentication Burst Detection on Payment Gateway Accounts",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "10.2.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` EventCode 4625; `index=linux` `linux:secure` `failed password`",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833)",
+  "spl": "(index=windows sourcetype=\"WinEventLog:Security\" EventCode=4625 earliest=-24h)\n OR (index=linux sourcetype=\"linux:secure\" \"failed password\" earliest=-24h)\n| eval acct=coalesce(TargetUserName,user)\n| lookup pci_payment_accounts.csv account AS acct OUTPUT gateway_acct\n| where gateway_acct=\"true\"\n| bin _time span=5m\n| stats count by _time, acct, src_ip\n| where count>25\n| sort - count",
+  "value": "Trends failed logon attempts against payment application service accounts and operator IDs so brute-force activity is visible and aligned with monitoring of invalid access attempts.",
+  "implementation": "(1) Populate payment service account list. (2) Whitelist vulnerability scanner IPs. (3) Auto-block at firewall for sustained bursts. (4) Daily SOC review metrics.",
+  "visualization": "Timechart (failed logons), table (acct, src_ip, count), heatmap (acct x hour).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src span=5m | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

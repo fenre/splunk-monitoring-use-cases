@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.56",
+  "title": "Physical Badge Access to Data Center Containing Cardholder Systems",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Physical Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "9.4.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=physical` `sourcetype=\"pacs:door\"` — `reader_id`, `badge_id`, `result`, `site`",
+  "app": "Custom `sourcetype=\"pacs:ccure\"` or `lenel:access\"` CSV/HEC",
+  "spl": "index=physical sourcetype=\"pacs:door\" earliest=-7d\n| lookup pci_dc_readers.csv reader_id OUTPUT cde_dc_zone\n| where cde_dc_zone=\"true\"\n| eval denied=if(match(result,\"(?i)deny|reject|unknown\"),1,0)\n| timechart span=1d sum(denied) as denied_reads, count as total_reads\n| eval deny_rate=if(total_reads>0, round(100*denied_reads/total_reads,2), null())",
+  "value": "Tracks granted and denied door reads for suites housing payment hardware so physical entry to sensitive areas is logged and reviewable for onsite PCI assessments.",
+  "implementation": "(1) Map reader IDs to PCI zones from facility diagrams. (2) De-identify `badge_id` in dashboards if required. (3) Alert on sustained deny spikes (tailgating). (4) Quarterly reviewer export.",
+  "visualization": "Line (deny_rate), column (denied_reads), table (top denied badges hashed).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

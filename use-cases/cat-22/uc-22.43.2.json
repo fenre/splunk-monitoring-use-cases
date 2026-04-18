@@ -1,0 +1,78 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.43.2",
+  "title": "Vulnerability rediscovery after patch — regressed exposures",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT root-cause the regression; hands off to remediation with evidence.",
+  "evidence": "Daily 'vuln_regression' captures reappearing CVEs and writes them to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Part of RA-5 is verifying remediation effectiveness — the UC catches patch regressions that would otherwise be silent."
+    },
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.3",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI 6.3 requires proactive verification; regressed vulns defeat the remediation."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a CVE previously marked remediated on a host reappears in a subsequent scan, the UC fires with host, cve, remediated_at, rediscovered_at.",
+    "negativeScenario": "Remediated CVEs that remain undetected in subsequent scans do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.43.2-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=vuln earliest=-90d | sort 0 host cve _time | streamstats latest(action) as last_action by host cve\n| where last_action=\"remediated\"\n| join host cve [search index=vuln action=detected earliest=-7d]\n| table host cve remediated_at _time as rediscovered_at",
+  "description": "Catches situations where a patched vulnerability resurfaces — typically due to image rollback, snapshot restore, or patch-management regression. Every reappearance erodes prior compliance evidence.",
+  "value": "Prevents the compliance report from overstating the remediation rate by double-counting recurring findings.",
+  "implementation": "(1) Maintain history of vulnerability state per host/CVE; (2) run daily; (3) on finding, re-open original remediation ticket.",
+  "visualization": "Table of regressions, trend of regressions per scan cycle, single-value 'patches holding (30d)'.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Scanner credential changes can cause false positives that look like regressions; correlate with scanner health.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "threat",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "redis"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

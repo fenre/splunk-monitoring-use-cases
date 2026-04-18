@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.19",
+  "title": "Entity Authentication — Smart Card / Certificate Logon Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.312(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Security` EventCode IN (4625,4776) with `Authentication_Package=Negotiate` and `Key_Length>0`, PKI OCSP events if available",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode=\"4625\" earliest=-24h\n| search Logon_Process=\"Kerberos\" OR Authentication_Package=\"Negotiate\"\n| eval fail_reason=Status, Sub_Status\n| stats count values(WorkstationName) as workstations by TargetUserName, fail_reason, src_ip\n| where count>=5\n| sort - count",
+  "value": "Tracks failed certificate-based logons to clinical workstations and VDI pools so weak or expired credentials cannot silently undermine strong authentication for ePHI.",
+  "implementation": "(1) Enrich with AD `userCertificate` expiry via scripted lookup; (2) alert on clusters before smart card lockouts impact patient care; (3) document PKI renewal procedures.",
+  "visualization": "Table (user, reason, count), Choropleth (src_ip).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

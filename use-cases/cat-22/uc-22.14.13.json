@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.13",
+  "title": "Session Audit for Privileged Interactive Access",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-14",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`linux:secure` (sshd), `WinEventLog:Security` (4624/4647/4778), Sysmon if available",
+  "app": "Splunk Add-on for Unix and Linux (Splunkbase 833), Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+  "spl": "index=os earliest=-24h (sourcetype=linux:secure OR sourcetype=WinEventLog:Security)\n| search process=sshd OR EventCode IN (4624,4647,4778)\n| eval session_actor=coalesce(user, Account_Name)\n| stats earliest(_time) as start, latest(_time) as end, values(process) as processes by session_actor, src_ip, dest\n| eval duration_sec=end-start",
+  "value": "Captures SSH/RDP session telemetry (logon, channel, disconnect) for AU-14 session audit on administrative jump hosts.",
+  "implementation": "(1) Enable verbose sshd logging per policy; (2) map EventCode meanings in a lookup; (3) alert on long sessions to sensitive assets; (4) redact passwords never present in logs.",
+  "visualization": "Timeline (session spans), Table (duration by admin), Bar chart (sessions by jump host)",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.src, Authentication.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "hardware_bmc"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ]
+}

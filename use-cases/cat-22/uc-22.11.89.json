@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.89",
+  "title": "Technology Acceptable Use — USB Mass Storage on CDE Workstations",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "2.2.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` `Microsoft-Windows-Kernel-PnP/Configuration` or `WinEventLog:Security` EventCode 6416",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Microsoft-Windows-Kernel-PnP/Configuration\" earliest=-7d\n| where match(ClassName,\"(?i)USBSTOR|diskdrive)\")\n| lookup pci_cde_workstations.csv ComputerName OUTPUT in_cde_ws\n| where in_cde_ws=\"true\"\n| stats earliest(_time) as first_insert, values(DeviceDescription) as dev by ComputerName, InstanceId\n| sort - first_insert",
+  "value": "Surfaces device plug events for removable media on in-scope workstations so technology usage policies restricting untrusted storage near account data are enforced and auditable.",
+  "implementation": "(1) Enable PnP operational log forwarding on CDE laptops if any exist. (2) Block at GPO where possible; use this as detective control. (3) Investigate each event. (4) Map to acceptable use training module completion.",
+  "visualization": "Table (devices), timeline (first_insert), single value (weekly USB attempts).",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

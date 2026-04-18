@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.19",
+  "title": "Unsigned Macros or Scripts Executed on Engineering Workstation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "SR 2.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Microsoft-Windows-Sysmon/Operational` EventCode 1",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=sysmon EventCode=1 host IN (\"OT-EWS-*\") earliest=-7d\n| where (Image LIKE \"%\\powershell.exe\" OR Image LIKE \"%\\mshta.exe\" OR Image LIKE \"%\\cscript.exe\")\n    AND NOT(CommandLine LIKE \"%-nop -enc%\")\n| lookup ews_signed_scripts.csv CommandLine OUTPUT approved\n| where approved!=\"true\"\n| stats count by host, Image, CommandLine\n| sort - count",
+  "value": "Monitors execution of script engines and office macros from OT engineering hosts where mobile code should be restricted.",
+  "implementation": "(1) Deploy Sysmon with tuned config for EWS; (2) Approve known vendor installers via hash lookup; (3) block VBA macros at policy layer; (4) review weekly top commands.",
+  "visualization": "Table, Sankey (parent→child optional), Time chart.",
+  "cimModels": [
+    "Endpoint (Sysmon when mapped)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

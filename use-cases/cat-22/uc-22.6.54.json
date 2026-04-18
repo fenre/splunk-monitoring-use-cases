@@ -1,0 +1,93 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.54",
+  "title": "ISO/IEC 27001:2022 Clause 7.5 — Documented information control: policy register approval trail",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT edit policies; detects policy register entries missing an approval record or past their review cadence.",
+  "evidence": "Saved search 'iso_27001_7_5_policy_trail' (weekly) emits per policy: policy_id, version, approved_by, approved_at, days_to_next_review, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "7.5",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 7.5 Documented information — approval trail + cadence adherence directly evidenced."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC1.4",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC1.4 — contributes to commitment-and-accountability evidence."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "PL-2",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NIST 800-53 PL-2 System Security Plan — contributes."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Setting a policy's approval to now()-cadence_days+29d returns days_to_next_review=1 (near-expiry).",
+    "negativeScenario": "A policy with a recent approval and 200 days remaining is absent.",
+    "fixtureRef": "sample-data/uc-22.6.54-fixture.json"
+  },
+  "dataSources": "`index=grc` sourcetype=policyhub:policy (change of state); policy cadence lookup `iso_27001_policy_cadence.csv`.",
+  "app": "Splunk Enterprise Security",
+  "spl": "index=grc sourcetype=policyhub:policy action=approved earliest=-400d\n| stats latest(_time) AS approved_at latest(version) AS version latest(approved_by) AS approved_by BY policy_id\n| lookup iso_27001_policy_cadence.csv policy_id OUTPUT cadence_days owner\n| eval days_to_next_review=cadence_days-round((now()-approved_at)/86400,0)\n| where days_to_next_review<=30 OR isnull(approved_at)\n| table policy_id version approved_by approved_at days_to_next_review owner",
+  "description": "For every policy in the register, produce the last approval record and the time to the next review. Policies within 30 days of expiry or with no approval record are surfaced for action.",
+  "value": "Prevents the common deficiency of policies that 'used to be' approved but whose approval trail has expired — a direct Clause 7.5 non-conformance.",
+  "implementation": "(1) Route policyhub approval events into index=grc; (2) maintain iso_27001_policy_cadence.csv; (3) schedule UC weekly; (4) days_to_next_review<=30 opens a review task to policy owner; (5) quarterly CISO review.",
+  "visualization": "Table of near-expiry policies, bar chart by owner, single value 'policies expired'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Newly-issued policies within 30 days of issue appear as near-expiry until the first cadence period completes — exclude if age<30d.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "policy_id",
+    "approved_at",
+    "approved_by",
+    "version",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

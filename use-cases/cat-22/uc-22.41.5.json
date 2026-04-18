@@ -1,0 +1,97 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.41.5",
+  "title": "Key custodian SoD — same identity creates AND approves a key",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "crypto-drift",
+  "exclusions": "Does NOT audit key usage (covered by 22.41.3); targets SoD on creation/approval.",
+  "evidence": "Saved search 'kms_key_sod' (every 30 min) emits key lifecycle events where creator == approver.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "3.6.1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI 3.6.1 key-management role separation is directly enforced."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SC-12",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SC-12 key establishment and management requires separation of duties."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Crypto.SoD",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Common SoD ITGC deficiency around encryption-key management."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "User alice creates a key and then approves its activation in the same audit trail; the UC fires.",
+    "negativeScenario": "alice creates and bob approves; no alert.",
+    "fixtureRef": "sample-data/uc-22.41.5-fixture.json"
+  },
+  "dataSources": "KMS audit logs (aws:kms, azure:keyvault, gcp:kms), HSM audit logs.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=kms earliest=-30m (action=CreateKey OR action=ScheduleKeyActivation)\n| stats values(user) as users values(action) as actions by key_id\n| eval distinct_users=mvcount(mvdedup(users))\n| where distinct_users<2 AND mvcount(actions)>=2\n| table key_id users actions",
+  "description": "Alerts when the same identity both creates a key and schedules its activation. SoD in key management is a PCI and SOX-ITGC hard requirement.",
+  "value": "Provides daily evidence of key-custodian SoD rather than the common annual sample.",
+  "implementation": "(1) Ingest KMS audit logs; (2) run every 30 min; (3) escalate to the crypto custodian.",
+  "visualization": "Table of SoD violations, bar chart of violations by key type, single-value 'SoD-compliant key operations (30d)'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Automated key provisioning pipelines that run under a single service account may trigger this UC; they must be structured as two-stage with distinct approver accounts.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "key_id",
+    "user",
+    "action"
+  ],
+  "equipment": [
+    "azure",
+    "hashicorp"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

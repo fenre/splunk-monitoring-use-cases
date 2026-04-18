@@ -1,0 +1,91 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.48.5",
+  "title": "Vendor-master SoD — same identity creates vendor AND approves payment",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CFO",
+  "controlFamily": "access-review-cadence",
+  "exclusions": "Does NOT evaluate the quality of vendor due diligence.",
+  "evidence": "Saved search 'vendor_master_sod' (hourly) emits payments whose vendor-creation and payment-approval share the same identity.",
+  "compliance": [
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Vendor.SoD",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "Direct SOX ITGC finding pattern — fraud vector."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "7.2.5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI 7.2.5 access authorisation includes vendor-master control."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "User charlie creates vendor Acme Ltd on Monday and approves a $50k payment to Acme on Tuesday; the UC fires.",
+    "negativeScenario": "Vendor creation and payment approval are by distinct identities; no alert.",
+    "fixtureRef": "sample-data/uc-22.48.5-fixture.json",
+    "attackTechnique": "T1078"
+  },
+  "dataSources": "ERP vendor-master events, AP payment approval events.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=erp sourcetype=sap:vendor_master OR sourcetype=oracle:vendor_master action=create earliest=-30d\n| stats min(_time) as created_at values(created_by) as creators by vendor_id\n| join vendor_id [search index=erp sourcetype=*:ap_payment action=approve earliest=-30d | stats values(approved_by) as approvers by vendor_id]\n| eval overlap=mvfilter(match(creators,approvers))\n| where mvcount(overlap)>0\n| table vendor_id created_at creators approvers overlap",
+  "description": "Classic fraud-vector control: the ability to create a vendor and approve its payment cannot reside with a single identity.",
+  "value": "Continuously enforces a control most organisations only sample.",
+  "implementation": "(1) Ensure ERP emits both events; (2) run hourly; (3) auto-freeze suspicious vendor payments via AP workflow.",
+  "visualization": "Table of same-person violations, single-value 'vendors with SoD-compliant lifecycle'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1078/",
+      "title": "MITRE ATT&CK — T1078 Valid Accounts",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Small-organisation setups with a single AP resource must carry a documented compensating control.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "vendor_id",
+    "created_by",
+    "approved_by"
+  ],
+  "equipment": [
+    "oracle"
+  ],
+  "equipmentModels": [
+    "oracle_oracle_db"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

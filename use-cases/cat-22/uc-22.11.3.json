@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.3",
+  "title": "CDE Boundary Traffic — Unexpected Corporate-to-Payment Flows",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "1.3.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=netfw` `sourcetype=\"pan:traffic\"` — `src`, `dest`, `src_zone`, `dest_zone`, `action`, `rule`; lookups `pci_corp_zones.csv`, `pci_payment_subnets.csv`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=netfw sourcetype=\"pan:traffic\" action=allowed earliest=-24h\n| lookup pci_corp_zones.csv zone AS src_zone OUTPUT corp_zone\n| lookup pci_payment_subnets.csv cidr AS dest OUTPUT payment_tier\n| where corp_zone=\"true\" AND payment_tier=\"card_processing\"\n| stats count, values(dest_port) as ports, values(app) as apps by src, dest, rule\n| where count>5\n| sort - count",
+  "value": "Highlights allowed sessions from general corporate segments into payment subnets so segmentation and NSC rules can be validated between assessments, not only during annual penetration tests.",
+  "implementation": "(1) Populate CIDR lookups from network diagrams approved for PCI. (2) Whitelist jump-host rules via `where NOT match(rule,\"(?i)bastion|jump\")`. (3) Feed hits to the segmentation validation runbook. (4) Map findings to Req 11 segmentation testing follow-up.",
+  "visualization": "Heatmap (src_zone x dest_zone counts), table (top flows), Sankey optional for zone paths.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src, All_Traffic.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

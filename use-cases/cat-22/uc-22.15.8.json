@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.8",
+  "title": "OT Change Management — PLC Download Without CM Ticket",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "4.3.4.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ot_eng` vendor PLC audit; `snow:change_request`",
+  "app": "Splunk OT Security Add-on (5151), ServiceNow TA (1928)",
+  "spl": "index=ot_eng sourcetype=\"plc:download\" OR sourcetype=\"siemens:audit\" OR sourcetype=\"ab:audit\" earliest=-14d\n| eval ck=coalesce(project_id, program_name, concat(\"PLC-\",controller))\n| eval t0=_time\n| join type=left ck [ search index=itsm sourcetype=\"snow:change_request\" earliest=-30d | eval ck=coalesce(u_ot_project, number) | where state IN (\"Closed Complete\",\"Implement\") | fields number, ck, opened_at ]\n| where isnull(number)\n| stats earliest(_time) as first_dl, latest(user) as users, values(src_ip) as src by ck, controller",
+  "value": "Correlates controller downloads or online edits with change tickets to enforce controlled maintenance for IACS devices.",
+  "implementation": "(1) Normalize vendor fields to shared `ck`; (2) mandate CM tickets carry project keys; (3) tune time join if needed via subsearch; (4) weekly engineering review of unmatched.",
+  "visualization": "Table (unmatched), Timeline, Single value (count/day).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk OT Security Add-on",
+      "url": "https://splunkbase.splunk.com/app/5151"
+    },
+    {
+      "title": "ServiceNow TA",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "servicenow"
+  ]
+}

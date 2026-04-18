@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.9",
+  "title": "Non-Repudiation Evidence for Sensitive Transactions",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-10",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "Application DB audit tables (via DBX), `WinEventLog:Security` logons",
+  "app": "Splunk DB Connect (Splunkbase 2686), Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+  "spl": "index=app sourcetype=app:txn_audit earliest=-24h status=success risk_tier=\"HIGH\"\n| eval join_key=md5(user.src_ip)\n| join type=left join_key [\n    search index=sec sourcetype=WinEventLog:Security EventCode=4624 earliest=-24h\n    | eval join_key=md5(user.src_ip)\n    | stats latest(_time) as last_logon by join_key, user, src_ip\n  ]\n| where isnull(last_logon)\n| table _time, user, src_ip, txn_id, action",
+  "value": "Chains application user actions to authentication events and source IPs to support AU-10 non-repudiation for high-risk transactions.",
+  "implementation": "(1) Prefer `transaction` or `stats` over `join` at scale — prototype first; (2) hash PII keys consistently; (3) validate clock sync (AU-8); (4) document limitations where shared accounts break non-repudiation.",
+  "visualization": "Table (orphaned high-risk txns), Timeline (txn vs logon), Stats (match rate)",
+  "cimModels": [
+    "Authentication (for Windows side)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect"
+  ]
+}

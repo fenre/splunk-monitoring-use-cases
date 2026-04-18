@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.9",
+  "title": "Security Awareness Training Completion for BES Personnel",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-004-6 R1 Part 1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=hr` `sourcetype=lms:completion`, `bes_privileged_users.csv`",
+  "app": "Splunk Enterprise Security (263)",
+  "spl": "| inputlookup bes_privileged_users.csv\n| join type=left employee_id [\n    search index=hr sourcetype=lms:completion course_id=\"CIP_SECURITY_AWARENESS\" earliest=-400d\n    | stats latest(completed_at) as completed_at by employee_id\n  ]\n| eval completed_epoch=strptime(completed_at,\"%Y-%m-%d\")\n| eval stale=if(isnull(completed_epoch) OR completed_epoch<relative_time(now(),\"-350d@d\"),1,0)\n| where stale=1\n| table employee_id, role, completed_at",
+  "value": "We list personnel with active BES access who have not completed the current awareness module so training evidence is current before audits.",
+  "implementation": "(1) Sync LMS completions nightly. (2) Align `employee_id` with directory accounts. (3) Alert managers fourteen days before the annual due wave. (4) Export CSV for the training coordinator.",
+  "visualization": "Table (incomplete), Single value (percent complete), Column chart (by department)",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

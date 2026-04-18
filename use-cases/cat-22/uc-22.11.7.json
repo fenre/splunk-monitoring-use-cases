@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.7",
+  "title": "Outbound Service Allow-List Violations from CDE Servers",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "1.2.6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=netfw` `sourcetype=\"pan:traffic\"`; `lookup pci_cde_server_subnets.csv`, `lookup pci_approved_egress.csv`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=netfw sourcetype=\"pan:traffic\" action=allowed earliest=-7d\n| lookup pci_cde_server_subnets.csv subnet AS src OUTPUT cde_server\n| where cde_server=\"true\"\n| eval svc=lower(concat(dest_port,\"#\",app))\n| lookup pci_approved_egress.csv svc OUTPUT approved\n| where isnull(approved) OR approved=\"false\"\n| stats count by src, dest, dest_port, app, dest_zone\n| sort - count",
+  "value": "Compares observed egress from in-scope servers against the documented approved service list, proving that outbound traffic from the CDE is limited to what the standard permits.",
+  "implementation": "(1) Build the egress lookup from the PCI network standard appendix. (2) Refresh when new SaaS dependencies are onboarded. (3) Weekly ops review of the stats output. (4) Store signed CSV with each policy version.",
+  "visualization": "Treemap (by app), bar (dest_port), table (detail).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port, All_Traffic.app | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

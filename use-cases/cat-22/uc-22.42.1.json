@@ -1,0 +1,99 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.42.1",
+  "title": "Unauthorized production change — no approved CR matches the observed change",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT evaluate the contents of an approved change; focuses on authorisation only.",
+  "evidence": "Hourly search 'unauthorized_prod_change' writes findings to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CC8.1 requires that changes are authorised, designed, documented, and tested; the UC enforces the authorisation gate technically."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CM-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CM-3 configuration-change control — the UC is a direct implementation."
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Authorization",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX ITGC change authorisation — the UC is a textbook control test."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a production-system change event arrives without a matching approved CR within the 60-minute correlation window, the UC fires.",
+    "negativeScenario": "Changes with a CR in approved_state at the time of execution do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.42.1-fixture.json",
+    "attackTechnique": "T1562.001"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=change sourcetype=prod:change earliest=-1h\n| join type=outer change_id [search index=itsm sourcetype=servicenow:change earliest=-1h state=approved | fields change_id approved_at]\n| where isnull(approved_at)\n| table _time change_id system applied_by system_owner",
+  "description": "Validates every production change event against the CR database in real time. Any change without an approved CR is an immediate ITGC deficiency — and a potential security event.",
+  "value": "Replaces the standard quarterly-sample audit with continuous evidence of the authorisation gate.",
+  "implementation": "(1) Force CI/CD tools to emit change events tagged with change_id; (2) ingest CR state from the ITSM platform; (3) run hourly; (4) on finding, escalate via SOAR.",
+  "visualization": "Stacked bar approved vs unauthorised by system, table of findings, single-value '% authorised changes'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022",
+      "title": "AICPA Trust Services Criteria",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/001/",
+      "title": "MITRE ATT&CK — T1562.001 Impair Defenses: Disable Tools",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Emergency changes executed under break-glass must reference a retro-CR id; without one they look unauthorised.",
+  "mitreAttack": [
+    "T1562.001"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

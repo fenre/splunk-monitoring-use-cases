@@ -39,6 +39,13 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG_PATH = REPO_ROOT / "catalog.json"
 TA_DIR = REPO_ROOT / "ta"
+# Phase 1.8 of the gold-standard plan adds regulation-scoped apps generated
+# by scripts/generate_splunk_app.py under splunk-apps/.  They must also
+# pass Splunk Cloud vetting, so the audit scans both trees.
+APP_DIRS = (
+    REPO_ROOT / "ta",
+    REPO_ROOT / "splunk-apps",
+)
 DOC_OUT = REPO_ROOT / "docs" / "splunk-cloud-compat.md"
 JSON_OUT = REPO_ROOT / "test-results" / "splunk-cloud-compat.json"
 
@@ -256,27 +263,29 @@ def audit_spl() -> tuple[list[Finding], int]:
 # ---------------------------------------------------------------------- pack scan
 def audit_packs() -> list[Finding]:
     findings: list[Finding] = []
-    if not TA_DIR.exists():
-        return findings
-    for rule in PACK_RULES:
-        for path in TA_DIR.glob(rule.filename_glob):
-            if not path.is_file():
-                continue
-            try:
-                text = path.read_text("utf-8", errors="replace")
-            except Exception:
-                continue
-            for m in rule.pattern.finditer(text):
-                line_no = text.count("\n", 0, m.start()) + 1
-                ctx = text.splitlines()[line_no - 1].strip() if line_no - 1 < len(text.splitlines()) else ""
-                findings.append(Finding(
-                    rule_id=rule.id,
-                    severity=rule.severity,
-                    location=f"{path.relative_to(REPO_ROOT)}:{line_no}",
-                    context=ctx,
-                    message=rule.description,
-                    remediation=rule.remediation,
-                ))
+    for root in APP_DIRS:
+        if not root.exists():
+            continue
+        for rule in PACK_RULES:
+            for path in sorted(root.glob(rule.filename_glob)):
+                if not path.is_file():
+                    continue
+                try:
+                    text = path.read_text("utf-8", errors="replace")
+                except Exception:
+                    continue
+                for m in rule.pattern.finditer(text):
+                    line_no = text.count("\n", 0, m.start()) + 1
+                    lines = text.splitlines()
+                    ctx = lines[line_no - 1].strip() if line_no - 1 < len(lines) else ""
+                    findings.append(Finding(
+                        rule_id=rule.id,
+                        severity=rule.severity,
+                        location=f"{path.relative_to(REPO_ROOT)}:{line_no}",
+                        context=ctx,
+                        message=rule.description,
+                        remediation=rule.remediation,
+                    ))
     return findings
 
 

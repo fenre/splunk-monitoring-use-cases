@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.44",
+  "title": "DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does NOT classify whether an incident is 'major' (that is a human decision by the incident commander); detects only the elapsed time between detection, initial, intermediate, and final notification fields in the incident record.",
+  "evidence": "Saved search 'dora_art17_incident_clock' (every 5m) produces per-incident timing: detected_at, classified_at, notified_at, notification_intermediate_at, notification_final_at, SLA_breached fields; routed to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.17",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.17(1) requires an ICT-related incident management process; Art.19(4) + the RTS impose the 24h/72h/30d notification clock this UC measures."
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.23",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "NIS2 Art.23 incident notification — the same clock structure applies, so this UC double-counts for both frameworks in financial entities subject to both."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.24",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.24 Information security incident management planning and preparation — directly evidenced."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Injecting a synthetic major_incident with detected_at=-25h and no classified_at sets SLA_breached=1 on the next 5-min cycle.",
+    "negativeScenario": "A major incident with detect→classify in 4h, classify→initial in 10h, initial→intermediate in 30h, intermediate→final in 15d returns SLA_breached=0.",
+    "fixtureRef": "sample-data/uc-22.3.44-fixture.json",
+    "attackTechnique": "T1090"
+  },
+  "dataSources": "`index=soar` sourcetype=servicenow:sir_incident OR sourcetype=phantom:incident; `index=ticketing` sourcetype=jira:issue (IR project); regulator notification log `index=compliance` sourcetype=dora:notification.",
+  "app": "Splunk SOAR, Splunk Add-on for ServiceNow",
+  "spl": "index=soar sourcetype IN (servicenow:sir_incident,phantom:incident) tag::major_incident=true earliest=-1d\n| stats min(detected_at) AS detected_at min(classified_at) AS classified_at min(notified_at) AS notified_at min(intermediate_at) AS intermediate_at min(final_at) AS final_at BY incident_id\n| eval detect_to_classify_h=round((classified_at-detected_at)/3600,2)\n| eval classify_to_initial_h=round((notified_at-classified_at)/3600,2)\n| eval initial_to_inter_h=round((intermediate_at-notified_at)/3600,2)\n| eval inter_to_final_h=round((final_at-intermediate_at)/3600,2)\n| eval SLA_breached=if(detect_to_classify_h>24 OR classify_to_initial_h>24 OR initial_to_inter_h>72 OR inter_to_final_h>720,1,0)\n| table incident_id detected_at classified_at notified_at intermediate_at final_at detect_to_classify_h classify_to_initial_h initial_to_inter_h inter_to_final_h SLA_breached",
+  "description": "Measures, per major ICT incident, the elapsed time between detection, classification, initial notification, intermediate notification, and final report. Any SLA breach against the DORA Art.17 + ESA RTS timeline (24h initial / 72h intermediate / 30d final) sets SLA_breached=1 and triggers a finding.",
+  "value": "Supervisors under DORA request the per-incident clock evidence. This UC produces it automatically, so the entity can prove the notification workflow was operated within the required windows or identify the exact root cause of a miss.",
+  "implementation": "(1) Normalise detected_at/classified_at/notified_at/intermediate_at/final_at in the IR tool; (2) tag major incidents at classification; (3) schedule UC every 5m; (4) SLA_breached=1 escalates to CISO + Head of IR; (5) monthly roll-up to Board; (6) annual tabletop exercise validates clock fidelity.",
+  "visualization": "Per-incident Gantt of phase durations, timechart of breaches per quarter, single value 'open incidents at risk of SLA breach in next 4h'.",
+  "cimModels": [
+    "Alerts",
+    "Ticket Management"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "title": "NIS2 Directive (EU) 2022/2555",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1090/",
+      "title": "MITRE ATT&CK — T1090",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Incidents re-classified as non-major after initial raise can show a misleading 'breach' until tag::major_incident is cleared — dedup on latest tag state before computing SLAs.",
+  "mitreAttack": [
+    "T1090"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "incident_id",
+    "detected_at",
+    "classified_at",
+    "notified_at",
+    "_time"
+  ],
+  "equipment": [
+    "jira",
+    "servicenow"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

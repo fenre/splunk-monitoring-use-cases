@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.20",
+  "title": "SOC 2 CC7 — Unauthorized Production Configuration Change Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=aws` `sourcetype=\"aws:cloudtrail\"` (eventName, requestParameters, userIdentity.arn, _time); `index=itsm` `sourcetype=\"snow:change_request\"` (number, start_date, cmdb_ci)",
+  "app": "Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Windows or Palo Alto Networks (as applicable)",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName IN (\"AuthorizeSecurityGroupIngress\",\"RevokeSecurityGroupIngress\",\"ModifyDBClusterParameterGroup\") earliest=-7d\n| eval change_key=md5(_raw)\n| join type=left change_key [\n    search index=itsm sourcetype=\"snow:change_request\" earliest=-14d\n    | eval change_key=md5(number+cmdb_ci)\n    | fields number\n  ]\n| where isnull(number)\n| stats count by eventName, userIdentity.arn\n| sort - count",
+  "value": "CC7 addresses system operations. Detecting changes to firewall rules, cloud security groups, or database parameters without a matching approved change ticket demonstrates monitoring over unauthorized modifications.",
+  "implementation": "(1) Replace simplified join with CMDB-linked correlation on `requestParameters.groupId`; (2) allow emergency change workflow via `userIdentity.arn` lookup `breakglass_arns.csv`; (3) send to SOC and ITIL process owner; (4) retain CloudTrail in WORM bucket; (5) map events to CC7-2 subservice in system description.",
+  "visualization": "Table (unmatched changes), Timeline, Single value (count).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1565",
+    "T1078"
+  ],
+  "equipment": [
+    "aws",
+    "paloalto",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

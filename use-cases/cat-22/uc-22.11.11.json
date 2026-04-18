@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.11",
+  "title": "System Component Inventory Reconciliation — New In-Scope Hosts",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "2.1.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=netfw` `sourcetype=\"pan:traffic\"`; `lookup pci_component_inventory.csv` (host, in_scope, owner)",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=netfw sourcetype=\"pan:traffic\" earliest=-7d\n| lookup pci_cde_subnets.csv subnet AS dest OUTPUT in_cde\n| where in_cde=\"true\"\n| stats dc(dest) as uniq_dest by dest\n| rename dest as ip\n| lookup pci_component_inventory.csv ip OUTPUT inventory_id\n| where isnull(inventory_id)\n| stats count by ip\n| sort - count",
+  "value": "Flags hosts observed in CDE traffic or authentication logs that are missing from the authoritative inventory so the documented list of system components stays accurate between annual reviews.",
+  "implementation": "(1) Normalize internal IP inventory to one row per address. (2) Deduplicate NAT pools using a second lookup. (3) Route new IPs to asset management within five business days. (4) Snapshot weekly results for PCI evidence.",
+  "visualization": "Table (unknown IPs), single value (count new vs prior week), map if subnets geolocated internally.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t dc(All_Traffic.dest) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

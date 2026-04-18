@@ -1,0 +1,83 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.45.2",
+  "title": "Backup encryption and air-gap integrity — tamper detection on immutable storage",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Head of IT Operations",
+  "controlFamily": "backup-restore-evidence",
+  "exclusions": "Does NOT test restore path; see UC-22.45.1.",
+  "evidence": "Hourly 'backup_immutable_tamper' writes any immutability-lock or checksum-failure events to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CP-9",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CP-9(8) cryptographic protection of backups — the UC continuously validates immutability."
+    },
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.308(a)(7)",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "§164.308(a)(7) contingency plan, specifically 164.308(a)(7)(ii)(D) testing and revision — immutability is the protective control during incidents."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a backup repository reports an immutability-lock violation or a checksum failure, the UC fires.",
+    "negativeScenario": "Expected retention-expiry deletions with an approved lifecycle-policy_id do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.45.2-fixture.json",
+    "attackTechnique": "T1490"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=backup sourcetype=immutable:events earliest=-1h (event=tamper OR event=lock_violation OR event=checksum_mismatch)\n| lookup backup_lifecycle.csv repo_id OUTPUT policy_id\n| where event!=\"lifecycle_expiry\" OR isnull(policy_id)\n| table _time repo_id event detail policy_id",
+  "description": "Watches immutable/air-gap backup repositories for any tamper, lock-violation, or checksum-failure. Tampering is a known post-intrusion step (T1490) and breaks the compliance evidence chain.",
+  "value": "Prevents the compliance claim of 'we have immutable backups' from silently becoming untrue.",
+  "implementation": "(1) Enable repository audit logs; (2) emit checksum-verification events on a schedule; (3) run hourly; (4) on finding, escalate to security.",
+  "visualization": "Timeline of events, table of findings, single-value 'hours with no tamper events (30d)'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1490/",
+      "title": "MITRE ATT&CK — T1490 Inhibit System Recovery",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Planned decommission of repositories should carry a decommission_id in the lookup to avoid noise.",
+  "mitreAttack": [
+    "T1490"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "cloud",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

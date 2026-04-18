@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.5",
+  "title": "Termination — Access Revocation Within Policy Window",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.308(a)(3)(ii)(C)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "PS-4",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "NIST 800-53 Rev. 5 PS-4 Personnel Termination — UC directly tracks access-revocation within policy window on termination, matching the control's explicit workflow requirement."
+    }
+  ],
+  "dataSources": "`WinEventLog:Security` EventCode=4624, `index=citrix`, `index=epic` `sourcetype=epic:audit`, `index=hr` terminations (`term_date`, `samaccountname`)",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Citrix (2757)",
+  "spl": "index=hr sourcetype=\"workday:termination\" earliest=-30d\n| eval term_epoch=strptime(term_date,\"%Y-%m-%d %H:%M:%S\")\n| table samaccountname, term_epoch\n| rename samaccountname as user\n| join type=inner user [\n    search index=windows EventCode=\"4624\" earliest=-30d\n    | eval user=mvindex(Security_ID,0)\n    | rex field=user \"\\\\\\\\(?<sam>[^\\\\\\\\]+)$\"\n    | eval user=coalesce(sam,user)\n    | table _time, user, WorkstationName, Logon_Type ]\n| where _time > term_epoch\n| eval hours_after_term=round((_time-term_epoch)/3600,2)",
+  "value": "Detects logons, VPN sessions, or EHR access after HR termination timestamp so access revocation SLAs are provably enforced.",
+  "implementation": "(1) Ingest authoritative termination feed within 15 minutes SLA; (2) tune out break-glass shared accounts; (3) auto-disable via SOAR optional; (4) weekly HIPAA access committee digest.",
+  "visualization": "Table (user, hours_after_term, workstation), Timeline (violations), Single value (count).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for Citrix",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "citrix"
+  ]
+}

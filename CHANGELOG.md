@@ -10,6 +10,1668 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [Unreleased]
+
+### Compliance gold standard — Phase 5.5 structured equipment tagging
+
+Theme: **"which of my log sources does this UC need?"**. An April 2026 audit of
+cat-22 (regulatory compliance) surfaced a long-standing gap: **33% of cat-22
+UCs (429 out of 1,287) reference equipment — Azure AD, OPC UA, Modbus,
+ServiceNow, Palo Alto GlobalProtect, Microsoft Defender, Tenable, Oracle,
+HashiCorp Vault, Cisco firewalls — in their `spl` / `dataSources` /
+`implementation` narrative, but NOT in the `app` (App/TA) field that
+`build.py` was substring-matching to populate the UI's Equipment dropdown.**
+An auditor (or operator) filtering by "Azure" or "Industrial Controls" got
+false-negative results and could not see which of their existing logs would
+satisfy which regulatory clauses. Phase 5.5 closes the gap by promoting
+equipment from a narrative mention to a first-class, schema-validated,
+API-exposed field, and wires deterministic regeneration + drift detection
+end-to-end.
+
+- **Schema-validated sidecar fields (`schemas/uc.schema.json`)** — The
+  sidecar schema now defines `equipment: string[]` and
+  `equipmentModels: string[]` as `uniqueItems` arrays of slugs (equipment ids
+  match `^[a-z0-9][a-z0-9_]*$`, compound model ids match
+  `^[a-z0-9][a-z0-9_]*_[a-z0-9][a-z0-9_]*$`). All five sidecar generators
+  (Phase 2.2 mini-categories, Phase 2.3 per-regulation, Phase 3.1 backfill,
+  Phase 3.2 cross-cutting, Phase 3.3 derivatives) were updated to know about
+  the new fields in their `SIDECAR_FIELD_ORDER` constants. Phase 2.2 and 2.3
+  now carry over `equipment` and `equipmentModels` from existing sidecars
+  the same way they already carry over `derived-from-parent` compliance
+  entries, so the `--check` drift guards stay green after a post-hoc
+  equipment regeneration.
+- **Shared equipment accessor (`scripts/equipment_lib.py`)** — Surgically
+  parses the `EQUIPMENT` table out of `build.py` and exposes `load_equipment`,
+  `compile_patterns`, and `match_equipment` helpers so every generator and
+  linter uses the same registry without importing the full build pipeline.
+  Handles casefold matching and compound model-id emission
+  (`{equipmentId}_{modelId}`) consistently.
+- **Deterministic equipment-tags generator
+  (`scripts/generate_equipment_tags.py`)** — Single source of truth for the
+  new fields. Reads each sidecar's `app`, `dataSources`, `spl`,
+  `implementation`, and `description` fields, substring-matches against the
+  `EQUIPMENT` table from `build.py`, and writes the sorted
+  `equipment[] / equipmentModels[]` arrays into the sidecar. Contract:
+  byte-for-byte identical output on re-runs at the same catalogue state
+  (verified), schema-valid slug output, `--check` mode for CI drift
+  detection, `--report` mode for coverage statistics. Generator-owned — do
+  not hand-edit. Backfilled all 1,340 cat-22 sidecars on first run (1,218
+  changed, 60 equipment ids populated). Writes outside the signed provenance
+  ledger's `canonicalHash` (equipment is a detection-surface attribute, not
+  a compliance claim) so adding equipment tags does not mutate the merkle
+  root — `reports/compliance-coverage.json` and
+  `data/provenance/mapping-ledger.json` both continue to round-trip cleanly.
+- **`build.py` prefers structured tags (sidecar-first resolution)** — The
+  main loop now fetches `equipment[]` and `equipmentModels[]` from the
+  sidecar cache (via a new `_sidecar_equipment_tags` helper) and writes them
+  into `uc.e` / `uc.em` in `data.js` / `catalog.json`. Falls back to the
+  legacy substring match on the markdown `App/TA:` line only for UCs
+  without a sidecar (cats 1-21 and 23 today). Impact on cat-22 equipment
+  coverage:
+
+  |                              | before | after |
+  | ---                          |   ---: |   ---: |
+  | cat-22 UCs with equipment tag | 65.3%  | **73.1%** |
+  | cat-22 UCs with ≥2 tags      | ~10.6% | **39.5%** |
+  | whole-catalogue equipment coverage | 79.7% | **81.8%** |
+
+  The uplift closes the cross-equipment correlation gap an auditor
+  previously hit when filtering on combinations like "Azure AD + Palo Alto
+  GlobalProtect" or "OPC UA + ServiceNow".
+- **First-class API endpoints (`api/v1/equipment/`)** — Two new endpoints
+  expose the equipment graph for auditor workflows and downstream tools:
+  - `api/v1/equipment/index.json` — flat registry of all **105 equipment
+    slugs** and **66 model compounds**, with per-equipment use-case and
+    regulation rollup counts (**5,257 UCs tagged**) and sibling endpoint
+    URLs.
+  - `api/v1/equipment/{equipment_id}.json` — per-equipment detail: UCs
+    grouped by category, regulations grouped by framework with clause
+    mappings. Answers the auditor question *"if I log equipment X, which
+    regulatory clauses does it help me satisfy?"* without a database query.
+
+  `api/v1/compliance/ucs/{uc_id}.json` and
+  `api/v1/compliance/ucs/index.json` now surface `equipment` /
+  `equipmentModels` alongside `mitreAttack` / `regulationIds`. The
+  recommender's flat shape (`api/v1/recommender/uc-thin.json`) also exposes
+  the fields. JSON-LD context (`api/v1/context.jsonld`) gains `Equipment`,
+  `EquipmentModel`, `equipment`, and `equipmentModels` vocabulary terms;
+  OpenAPI 3.1 spec gains `/equipment/index.json` and
+  `/equipment/{equipmentId}.json` path entries. The top-level
+  `api/v1/manifest.json` advertises the new endpoints and the
+  `api/v1/compliance/index.json` facade cross-references them so auditors
+  starting from the compliance surface can navigate to equipment detail
+  in one hop.
+- **`equipment-orphan` informational lint
+  (`scripts/audit_compliance_mappings.py`)** — New `warn`-level finding
+  flags cat-22 UCs where the narrative mentions equipment not present in
+  `equipment[]` / `equipmentModels[]`, i.e. where a hand-edit would
+  regress the generator's output. Baseline-aware (`equipment-orphan` is
+  in `BASELINEABLE_CODES`) because the lint is a heuristic — strings like
+  "Cisco" can appear in hostnames unrelated to an equipment reference — so
+  the baseline tracks the current backlog and prevents new regressions
+  without blocking on every pre-existing narrative-to-tag mismatch. The
+  lint is automatic: regenerate tags with
+  `scripts/generate_equipment_tags.py` to clear new findings, or add the
+  tags manually if the match is a semantic false positive.
+- **CI drift guard (`.github/workflows/validate.yml`)** — New "Equipment-tags
+  regeneration check" step runs `python3 scripts/generate_equipment_tags.py
+  --check` after the Phase 3.3 derivatives generator, so any forgotten
+  regeneration, hand-edited sidecar, or equipment-table rename without a
+  regeneration fails CI. The existing API surface drift guard
+  (`scripts/generate_api_surface.py --check`) already covers the
+  `api/v1/equipment/` tree.
+- **Updated `docs/equipment-table.md`** — Documents the sidecar
+  `equipment[] / equipmentModels[]` fields, the sidecar-first precedence
+  over the legacy `App/TA` substring match, the full `build.py → generator
+  → schema → API → lint` data flow, and post-Phase-5.5 coverage snapshot.
+  Includes an explicit "do not hand-edit" note referencing the
+  `equipment-orphan` lint as the automated backstop.
+
+Migration guidance: contributors adding equipment or TAs to the
+`EQUIPMENT` table in `build.py` must now also run
+`python3 scripts/generate_equipment_tags.py` to propagate the change into
+sidecars. The `--check` mode will surface any forgotten regeneration in
+local pre-commit testing and in CI.
+
+### Compliance gold standard — Phase 1 foundations
+
+Theme: **clause-level precision, machine-readable everywhere**. The catalogue
+is being rebuilt as the international gold standard for compliance logging: an
+auditor should be able to take any UC, trace every clause citation, every
+detection test, and every OSCAL/MITRE mapping back to an authoritative source
+— and a downstream tool should be able to consume all of it through a stable
+versioned JSON API. Phase 1 lands the foundations.
+
+- **JSON-first authoring schema (`schemas/uc.schema.json`)** — UCs now author
+  as JSON sidecars alongside the markdown. The schema requires structured
+  `compliance[]` entries (framework, version, clause, rationale, derivation),
+  `controlFamily`, `owner`, `evidence`, `exclusions`, and for tier-1 UCs a full
+  `controlTest` block (positive + negative scenarios, fixture reference,
+  optional ATT&CK technique pointer).
+- **`data/regulations.json` — multi-version regulatory index** — Single
+  source of truth for 34 frameworks (GDPR, UK GDPR, CCPA, nFADP, LGPD, APPI,
+  PCI DSS, HIPAA, SOX, DORA, NIS 2, CJIS, FedRAMP, ISO 27001, NIST 800-53,
+  NIST 800-171, CMMC, CIS, Cloud Security Alliance, BSI C5, …). Each framework
+  carries versions with effective dates, a `clauseGrammar` regex for clause
+  validation, a `commonClauses[]` list with `priority_weights`, a
+  `derives_from` graph (e.g. UK GDPR ← GDPR), and an `aliasIndex` for free-text
+  resolution. Ships with `LEGAL.md` acknowledging source copyright.
+- **Migration pipeline** — `scripts/migrate_uc_markdown_to_json.py` lifts
+  markdown UCs into JSON sidecars with a zero-narrative-loss diff gate.
+  Cat-22 (regulatory compliance) migrated; all downstream tools now read the
+  JSON first and fall back to markdown for narrative only.
+- **Authoritative ingest pipeline** — `scripts/ingest_*.py` for NIST OLIR,
+  OSCAL catalogs (NIST 800-53, 800-171, CSF 1.1/2.0), MITRE ATT&CK Enterprise +
+  Mobile + ICS, D3FEND, and Atomic Red Team. Each download is SHA-256 pinned,
+  logged to `data/provenance/retrieval-manifest.json`, and replayable offline.
+- **Compliance coverage methodology (`docs/coverage-methodology.md`)** — Three
+  published metrics: clause coverage %, priority-weighted coverage %,
+  assurance-adjusted coverage % (includes controlTest completeness).
+- **Golden test set (`tests/golden/compliance-mappings.yaml`)** — 50
+  hand-curated (UC × regulation × clause) tuples act as a unit-test-level
+  regression gate for the mapping algorithm. Wired into `validate.yml`.
+- **`scripts/audit_compliance_mappings.py`** — Validates every UC against the
+  schema, reconciles against `regulations.json` (clause grammar + alias
+  resolution), emits the three coverage metrics to
+  `reports/compliance-coverage.json`, and runs the golden-test gate. Fails the
+  PR check if any mapping regresses.
+- **15 cross-regulation mini-categories (22.35 – 22.49)** — 40 exemplar UCs
+  authored as the first application of the new schema. Each one carries a
+  complete `controlTest` with positive + negative scenarios, fixture references,
+  ATT&CK technique pointers, and clause-level compliance tags across 3-6 tier-1
+  frameworks per UC.
+- **Versioned read-only JSON API (`api/v1/`)** — The entire compliance
+  catalogue is now exposed as a deterministic static JSON API with 1,350+
+  endpoints: `api/v1/compliance/{index,coverage,gaps}.json`,
+  `api/v1/compliance/regulations/{id}.json` (per-framework detail),
+  `api/v1/compliance/ucs/{uc_id}.json` (per-UC compliance view),
+  `api/v1/oscal/{index,catalogs,component-definitions}/*.json` (OSCAL facade
+  over the ingest pipeline + per-UC component definitions),
+  `api/v1/mitre/{techniques,coverage,d3fend}.json` (ATT&CK / D3FEND crosswalk).
+  Single-source-of-truth generator: `scripts/generate_api_surface.py`
+  (deterministic, offline, `--check` mode diffs committed tree vs. regenerated
+  tree for CI). JSON-LD context and OpenAPI 3.1 spec ship alongside.
+- **API versioning policy (`docs/api-versioning.md`)** — Semver-aligned
+  governance for the new surface: stable URLs, additive-only within `v1`,
+  deterministic output, 12-month deprecation windows, explicit breaking-change
+  definition, and the v1→v2 migration roadmap.
+- **Per-regulation Splunk apps (`splunk-apps/`)** — Phase 1.8 POC of the
+  compliance gold-standard plan. `scripts/generate_splunk_app.py` emits a
+  self-contained, AppInspect-shaped Splunk app per tier-1 regulation
+  (`splunk-uc-gdpr`, `splunk-uc-pci-dss`, `splunk-uc-hipaa-security`,
+  `splunk-uc-iso-27001`, `splunk-uc-nist-800-53`, `splunk-uc-nist-csf`,
+  `splunk-uc-soc-2`, `splunk-uc-sox-itgc`, `splunk-uc-cmmc`, `splunk-uc-nis2`,
+  `splunk-uc-dora`). Each app ships `app.manifest` v2, `default/app.conf`,
+  `metadata/default.meta`, a regulation-specific `README.md`, `LICENSE`, a
+  navigation stub, per-controlFamily `eventtypes.conf`, `macros.conf`,
+  `tags.conf`, a `uc_compliance_mappings.csv` lookup, and a
+  `savedsearches.conf` where every stanza ships `disabled = 1` /
+  `is_scheduled = 0` by default and carries
+  `action.uc_compliance.param.{clauses,versions,uc_id,regulation}` so
+  downstream pipelines can route alerts by regulation / clause. First run
+  generates **11 apps / 652 saved searches / ~1.3 MB**.
+- **Clause-level gap analysis (`reports/compliance-gaps.json` + `docs/compliance-gaps.md`)** —
+  Phase 2.1 of the gold-standard plan. `scripts/audit_compliance_gaps.py`
+  inverts the coverage audit: for every regulation-version in
+  `data/regulations.json` it walks every `commonClauses[]` entry and records
+  whether at least one non-draft UC sidecar tags that clause, the highest
+  assurance level claimed (`full` / `partial` / `contributing`), the
+  covering UC IDs, and any draft-status UCs staging a future tag. Gaps are
+  ranked by `priorityWeight` so authoring effort can target the
+  highest-impact worklist items first. The first run covers **199 tier-1
+  clauses (120 covered, 60.30%)**, **99 tier-2 clauses (7 covered, 7.07%)**,
+  and 0 tier-3 clauses. Report is deterministic; `--check` drift-gate is
+  wired into `validate.yml`.
+- **CI integration** — `validate.yml` now runs
+  `scripts/generate_api_surface.py --check`,
+  `scripts/generate_splunk_app.py --check`, and
+  `scripts/audit_compliance_gaps.py --check` on every PR touching
+  `use-cases/**`, `data/regulations.json`, `data/crosswalks/**`,
+  `api/v1/**`, or `splunk-apps/**`, so the committed API surface, Splunk
+  app trees, and gap reports can never drift from their inputs. The
+  Splunk Cloud compatibility audit also scans `splunk-apps/**` in addition
+  to `ta/**`, and new `splunk-apps` and `compliance-gaps` artifacts ship on
+  every CI run so reviewers can pull a single regulation app or gap list
+  without having to regenerate locally. A long-standing version-consistency
+  oversight was fixed along the way: the gate now skips Keep-a-Changelog
+  `[Unreleased]` sections and compares `VERSION` to the first numbered
+  release heading instead.
+
+### Compliance gold standard — Phase 2.2 cross-regulation expansion
+
+Theme: **every mini-category ships a full authoring cohort**. The 15
+cross-regulation mini-categories (22.35 – 22.49) opened in Phase 1.6 with
+40 exemplar UCs (2-3 per subcategory). Phase 2.2 widens each one to a
+full 5-UC cohort, retrofits the mandatory `CIM Models` field onto every
+Phase 1.6 exemplar, and adds a dedicated deterministic generator so the
+markdown blocks and JSON sidecars can never drift from the JSON authoring
+source.
+
+- **35 new UCs authored (22.35.4 – 22.49.5)** — Five UCs per
+  mini-category now ship end-to-end: markdown block, JSON sidecar, clause-
+  level `compliance[]` entries across tier-1 and tier-2 frameworks (GDPR /
+  UK GDPR / CCPA / LGPD / PCI DSS / HIPAA / SOX / DORA / NIS 2 / ISO 27001
+  / NIST 800-53 / NIST CSF / NIST 800-171 / EU CRA), full `controlTest`
+  (positive + negative scenario, fixture reference, optional ATT&CK
+  technique), owner role, control family, exclusions, evidence fields,
+  CIM model mapping, data sources, Splunk Pillar, known false positives,
+  references, and MITRE mapping (where applicable). Cat-22 now ships
+  1,242 UC blocks (up from 1,207) and 798 clause-level compliance entries
+  (up from 704) — a **+13.4% growth in clause coverage data** without any
+  existing content changing.
+- **CIM Models backfill on all 40 Phase 1.6 exemplars** — A latent audit
+  gap (Phase 1.6 exemplars were authored before the `CIM Models` markdown
+  field was made mandatory) is closed: every exemplar now carries a
+  `- **CIM Models:** …` line immediately after Visualization, matched by
+  a `cimModels` array in the sidecar. The mapping is deterministic and
+  derives from each UC's data sources and SPL (e.g. ServiceNow → Ticket
+  Management, AD/PAM/IdP → Authentication + Change, web logs → Web, PKI →
+  Certificates, vuln scans → Vulnerabilities, platform metrics → N/A).
+- **`scripts/generate_phase2_mini_categories.py`** — A new idempotent
+  generator that consumes `data/mini-categories/phase2.2.json` as the
+  single authoring source of truth. It emits the 35 new UC sidecars in
+  canonical field order, renders markdown blocks between
+  `<!-- PHASE-2.2 BEGIN -->` / `<!-- PHASE-2.2 END -->` fences so the
+  section can be regenerated without touching hand-authored content, and
+  backfills the CIM Models line + sidecar array across all 40 exemplars.
+  Supports `--check` (exit 1 on drift) and produces byte-identical output
+  on repeat runs.
+- **Coverage gates held green** — `scripts/audit_uc_structure.py --full`,
+  `scripts/audit_compliance_mappings.py`, `scripts/audit_spl_hallucinations.py`,
+  and `scripts/audit_splunk_cloud_compat.py` all pass on the expanded
+  catalogue (1,242 / 1,242 UC files valid, 52 / 52 golden tuples pass,
+  0 new non-baselined errors, 0 SPL hallucinations, 0 pack-level Splunk
+  Cloud findings on the new UCs). `api/v1/`, `splunk-apps/`, and
+  `reports/compliance-gaps.json` are regenerated to include the new UCs
+  and verified byte-identical over triple-runs.
+
+### Compliance gold standard — Phase 2.3 per-regulation content fills
+
+Theme: **close the clause gap for the thinnest tier-1 frameworks**. The
+Phase 2.1 gap report ranked every tier-1 regulation-version by
+clause-coverage; five frameworks sat at the bottom of the list with
+targeted gaps that cross-category UCs alone could not close. Phase 2.3
+authors bespoke per-regulation content fills for each of them so that
+every tier-1 clause in the *current, in-force* version now has at least
+one `community`-grade UC satisfying or detecting violations of it.
+
+- **45 new per-regulation UCs (22.3.41 – 22.3.45, 22.6.46 – 22.6.50,
+  22.7.36 – 22.7.45, 22.8.36 – 22.8.55)** — Five regulations, nine UCs
+  per regulation, each one a full end-to-end author: markdown block,
+  JSON sidecar, clause-level `compliance[]` entries against the target
+  regulation plus cross-tag to NIST 800-53 / NIS 2 / HIPAA Security Rule
+  derivative clauses, full `controlTest` (positive + negative scenario,
+  fixture reference, optional ATT&CK technique pointer), `controlFamily`,
+  owner role, evidence, exclusions, CIM model mapping, data sources,
+  Splunk Pillar, known false positives, references, and `attackTechnique`
+  where the detection corresponds to an ATT&CK TTP.
+  - **DORA Regulation (EU) 2022/2554** — 9 UCs closing the remaining
+    clause gap across ICT risk management, ICT third-party risk, threat-
+    led penetration testing, incident classification, and ICT-related
+    incident reporting. All 14 common clauses now covered.
+  - **ISO/IEC 27001:2022** — 9 UCs closing the gap across Annex A
+    controls (A.5 organizational, A.6 people, A.7 physical, A.8
+    technological) and clause 9.1 monitoring/measurement. All 23 common
+    clauses now covered.
+  - **SOC 2 2017 TSC** — 9 UCs closing the gap across CC6 logical &
+    physical access, CC7 system operations, CC8 change management, CC9
+    risk mitigation, and A1 availability. All 16 common clauses now
+    covered.
+  - **PCI-DSS v4.0** — 9 UCs closing the gap across Requirement 2
+    (secure configuration), Requirement 5 (malware defences), Requirement
+    6 (secure development), Requirement 8 (authentication), Requirement
+    10 (logging), and Requirement 11 (testing). All 22 common clauses
+    now covered.
+  - **SOX — PCAOB AS 2201 ITGCs** — 9 UCs closing the gap across access
+    controls, change management, computer operations, and program
+    development / program change. All 12 common clauses now covered.
+- **Coverage rollup** — Tier-1 clause coverage climbs from **60.30% →
+  82.91%** (120 → 165 of 199 common clauses) and priority-weighted
+  coverage from 60.30% → **82.86%** (154.2 / 186.1). Every one of the
+  five target regulation-versions now reports **100% clause coverage
+  and 100% priority-weighted coverage** in
+  `reports/compliance-gaps.json`. The remaining 34 tier-1 clauses
+  (17.09%) sit on older framework versions (PCI v3.2.1, ISO 27001:2013)
+  plus the frameworks untouched by Phase 2.3 (GDPR, HIPAA, NIS 2, NIST
+  800-53, NIST CSF, CMMC) — those are the explicit targets for
+  Phase 3.1 / 3.3.
+- **`data/per-regulation/phase2.3.json`** — New authoring source of
+  truth for the 45 UCs. Each entry carries the UC id, title, subcategory
+  pointer, summary paragraphs, controlFamily, owner, evidence, SPL (with
+  full CIM pivots / tstats where applicable), references, controlTest,
+  and the per-clause `compliance[]` array. Schema-validated against
+  `schemas/uc.schema.json` and reconciled against `data/regulations.json`
+  on every generator run.
+- **`scripts/generate_phase2_3_per_regulation.py`** — Mirrors the Phase
+  2.2 pattern: idempotent, deterministic, `--check` mode, emits 45 new
+  UC sidecars in canonical field order, renders markdown blocks between
+  `<!-- PHASE-2.3 BEGIN -->` / `<!-- PHASE-2.3 END -->` fences in
+  `use-cases/cat-22-regulatory-compliance.md`, and sets `status:
+  community` on every new sidecar so the new tags flip their clauses
+  from GAP to COVERED in the gap report (the same lifecycle stage Phase
+  2.2 used; SME sign-off in Phase 5.2 will promote the full Phase 2.2
+  + 2.3 cohort to `status: verified`). Produces byte-identical output
+  on repeat runs; wired into `validate.yml` as a drift gate.
+- **Audit pipeline stayed green** — `scripts/audit_uc_structure.py
+  --full` (1,287 / 1,287 files valid), `scripts/audit_compliance_mappings.py`
+  (52 / 52 golden tuples pass, zero new non-baselined errors),
+  `scripts/audit_spl_hallucinations.py` (zero findings on the 45 new
+  UCs), and `scripts/audit_splunk_cloud_compat.py` (zero new pack-level
+  findings) all pass. `api/v1/`, `splunk-apps/`, and
+  `reports/compliance-gaps.json` regenerated to include the new UCs and
+  verified byte-identical over triple runs.
+- **UC totals** — Cat-22 now ships **1,287 UC blocks** (up from 1,242
+  in Phase 2.2) with **151 new clause-level compliance entries** added
+  by Phase 2.3 — all bespoke per-regulation clauses on the five target
+  frameworks, without any existing content changing. Total catalogue
+  count: **6,424 UCs** (up from 6,379).
+
+### Compliance gold standard — Phase 3.1 clause-level backfill
+
+Theme: **tier-1 100% — no UC left untagged for the clauses it already
+proves**. Phase 2.3 closed the five thinnest tier-1 regulation-versions
+to 100% clause coverage; Phase 3.1 closes the remaining eight tier-1
+frameworks without authoring a single new UC. The gap analysis flagged
+34 tier-1 clauses on CMMC 2.0, ISO/IEC 27001:2013, NIST CSF 1.1 & 2.0,
+PCI-DSS v3.2.1, GDPR 2016/679, NIST SP 800-53 Rev. 5, and HIPAA Security
+Rule 2013-final that had **no compliance tag** on any cat-22 UC even
+though an existing UC semantically proved the control — an evidence
+surface the catalogue was silently under-selling. Phase 3.1 hand-maps
+every one of those 34 clauses to the existing cat-22 UC that best
+evidences it and appends the clause-level `compliance[]` entry.
+
+- **Tier-1 clause coverage: 82.91% → 100.00%** — All **199 common
+  clauses** across the 12 tier-1 regulation-versions are now covered
+  (was 165 / 199). Priority-weighted tier-1 coverage climbs from
+  **82.86% → 100.00%**. `reports/compliance-gaps.json` reports zero
+  uncovered tier-1 clauses; `docs/compliance-gaps.md` shows a clean
+  tier-1 section for the first time in the project's history. Tier-1
+  assurance-adjusted coverage rises from **30.15% → 43.82%** as the
+  backfilled tags are authored at `partial` or `full` assurance with
+  rationale tying the UC's detection logic to the control text.
+- **34 clause-level tags, zero new UCs** — Phase 3.1 adds **34 new
+  `compliance[]` entries** across **33 existing cat-22 UCs** (one UC
+  picks up two clauses from the same family). No SPL, markdown,
+  controlTest, or any other UC field is touched — the change surface is
+  strictly the `compliance[]` array on each target sidecar. Breakdown
+  by regulation:
+  - **CMMC 2.0** — 9 clauses (AC.L2-3.1.1, -3.1.5, -3.1.12, AU.L2-3.3.1,
+    -3.3.2, -3.3.5, CA.L2-3.12.1, IR.L2-3.6.1, SI.L2-3.14.6) mapped to
+    UCs evidencing authorised access, admin session monitoring, remote
+    access control, audit record generation, audit review, anomaly
+    detection, continuous monitoring, incident response, and system
+    monitoring.
+  - **ISO/IEC 27001:2013** — 6 Annex A clauses (A.9.2.3 privileged
+    access, A.9.2.5 access rights review, A.12.4.1 event logging,
+    A.12.4.3 admin/operator logs, A.16.1.2 reporting security events,
+    A.18.1.3 protection of records).
+  - **NIST CSF 1.1** — 4 subcategory IDs (PR.AC-1 identities &
+    credentials, PR.DS-1 data-at-rest, DE.CM-1 network monitoring,
+    RS.RP-1 response plan).
+  - **NIST CSF 2.0** — 3 subcategory IDs (GV.OC-01 org mission,
+    ID.AM-01 hardware inventory, PR.AA-01 identities issued).
+  - **PCI-DSS v3.2.1** — 4 requirements (10.2, 10.3, 10.5, 10.6).
+  - **GDPR 2016/679** — 3 articles (Art. 5(1)(f) integrity &
+    confidentiality, Art. 32 security of processing, Art. 33 breach
+    notification to supervisory authority).
+  - **NIST SP 800-53 Rev. 5** — 3 controls (AC-2 account management,
+    AU-6 audit review/analysis/reporting, SI-4 system monitoring).
+  - **HIPAA Security Rule 2013-final** — 2 implementation specs
+    (§ 164.308(a)(1)(ii)(D) information system activity review,
+    § 164.312(b) audit controls).
+- **`data/per-regulation/phase3.1.json`** — New authoring source of
+  truth for the backfill. Each entry carries `uc_id`, `regulation`,
+  `version`, `clause`, `clauseUrl`, `mode` (`satisfies` or
+  `detects-violation-of`), `assurance` (`partial` or `full`), and a
+  one-sentence `assurance_rationale` citing the specific evidence the
+  UC produces for that clause. Every mapping is hand-reviewed; no
+  heuristic assignment. The manifest is the system-of-record — the
+  target UC can be re-chosen by editing this file, and the generator
+  will idempotently re-apply.
+- **`scripts/generate_phase3_1_backfill.py`** — New idempotent,
+  deterministic generator. Reads the manifest, resolves each mapping
+  to the target UC sidecar in `use-cases/cat-22/`, and appends the
+  `compliance[]` entry **only if no entry for the same
+  regulation+version+clause tuple already exists** (so the generator
+  is safe to run repeatedly and safe against hand-added tags). Emits
+  the sidecar in canonical field order, sorted compliance[] by
+  regulation then clause, with byte-identical output on repeat runs.
+  Supports `--check` (exit 1 on drift) and is wired into
+  `validate.yml` as a drift gate.
+- **Generator boundary enforced** — Phase 3.1 never modifies UCs whose
+  sidecars are owned by another generator (Phase 2.2 mini-categories,
+  Phase 2.3 per-regulation fills). Two mappings originally targeted
+  Phase 2.3-owned UCs (22.6.51, 22.11.99); both were redirected to
+  Phase 3.1-safe alternatives (22.6.39, 22.11.65) after the cross-
+  generator drift was detected in CI.
+- **Audit pipeline stayed green** — `scripts/audit_uc_structure.py
+  --full` (1,287 / 1,287 files valid), `scripts/audit_compliance_mappings.py`
+  (52 / 52 golden tuples pass, zero new non-baselined errors),
+  `scripts/audit_spl_hallucinations.py` (zero findings on the 24 files
+  scanned for the cohort), and `scripts/audit_splunk_cloud_compat.py`
+  (zero new fails) all pass. `api/v1/` (compliance, coverage, gaps,
+  ucs, regulations indexes), `splunk-apps/`, and
+  `reports/compliance-gaps.json` are regenerated and verified byte-
+  identical over triple runs.
+- **What Phase 3.1 did not do** — Phase 3.1 is deliberately scoped to
+  *existing cat-22 UCs*. Cross-tagging UCs outside cat-22 with tier-1
+  clauses is **Phase 3.2**; applying the `derives_from` graph to
+  derivative regulations (UK GDPR, CCPA, nFADP, LGPD, APPI) is
+  **Phase 3.3**. Tier-2 clause coverage is unchanged (7.07%); lifting
+  tier-2 is **Phase 3.2 + 3.3**. Tier-3 framework authoring is
+  **Phase 5**.
+
+### Compliance gold standard — Phase 3.2 cross-cutting clause-level tagging outside cat-22
+
+Theme: **tier-2 unlocked — the catalogue's existing detections are the
+evidence that tier-2 audits have been asking for**. Phase 3.1 landed
+tier-1 clause coverage at 100%; Phase 3.2 turns to tier-2 and to the
+other 21 categories in the catalogue. The gap analysis showed tier-2
+coverage at just **7.07%** — not because the detections didn't exist,
+but because the 4,000+ existing UCs outside cat-22 (identity, network,
+endpoint, cloud, DevOps, OT, …) had *no* `compliance[]` entries at all.
+Phase 3.2 hand-curates the cross-cutting map: for every tier-1/tier-2
+clause where an existing operational UC already proves the control,
+the UC gets a clause-level tag. No new UCs, no SPL changes, no markdown
+rewrites — a pure metadata enrichment that reveals evidence the
+catalogue was already producing.
+
+- **Tier-2 clause coverage: 7.07% → 59.60%** — Covered common clauses
+  jumped from **7 / 99 to 59 / 99**. Priority-weighted tier-2 coverage
+  climbed from **7.37% → 59.77%**; assurance-adjusted tier-2 coverage
+  rose from **3.68% → 27.55%**. Global clause coverage (tier-1 + tier-2
+  rollup) went from **85.91% → 86.58%**. **13 tier-2 regulations**
+  reached **100% commonClauses coverage** in this phase — API RP 1164,
+  APRA CPS 234, BAIT/KAIT, EU CRA, FedRAMP Rev.5 baselines, HITRUST CSF
+  v11, IEC 62443, BSI IT-Grundschutz 2023, MiFID II, PSD2, SG PDPA,
+  TSA SD, and UK Cyber Essentials (Montpellier 2025). A further
+  **14 tier-2 regulations** moved into partial coverage (33%–80%).
+- **53 UCs, 182 clause-level mappings, zero new UCs** — Phase 3.2 adds
+  **182 new `compliance[]` entries** across **53 existing UCs in 14
+  categories** — cat-01 server & compute (8 UCs), cat-03 containers &
+  orchestration (1), cat-04 cloud infrastructure (3), cat-05 network
+  infrastructure (4), cat-06 storage & backup (3), cat-07 database &
+  data platforms (3), cat-09 identity & access management (5), cat-11
+  email & collaboration (2), cat-12 DevOps / CI/CD (4), cat-13
+  observability & monitoring stack (4), cat-14 IoT / operational
+  technology (7), cat-15 data-centre physical infrastructure (3),
+  cat-16 service management / ITSM (3), and cat-17 network security
+  & zero trust (3). The change surface is strictly the `compliance[]`
+  array on new minimal JSON sidecars — markdown, controlTest, SPL,
+  and every other UC field are untouched.
+- **`data/per-regulation/phase3.2.json`** — New authoring source of
+  truth. Each manifest entry identifies the target UC (`uc_id`,
+  `title`) and lists its mappings (`regulation`, `version`, `clause`,
+  `clauseUrl`, `mode`, `assurance`, `assurance_rationale`). Every
+  mapping is hand-reviewed and rationale-cited against the clause
+  text; no heuristic assignment, no LLM-generated claims. Scope
+  explicitly excludes derivative data-protection regulations (UK GDPR,
+  CCPA, nFADP, LGPD, APPI) — those are applied via the
+  `derives_from` graph in **Phase 3.3**.
+- **`schemas/per-regulation-phase3.2.schema.json`** — New JSON schema
+  enforcing manifest shape. Validates `uc_id` grammar
+  (`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`) and
+  **explicitly rejects UC IDs starting with `22.`** — Phase 3.2 is
+  non-cat-22 by construction, and cat-22 sidecars are owned by other
+  generators (Phase 2.2, 2.3, 3.1).
+- **`scripts/generate_phase3_2_cross_cutting.py`** — New idempotent,
+  deterministic generator. Reads the manifest, resolves each UC ID
+  against the markdown headings in `use-cases/cat-NN-*.md` (byte-exact
+  title match required), and writes minimal JSON sidecars at
+  `use-cases/cat-NN/uc-<id>.json` containing only `$schema`, `id`,
+  `title`, and a `compliance[]` array. Sidecars are emitted in
+  canonical field order with `compliance[]` sorted by
+  `(regulation, version, clause)`. Deduplication is keyed on the same
+  tuple, so the generator is safe to run repeatedly and safe against
+  hand-edited tags. `--check` exits non-zero on drift; wired into
+  `validate.yml` as a CI gate.
+- **Clause-grammar hardening in `data/regulations.json`** — Phase 3.2
+  surfaced two clauseGrammar inconsistencies that had previously gone
+  untested. HITRUST CSF v11 grammar was tightened from
+  `^\d{2}\.[a-z]$` to `^\d{2}\.[a-z]+$` so multi-letter clause codes
+  like `09.aa` (Audit logging) validate correctly against their own
+  `commonClauses[]` entry. BSI IT-Grundschutz 2023 grammar was widened
+  from `^[A-Z]{2,4}(\.\d+)?(\.[AMS]\d+)?$` to
+  `^[A-Z]{2,4}(\.\d+)*(\.[AMS]\d+)?$` so multi-segment module paths
+  like `OPS.1.1.2` (Ordered ICT operation) validate correctly. Both
+  changes are purely permissive and land with updated
+  `clauseExamples[]`. `tests/golden/audit-baseline.json` was
+  regenerated (fingerprints shifted on 5 pre-existing IT-Grundschutz
+  data-quality issues; total baseline count unchanged at 670).
+- **Audit pipeline stayed green** — `scripts/audit_compliance_mappings.py`
+  (1340 / 1340 files valid, 52 / 52 golden tuples pass, zero new
+  blocking errors), `scripts/audit_compliance_gaps.py` (tier-2
+  coverage verified at 59.60%), and `scripts/generate_phase3_2_cross_cutting.py
+  --check` (no drift) all pass. `api/v1/` regenerated (1,490 files
+  total) and `splunk-apps/` regenerated (11 per-regulation apps,
+  898 saved searches) — each tier-1 app picks up additional UCs
+  from the new cross-cutting tags.
+- **What Phase 3.2 did not do** — Phase 3.2 is deliberately scoped to
+  *existing UCs outside cat-22* and *native clauses only*. Derivative
+  regulations (UK GDPR, CCPA/CPRA, nFADP, LGPD, APPI) remain at 0%
+  tier-2 coverage until the `derives_from` graph is applied in
+  **Phase 3.3** — a mechanical propagation that will carry the
+  tier-1 GDPR tags into UK GDPR, the California data-broker tags
+  into CCPA, and so on, roughly doubling tier-2 clause coverage
+  again. Tier-3 framework authoring remains **Phase 5**.
+
+### Compliance gold standard — Phase 3.3 derivative-regulation propagation
+
+Theme: **one detection, many legal regimes**. The 34-framework catalogue
+carries a long-standing design invariant: derivative privacy regulations
+(UK GDPR, Swiss nFADP, LGPD, APPI, and California CCPA/CPRA) re-use the
+substance of their parent framework almost verbatim. A UC that already
+proves GDPR Art.32 (technical and organisational security measures)
+*necessarily* proves UK GDPR Art.32 — the clause text is preserved 1:1 by
+the UK's Data Protection Act 2018 onshoring. The same control proves
+LGPD Art.46 (security measures), APPI Art.23 (security control of personal
+data), and so on — the wording diverges, the underlying control does not.
+Phase 3.3 turns this invariant into evidence: it walks the `derivesFrom`
+graph in `data/regulations.json` and emits **inherited `compliance[]`
+entries** on every UC that already maps to a parent regulation, with full
+traceability back to the parent clause and legal caveats captured as
+divergence notes. Derivative tier-2 coverage jumped from **0% in
+all five derivative regulations to 50%–100%** in a single deterministic
+pass, with zero new UCs, zero SPL changes, and zero markdown rewrites.
+
+- **Tier-2 clause coverage: 59.60% → 66.67%** — Covered common clauses
+  climbed from **59 / 99 to 66 / 99**. The seven new clauses are
+  derivative-regulation clauses that inherited their coverage
+  mechanically from GDPR: **UK GDPR Art.32, Art.33, Art.34, Art.16,
+  Art.17, Art.25** (identity-mode propagation), plus **LGPD Art.46,
+  APPI Art.23, and Art.26** (mapped-mode propagation via hand-curated
+  clauseMapping tables). Priority-weighted tier-2 coverage rose from
+  **59.77% → 66.67%**; assurance-adjusted tier-2 coverage rose from
+  **27.55% → 30.22%**. Global clause coverage (tier-1 + tier-2 rollup)
+  went from **86.58% → 88.93%**.
+- **54 inherited `compliance[]` entries across 5 derivatives** —
+  distributed as **UK GDPR: 38** (identity-mode; every parent GDPR
+  Art.N propagates to UK GDPR Art.N), **LGPD: 6**, **APPI: 6**,
+  **Swiss nFADP: 2**, and **CCPA/CPRA: 2**. Seven entries carry a
+  `derivationSource.divergenceNote` flagging clauses the derivatives'
+  authorities have rewritten in substantive ways (e.g. UK GDPR Art.45
+  adequacy decisions managed by the ICO, Swiss nFADP Art.7 privacy-by-
+  design with its own enforceable scope, CCPA §1798.100 right-to-know
+  with disclosure-window semantics different from GDPR). The
+  inherited entry still lands so an auditor sees the lineage, but the
+  divergence note explicitly requests SME review before the inherited
+  assurance is relied on at trial. Every inherited entry is tagged
+  `provenance: "derived-from-parent"` and carries a structured
+  `derivationSource` object (parent regulation, parent version, parent
+  clause, parent assurance, inheritance mode, optional divergence note)
+  so the chain of inference is machine-traceable.
+- **Assurance degradation and precedence rules** — an inherited
+  entry can never be *stronger* than its parent. Assurance degrades
+  exactly one step: **full → partial, partial → contributing,
+  contributing → no propagation**. The terminal rule prevents the
+  catalogue from emitting "contributing inherited from contributing"
+  noise, which is common on advisory clauses where the parent entry
+  itself is aspirational. Native (hand-authored or SME-reviewed)
+  entries always win: if a UC already declares a direct mapping for
+  a derivative regulation, the generator leaves that entry untouched
+  even if the hand-authored assurance is *weaker* than the derived
+  one would have been. This preserves SME intent over mechanical
+  propagation — the inverse would silently overwrite curated
+  judgements.
+- **`data/regulations.json` — `derivesFrom` graph extended** — every
+  derivative entry now declares `inheritanceMode` (`identity` vs
+  `mapped`), an optional `clauseMapping` object (required for
+  `mapped` mode), and a structured `divergences[]` list. UK GDPR is
+  `identity`: the 2018 onshoring preserved EU GDPR clause numbering,
+  so propagation is a 1:1 carry. Swiss nFADP, LGPD, APPI, and
+  CCPA/CPRA are `mapped`: each ships a hand-curated clauseMapping
+  keyed by parent clause (e.g. `Art.25 → Art.7` for nFADP privacy-by-
+  design, `Art.32 → Art.46` for LGPD security measures, `Art.33 → §1798.150`
+  for CCPA breach liability). Propagation strictly respects the
+  mapping — clauses not listed in `clauseMapping` do not propagate,
+  preventing spurious inherited claims against silence on the
+  derivative side.
+- **`schemas/uc.schema.json` — `derivationSource` field** — the UC
+  schema now allows an optional `derivationSource` object on every
+  `compliance[]` entry. Required when `provenance == "derived-from-parent"`;
+  shape is `{parentRegulation, parentVersion, parentClause,
+  parentAssurance, inheritanceMode, divergenceNote?}`. `additionalProperties: false`
+  so adjacent hand-edited fields cannot slip in. The schema change is
+  purely additive — existing entries (`maintainer`, `auditor-reviewed`,
+  `olir-crosswalk`, `nist-cprt-ingest` provenance) continue to validate
+  unchanged.
+- **`scripts/generate_phase3_3_derivatives.py`** — new deterministic
+  generator. Reads `data/regulations.json`, resolves parent-to-derivative
+  framework relationships via the `derivesFrom` graph, canonicalises
+  regulation names via `aliasIndex`, walks every UC sidecar, and
+  emits inherited entries in canonical field order sorted by
+  `(regulation, version, clause)`. Idempotent: repeated runs are
+  byte-identical; `--check` diffs the regenerated tree against disk
+  and exits non-zero on drift. Wired into `validate.yml` as a CI gate
+  so a forgotten regeneration, a hand-edited derived entry, or a
+  stale parent mapping that should have been garbage-collected all
+  fail the PR check.
+- **Coverage gates held green** — `scripts/audit_compliance_mappings.py`
+  (1340 / 1340 files valid, 52 / 52 golden tuples pass, zero new
+  blocking errors, baseline tolerated=670 unchanged), `scripts/audit_compliance_gaps.py`
+  (tier-2 coverage verified at 66.67%), and all three generator
+  `--check` modes (Phase 3.3 derivatives, `api/v1`, `splunk-apps`)
+  all pass. `api/v1/` regenerated with the inherited entries (1,490
+  files, ~20 UC compliance files updated to reflect the new
+  derivative tags); `splunk-apps/` regenerated with no structural
+  drift (derivative apps are authored in Phase 5; Phase 3.3 only
+  populates the compliance metadata today).
+- **What Phase 3.3 did not do** — Phase 3.3 is deliberately scoped to
+  the five declared derivative regulations and to *mechanical*
+  propagation of already-tagged parent clauses. It does **not** tag
+  clauses on derivatives that have no GDPR parent (e.g. CCPA
+  §1798.105 right-to-delete has no direct GDPR analogue; it maps
+  from GDPR Art.17 via hand-curated rationale, not mechanical lift),
+  it does **not** upgrade inherited assurance beyond the one-step
+  degradation, and it does **not** run SME review. Upgrading
+  inherited entries to `partial` or `full` assurance, authoring
+  native derivative-only clauses, and collecting SME sign-offs all
+  belong to **Phase 5**. Tier-3 framework authoring remains
+  **Phase 5**.
+
+### Compliance gold standard — Phase 4.1 regulatory primer
+
+Theme: **plain-language explanation of what each regulation actually
+demands**. The catalogue carries 60 regulatory frameworks with
+clause-level precision in `data/regulations.json`, 1,219 machine-readable
+compliance entries across 1,340 UC sidecars, and a versioned JSON API
+surface — but none of that is useful to a privacy officer, legal reviewer,
+or executive approver who has never written an SPL query. Phase 4.1
+closes that gap with a single authoritative primer that translates
+clause-level mappings into business-impact language, organised around
+both how auditors think (by regulation) and how operators think (by
+cross-cutting control family).
+
+- **`docs/regulatory-primer.md` — 1,200+ line plain-language primer** —
+  New top-level document covering (1) how to read the primer
+  (tier badges, assurance levels, clause notation, priority weights);
+  (2) **15 cross-cutting control families** 22.35 – 22.49, each with a
+  plain-language control question, regulator-citation list, catalogue
+  deliverable summary, and pointers into cat-22 markdown plus the
+  matching `api/v1/compliance/ucs/*.json` endpoints; (3) **12 tier-1
+  regulation deep dives** (GDPR, UK GDPR, PCI DSS v4.0, HIPAA Security,
+  SOX ITGC, SOC 2, ISO 27001:2022, NIST CSF 2.0, NIST 800-53 Rev.5,
+  NIS2, DORA, CMMC 2.0) with who-must-comply scope, key-clauses-and-
+  coverage tables, and catalogue-delivery summaries; (4) derivative-
+  regulation inheritance notes (UK GDPR identity-mode; CCPA / CPRA,
+  Swiss nFADP, LGPD, APPI mapped-mode) cross-referencing Phase 3.3;
+  (5) appendix of all 34 per-regulation subcategories (22.1 – 22.34);
+  (6) worldwide data-protection appendix (11 regimes with parent /
+  derivative relationships); (7) glossary; (8) provenance notes.
+- **Zero-opinion authorship** — every clause citation, authoritative
+  URL, and topic summary in the primer comes from
+  `data/regulations.json` (the single source of truth) or from public
+  regulator guidance cited in Appendix D. No SME interpretations are
+  un-sourced; no legal conclusions are asserted. The primer is
+  explicit that high-stakes interpretations (breach-notification
+  timing, cross-border transfer validity, DPIA thresholds) require
+  counsel review before the catalogue's coverage claims are relied on
+  at trial.
+- **Non-technical language throughout** — intended audience is
+  privacy, legal, risk, audit, and executive readers. Written for
+  readers who cannot write SPL and should not be asked to read
+  savedsearches.conf. Every technical mechanism is framed as a
+  business outcome: "prove the log records have not been tampered
+  with" rather than "HEC acknowledgement mode is enabled with 30-day
+  retention". Cross-references point readers to the machine-readable
+  API for anything deeper.
+- **No downstream artefact regeneration required** — Phase 4.1 is a
+  pure-authoring delivery. No SPL changes, no UC sidecar mutations,
+  no generator updates, no CI wiring. The primer is static markdown
+  consumed directly; CI's `audit_changelog_uc_refs.py` gate confirms
+  every cited UC ID is valid. `api/v1/`, `splunk-apps/`, and the
+  compliance gap report are unchanged.
+
+### Compliance gold standard — Phase 4.2 tier-1 evidence packs
+
+Theme: **auditor-ready dossiers**. The regulatory primer (Phase 4.1)
+explains *what* each regulation demands in plain language; the evidence
+packs explain *how the catalogue proves it* in auditor language.
+Twelve deterministic, dual-format (Markdown + JSON) dossiers that an
+auditor can accept, a privacy officer can review, and a machine can
+consume — all generated from the same clause-level source data as the
+API surface, with no hand-curated divergence.
+
+- **`docs/evidence-packs/*.md` — 12 tier-1 evidence packs** — One pack
+  per tier-1 framework (`gdpr.md`, `uk-gdpr.md`, `pci-dss.md`,
+  `hipaa-security.md`, `sox-itgc.md`, `soc2.md`, `iso27001-2022.md`,
+  `nist-csf.md`, `nist80053.md`, `nis2.md`, `dora.md`, `cmmc.md`).
+  Each pack carries eight auditor-facing sections: (1) framework
+  identity (regulator, authoritative URL, effective date, version);
+  (2) derivative-relationship notes when applicable; (3) coverage
+  summary (covered clauses, coverage %, priority-weighted %,
+  contributing UCs, tier-1 / tier-2 split); (4) clause-by-clause
+  table showing every common clause, max assurance level, and the
+  contributing UC list; (5) evidence requirements (retention, signing,
+  access control); (6) top five auditor questions pre-answered with
+  links into the catalogue; (7) responsible roles (control owner,
+  evidence custodian, independent reviewer); (8) common deficiencies
+  (what auditors typically flag, how the catalogue defends against
+  each).
+- **`api/v1/evidence-packs/*.json` — JSON twin of every pack** —
+  Every Markdown pack ships a mechanically equivalent JSON twin
+  containing framework identity, a `coverage` summary (covered /
+  total clause counts, priority-weighted %, `contributingUcCount`),
+  a `clauses[]` array with per-clause assurance and UC list, the
+  full auditor-extras block (evidence requirements, questions, roles,
+  deficiencies), plus a global `api/v1/evidence-packs/index.json`
+  endpoint catalogue. Machine consumers get the same signal as
+  human auditors, no screen-scraping required.
+- **`data/evidence-pack-extras.json` — auditor-facing metadata** —
+  New data file covering the 12 tier-1 frameworks with retention
+  guidance, signing guidance, access-control guidance, top-five
+  auditor questions, control-owner / custodian / reviewer role
+  descriptions, and the common-deficiency list per framework. Kept
+  separate from `data/regulations.json` so the authoritative
+  regulatory index stays focused on clause-level facts while
+  auditor narrative lives in a purpose-built file. Validated by
+  `schemas/evidence-pack-extras.schema.json`.
+- **Identity-mode derivative handling** — UK GDPR's evidence pack
+  correctly inherits GDPR's **full** clause inventory (20 common
+  clauses, merged from the parent), not just UK GDPR's divergence
+  list. The generator detects `inheritanceMode: identity` on the
+  `derivesFrom` graph, expands the derivative's clause set to
+  include every parent clause, and then computes live coverage
+  against that expanded inventory. UK GDPR therefore shows
+  **16 / 20 clauses covered (80 %)** with 24 contributing UCs and
+  the four uncovered clauses (Art.22, Art.25, Art.30, Art.35)
+  called out explicitly — matching what an auditor would see under
+  a UK ICO review. Mapped-mode derivatives (CCPA, nFADP, LGPD, APPI)
+  remain out of tier-1 scope for Phase 4.2 and will land as Phase 5
+  deliverables.
+- **Markdown ↔ JSON coverage alignment** — The JSON twin's
+  `contributingUcs[]` only lists UCs that map to at least one of
+  the pack's visible common clauses; the top-of-pack summary,
+  the clause table, and the JSON `coverage.contributingUcCount`
+  all agree. Previously the JSON could list UCs that tagged
+  sub-clauses outside the common-clause inventory, creating a
+  mismatch with the human-readable summary.
+- **`scripts/generate_evidence_packs.py` — deterministic generator** —
+  New Python generator reads `data/regulations.json`,
+  `data/evidence-pack-extras.json`, every UC sidecar, and
+  `reports/compliance-gaps.json` to emit the 24 pack files + 2
+  index files. Supports `--check` (CI drift guard, exits non-zero
+  on divergence) and a `--verbose` progress mode. Regulation IDs
+  from UC sidecars are normalised via `data/regulations.json`'s
+  `aliasIndex` (case-insensitive), and clause identifiers are
+  sorted naturally (Art.5 before Art.10) so re-runs produce
+  byte-identical output.
+- **CI wiring** — `.github/workflows/validate.yml` runs
+  `generate_evidence_packs.py --check` after the clause-level
+  gap-report regeneration step. Triggers extended to
+  `data/evidence-pack-extras.json` and `docs/evidence-packs/**`.
+- **Generator coexistence** — `scripts/generate_api_surface.py`
+  teaches about external subtrees: `api/v1/evidence-packs/` is
+  now explicitly skipped by both the cleanup (`rmtree`) logic
+  and the `_diff_trees` comparator, so the two generators
+  coexist under `api/v1/` without fighting over ownership.
+
+Scope boundaries (what Phase 4.2 intentionally does **not** do): it
+does not author tier-2 / tier-3 framework evidence packs, it does
+not alter clause-level coverage in `reports/compliance-gaps.json`
+(the packs are a *view* on existing data), it does not record SME
+sign-offs (Phase 5.2), and it does not sign the pack outputs
+(provenance ledger is Phase 5.4). Tier-2 framework evidence packs
+belong to Phase 5 per the gold-standard plan.
+
+### Compliance gold standard — Phase 4.3 non-technical view elevation
+
+Theme: **plain-language access to regulatory compliance**. The
+regulatory primer (Phase 4.1) and auditor evidence packs (Phase 4.2)
+are authoritative but dense; Phase 4.3 makes both visible to the
+audience that actually signs off on compliance programmes — privacy
+officers, legal counsel, risk leaders, and executives — without
+making them hunt through markdown files. Category 22's non-technical
+view now carries plain-language narrative *per area* plus one-click
+cross-references into the primer and the evidence packs.
+
+- **`non-technical-view.js` — `"22": { ... }` block rewritten** — The
+  cat-22 block now owns **50 areas**, up from the previous combined
+  view. Three structural splits bring the taxonomy in line with
+  Phase 4.1 / 4.2 content: *UK GDPR* separated from GDPR (it owns its
+  own evidence pack under `inheritanceMode: identity`), *ISO 27001*
+  separated from *NIST CSF 2.0* (distinct primer sections and
+  evidence packs), and *MiFID II* separated from *SOC 2* (different
+  regulators, different evidence). Every area carries the existing
+  `name` / `description` / `ucs[]` plus three new plain-language
+  fields — `whatItIs` (one-sentence definition), `whoItAffects`
+  (obligated entities), `splunkValue` (what the Splunk catalogue
+  delivers for this area) — so a non-technical reader can understand
+  each regulation at a glance without clicking through.
+- **Cross-references into primer and evidence packs** — Two further
+  optional fields, `primer` (repo-relative path into
+  `docs/regulatory-primer.md` with anchor) and `evidencePack`
+  (repo-relative path into `docs/evidence-packs/*.md`), turn each
+  area into a portal to the deeper content. Tier-1 regulation areas
+  (GDPR, UK GDPR, PCI DSS, HIPAA, SOX / ITGC, SOC 2, ISO 27001,
+  NIST CSF, NIST 800-53, NIS2, DORA, CMMC) carry both fields, for
+  12 linked pairs. Cross-cutting family areas (22.35 – 22.49) carry
+  `primer` but no evidence pack — the tier-1 evidence lives on the
+  regulation areas. Tier-2 / tier-3 regulations carry neither link
+  field today; they remain documented through `whatItIs` /
+  `whoItAffects` / `splunkValue`. Final counts: **50 areas** with
+  at least one plain-language meta field, **27 areas** with a
+  primer anchor, **12 areas** with an evidence pack link.
+- **`scripts/regenerate_cat22_ntv.py` — deterministic generator** —
+  New Python generator owns the entire cat-22 block. It carries an
+  authoritative in-memory dictionary of every area's narrative copy
+  and renders it into the JS object literal the dashboard consumes,
+  preserving the surrounding style (same indentation, same
+  single-line scalar layout, comma-terminated `ucs[]` entries).
+  Supports `--check` for the CI drift guard. Anchor slugs are
+  verified to match GitHub-slugger output for every primer heading;
+  every referenced UC ID was audit-verified against the markdown
+  source before rewrite (0 missing of 142 IDs authored).
+- **`index.html` — frontend renderer extended** — The non-technical
+  view now renders the new fields: a `<dl class="nt-area-meta">`
+  block shows `whatItIs` / `whoItAffects` / `splunkValue` as a
+  clean definition list, and a `<div class="nt-area-links">` row
+  shows primer and evidence-pack buttons. A new `ntResolveLink()`
+  helper converts the repo-relative paths into absolute GitHub
+  blob URLs (`https://github.com/fenre/splunk-monitoring-use-cases/blob/main/...`)
+  so links always open in GitHub's rendered Markdown view, even
+  when the dashboard is served from a mirror or a PR preview. The
+  `filterNTCards()` search text now includes the three new
+  meta-fields so the non-technical search covers the new copy.
+- **`.cursor/rules/non-technical-sync.mdc` — documentation updated**
+  — The workspace rule for `non-technical-view.js` was extended
+  with the five Phase 4.3 fields (`whatItIs`, `whoItAffects`,
+  `splunkValue`, `primer`, `evidencePack`), their content rules
+  (plain-language, no jargon, tier-1 gets both links, cross-cutting
+  gets primer only, tier-2 / tier-3 get neither today), and the
+  tier-1 list that **must** carry both `primer` and `evidencePack`.
+- **CI wiring** — `.github/workflows/validate.yml` runs
+  `regenerate_cat22_ntv.py --check` after the Phase 3.3 generator
+  check and before the API surface check; drift in the cat-22
+  block now fails PR validation. The existing
+  `audit_non_technical_sync.py` audit already passes (every area
+  still references valid UC IDs for its subcategory).
+
+Scope boundaries (what Phase 4.3 intentionally does **not** do): it
+does not add `whatItIs` / `whoItAffects` / `splunkValue` to non-cat-22
+categories (those are operational, not regulatory, and do not need
+regulator-facing copy); it does not author a non-technical block for
+future tier-2 / tier-3 regulations beyond what the current cat-22 set
+covers; and it does not edit `docs/regulatory-primer.md` or
+`docs/evidence-packs/**` (both are authored under 4.1 / 4.2).
+Downstream artefact regeneration: `build.py` picks up no new content
+from this phase — the non-technical view is independent of
+`catalog.json`, `api/v1/`, and `splunk-apps/`.
+
+### Compliance gold standard — Phase 4.4 compliance scorecard panel
+
+Theme: **one URL every auditor and regulator can point at**. The
+catalogue already publishes `reports/compliance-coverage.json`,
+`reports/compliance-gaps.json`, and `scorecard.json` — but reading
+JSON is not what an auditor signs off on. Phase 4.4 surfaces those
+three files as a single auditor-ready HTML page so the compliance
+posture is a one-click artefact rather than a Python notebook
+exercise.
+
+- **New `scorecard.html` landing page** — Standalone HTML/CSS/JS
+  page at the repo root that boots from four static JSON files —
+  `reports/compliance-coverage.json`, `reports/compliance-gaps.json`,
+  `scorecard.json`, and `data/regulations.json` — and renders the
+  complete compliance + quality scorecard client-side. No build
+  step, no server runtime, no framework: plain HTML served from
+  GitHub Pages, the same deployment model as the rest of the
+  catalogue.
+- **Global rollup hero** — Top-of-page panel that shows the four
+  headline numbers the board asks for: global clause coverage %,
+  priority-weighted coverage %, assurance-adjusted coverage %, and
+  the weighted technical-quality composite across all 23 categories.
+  Audit status badge (`audit passed` / `failed` / `error`) is driven
+  live from `reports/compliance-coverage.json.status`, and the
+  "generated at" timestamp makes the page self-dating so auditors
+  always see when the underlying scans ran.
+- **Tier rollups** — Per-tier cards (Tier 1 cross-industry critical,
+  Tier 2 sector / regional, Tier 3 niche / emerging) show clause /
+  priority-weighted / assurance percentages plus the `covered /
+  total` clause counts from `coverage.perTier`. A colour-coded cell
+  (green ≥ 80 %, amber 50 – 79 %, red < 50 %, grey = 0 %) matches
+  the methodology in `docs/coverage-methodology.md`.
+- **Per-regulation drilldown table** — Sortable / filterable table
+  of all 60 regulations from `data/regulations.json`, joined with
+  `coverage.perFamily` and `reports/compliance-gaps.json.tiers`.
+  Each row shows tier badge, version label, clause %, priority %,
+  assurance %, and covered / total clause counts. Free-text filter
+  (searches id, name, shortName, jurisdiction), tier filter
+  (1 / 2 / 3), and coverage-band filter (≥ 80 / 50 – 79 / < 50 /
+  0 %) turn the table into a "which regulations are still thin?"
+  triage tool. Column headers are click-to-sort (ascending on
+  first click, descending on second).
+- **Audit findings snapshot** — Metric cards that roll up new
+  errors, warnings, baselined warnings, golden-test pass / fail,
+  UC files checked, and total compliance entries straight from
+  `reports/compliance-coverage.json.findings`, `.golden`, and
+  `.counts`. Error / golden cards flip to red when any error
+  surfaces, so the page visibly fails CI posture before the
+  viewer has to read the detail.
+- **Technical-quality (per category) table** — Dedicated section
+  that renders `scorecard.json.categories` as a second sortable /
+  filterable table: category number, name, UC count, references %,
+  known-false-positives %, MITRE %, provenance score, samples %,
+  composite, and Gold / Silver / Bronze / Needs-work badge. A
+  grade-distribution strip above the table shows how many
+  categories sit in each grade and how many UCs they carry, so the
+  reader can read "Gold: 0 / 3 / 4 / 16" in one glance and jump
+  straight to the laggards.
+- **Machine-readable artefact index** — Bottom-of-page section lists
+  every JSON / markdown source the page consumes, with short
+  one-sentence descriptions, so anyone forking the catalogue can
+  wire the same files into their own CI gates. Direct download
+  links land in `reports/`, `api/v1/compliance/`, `scorecard.json`,
+  `data/regulations.json`, `docs/regulatory-primer.md`, and
+  `docs/evidence-packs/`.
+- **Design tokens, dark mode, print-friendly** — The page reuses
+  the `index.html` Cisco-theme CSS variables end-to-end (fonts,
+  surfaces, borders, Cisco blue primary, green / amber / red
+  coverage bands, grade colours), so it reads as part of the same
+  site. Theme toggle persists in `localStorage` and honours
+  `prefers-color-scheme`. `@media print` styles hide the header,
+  filters, and footer so an auditor can print the scorecard to
+  PDF and get a clean evidence artefact with no UI chrome.
+- **`index.html` wiring** — Footer navigation gets a new
+  `Scorecard` link next to `API docs` so the dashboard exposes
+  the page. The help dialog's "Which endpoint should I use?" grid
+  gains three new cards — `/scorecard.html`, `/reports/compliance-coverage.json`,
+  `/reports/compliance-gaps.json` — so the endpoint catalogue
+  stays accurate. No backend or build changes are required.
+- **Headless render test** — A minimal Node.js DOM shim was used
+  to boot the page's JavaScript against a local HTTP server
+  serving the repo tree; all ten render assertions (audit status,
+  hero metadata, global metric cards, tier grid, regulation
+  tbody, category tbody, grade distribution, findings grid, and
+  both filter counters) pass, confirming the page renders end-to-end
+  from a cold cache with no console errors.
+
+Scope boundaries (what Phase 4.4 intentionally does **not** do): it
+does not create a server-rendered endpoint (the design is
+intentionally static-file so it deploys with the rest of the repo
+on GitHub Pages), it does not introduce a JavaScript build step
+or bundler, it does not duplicate the underlying JSON (the page
+is a pure facade over `reports/*.json`, `scorecard.json`, and
+`data/regulations.json`), and it does not replace
+`docs/scorecard.md` or `docs/coverage-methodology.md` — both
+remain the canonical human-readable references, and the page
+links out to them. Future QA, SME review, change-watch, and
+release gates land in Phase 4.5 / Phase 5.
+
+### Compliance gold standard — Phase 4.5 QA gates
+
+Theme: **nothing ships to an auditor unless six independent gates say
+yes**. Phase 4.4 put the compliance posture behind a single URL; Phase
+4.5 wraps that posture in six blocking CI gates so the repository
+cannot regress silently. Each gate is deterministic, has a committed
+machine-readable report, a Python generator with a `--check` drift
+guard, and — where applicable — a Node.js drift guard that runs on
+the same report from a different code path. Together they cover
+human review (peer + legal), runtime evidence (sandbox fixtures +
+ATT&CK simulation), interop (OSCAL round-trip), and end-user
+experience (perf budgets + WCAG 2.1 AA a11y).
+
+- **Peer-review framework (4.5a)** — Ships
+  `docs/peer-review-guide.md`, a `.github/PULL_REQUEST_TEMPLATE.md`
+  review checklist, the `data/provenance/peer-review-signoffs.json`
+  schema, and `scripts/audit_peer_review_signoffs.py` as the
+  blocking audit. The audit validates signoff identity,
+  reference target, git-commit SHA shape, and ISO-8601 signoff
+  date. Peer reviews are now a first-class artefact, not a comment
+  on a PR page.
+- **Legal-review framework (4.5b)** — Ships
+  `docs/legal-review-guide.md`, the
+  `data/provenance/legal-review-signoffs.json` schema, an append to
+  `LEGAL.md` documenting the review cadence, and
+  `scripts/audit_legal_review_signoffs.py`. The audit enforces that
+  every tier-1 regulation with a registered legal advisor has a
+  current signoff and that any quoted clause language matches
+  `data/regulations.json` at the pinned version — legal advisors
+  can never drift silently from the authoritative text.
+- **Sandbox validation gate (4.5c)** —
+  `scripts/audit_sandbox_validation.py` walks every UC sidecar that
+  declares a `controlTest.fixtureRef`, asserts the fixture exists on
+  disk with populated positive and negative cases, and emits
+  `reports/sandbox-validation.json`. A Node-only drift guard
+  (`tests/sandbox/validate.test.mjs`) re-derives the report from the
+  UC sidecars and fixture tree so contributors without Python get a
+  pre-commit signal. The gate distinguishes `populated` /
+  `empty` / `missing` / `no-fixture` / `pending_fixture` states and
+  keeps the CI failure tied to a reproducible shape rather than to
+  a SPL-at-test-time runtime.
+- **ATT&CK simulation gate (4.5d)** —
+  `scripts/simulate_controltest.py` and
+  `tests/attack/simulate.test.mjs`. The Python simulator is a
+  **structural** check (we do not run SPL against a live Splunk in
+  CI — that would leak secrets and add flakiness): it verifies that
+  every ATT&CK technique cited by a `controlTest` parses as the
+  canonical `T####[.###]` grammar, exists in the normalised MITRE
+  crosswalk committed under `data/crosswalks/attack/`, and that
+  populated fixtures have coherent positive / negative polarity.
+  Reports at `reports/attack-simulation.json`; the Node drift guard
+  reconciles the record set against the UC sidecars on disk so the
+  file can never go stale.
+- **OSCAL round-trip gate (4.5e)** —
+  `scripts/audit_oscal_roundtrip.py` and
+  `tests/oscal/roundtrip.test.mjs`. The Python audit validates every
+  `api/v1/oscal/component-definitions/*.json` file against the NIST
+  OSCAL JSON schema (ajv under the hood) **and** asserts that
+  parse → re-serialise produces the exact same bytes as the
+  committed file. This catches two failure modes at once: schema
+  drift (the NIST spec added / removed a required field) and
+  canonicalisation drift (a contributor hand-edited an OSCAL file
+  outside the generator). The Node drift guard reads the schema
+  bundled under `tools/vendor/oscal/schema/`, hashes it, and
+  cross-checks the hash recorded in `reports/oscal-roundtrip.json`
+  so the audit can never claim it ran against a schema that no
+  longer exists.
+- **Perf + a11y audit gate (4.5f)** —
+  `scripts/audit_perf_a11y.py` and
+  `tests/a11y/perfa11y.test.mjs`. Two dimensions are enforced in a
+  single gate because both speak to "what ships to the end user":
+  **perf budgets** (per-file byte caps on critical-path HTML / JS
+  and generated data, each with ~25 % headroom; over-budget hard-
+  fails) and **accessibility** (axe-core v4 under jsdom against
+  `scorecard.html` and `index.html` with the WCAG 2.1 A + AA +
+  best-practice rule set; serious / critical violations hard-fail
+  unless allowlisted with peer-review justification). Moderate /
+  minor violations surface as warnings; jsdom-incompatible rules
+  (colour-contrast, target-size, focus order) are pre-disabled so
+  the signal stays clean. Generates
+  `reports/perf-a11y.json`; the Node drift guard re-checks every
+  perf record against on-disk bytes and every a11y disposition
+  against impact-level thresholds. Under the hood, this adds
+  `axe-core@4.11.3` and `jsdom@29.0.2` to `package.json`
+  `devDependencies`, and `tests/a11y/run-axe.mjs` is the Node
+  subprocess invoked by the Python orchestrator — keeping the
+  audit configurable in one place and portable across CI.
+- **CI wiring (4.5g)** — `.github/workflows/validate.yml` gains a
+  Node.js 20 setup step with `cache: npm`, an `npm ci` install,
+  and ten new gate steps (one Python + one Node per dimension for
+  4.5c / 4.5d / 4.5e / 4.5f, plus 4.5a and 4.5b Python audits).
+  The PR `paths:` filter now triggers on `tests/**`, every
+  `reports/*.json` file under the Phase 4.5 gates,
+  `data/provenance/**`, `package.json`, `package-lock.json`,
+  `LEGAL.md`, and the review guides so any edit to an input
+  triggers every gate. A new `qa-gates` artifact is uploaded on
+  every CI run and bundles the four QA reports plus the peer and
+  legal signoff files so external reviewers can pull one artifact
+  and reproduce the gate's decision.
+- **Smoke-tested failure modes** — Phase 4.5f was verified against
+  six failure scenarios before it landed: an over-budget perf file,
+  a critical a11y violation, a moderate a11y violation (warning),
+  an allowlist-downgraded violation, a drifted report in
+  `--check` mode, and a missing report in `--check` mode. All six
+  fail fast with actionable stderr messages; none leave the
+  committed report mutated.
+
+Scope boundaries (what Phase 4.5 intentionally does **not** do):
+it does not run SPL against a live Splunk tenant (the ATT&CK gate
+is structural, not runtime — runtime simulation lands with the
+SOAR content pack in a later phase); it does not introduce a
+browser render farm for a11y (jsdom is deliberate — faster,
+hermetic, and reproducible on every runner); and it does not
+replace the blocking SME review in Phase 5.2, which is a separate
+human-judgement gate that operates on top of these automated
+checks.
+
+### Compliance gold standard — Phase 5.1 12 per-regulation Splunk apps
+
+Theme: **every regulated customer gets a single, auditor-ready
+deliverable**. Phase 1.8 shipped the POC generator that produced
+eleven tier-1 apps. Phase 5.1 promotes the generator to production
+scope: the default set now lands the full twelve per-regulation
+Splunk apps the plan requires, every app ships an AppInspect-safe
+compliance-posture dashboard that works on install, and the
+lookup is registered as a shared transform so sibling apps can
+reference it.
+
+- **Twelfth per-regulation app — `splunk-uc-uk-gdpr`** — The
+  default selection in `scripts/generate_splunk_app.py` now
+  includes UK GDPR alongside the eleven tier-1 frameworks (GDPR,
+  PCI DSS, HIPAA-Security, ISO 27001, NIST 800-53, NIST CSF,
+  SOC 2, SOX-ITGC, CMMC, NIS 2, DORA). UK GDPR is a tier-2
+  *identity* derivative of GDPR per `data/regulations.json`
+  `derivesFrom`: clause numbering is preserved 1:1, so the Phase
+  3.3 derivatives generator had already propagated parent
+  mappings onto 32 UCs with `derivationSource` metadata. Phase
+  5.1 converts that propagation into a standalone evidence pack
+  that UK auditors can reference without a GDPR export detour.
+  A new explicit allow-list (`_DEFAULT_DERIVATIVE_APP_IDS`)
+  controls which derivatives are promoted, keeping the decision
+  machine-readable and fail-loud if a listed framework is ever
+  removed from the catalogue.
+- **Compliance-posture dashboard per app** — Every
+  `splunk-apps/splunk-uc-<regulation>/` now ships
+  `default/data/ui/views/<regulation>_compliance_posture.xml`,
+  a Simple XML 1.1 dashboard that reads the per-app
+  `uc_compliance_mappings` lookup. Panels: total UCs packaged,
+  critical-tier UCs, distinct clauses tagged, UCs by criticality
+  (column), most-referenced clauses top-15 (bar), mappings by
+  assurance bucket (full / partial / contributing / unspecified),
+  and a full UC inventory table with source-path references.
+  Every SPL query is CDATA-wrapped, uses `inputlookup` only (no
+  index reads, no `dbxquery`, no custom commands), and works on
+  a clean install before any saved search is scheduled — so the
+  dashboard is the one-glance answer an auditor needs without
+  committing the operator to any data-pipeline work.
+- **Lookup registered as a shared transform** — Every app now
+  writes `default/transforms.conf` with a
+  `[uc_compliance_mappings]` stanza that maps the
+  previously-orphan CSV under `lookups/` to a named lookup that
+  SPL (and the new dashboard) can reference. Without this step
+  the CSV was a documentation artefact; with it, the lookup is
+  a first-class knowledge object.
+- **Navigation redirects to the posture dashboard** —
+  `default/data/ui/nav/default.xml` now sets
+  `default_view="<regulation>_compliance_posture"` so a freshly
+  installed app opens on the evidence dashboard, not on an empty
+  search bar. The catch-all eventtype link is preserved as a
+  secondary collection entry.
+- **Knowledge-object exports widened, saved-searches still
+  private** — `metadata/default.meta` gains
+  `[transforms] export = system` (so sibling apps can reuse the
+  lookup) and `[views] export = app` (so the posture dashboard
+  appears in the app's navigation without becoming a global
+  object). Saved searches remain `export = none` — operators
+  opt in to scheduled alerts explicitly, mirroring the Phase 1.8
+  policy.
+- **README additions per app** — Every generated README gains a
+  dedicated "Compliance posture dashboard" section and updates
+  the AppInspect readiness checklist to call out the new
+  transform, view, and meta export scopes. Installation step 3
+  now points installers at the dashboard first so the on-ramp is
+  "install → open dashboard → brief auditor".
+- **Determinism + CI** — `scripts/generate_splunk_app.py --check`
+  already runs in `.github/workflows/validate.yml` (Phase 1.8
+  wire-in) and the regenerate-and-diff loop remains byte-stable:
+  the Phase 5.1 additions produce the same 12 app trees on every
+  run, and a drift check is the CI gate that protects that
+  invariant. `splunk-apps/manifest.json` at the repo root is
+  auto-regenerated and now lists twelve `splunk-uc-*` ids with
+  per-app UC counts (930 saved searches across the catalogue).
+
+Scope boundaries (what Phase 5.1 intentionally does **not** do):
+it does not introduce per-UC sample fixtures inside the app tree
+(sandbox fixtures stay centralised under `samples/` and are
+audited by Phase 4.5c); it does not bundle CIM/ES dependency
+shims inside the apps (the upstream CIM app remains a runtime
+prerequisite, surfaced via the `commonInformationModels` block
+in `app.manifest`); it does not publish the apps to Splunkbase
+(that is a release-engineering concern tracked under the Phase
+5.5 release gate); and it does not yet promote further
+derivative frameworks (CCPA, nFADP, LGPD, APPI) into standalone
+apps — those stay inside the main GDPR app's derivation graph
+until Phase 5.2 SME review blesses the split.
+
+### Compliance gold standard — Phase 5.2 SME review framework
+
+Theme: **an auditor-credible attestation chain for every
+tier-1 `full`-assurance claim**. Phase 4.5 landed peer and legal
+review. Phase 5.2 adds the third and final QA gate — subject-matter
+expert review — so that every UC claiming "full" assurance against
+a tier-1 regulation has walked through an engineering review, a
+legal review of the citations, **and** an SME review of the SPL's
+technical correctness against the authoring data source and the
+Splunk output's acceptability to an auditor. The gate is blocking
+in CI via a new schema + semantic audit script and a PR-template
+checklist; historical content is grandfathered behind a commit
+baseline so the gate only applies to changes landing on or after
+Phase 5.2.
+
+- **SME signoff schema** — New
+  `schemas/sme-review-signoff.schema.json` (JSON Schema draft
+  2020-12) models one signoff record per reviewer per commit.
+  Records carry the reviewer's name/role/credentials, the scope
+  (UC IDs, tier-1 regulations, optional fixture + evidence-pack
+  paths), the six-point rubric grades (splCorrectness,
+  dataSourceRealism, splunkCompat, evidenceCompleteness,
+  regulationApplicability, falsePositiveAssessment), an outcome
+  enum (approved / approved-with-revisions / rejected /
+  conditional / scope-downgrade), outcome-specific required
+  fields (revisions, caveats, rejectionReason), an optional
+  structured fixtureReplayResult, and free-text reviewer notes.
+  Reviewer roles are enumerated (`splunk-engineer`,
+  `regulatory-auditor`, `security-architect`, `industry-sme`,
+  `internal-review-board`) so the audit can detect mismatches
+  between a claimed role and the rubric grades that role is
+  competent to produce.
+- **Ledger file with a commit baseline** —
+  `data/provenance/sme-signoffs.json` is an append-only ledger.
+  `baseline_commit` (`217320f`) pins the "grandfather" cut-off:
+  content authored before that commit is not required to carry
+  an SME signoff retroactively. The file begins empty; future
+  PRs append one record per SME per reviewed commit.
+- **SME review guide (`docs/sme-review-guide.md`, ~360 lines)** —
+  Documents the full process: §1 scope (what triggers SME review,
+  what does not, relationship to peer + legal gates), §2
+  reviewer-role taxonomy and recognised credentials per tier-1
+  regulation (QSA for PCI DSS, CIPP/E for GDPR/UK-GDPR, HITRUST
+  CCSFP for HIPAA, CISA/CPA for SOX/ITGC, ISO 27001 Lead Auditor
+  for ISO, etc.), §3 the six-point rubric (each with "question",
+  "how to check", and "fail modes"), §3.7 outcome-to-PR-effect
+  matrix, §4 how to record a signoff (JSON example with a real
+  fixture replay), §4.1 how `smeCaveat` is mirrored to UC
+  sidecars, §4.2 fixture-replay self-consistency rules, §5
+  dual-SME escalation for high-penalty tier-1 clauses and
+  headline evidence-pack UCs, §6 privacy of SME identity (public
+  signoffs with optional firm-only names), §7 historical
+  baseline, §8 timeline expectations per reviewer role.
+- **Audit script with seven semantic invariants** —
+  `scripts/audit_sme_review_signoffs.py` validates the ledger
+  against the schema (JSON Schema draft 2020-12 via
+  `jsonschema`) and enforces seven semantic rules not expressible
+  in JSON Schema alone: (1) `approved-with-revisions` requires a
+  non-empty `revisionsRequested`; (2) `conditional` requires a
+  non-empty `caveats` AND every caveat is mirrored as an
+  `smeCaveat` on a UC sidecar in scope; (3) `rejected` requires
+  a \u2265 20-char `rejectionReason`; (4) `approved` cannot carry
+  any `fail` grade; (5) the `(commit, reviewer)` pair is unique
+  across signoffs (two different SMEs on the same commit is
+  supported for dual-SME review; the same SME twice on one commit
+  is not); (6) `fixtureReplayResult` is self-consistent with
+  `checks.splCorrectness` — `replayed=false` forces `n/a`,
+  `replayed=true` with a negative-fired or positive-silent replay
+  forces `fail`; (7) every `scope.ucs` sidecar exists, every
+  `scope.fixtures` path is under `sample-data/`, every
+  `scope.evidencePacks` path is under `docs/evidence-packs/`.
+  A warning (not error) fires when a `splunk-engineer` reviewer
+  grades `splCorrectness=pass` without recording a fixture
+  replay.
+- **UC schema carries `smeCaveat`** —
+  `schemas/uc.schema.json` gains an optional `smeCaveat` property
+  on `compliance[]` entries, mirroring the existing `legalCaveat`
+  field. The generator ecosystem (scorecard, per-regulation
+  Splunk apps, api/v1/ compliance/ucs/\u2020.json) will render the
+  caveat alongside each mapping when populated. `smeCaveat` is
+  informational — it does not affect assurance weighting but it
+  is auditor-visible, so operators can see the conditions under
+  which the mapping was blessed (TA version pins,
+  field-extraction prerequisites, industry-scope limitations).
+- **PR template** — `.github/PULL_REQUEST_TEMPLATE.md` gains a
+  Phase 5.2 checklist between the legal review section and the
+  screenshots block. Six bullets: reviewer identity + role
+  recorded; SPL fixture replayed (or `n/a` explained); six-point
+  rubric graded; dual-SME review where §5 requires it; caveats
+  mirrored to UC sidecars for `conditional` outcomes; signoff
+  appended to `data/provenance/sme-signoffs.json` and audited.
+- **CI wired in** — `.github/workflows/validate.yml` gains a
+  "Phase 5.2 SME-review signoff audit" step that runs
+  `python3 scripts/audit_sme_review_signoffs.py` (exit 1 on
+  schema or semantic violation). The `qa-gates` artifact upload
+  bundles `data/provenance/sme-signoffs.json` alongside the
+  existing peer + legal ledgers so a reviewer can download a
+  single artifact and reproduce the three-gate decision. The
+  workflow `paths` trigger list now also watches
+  `docs/sme-review-guide.md` so changes to the rubric re-run CI.
+- **LEGAL.md §5 rewritten** — The stale §5 "SME sign-off"
+  placeholder (which referenced a never-created `REVIEWERS.md`)
+  is replaced by a proper three-gate overview and a new §5c
+  that mirrors the §5a peer-review and §5b legal-review sections.
+  The three gates are now explicitly documented as sequential:
+  peer → legal → SME. A tier-1 `full`-assurance UC therefore
+  carries three signoffs (one per ledger); legal-downgraded UCs
+  skip the SME gate.
+- **Cross-references added** — `docs/peer-review-guide.md` and
+  `docs/legal-review-guide.md` "See also" sections now point to
+  the SME guide and audit script. The legal guide's §6
+  "Relationship to SME sign-off" is expanded to describe the
+  precise ordering and when SME review is skipped (legal
+  downgrade).
+
+Scope boundaries (what Phase 5.2 intentionally does **not** do):
+it does not author any historical signoffs — the ledger starts
+empty and fills up one PR at a time; it does not gate
+non-tier-1 or non-`full`-assurance content (peer review remains
+sufficient there); it does not mandate a specific Splunk version
+or sandbox for fixture replay (that is left to the SME's
+discretion, recorded in `fixtureReplayResult.notes`); it does
+not rebuild the scorecard or Splunk-app rendering for
+`smeCaveat` (those consumers will pick up the field
+automatically because the schema already exposes it); it does
+not add a `REVIEWERS.md` file (per-reviewer public directories
+are an optional release-engineering concern, tracked under
+Phase 5.5).
+
+### Compliance gold standard — Phase 5.3 regulatory change-watch
+
+Theme: **an auditable freshness guarantee for every regulatory
+artefact we depend on**. Peer, legal, and SME review (Phases
+4.5a / 4.5b / 5.2) are only as trustworthy as the underlying
+regulation they verify against. Phase 5.3 closes that loop by
+adding a fourth QA gate that records, per regulation, (i) the
+detection strategy for upstream changes, (ii) the last observation
+of that strategy's state, and (iii) a staleness threshold beyond
+which CI blocks the release. A scheduled GitHub Actions job
+probes every entry weekly, commits ledger refreshes, and opens
+GitHub issues when material changes appear upstream.
+
+- **Watchlist ledger** — New `data/regulations-watch.json`
+  tracks 14 regulatory artefacts: all 11 tier-1 regulations (GDPR,
+  HIPAA Security, PCI DSS, SOC 2, SOX ITGC, ISO 27001, NIST CSF,
+  NIST 800-53, NIS2, DORA, CMMC), the derivative we ship a Splunk
+  app for (UK GDPR), and the two MITRE frameworks our crosswalks
+  depend on (MITRE ATT&CK Enterprise, MITRE D3FEND). Each entry
+  carries a `regulationId` (cross-referenced against
+  `data/regulations.json` frameworks[] or a MITRE allow-list), a
+  `tier` (1 or 2), a `currentVersion`, a `strategy` block (one of
+  five types — see below), a `lastCheckedAt` timestamp, and
+  optional `lastObservedHash` / `lastObservedVersion` /
+  `lastObservedEtag` fields that the audit uses to detect drift.
+  `baseline_commit` (`217320f`) keeps the ledger consistent with
+  the peer/legal/SME baselines.
+- **Five detection strategies** — The schema's `strategy` field
+  is a discriminated union of (1) `sha256-vendor`: re-fetch the
+  upstream URL recorded in `data/provenance/ingest-manifest.json`
+  and compare SHA256 to `lastObservedHash` (used for NIST
+  OSCAL catalogs, MITRE STIX bundles, D3FEND ontology);
+  (2) `github-release`: query the GitHub Releases API and
+  compare the latest tag to `lastObservedVersion`, with an
+  optional `versionPattern` regex filter; (3) `http-head`:
+  issue a HEAD request and compare ETag / Last-Modified to
+  `lastObservedEtag` (used for EUR-Lex pages, legislation.gov.uk,
+  DoD CMMC landing page); (4) `rss-atom`: fetch an RSS/Atom
+  feed and grep `matchTerms` against titles (used for the
+  HHS/OCR HIPAA bulletin feed); (5) `manual-review`: no
+  automated probe — just record the publisher name and landing
+  URL, with a human `--freeze` stamp renewing freshness (used
+  for paywalled PCI DSS, AICPA SOC 2 TSCs, PCAOB AS 2201, and
+  ISO 27001). All strategies validate `https://` URLs; `--check`
+  refuses anything else.
+- **Three-mode audit script** — `scripts/audit_regulatory_change_watch.py`
+  supports: (a) `--check` (default; hermetic — no network calls;
+  safe for pull-request CI) validates the ledger against its
+  JSON Schema, cross-references every `sha256-vendor` entry
+  against `data/provenance/ingest-manifest.json`, verifies every
+  `regulationId` exists in `data/regulations.json` (or the MITRE
+  allow-list), computes staleness from `lastCheckedAt` using the
+  ledger's `stalenessPolicy` block, and fails CI (exit 1) when a
+  tier-1 entry exceeds `tier1FailDays` (default 180) or any
+  tier-2 entry exceeds `tier2FailDays` (default 270); (b)
+  `--fetch` (network-enabled; intended for the scheduled
+  workflow only) probes each entry with its declared strategy,
+  diffs observed state against recorded state, writes
+  `openFinding` blocks when material changes appear, and
+  serialises the round to `reports/regulatory-change-watch.json`;
+  (c) `--freeze` stamps `lastCheckedAt=now` for every entry and
+  clears `openFinding` blocks — used when seeding the ledger or
+  resetting manual-review entries after a human confirms the
+  publisher state.
+- **Staleness policy** — The ledger's top-level `stalenessPolicy`
+  block sets four thresholds (`tier1WarnDays=60`,
+  `tier1FailDays=180`, `tier2WarnDays=90`, `tier2FailDays=270`)
+  that `--check` honours. These can be tuned per release without
+  touching the audit code; during regulatory events (e.g., after
+  a new NIST 800-53 revision ships) the repository can tighten
+  the threshold to flush the queue, then relax it after adoption.
+- **Hermetic PR-CI gate** — `.github/workflows/validate.yml` gains
+  a "Phase 5.3 regulatory change-watch (hermetic)" step that
+  runs `python3 scripts/audit_regulatory_change_watch.py --check`
+  after the Phase 5.2 SME audit. Zero network calls, sub-second
+  runtime. The workflow `paths` trigger list now also watches
+  `docs/regulatory-change-watch.md`, `data/regulations-watch.json`,
+  `schemas/regulations-watch.schema.json`, and
+  `scripts/audit_regulatory_change_watch.py`. The QA-gates
+  artifact bundle now also uploads `data/regulations-watch.json`
+  and `reports/regulatory-change-watch.json`.
+- **Scheduled weekly fetch workflow** — New
+  `.github/workflows/regulatory-watch.yml` runs Mondays at
+  09:00 UTC (cron: `0 9 * * 1`) and on manual dispatch. Steps:
+  (1) `actions/checkout@v4`; (2) `actions/setup-python@v5` with
+  Python 3.12; (3) install `jsonschema==4.23.0`; (4) run the
+  audit script's `--fetch` mode (with optional `--strict` flag
+  exposed via `workflow_dispatch.inputs.strict`); (5) if the
+  ledger or report changed, commit back to `main` under the
+  `github-actions[bot]` identity; (6) if any `openFinding` is
+  present, open a GitHub issue (or comment on the existing one)
+  labelled `regulatory-change-watch,compliance` with a markdown
+  table of the findings and a four-step next-action checklist
+  (review against publisher → bump ingest manifest → update UC
+  sidecars → clear openFinding); (7) upload `fetch.log`, the
+  report, and the refreshed ledger as a 15-day artifact. The
+  workflow has `contents: write + issues: write` permissions
+  and a `concurrency` group so two scheduled runs never race on
+  the ledger.
+- **Change-watch playbook (`docs/regulatory-change-watch.md`,
+  ~150 lines)** — Documents every component (ledger, schema,
+  script, two workflows, report), explains each of the five
+  strategies with rationale, renders the staleness policy in
+  plain English, and walks operators through three workflows:
+  (§4.1) responding to a PR CI failure by running `--fetch`
+  locally; (§4.2) triaging the scheduled job's weekly issue by
+  confirming findings, bumping `ingest-manifest.json`, updating
+  affected UC sidecars + `regulations.json`, clearing
+  `openFinding`, and requesting SME sign-off; (§4.3) adding a
+  new watchlist entry (pick strategy → add JSON → cross-check
+  regulation exists → run `--check` + `--fetch` → open PR
+  with peer + legal + SME sign-off). Design principles,
+  testing commands, and cross-references to the other three
+  review guides (peer / legal / SME) round out the playbook.
+- **LEGAL.md §5d added** — The "Three-gate QA review" heading
+  is renamed to "QA review gates" and extended with a fourth
+  gate. New §5d "Regulatory change-watch gate (Phase 5.3)"
+  describes the ledger's role, the scheduled workflow's
+  behaviour, and the `openFinding` lifecycle. The preamble to
+  §5 now calls out that the change-watch gate fails CI whenever
+  the ledger falls outside the freshness envelope — independent
+  of whether a given PR touches regulatory content.
+- **Cross-references added** — `docs/peer-review-guide.md`,
+  `docs/legal-review-guide.md`, and `docs/sme-review-guide.md`
+  "See also" sections now point to the change-watch playbook so
+  reviewers at each human gate know which regulation versions
+  to expect.
+
+Scope boundaries (what Phase 5.3 intentionally does **not** do):
+it does not auto-adopt upstream changes — the script only
+*records* drift and opens an issue, so a human still performs
+the legal + SME review of any regulator's new version; it does
+not probe paywalled regulators (ISO 27001, PCAOB standards) —
+those remain `manual-review` strategy and rely on the `--freeze`
+stamp; it does not ship historical probe records — the weekly
+job starts writing to `reports/regulatory-change-watch.json`
+from first run; it does not alter the Phase 5.2 SME review
+schema or ledger (`smeCaveat` on UC sidecars continues to flow
+from SME conditional outcomes, not from change-watch findings);
+it does not sign the ledger commits (that is Phase 5.4's signed
+provenance remit); and it does not gate release directly —
+blocking happens via the hermetic `--check` in PR CI. The final
+release gate remains Phase 5.5.
+
+### Compliance gold standard — Phase 5.4 signed provenance ledger
+
+Theme: **tamper-evident compliance claims**. Peer review
+(Phase 4.5a), legal review (Phase 4.5b), and SME review (Phase
+5.2) establish that each mapping is *correct*; the regulatory
+change-watch (Phase 5.3) establishes that each underlying
+regulation is *current*. Phase 5.4 renders all four signals
+into a single cryptographically verifiable artefact: a
+content-addressable, merkle-rolled SHA-256 ledger covering
+every clause-level compliance claim the catalogue makes, with
+a release-time Sigstore attestation binding the root to the
+GitHub Actions workflow, run id, and commit that produced it.
+
+- **Signed provenance ledger schema
+  (`schemas/mapping-ledger.schema.json`, 291 lines)** — New
+  JSON Schema (Draft 2020-12) defines the ledger record
+  grammar. Each entry carries eight ledger-relevant fields
+  (`mappingId`, `ucId`, `regulationId`, `regulationVersion`,
+  `clause`, `mode`, `assurance`, `derivationSource`), four
+  metadata fields (`firstSeenCommit`, `lastModifiedCommit`,
+  `signoffStatus` snapshot, `canonicalHash`), and the top-level
+  envelope pins the canonicalisation contract
+  (`algorithm=rfc8785`,
+  `jsonForm=utf-8-nfc-sorted-keys-no-whitespace`,
+  explicit `fieldOrder[]`) and the `hashAlgorithm=sha256` so
+  third parties can recompute every hash in four lines of
+  Python. The signature envelope is a discriminated union
+  (`state=unsigned` for in-repo, `state=attested` for release
+  artefacts) with Sigstore/GitHub-attestation fields
+  (`attestationUrl`, `bundlePath`, `workflowRef`, `runId`,
+  `commit`) asserted to match the top-level `catalogueCommit`.
+- **Deterministic ledger generator
+  (`scripts/generate_mapping_ledger.py`)** — Walks every
+  `use-cases/cat-*/uc-*.json` in sorted order, canonicalises
+  each sidecar's human-readable regulation names against
+  `data/regulations.json` frameworks[] via a `NAME_TABLE`
+  covering every spelling seen in the corpus, hashes each
+  mapping entry with RFC 8785-compatible JSON
+  canonicalisation, sorts the 1,889 entries lexicographically
+  by `mappingId`, and produces the merkle root as a
+  sorted-leaf SHA-256 rolling hash. Git history is probed in
+  a single bulk `git log --name-only --diff-filter=AM` pass
+  (benchmarked at 0.5 s versus 181 s for the naive
+  per-sidecar invocation) to populate `firstSeenCommit` and
+  `lastModifiedCommit`. `generatedAt` is anchored to the
+  `catalogueCommit`'s commit date (`git show -s --format=%cI`)
+  rather than wall-clock or file mtime, so `touch`ing every
+  sidecar does not change the ledger — PR CI regenerations
+  are byte-for-byte identical across re-runs at the same
+  commit. `--check` diff-gates the on-disk ledger against an
+  in-memory rebuild and fails on drift.
+- **Independent audit script
+  (`scripts/audit_mapping_ledger.py`)** — Re-reads the ledger
+  fresh, validates against `mapping-ledger.schema.json`,
+  recomputes every `canonicalHash`, recomputes the
+  `merkleRoot`, performs forward+reverse referential
+  integrity against current UC sidecars (every sidecar entry
+  must appear in the ledger; every ledger entry must point
+  at a live UC), asserts `catalogueCommit` resolves via
+  `git cat-file`, and verifies the signature envelope's
+  internal consistency (for attested copies:
+  `signature.commit == catalogueCommit`). With
+  `--verify-signature`, shells out to
+  `gh attestation verify` against the Sigstore bundle; the
+  audit searches three paths for the bundle (repo root, the
+  ledger file's sibling directory, `dist/`) so auditors who
+  download both release assets into the same folder can
+  verify without additional plumbing.
+- **Release-time stamper
+  (`scripts/stamp_ledger_release.py`)** — Produces
+  `dist/mapping-ledger.json` from the in-repo ledger with
+  `signature.state` promoted to `attested` and Sigstore
+  envelope fields populated from the GitHub Actions
+  environment (`GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`,
+  `GITHUB_RUN_ID`, `GITHUB_SHA`, `GITHUB_REF_NAME`,
+  `GITHUB_WORKFLOW_REF`). The in-repo copy is **not**
+  mutated — PR CI always sees `signature.state=unsigned` and
+  stays deterministic. `--dry-run` substitutes placeholder
+  metadata for local smoke testing and prints a conspicuous
+  banner so the output cannot be mistaken for a real
+  release. Also emits `dist/mapping-ledger.manifest.md`
+  (human-readable release manifest with merkle root, entry
+  count, per-review signoff aggregates, and the verification
+  one-liner).
+- **Phase 5.4 ledger
+  (`data/provenance/mapping-ledger.json`, ~50k lines)** —
+  Generator produces 1,889 mapping entries covering all 15
+  regulation families tracked by `regulations.json` across
+  every UC that carries `compliance[]`. Merkle root is
+  stable across re-runs at the same commit
+  (`a40d7b10cf1f0a2e…` at baseline). `signature.state` is
+  `unsigned` with reason text pointing at the release
+  promotion path.
+- **Release workflow integration
+  (`.github/workflows/release.yml`)** — The existing
+  `v*.*.*` tag workflow gains `id-token: write` and
+  `attestations: write` permissions, plus five new build
+  steps in strict order: (1) regenerate ledger at HEAD via
+  `--check`; (2) audit the unsigned in-repo copy; (3)
+  stamp-and-copy to `dist/` via
+  `scripts/stamp_ledger_release.py`; (4) attest
+  `dist/mapping-ledger.json` via
+  `actions/attest-build-provenance@v2` (Sigstore cosign
+  bundle signed by a Fulcio-issued OIDC certificate for the
+  workflow); (5) place the attestation bundle at the
+  canonical path `dist/mapping-ledger.sigstore.bundle.json`
+  and re-run the full audit with
+  `--require-signature --verify-signature` as an end-to-end
+  sanity check before the release is published. Release
+  assets now include `mapping-ledger.json`,
+  `mapping-ledger.sigstore.bundle.json`, and
+  `mapping-ledger.manifest.md` as first-class downloads.
+- **Hermetic PR-CI gate
+  (`.github/workflows/validate.yml`)** — Gains two new
+  steps, both wired in after the Phase 5.3 regulatory
+  change-watch: (a) "Phase 5.4 signed provenance ledger
+  regenerate (determinism)" runs `generate_mapping_ledger.py
+  --check` to reject any PR that edits a `compliance[]`
+  entry without refreshing the ledger in the same commit;
+  (b) "Phase 5.4 signed provenance ledger audit" runs
+  `audit_mapping_ledger.py` without `--require-signature`
+  (the in-repo ledger is always unsigned). Combined runtime
+  is sub-second. The workflow's `paths` trigger list gains
+  `docs/signed-provenance.md`; all other Phase 5.4 paths
+  (schema, generator, audit, stamper, ledger) are already
+  covered by the existing `schemas/**`, `scripts/**`, and
+  `data/provenance/**` filters.
+- **QA-gates artifact bundle extended** — The existing
+  `qa-gates` artifact now also uploads
+  `data/provenance/mapping-ledger.json` alongside the
+  peer/legal/SME signoff files and the Phase 5.3 watchlist.
+  External reviewers can pull a single artifact and
+  recompute the merkle root against the downloaded ledger
+  without cloning the repo.
+- **Verification playbook
+  (`docs/signed-provenance.md`, ~320 lines)** — Covers what
+  the ledger proves (integrity, completeness, chain of
+  custody, origin for release artefacts), what it
+  deliberately does **not** prove (legal correctness,
+  detection correctness, regulation freshness, staleness of
+  the local clone — those remain the remit of the four
+  review gates and change-watch), component map, record
+  anatomy with a worked example, canonicalisation + merkle
+  construction recomputable from the command line, the
+  three-level verification protocol (trust-but-verify hash
+  chain → require-but-trust signed envelope →
+  verify-with-Sigstore cryptographic proof), six operator
+  runbooks (adding a mapping, PR-CI drift, audit-script
+  corruption, stale `catalogueCommit`, downloaded-release
+  verification, local dry-run), determinism contract,
+  semver policy for future schema evolution (v2.0.0 is
+  reserved for hash algorithm or Merkle-tree-shape changes;
+  minor bumps add ledger metadata; patches fix bugs), and
+  cross-references into the other four gates and the API
+  surface.
+- **LEGAL.md §5e added** — New subsection "Signed provenance
+  ledger (Phase 5.4)" describes the ledger's role, the
+  release attestation pipeline, the downstream verification
+  protocol, and the explicit scope statement: a failed
+  `gh attestation verify` is a material provenance-compromise
+  event. §6 "Signing and provenance" is expanded to call out
+  that the clause-level ledger complements the existing
+  release-tag signing and per-artefact SHA-256 digests.
+- **Cross-references added** — `docs/peer-review-guide.md`,
+  `docs/legal-review-guide.md`, `docs/sme-review-guide.md`,
+  `docs/regulatory-change-watch.md`, and `api/v1/README.md`
+  each gain a "See also" / "Provenance and attestation"
+  pointer to `docs/signed-provenance.md`. Reviewers are told
+  how to confirm their signoff PR number is snapshotted
+  into the next ledger regeneration; API consumers are told
+  how to match any API-level compliance claim back to its
+  `canonicalHash` entry.
+
+Scope boundaries (what Phase 5.4 intentionally does **not**
+do): it does not replace any of the four review gates — the
+ledger records reviewer verdicts but does not re-derive them;
+it does not sign the in-repo copy — `main` always carries
+`signature.state=unsigned` so PR CI is deterministic and the
+release workflow is the sole authority that produces
+`attested` artefacts; it does not use a binary Merkle tree —
+the sorted-leaf rolling hash is simpler to recompute
+independently (a v2.0.0 schema may upgrade this if per-entry
+inclusion proofs become useful); it does not snapshot SPL or
+regulation bodies — only the `(UC, regulation, clause, mode,
+assurance, derivationSource)` tuple enters the hash
+(narrative bodies live in the sidecars, which git history
+already versions); it does not gate release directly —
+blocking happens via `--check` in PR CI plus the
+end-to-end `--verify-signature` step in `release.yml`; it
+does not ship a revocation mechanism for a compromised
+release — that is handled through the standard GitHub
+Release retraction flow plus an advisory note in
+`SECURITY.md`. The final release gate remains Phase 5.5.
+
+---
+
 ## [6.0] - 2026-04-16
 
 ### Verifiable Quality

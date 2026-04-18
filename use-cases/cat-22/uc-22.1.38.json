@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.38",
+  "title": "GDPR Data Localization Enforcement for Restricted Processing",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.44-49",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`aws:cloudtrail` (region fields), Azure activity logs, VPN and admin session logs, `gdpr_localization_policy.csv`",
+  "app": "Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)",
+  "spl": "| inputlookup gdpr_localization_policy.csv WHERE required_region=\"EEA_ONLY\"\n| rename system_id as resource_id\n| join resource_id [\n    search index=cloud (sourcetype=\"aws:cloudtrail\" OR sourcetype=\"mscs:azure:auditlog\") earliest=-7d\n    | eval region=coalesce(region, activity_location)\n    | stats values(region) as regions_seen by resource_id\n]\n| eval breach=if(match(regions_seen,\"(?i)us-|ap-|me-\") OR mvcount(regions_seen)>3, 1, 0)\n| where breach=1\n| table resource_id, processing_activity, required_region, regions_seen",
+  "value": "Some controllers commit to EEA-only processing or specific regional residency in contracts and DPIAs. This use case detects compute, storage, and support access that originates outside approved regions for systems bound by localization commitments.",
+  "implementation": "(1) List systems with contractual residency in `gdpr_localization_policy.csv`; (2) ingest multi-region cloud audit events; (3) map regions to EEA vs non-EEA; (4) alert on any non-EEA data plane or support access violating policy; (5) escalate to cloud centre of excellence and DPO.",
+  "visualization": "Table (localization breaches), Map (regions), Single value (breach count), Heatmap (events by region).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1048"
+  ],
+  "equipment": [
+    "aws",
+    "azure"
+  ]
+}

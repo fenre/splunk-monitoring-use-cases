@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.18",
+  "title": "DORA ICT Third-Party Exit Strategy Readiness",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Risk",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.28(8)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`dora_ict_provider_register.csv`, CIM Network_Traffic data model, cloud provider audit logs",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876)",
+  "spl": "| inputlookup dora_ict_provider_register.csv WHERE criticality IN (\"critical\",\"important\")\n| eval exit_plan_exists=if(isnotnull(exit_plan_status) AND exit_plan_status!=\"none\", 1, 0)\n| eval exit_plan_tested=if(exit_plan_status=\"tested\", 1, 0)\n| eval alternative_identified=if(isnotnull(alternative_provider), 1, 0)\n| eval last_test_date_epoch=if(isnotnull(exit_plan_test_date), strptime(exit_plan_test_date,\"%Y-%m-%d\"), null())\n| eval months_since_test=if(isnotnull(last_test_date_epoch), round((now()-last_test_date_epoch)/(86400*30),0), 999)\n| eval readiness=case(\n    exit_plan_tested=1 AND alternative_identified=1 AND months_since_test<=12, \"READY\",\n    exit_plan_exists=1 AND alternative_identified=1, \"PARTIAL — test overdue\",\n    exit_plan_exists=1, \"PARTIAL — no alternative\",\n    1=1, \"NOT_READY — plan required\")\n| stats count by readiness\n| append [\n    search | inputlookup dora_ict_provider_register.csv WHERE criticality IN (\"critical\",\"important\")\n    | where exit_plan_status IN (\"none\",\"\") OR isnull(exit_plan_status) OR isnull(alternative_provider)\n    | table provider_name, contract_id, criticality, exit_plan_status, alternative_provider\n    | sort criticality\n]",
+  "value": "Article 28(8) requires exit strategies for all ICT arrangements supporting critical or important functions, with tested transition plans. This use case monitors exit strategy readiness by tracking whether exit plans exist, are tested, and have viable alternatives identified — combined with operational dependency metrics showing how deeply the entity relies on each provider, informing realistic transition timelines.",
+  "implementation": "(1) Extend `dora_ict_provider_register.csv` with exit plan status, test dates, and alternative provider fields; (2) alert on critical function providers without exit plans; (3) require annual exit plan testing; (4) combine with concentration risk data (UC-22.3.4) — providers with high concentration AND no exit plan represent highest risk; (5) report exit strategy readiness to management body annually; (6) validate data return/portability capabilities per Art. 30 contractual requirements.",
+  "visualization": "Pie chart (exit readiness distribution), Table (providers without exit plans), Bar chart (readiness by criticality), Single value (% providers with tested exit plans).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws",
+    "m365"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

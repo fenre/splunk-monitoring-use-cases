@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.43",
+  "title": "GDPR Personal Data in Non-Approved Systems (ROPA Drift Detection)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.5(2)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.30",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`mssql:audit` (database_name, client_ip), `OktaIM2:log` (app assignments), `gdpr_ropa_register.csv`",
+  "app": "Splunk Add-on for Microsoft SQL Server (Splunkbase 2648), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553)",
+  "spl": "index=mssql sourcetype=\"mssql:audit\" action=\"audit_schema_object_access\" earliest=-7d\n| stats dc(statement) as stmts dc(user) as db_users by database_name\n| lookup gdpr_ropa_register.csv system_name AS database_name OUTPUT processing_activity\n| where isnull(processing_activity)\n| join database_name [\n    search index=okta sourcetype=\"OktaIM2:log\" earliest=-7d\n    | stats dc(user) as okta_users by app_name\n    | rename app_name as database_name\n]\n| table database_name, db_users, okta_users",
+  "value": "The records of processing must be accurate. This use case compares databases, SaaS tenants, and data lake zones observed in authentication and connection logs against `gdpr_ropa_register.csv` — flagging systems that handle identity or HR attributes but lack a ROPA entry.",
+  "implementation": "(1) Normalise system identifiers between CMDB, ROPA, and technical logs; (2) focus on databases with HR or CRM naming patterns; (3) alert data stewards on ROPA drift; (4) update ROPA or decommission shadow databases; (5) quarterly reconcile with enterprise architecture repository.",
+  "visualization": "Table (unregistered systems), Single value (drift count), Bar chart (by environment), Timeline (first seen).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t dc(Authentication.user) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft SQL Server",
+      "url": "https://splunkbase.splunk.com/app/2648"
+    },
+    {
+      "title": "Splunk Add-on for Okta Identity Cloud",
+      "url": "https://splunkbase.splunk.com/app/6553"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "mssql",
+    "okta"
+  ]
+}

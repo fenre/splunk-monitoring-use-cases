@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.9",
+  "title": "Configuration Drift vs CIS Hardening Benchmark on Windows CDE Members",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "2.2.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vm` `sourcetype IN (\"tenable:sc:compliance\",\"qualys:policy\")` — `plugin_name`, `host_fqdn`, `compliance_status`",
+  "app": "Splunk Add-on for Tenable (4060), Splunk Add-on for Qualys (2964)",
+  "spl": "index=vm sourcetype IN (\"tenable:sc:compliance\",\"qualys:policy\") earliest=-7d\n| lookup pci_windows_cde_assets.csv fqdn AS host_fqdn OUTPUT cde_member\n| where cde_member=\"true\"\n| eval fail=if(match(compliance_status,\"(?i)failed|error|critical\"),1,0)\n| stats sum(fail) as failed_checks, count as total_checks by host_fqdn\n| eval fail_pct=if(total_checks>0, round(100*failed_checks/total_checks,2), null())\n| where fail_pct>5\n| sort - fail_pct",
+  "value": "Aggregates configuration assessment findings against a documented hardening standard so you can show continuous alignment with industry-accepted secure configurations for in-scope Windows systems.",
+  "implementation": "(1) Map scanner asset names to PCI inventory FQDNs. (2) Scope policies to CIS Windows Server benchmarks used in your standard. (3) Track `fail_pct` trend weekly. (4) Attach exports to secure configuration evidence repository.",
+  "visualization": "Bar chart (fail_pct by host), heatmap (plugin families), single value (mean fail_pct across CDE).",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "cimSpl": "| tstats summariesonly=t sum(Vulnerabilities.cvss) as agg_value from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "Splunk Add-on for Qualys",
+      "url": "https://splunkbase.splunk.com/app/2964"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "qualys",
+    "tenable"
+  ]
+}

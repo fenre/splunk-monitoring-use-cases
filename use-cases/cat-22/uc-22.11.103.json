@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.103",
+  "title": "PCI-DSS 11.3 — Vulnerability programme: overdue scan cadence and unremediated high-severity",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT replace the scanner; measures cadence adherence (quarterly for external, internal as required) and remediation SLA for high/critical findings.",
+  "evidence": "Saved search 'pci_11_3_scan_sla' (daily) emits per scope: scope, last_scan_at, sla_met, open_high_findings, mean_age_days, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "11.3",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 11.3 External and internal vulnerabilities identified — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.8",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.8 Management of technical vulnerabilities — directly evidenced."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "NIST 800-53 RA-5 Vulnerability Scanning — directly evidenced."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.8",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.8 ICT risk identification — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A scope whose last_scan_at is 100 days ago with 3 open high findings aged 45 days returns sla_met=0.",
+    "negativeScenario": "A scope scanned within cadence with all findings <30 days old is absent.",
+    "fixtureRef": "sample-data/uc-22.11.103-fixture.json",
+    "attackTechnique": "T1595"
+  },
+  "dataSources": "`index=vm` sourcetype=tenable:sc:vuln, qualys:host; scan-scope lookup `pci_scan_scope.csv`.",
+  "app": "Splunk Add-on for Tenable (4060)",
+  "spl": "index=vm sourcetype IN (tenable:sc:vuln,qualys:host) earliest=-120d\n| stats latest(_time) AS last_scan_at count(eval(severity IN (\"high\",\"critical\") AND state=\"open\")) AS open_high_findings avg(eval(if(state=\"open\" AND severity IN (\"high\",\"critical\"),now()-first_seen,null))) AS mean_age_s BY scan_scope\n| eval mean_age_days=round(mean_age_s/86400,0)\n| lookup pci_scan_scope.csv scan_scope OUTPUT cadence_days sla_days\n| eval sla_met=if(last_scan_at>=now()-cadence_days*86400 AND mean_age_days<=sla_days,1,0)\n| where sla_met=0\n| table scan_scope last_scan_at sla_met open_high_findings mean_age_days",
+  "description": "Produces, per scan scope, the evidence required by PCI-DSS 11.3 — scans are on cadence and high/critical findings are remediated within SLA.",
+  "value": "Closes the #1 open-finding reason at QSAs — 'the scan history was incomplete'. Continuous measurement is the intended replacement.",
+  "implementation": "(1) Normalise scanner feeds; (2) maintain pci_scan_scope.csv (quarterly external, per-change internal); (3) schedule UC daily; (4) sla_met=0 opens a P2; (5) quarterly QSA report.",
+  "visualization": "Bullet chart of SLA adherence by scope, table of overdue scopes, single value 'scopes overdue'.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1595/",
+      "title": "MITRE ATT&CK — T1595",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Immaterial findings whose exception was approved in the risk register show as 'open' — tag state='accepted_risk' and exclude.",
+  "mitreAttack": [
+    "T1595"
+  ],
+  "detectionType": "Baseline",
+  "securityDomain": "threat",
+  "requiredFields": [
+    "scan_scope",
+    "severity",
+    "state",
+    "first_seen",
+    "_time"
+  ],
+  "equipment": [
+    "qualys",
+    "tenable"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

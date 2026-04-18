@@ -1387,6 +1387,73 @@ def ta_link_for_ta_string(ta_str):
     return None
 
 
+_SIDECAR_EQUIPMENT_CACHE = None
+
+
+def _load_sidecar_equipment_cache():
+    """Lazy-load every UC sidecar's ``equipment``/``equipmentModels`` arrays.
+
+    Returns a dict keyed by UC id (e.g. "22.1.1") -> (equipment_list,
+    equipment_models_list). Sidecars without either key contribute an
+    empty-tuple entry so callers can distinguish "sidecar says no equipment"
+    from "no sidecar exists".
+
+    Cached for the life of the build. Called from build_index(), not at
+    module load, so tests that import build.py don't pay the I/O cost.
+    """
+    global _SIDECAR_EQUIPMENT_CACHE
+    if _SIDECAR_EQUIPMENT_CACHE is not None:
+        return _SIDECAR_EQUIPMENT_CACHE
+    cache = {}
+    if not os.path.isdir(UC_DIR):
+        _SIDECAR_EQUIPMENT_CACHE = cache
+        return cache
+    for root, _dirs, files in os.walk(UC_DIR):
+        for fname in files:
+            if not fname.startswith("uc-") or not fname.endswith(".json"):
+                continue
+            path = os.path.join(root, fname)
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    side = json.load(fh)
+            except (IOError, ValueError):
+                continue
+            if not isinstance(side, dict):
+                continue
+            uc_id = side.get("id")
+            if not isinstance(uc_id, str):
+                continue
+            equipment = side.get("equipment") or []
+            equipment_models = side.get("equipmentModels") or []
+            if not isinstance(equipment, list):
+                equipment = []
+            if not isinstance(equipment_models, list):
+                equipment_models = []
+            cache[uc_id] = (list(equipment), list(equipment_models))
+    _SIDECAR_EQUIPMENT_CACHE = cache
+    return cache
+
+
+def _sidecar_equipment_tags(_cat_id, uc_full_id):
+    """Return (equipment_ids, model_compound_ids) for a UC if a sidecar exists.
+
+    Returns (None, None) when no sidecar exists for the UC, which signals
+    the caller to fall back to the legacy App/TA substring match.
+
+    ``uc_full_id`` is the full UC id (e.g. "22.1.1") captured from the
+    markdown ``### UC-22.1.1`` heading. ``_cat_id`` is accepted for
+    symmetry with future per-category dispatch but currently unused — the
+    sidecar cache is keyed on the full id.
+    """
+    if not uc_full_id:
+        return None, None
+    cache = _load_sidecar_equipment_cache()
+    if uc_full_id not in cache:
+        return None, None
+    equipment, models = cache[uc_full_id]
+    return list(equipment), list(models)
+
+
 def equipment_ids_for_ta_string(ta_str):
     """Given a use case's App/TA field (t), return (equipment_ids, model_compound_ids).
     model_compound_ids are "eqId_modelId" for equipment that has models and whose model tas matched."""
@@ -2178,9 +2245,27 @@ def parse_category_file(filepath):
             elif not (uc.get("md") or "").strip():
                 uc["md"] = generate_detailed_impl(uc)
 
-            eq_ids, model_ids = equipment_ids_for_ta_string(uc.get("t"))
-            uc["e"] = eq_ids
-            uc["em"] = model_ids
+            # Equipment tagging: the per-UC sidecar under
+            # use-cases/cat-<n>/uc-<id>.json is the source of truth when
+            # present because scripts/generate_equipment_tags.py computes
+            # `equipment[]` / `equipmentModels[]` from the full narrative
+            # (app + dataSources + spl + implementation), not just the
+            # curated `app` field build.py has access to. For cat-22's 1,287
+            # regulatory UCs this closes a ~33% false-negative gap where
+            # equipment like Azure AD, OPC UA, Modbus, and ServiceNow lived
+            # only in the SPL. Fall back to the legacy substring match on
+            # the markdown `App/TA:` field for UCs without a sidecar (every
+            # category other than 22 today). See docs/equipment-table.md.
+            sidecar_eq, sidecar_models = _sidecar_equipment_tags(
+                cat_id, uc.get("i")
+            )
+            if sidecar_eq is not None:
+                uc["e"] = sidecar_eq
+                uc["em"] = sidecar_models
+            else:
+                eq_ids, model_ids = equipment_ids_for_ta_string(uc.get("t"))
+                uc["e"] = eq_ids
+                uc["em"] = model_ids
             matched_apps = apps_for_ta_string(uc.get("t"))
             if matched_apps:
                 uc["sapp"] = matched_apps
@@ -3207,12 +3292,15 @@ def main():
     sitemap_urls = [
         f"{SITE_BASE_URL}/",
         f"{SITE_BASE_URL}/api-docs.html",
+        f"{SITE_BASE_URL}/scorecard.html",
         f"{SITE_BASE_URL}/openapi.yaml",
         f"{SITE_BASE_URL}/llms.txt",
         f"{SITE_BASE_URL}/llms-full.txt",
         f"{SITE_BASE_URL}/catalog.json",
         f"{SITE_BASE_URL}/provenance.json",
         f"{SITE_BASE_URL}/scorecard.json",
+        f"{SITE_BASE_URL}/reports/compliance-coverage.json",
+        f"{SITE_BASE_URL}/reports/compliance-gaps.json",
         f"{SITE_BASE_URL}/use-cases/INDEX.md",
     ]
     for cat in data:

@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.11",
+  "title": "NIS2 Cryptography and Encryption Policy Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(h)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Certificate data model, `index=network` (TLS metadata), `index=vulnerability` (crypto-related findings)",
+  "app": "Splunk Add-on for Stream (Splunkbase 1809), Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060)",
+  "spl": "| tstats `summariesonly` count\n  from datamodel=Certificates.All_Certificates\n  where All_Certificates.ssl_end_time < relative_time(now(), \"+30d\")\n  by All_Certificates.ssl_subject_common_name All_Certificates.ssl_end_time All_Certificates.ssl_issuer_common_name\n| rename All_Certificates.* as *\n| eval days_until_expiry=round((ssl_end_time - now())/86400, 0)\n| eval status=case(days_until_expiry < 0, \"EXPIRED\", days_until_expiry < 14, \"CRITICAL\", days_until_expiry < 30, \"WARNING\")\n| sort days_until_expiry\n| table ssl_subject_common_name, ssl_issuer_common_name, days_until_expiry, status",
+  "value": "Article 21(2)(h) requires policies and procedures for cryptography and encryption. This use case monitors TLS certificate health, identifies weak cipher usage, detects unencrypted protocols on NIS2-scoped networks, and tracks encryption-at-rest status — providing continuous evidence that cryptographic controls are operational and current.",
+  "implementation": "(1) Ingest TLS handshake metadata from Splunk Stream or proxy logs; (2) monitor for deprecated protocols (TLS 1.0/1.1, SSLv3) and weak ciphers (RC4, DES, 3DES, export ciphers); (3) track certificate expiry for NIS2-scoped services; (4) correlate vulnerability scanner findings for crypto weaknesses; (5) report encryption-at-rest coverage for databases and file stores.",
+  "visualization": "Table (expiring/expired certificates), Pie chart (TLS version distribution), Bar chart (weak ciphers by host), Single value (% services using TLS 1.2+).",
+  "cimModels": [
+    "Certificates"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.ssl_subject_common_name, All_Certificates.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Tenable Add-On for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "CIM: Certificates",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Certificates"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1562",
+    "T1005"
+  ],
+  "equipment": [
+    "stream",
+    "tenable"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

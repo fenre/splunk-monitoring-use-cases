@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.13",
+  "title": "NIS2 Asset Management and Configuration Baseline",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(i)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans)",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964)",
+  "spl": "| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, sum(All_Traffic.bytes) as total_bytes\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src\n| rename All_Traffic.src as src\n| lookup asset_lookup_by_str key AS src OUTPUT category, priority, owner, nt_host\n| where isnull(category) OR category=\"unknown\"\n| sort - total_bytes\n| head 100\n| table src, nt_host, category, owner, ports, total_bytes",
+  "value": "Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.",
+  "implementation": "(1) Populate ES asset framework from CMDB, vulnerability scanners, and network discovery tools; (2) schedule this search daily to find active IPs not in the asset inventory; (3) classify discovered assets by NIS2 criticality (essential service vs supporting); (4) alert on high-traffic unknown assets; (5) track asset inventory completeness as a NIS2 KPI in UC-22.2.9 effectiveness dashboard.",
+  "visualization": "Table (unknown active assets), Single value (% assets classified), Bar chart (assets by category), Map (asset locations if geo data available).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Qualys",
+      "url": "https://splunkbase.splunk.com/app/2964"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "qualys"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fsudmann/splunk-monitoring-use-cases/schemas/regulations-watch.schema.json",
+  "title": "Regulatory change-watch manifest",
+  "description": "Phase 5.3 manifest that records the externally-published regulatory artefacts we depend on, the strategy used to detect updates, and the last-observed state. The hermetic --check audit consumes this file; the scheduled --fetch workflow refreshes it.",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "stalenessPolicy", "watchlist"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "$comment": {"type": "string"},
+    "schemaVersion": {"const": 1},
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of the last time this file was regenerated or refreshed by --fetch/--freeze."
+    },
+    "baselineCommit": {
+      "type": "string",
+      "description": "Git short-SHA defining the enforcement baseline. Watchlist entries added after this commit must include full provenance; entries prior are grandfathered.",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "documentation": {
+      "type": "string",
+      "description": "Relative path to the change-watch playbook."
+    },
+    "stalenessPolicy": {
+      "type": "object",
+      "description": "Governs how --check computes warning/error thresholds from lastCheckedAt.",
+      "required": ["tier1WarnDays", "tier1FailDays", "tier2WarnDays", "tier2FailDays"],
+      "additionalProperties": false,
+      "properties": {
+        "tier1WarnDays": {"type": "integer", "minimum": 1, "maximum": 365},
+        "tier1FailDays": {"type": "integer", "minimum": 1, "maximum": 365},
+        "tier2WarnDays": {"type": "integer", "minimum": 1, "maximum": 365},
+        "tier2FailDays": {"type": "integer", "minimum": 1, "maximum": 365}
+      }
+    },
+    "watchlist": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per regulation we track. IDs must match data/regulations.json frameworks[].id.",
+      "items": {"$ref": "#/$defs/watchEntry"}
+    }
+  },
+  "$defs": {
+    "watchEntry": {
+      "type": "object",
+      "required": [
+        "regulationId",
+        "regulationName",
+        "tier",
+        "currentVersion",
+        "strategy",
+        "lastCheckedAt"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "regulationId": {
+          "type": "string",
+          "description": "Must match data/regulations.json frameworks[].id.",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "regulationName": {"type": "string", "minLength": 1},
+        "tier": {"enum": [1, 2]},
+        "currentVersion": {
+          "type": "string",
+          "description": "Version identifier we currently track (matches one of regulations.json versions[].version)."
+        },
+        "strategy": {
+          "type": "object",
+          "description": "How --fetch detects updates.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["type", "ingestSourceIds"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {"const": "sha256-vendor"},
+                "ingestSourceIds": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.\\-]*$"},
+                  "description": "source_id values in data/provenance/ingest-manifest.json that back this regulation. --check verifies each exists; --fetch re-hashes the URL and compares."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "repo"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {"const": "github-release"},
+                "repo": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+                  "description": "GitHub owner/repo. --fetch queries /releases/latest."
+                },
+                "versionPattern": {
+                  "type": "string",
+                  "description": "Regex that a release tag must match to be considered a relevant version.",
+                  "format": "regex"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "url"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {"const": "http-head"},
+                "url": {"type": "string", "format": "uri"},
+                "expectedStatus": {
+                  "type": "integer",
+                  "minimum": 200,
+                  "maximum": 599,
+                  "default": 200
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "url"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {"const": "rss-atom"},
+                "url": {"type": "string", "format": "uri"},
+                "matchTerms": {
+                  "type": "array",
+                  "items": {"type": "string", "minLength": 1},
+                  "description": "Case-insensitive substrings that must match a feed entry title to be flagged as relevant."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["type", "publisher"],
+              "additionalProperties": false,
+              "properties": {
+                "type": {"const": "manual-review"},
+                "publisher": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Where a human reviewer goes to check for updates (e.g., PCAOB standards library)."
+                },
+                "landingUrl": {"type": "string", "format": "uri"}
+              }
+            }
+          ]
+        },
+        "lastCheckedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Most recent --fetch or --freeze timestamp."
+        },
+        "lastChangedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Most recent timestamp when a change was actually observed."
+        },
+        "lastObservedHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "For sha256-vendor strategies: SHA256 observed at the last fetch."
+        },
+        "lastObservedVersion": {
+          "type": "string",
+          "description": "For github-release / rss-atom / manual-review: the last-seen version or bulletin identifier."
+        },
+        "lastObservedEtag": {
+          "type": "string",
+          "description": "For http-head: ETag or Last-Modified header value."
+        },
+        "openFinding": {
+          "type": "object",
+          "description": "If --fetch detected a delta and the catalogue has not been refreshed yet, details live here.",
+          "required": ["observedAt", "summary"],
+          "additionalProperties": false,
+          "properties": {
+            "observedAt": {"type": "string", "format": "date-time"},
+            "summary": {"type": "string", "minLength": 1, "maxLength": 500},
+            "newVersion": {"type": "string"},
+            "newHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "issueUrl": {"type": "string", "format": "uri"},
+            "prUrl": {"type": "string", "format": "uri"}
+          }
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Operator notes on cadence, known gotchas, or manual-review rationale."
+        }
+      }
+    }
+  }
+}

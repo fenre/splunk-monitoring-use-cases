@@ -1,0 +1,74 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.49.3",
+  "title": "Litigation-hold override audit — holds applied/released without ticket",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Legal",
+  "controlFamily": "retention-end-enforcement",
+  "exclusions": "Does NOT assess legal sufficiency; that is a human review.",
+  "evidence": "Hourly 'litigation_hold_audit' writes unapproved hold changes to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Logging.Review",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOX and e-discovery obligations require documented litigation-hold processes; this UC detects untracked hold changes."
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.33",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "A.5.33 protection of records — legal holds are a specific implementation."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a litigation-hold is applied or released on any in-scope record and no matching legal ticket exists within 24 hours, the UC fires.",
+    "negativeScenario": "Hold changes accompanied by a valid legal ticket do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.49.3-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=datastore sourcetype=hold:change earliest=-24h\n| join hold_id [search index=legal sourcetype=hold:ticket | fields hold_id ticket_id requested_by]\n| where isnull(ticket_id)\n| table _time hold_id record_id action ticket_id",
+  "description": "Detects unauthorised application or release of litigation holds — both of which are common sources of adverse inference in discovery.",
+  "value": "Prevents silent tampering with evidence preservation.",
+  "implementation": "(1) Ingest hold-change audit events from data stores and from the legal-hold tool; (2) run hourly.",
+  "visualization": "Table of unauthorised changes, single-value 'hold changes with ticket (30d)'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/82875.html",
+      "title": "ISO/IEC 27001:2022",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Bulk hold changes during DR or system migration should carry a maintenance ticket.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

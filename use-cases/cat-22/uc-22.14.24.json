@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.24",
+  "title": "Remote Access Anomalies — Geo-Velocity and Off-Hours VPN",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-17",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`ms:o365:management` SignIns, `cisco:asa` VPN logs",
+  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for Cisco ASA (Splunkbase 1620)",
+  "spl": "index=o365 sourcetype=ms:o365:management Workload=AzureActiveDirectory Operation=UserLoggedIn earliest=-24h\n| iplocation extended_field=ClientIP\n| stats earliest(_time) as t1, latest(_time) as t2, values(Country) as countries by UserId, ClientIP\n| eval delta_h=round((t2-t1)/3600,2)\n| where mvcount(countries)>1 AND delta_h<2",
+  "value": "Detects impossible travel and off-hours remote access for AC-17 remote access monitoring.",
+  "implementation": "(1) Validate `UserLoggedIn` operation naming for tenant; (2) pair with MFA status field if present; (3) reduce noise with corporate travel calendar lookup optional; (4) document tuning in SSP.",
+  "visualization": "Map (country hops), Table (impossible travel), Time chart (after-hours VPN)",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "Splunk Add-on for Cisco ASA",
+      "url": "https://splunkbase.splunk.com/app/1620"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "azure",
+    "cisco",
+    "m365"
+  ],
+  "equipmentModels": [
+    "cisco_asa"
+  ]
+}

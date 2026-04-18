@@ -1,0 +1,83 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.47.4",
+  "title": "Evidence-pack drift — auditor-facing vs pre-production evidence",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT evaluate the content of the evidence itself; only the SHA256 of the compiled pack.",
+  "evidence": "Saved search 'evidence_pack_drift' (after each publish) checks the published pack SHA256 against the pre-production manifest.",
+  "compliance": [
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC1.5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CC1.5 accountability for controls includes evidence integrity."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Evidence.Integrity",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ITGC evidence-integrity requirement."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A pack published to the auditor has a different SHA256 than the pre-production manifest; the UC fires and names the pack.",
+    "negativeScenario": "Hashes match; no alert.",
+    "fixtureRef": "sample-data/uc-22.47.4-fixture.json",
+    "attackTechnique": "T1070"
+  },
+  "dataSources": "Evidence-pack build pipeline, publication manifest, auditor-delivery signature events.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=grc sourcetype=evidence_pack:publish earliest=-30d\n| stats latest(sha256) as published_sha latest(pack_id) as pack by _time\n| join pack [search index=grc sourcetype=evidence_pack:preprod | stats latest(sha256) as preprod_sha by pack]\n| where published_sha!=preprod_sha\n| table pack published_sha preprod_sha",
+  "description": "Compares the pack published to an auditor against the pack that passed internal QA. Divergence is either a reproducibility failure or a tamper event.",
+  "value": "Protects the integrity of the evidence that underpins the external audit.",
+  "implementation": "(1) Sign both preprod and published packs; (2) run post-publish; (3) on mismatch, alert internal audit and QA pipeline.",
+  "visualization": "Table of mismatches, single-value 'packs with matching SHA (30d)'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022",
+      "title": "AICPA Trust Services Criteria",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1070/",
+      "title": "MITRE ATT&CK — T1070 Indicator Removal",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Legitimate last-mile redactions can produce intended SHA changes; capture them in a redaction_log.csv.",
+  "mitreAttack": [
+    "T1070"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "pack_id",
+    "sha256"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

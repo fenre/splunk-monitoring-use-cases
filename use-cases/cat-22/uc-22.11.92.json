@@ -1,0 +1,111 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.92",
+  "title": "PCI-DSS 2.2 — Secure configuration baseline: drift from approved hardening template",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Head of Platform",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT replace Tripwire or OS STIGs; surfaces hosts whose Chef/Ansible run report diverges from the declared baseline for >24h.",
+  "evidence": "Saved search 'pci_2_2_config_drift' (every 30m) emits per host: hostname, role, baseline_version, drift_count, last_converged, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "2.2",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 2.2 Configuration standards — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.9",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.9 Configuration management — directly evidenced."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC8.1 — contributing."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CM-6",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIST 800-53 CM-6 Configuration Settings — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Setting a test host's baseline_version to a superseded value returns it in the drift table.",
+    "negativeScenario": "A host fully converged in the last 30m is absent.",
+    "fixtureRef": "sample-data/uc-22.11.92-fixture.json"
+  },
+  "dataSources": "`index=configmgmt` sourcetype=chef:compliance OR sourcetype=ansible:callback; baseline lookup `pci_baselines.csv`.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=configmgmt sourcetype IN (chef:compliance,ansible:callback) earliest=-30m\n| stats latest(role) AS role latest(baseline_version) AS baseline_version latest(resource_failed) AS resource_failed latest(_time) AS last_converged BY hostname\n| eval drift_count=coalesce(resource_failed,0)\n| where drift_count>0 OR last_converged<now()-86400\n| table hostname role baseline_version drift_count last_converged",
+  "description": "Baseline compliance for CDE hosts. PCI-DSS 2.2 requires configuration standards that address known security vulnerabilities; drift from the approved baseline is the direct failure.",
+  "value": "Turns the quarterly 'baseline assessment' into a 30-minute signal. Platform team sees regressions before the QSA.",
+  "implementation": "(1) Enforce Chef/Ansible on all CDE hosts; (2) emit convergence events; (3) maintain pci_baselines.csv with the current approved baseline_version per role; (4) schedule UC every 30m; (5) drift opens a Platform ticket.",
+  "visualization": "Bar of drift_count by role, table of top-drift hosts, single value 'hosts in drift'.",
+  "cimModels": [
+    "Change",
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Baseline upgrades take effect over a staged rollout — support multiple active baseline_versions in the lookup.",
+  "detectionType": "Baseline",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "hostname",
+    "role",
+    "baseline_version",
+    "_time"
+  ],
+  "equipment": [
+    "ansible"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

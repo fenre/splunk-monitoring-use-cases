@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.41.4",
+  "title": "TLS downgrade / legacy-cipher handshake spike",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "crypto-drift",
+  "exclusions": "Does NOT measure certificate-expiry posture (covered by 22.41.2); focuses on observed handshake protocol/cipher.",
+  "evidence": "Saved search 'tls_downgrade_spike' (hourly) emits a per-endpoint handshake profile and alerts on legacy-cipher spikes.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "4.2.1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI 4.2.1 strong cryptography in transmission is directly measured."
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.312(e)(1)",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Transmission security is required for ePHI."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SC-8",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SC-8 transmission confidentiality; legacy cipher negotiation is a direct failure."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An external load-balancer begins negotiating TLS 1.0 with 5% of clients after a config push; the UC fires within the hour.",
+    "negativeScenario": "All handshakes remain TLS 1.2/1.3 with strong ciphers; no alert.",
+    "fixtureRef": "sample-data/uc-22.41.4-fixture.json",
+    "attackTechnique": "T1562.006"
+  },
+  "dataSources": "F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=tls sourcetype=f5:tls OR sourcetype=nginx:tls OR sourcetype=haproxy:tls earliest=-1h\n| eval legacy=if(match(protocol,\"TLSv1\\.(0|1)\") OR match(cipher,\"3DES|RC4|NULL|DES|EXPORT\"),1,0)\n| stats sum(legacy) as legacy_hs count as total_hs by host\n| eval legacy_pct=round(legacy_hs/total_hs*100,2)\n| where legacy_pct>0.5 AND total_hs>100\n| table host legacy_hs total_hs legacy_pct",
+  "description": "Monitors observed TLS handshake metadata for any endpoint and alerts when legacy-cipher or legacy-protocol negotiations exceed a small threshold. Downgrade is a common attacker technique against partially-upgraded infrastructure.",
+  "value": "Catches silent downgrade issues introduced by load-balancer config drift before they become an audit finding or data-exposure incident.",
+  "implementation": "(1) Ensure LBs emit handshake telemetry; (2) schedule hourly; (3) route hits to security ops; (4) block via config-as-code rollback.",
+  "visualization": "Line chart of legacy-handshake percentage per endpoint, table of offending endpoints, single-value '% handshakes on strong TLS (24h)'.",
+  "cimModels": [
+    "Certificates"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/006/",
+      "title": "MITRE ATT&CK — T1562.006 Impair Defenses: Indicator Blocking",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Legacy client populations (POS devices) can inflate TLS 1.0 usage in scope of a documented risk-acceptance; allow-list such endpoints.",
+  "mitreAttack": [
+    "T1562.006"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "host",
+    "protocol",
+    "cipher",
+    "_time"
+  ],
+  "equipment": [
+    "haproxy",
+    "nginx"
+  ],
+  "equipmentModels": [
+    "nginx_open"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

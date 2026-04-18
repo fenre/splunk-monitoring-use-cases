@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.2",
+  "title": "ISO 27001 Information Security Event Log Review Compliance",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.12.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2013",
+      "clause": "A.12.4.1",
+      "clauseUrl": "https://www.iso.org/standard/54534.html",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2013 Annex A.12.4.1 Event logging — UC evidences the event-log review programme required by the 2013 control, covering both completeness and review cadence."
+    }
+  ],
+  "dataSources": "`index=_audit` `action=search` (user, search, info, result_count, total_run_time, _time)",
+  "app": "Splunk Enterprise core auditing (`_audit` index, no separate TA required)",
+  "spl": "index=_audit action=search info=completed user!=\"splunk-system-user\" earliest=-30d\n| where match(search, \"(?i)index\\\\s*=\\\\s*(security|notable|wineventlog|proxy|dns|firewall|ids)\")\n| bucket _time span=1d as review_day\n| stats dc(user) as distinct_reviewers,\n        count as review_searches,\n        sum(result_count) as rows_examined,\n        values(user) as sample_users\n    by review_day\n| eval cadence_met=if(distinct_reviewers>=1 AND review_searches>=1, 1, 0)\n| sort - review_day",
+  "value": "Produces auditor-ready evidence that named users routinely query security data in Splunk (log review activity), including who reviewed which index classes and how often — not merely that logs exist.",
+  "implementation": "(1) Confirm audit logging is enabled for search activity and `_audit` retention meets policy; (2) edit the `match()` index list to your real security index names; (3) exclude service accounts via `user!=` or lookup; (4) monthly PDF/CSV export for ISO evidence packs; (5) tune minimum thresholds to your documented log review frequency.",
+  "visualization": "Time chart (review_searches by day), Table (review_day, reviewers, cadence_met), Single value (rolling 30d cadence percentage).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

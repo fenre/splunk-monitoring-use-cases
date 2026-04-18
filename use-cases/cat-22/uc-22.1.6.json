@@ -1,0 +1,73 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.6",
+  "title": "GDPR Cross-Border Data Transfer Monitoring",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.44-49",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM `Network_Traffic` data model (`All_Traffic.dest`, `All_Traffic.bytes_out`, `All_Traffic.action`) — backed by sourcetypes such as `sourcetype=\"pan:traffic\"`, `sourcetype=\"cisco:asa\"`, or `sourcetype=\"fortigate_traffic\"`",
+  "app": "Splunk Common Information Model Add-on (Splunkbase 1621), `Splunk_TA_paloalto` (Splunkbase 2757), `TA-fortinet_fortigate`, `Splunk_TA_cisco-asa`, or equivalent firewall TA populating Network_Traffic data model",
+  "spl": "| tstats summariesonly=t sum(All_Traffic.bytes_out) as bytes_out\n    from datamodel=Network_Traffic.All_Traffic\n    where All_Traffic.action=\"allowed\"\n    by All_Traffic.dest\n| rename All_Traffic.* as *\n| iplocation dest\n| lookup eea_and_adequate_countries.csv Country OUTPUT transfer_basis\n| where isnull(transfer_basis) OR transfer_basis=\"restricted\"\n| eval bytes_gb=round(bytes_out/1073741824, 2)\n| sort 100 - bytes_out\n| head 100\n| table dest, Country, bytes_gb, transfer_basis",
+  "value": "Highlights outbound traffic volumes to destinations outside the approved EEA/adequacy footprint so transfers can be gated by SCCs, BCRs, TIAs, or blocking controls.",
+  "implementation": "(1) Accelerate `Network_Traffic` data model in Settings > Data Models; (2) create `eea_and_adequate_countries.csv` with `Country` values matching `iplocation` output (MaxMind) and your legal team's adequacy list (EEA + UK + other recognised adequacy decisions); (3) add a `transfer_basis` column (e.g. SCC, BCR, adequacy) for approved destinations; (4) tune with CDN/exception lookups by `dest`.",
+  "visualization": "Choropleth (top non-EEA destinations), Bar chart (bytes by country), Table (restricted transfers).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "Splunkbase app 2757",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1048",
+    "T1530"
+  ],
+  "equipment": [
+    "cisco",
+    "fortinet",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "cisco_asa",
+    "fortinet_fortigate",
+    "paloalto_pan_firewall"
+  ],
+  "premiumApps": [
+    {
+      "name": "Splunk Enterprise Security",
+      "displayName": "Splunk Enterprise Security (optional, for asset/identity context)",
+      "note": "optional, for asset/identity context"
+    }
+  ]
+}

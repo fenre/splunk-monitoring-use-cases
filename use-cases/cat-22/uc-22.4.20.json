@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.4.20",
+  "title": "CCPA/CPRA — Dark Patterns — Pre-Checked “Financial Incentive” Enrollment on Account Settings Save",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=app` `sourcetype=\"profile:update\"` (user_id, field_changed, old_value, new_value, client_event_id, _time); `index=web` `sourcetype=\"ux:form_submit\"` (user_id, form_id, _time)",
+  "app": "Application audit logs via HEC",
+  "spl": "index=app sourcetype=\"profile:update\" field_changed=\"marketing_incentive_optin\" new_value=true earliest=-30d\n| join type=left user_id [\n    search index=web sourcetype=\"ux:form_submit\" form_id=\"financial_incentive_optin\" earliest=-30d\n    | stats min(_time) as first_submit by user_id\n  ]\n| where isnull(first_submit) OR first_submit > _time\n| table user_id, _time, new_value, first_submit",
+  "value": "Financial incentive programs require opt-in consent. Server logs showing `marketing_incentive_optin` toggled true without a distinct affirmative action event (checkbox submit) support detection of prohibited default-on patterns.",
+  "implementation": "(1) Require `client_event_id` correlation if available—strengthen join; (2) privacy counsel defines valid proof events; (3) auto-create remediation tickets; (4) exclude internal test accounts; (5) align with §1798.125 documentation.",
+  "visualization": "Table (users), Single value (count), Timeline.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

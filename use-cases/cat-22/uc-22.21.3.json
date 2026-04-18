@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.21.3",
+  "title": "Automated Decision Audit Trail Reconstruction (Art. 12)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "EU AI Act",
+      "version": "Regulation (EU) 2024/1689",
+      "clause": "EU AI Act",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ai_decision` sourcetypes: `airflow:task`, `ai:gateway`, `rules:engine` — shared decision_id",
+  "app": "Splunk ITSI (1841), Splunk Enterprise Security (263)",
+  "spl": "index=ai_decision earliest=-24h decision_id=*\n| eval hop=case(sourcetype=\"airflow:task\",1,sourcetype=\"ai:gateway\",2,sourcetype=\"rules:engine\",3,true(),0)\n| stats values(sourcetype) as path, min(_time) as t0, max(_time) as t1, range(_time) as span_sec by decision_id\n| eval complete=if(mvcount(path)>=3,1,0)\n| where complete=0\n| eval span_min=round(span_sec/60,2)\n| table decision_id, path, span_min, t0, t1",
+  "value": "Chains decision_id across orchestrator, model gateway, and business rules engine to evidence end-to-end decision audit trail required for high-risk ADM logging.",
+  "implementation": "(1) Propagate decision_id across pipeline stages; (2) create macro `ai_decision_index`; (3) schedule every 30m for incomplete chains; (4) attach ITSI episode template for cross-team triage.",
+  "visualization": "Sankey or sequence table (path), Histogram (span_sec), Table (incomplete decision_id)",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "itsi"
+  ]
+}

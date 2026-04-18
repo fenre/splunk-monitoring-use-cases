@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.11",
+  "title": "DORA Major ICT Incident 7-Criteria Classification",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.18",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`` `notable` `` macro, `index=itsi_summary`, CIM Authentication and Network_Traffic data models, `dora_service_client_mapping.csv`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk ITSI (Splunkbase 1841)",
+  "spl": "`notable` urgency IN (\"high\",\"critical\") status!=\"Closed\" earliest=-48h\n| eval affected_systems=mvappend(src, dest)\n| mvexpand affected_systems\n| lookup dora_service_client_mapping.csv system_name AS affected_systems OUTPUT service_name, client_count, client_pct, countries_served, data_classification\n| stats dc(affected_systems) as systems_hit, max(client_count) as max_clients_affected, max(client_pct) as max_client_pct,\n        dc(countries_served) as geo_spread, values(data_classification) as data_types by rule_name, urgency\n| eval c1_clients=if(max_client_pct > 10 OR max_clients_affected > 500, 1, 0)\n| eval c2_geographic=if(geo_spread > 1, 1, 0)\n| eval c3_duration=\"ASSESS_MANUALLY\"\n| eval c4_data_loss=if(match(mvjoin(data_types,\",\"),\"(?i)confidential|restricted|pii|financial\"), 1, 0)\n| eval criteria_met=c1_clients + c2_geographic + c4_data_loss\n| eval classification=if(criteria_met >= 2, \"MAJOR — mandatory reporting\", \"Significant or below — assess remaining criteria\")\n| eval reporting_deadline=if(classification=\"MAJOR — mandatory reporting\", \"4h initial + 72h intermediate + 1mo final\", \"Monitor\")\n| table rule_name, urgency, systems_hit, max_clients_affected, max_client_pct, geo_spread, data_types, criteria_met, classification, reporting_deadline\n| sort - criteria_met",
+  "value": "DORA Article 18 and RTS 2024/1772 define seven classification criteria for determining whether an ICT incident is \"major\" — an incident meeting two or more criteria thresholds triggers mandatory reporting. This use case automates the classification assessment against all seven criteria, replacing manual spreadsheet-based classification and accelerating the 4-hour initial notification deadline.",
+  "implementation": "(1) Build `dora_service_client_mapping.csv` mapping ICT systems to business services, client counts/percentages, geographic reach, and data classifications; (2) automate criteria 1 (clients), 2 (geographic), and 4 (data loss) — criteria 3 (duration), 5-7 require manual assessment initially; (3) alert immediately when criteria_met >= 2 — the 4-hour reporting clock starts; (4) integrate with SOAR for automated notification workflow; (5) document classification rationale for each incident.",
+  "visualization": "Table (incident classification results), Single value (major incidents requiring reporting), Bar chart (criteria met per incident), Traffic light (classification status).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1048"
+  ],
+  "equipment": [
+    "itsi"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence (ITSI)"
+    }
+  ]
+}

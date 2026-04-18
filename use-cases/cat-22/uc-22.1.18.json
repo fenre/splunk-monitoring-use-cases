@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.18",
+  "title": "GDPR Automated Decision-Making and Profiling Transparency",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.22",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=decisions` (automated decision system audit logs via HEC), `index=itsm` (appeal/challenge tickets)",
+  "app": "HTTP Event Collector (HEC — structured decision logs)",
+  "spl": "index=decisions sourcetype=\"automated_decision\" earliest=-30d\n| eval decision_type=coalesce(decision_type, model_name, system_name)\n| eval human_reviewed=if(match(lower(_raw),\"(?i)manual.*review|human.*override|appeal.*granted|escalat\"), 1, 0)\n| eval adverse=if(match(lower(outcome),\"(?i)denied|rejected|declined|flagged|high.risk\"), 1, 0)\n| stats count as total_decisions, sum(adverse) as adverse_decisions, sum(human_reviewed) as reviewed_by_human by decision_type\n| eval adverse_pct=round(100*adverse_decisions/total_decisions, 1)\n| eval human_review_pct=round(100*reviewed_by_human/total_decisions, 1)\n| eval compliance_risk=if(adverse_pct > 10 AND human_review_pct < 5, \"HIGH — low human review of adverse decisions\", \"Monitor\")\n| table decision_type, total_decisions, adverse_decisions, adverse_pct, reviewed_by_human, human_review_pct, compliance_risk",
+  "value": "Article 22 gives data subjects the right not to be subject to decisions based solely on automated processing that produce legal or similarly significant effects. This use case monitors automated decision-making systems (credit scoring, fraud detection, HR screening, insurance pricing) for transparency — tracking decision volumes, override rates, and appeal/challenge requests to ensure human review is available and exercised.",
+  "implementation": "(1) Instrument automated decision systems to emit structured audit logs via HEC with decision type, outcome, data inputs used, and human review flags; (2) track Art. 22(3) challenge/appeal requests through ITSM; (3) alert when adverse decision rates are high but human review rates are low; (4) report on decision transparency for DPO annual review; (5) ensure data subjects are informed about automated decision-making per Art. 13(2)(f) and Art. 14(2)(g).",
+  "visualization": "Bar chart (decisions by type and outcome), Table (low human review systems), Single value (overall human review rate), Line chart (adverse decision trends).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1565",
+    "T1005"
+  ]
+}

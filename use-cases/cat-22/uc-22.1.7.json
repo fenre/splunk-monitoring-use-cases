@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.7",
+  "title": "GDPR Security of Processing — Encryption and Pseudonymisation Coverage",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.32",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Certificates data model, `index=vulnerability` (crypto-related findings), `index=network` (TLS metadata), database audit logs",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809), Tenable Add-On for Splunk (Splunkbase 4060)",
+  "spl": "| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, count\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.app IN (\"http\",\"ftp\",\"telnet\",\"smtp\") NOT All_Traffic.app IN (\"https\",\"ftps\",\"smtps\",\"ssh\")\n  by All_Traffic.dest All_Traffic.app\n| rename All_Traffic.* as *\n| lookup gdpr_personal_data_systems.csv dest OUTPUT system_name, data_category, contains_pii\n| where contains_pii=\"true\"\n| sort - count\n| table dest, system_name, data_category, app, count",
+  "value": "Article 32 requires controllers and processors to implement measures ensuring confidentiality, integrity, availability and resilience of processing systems — explicitly calling out pseudonymisation and encryption. This use case continuously monitors encryption-at-rest status for databases holding personal data, TLS enforcement on processing systems, and pseudonymisation coverage — providing the technical evidence that Art. 32 controls are operational, not just documented.",
+  "implementation": "(1) Create `gdpr_personal_data_systems.csv` listing all systems processing personal data (from Art. 30 register); (2) detect unencrypted protocols (HTTP, FTP, Telnet) to those systems; (3) monitor TLS certificate health for personal data endpoints; (4) track pseudonymisation implementation via application audit logs; (5) alert on any unencrypted connection to PII-bearing systems.",
+  "visualization": "Table (PII systems with unencrypted connections), Pie chart (encrypted vs unencrypted traffic to PII systems), Bar chart (unencrypted protocols by system), Single value (% PII systems fully encrypted).",
+  "cimModels": [
+    "Network_Traffic",
+    "Certificates"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.app | sort - count",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "Tenable Add-On for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1005",
+    "T1562"
+  ],
+  "equipment": [
+    "tenable"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

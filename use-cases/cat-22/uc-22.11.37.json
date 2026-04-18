@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.37",
+  "title": "Change Control Completeness for Production Payment Releases",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Change"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.5.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ci` `sourcetype=\"jenkins:build\"` or `sourcetype=\"azuredevops:release\"`; `index=itsm` `snow:change_request`",
+  "app": "Splunk Add-on for AWS (1876), Splunk Add-on for ServiceNow (1928) if available",
+  "spl": "index=ci sourcetype=\"jenkins:build\" earliest=-7d\n| where match(job,\"(?i)payment|checkout|token\")\n| where result=\"SUCCESS\" AND like(build_url,\"%prod%\")\n| eval chg_hint=replace(build_parameters,\".*?(CHG\\\\d{7}).*\",\"\\\\1\")\n| join type=left max=1 chg_hint [\n    search index=itsm sourcetype=\"snow:change_request\" earliest=-14d\n    | rename number as chg_hint\n    | fields chg_hint, state\n  ]\n| where isnull(state) OR NOT match(state,\"(?i)closed|implemented\")\n| table _time, job, build_url, chg_hint, state",
+  "value": "Joins deployment pipeline events to approved change tickets so every production change affecting payment software follows formal change control as PCI expects for secure systems.",
+  "implementation": "(1) Require pipeline to inject `CHG` token parameter. (2) Add Git branch allow-list. (3) Alert on null `state`. (4) Retain build logs 13 months.",
+  "visualization": "Table (unlinked deploys), column chart (violations by week), single value (count).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws",
+    "azure",
+    "jenkins",
+    "servicenow"
+  ]
+}

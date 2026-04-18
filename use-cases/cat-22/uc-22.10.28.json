@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.28",
+  "title": "Workstation Security — Unattended Unlocked Sessions in Clinical Pods",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.310(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Security` 4801 (unlock), 4800 (lock), `index=epic` `sourcetype=epic:audit` from same `Workstation_ID`",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (\"4800\",\"4801\") earliest=-7d\n| eval action=if(EventCode=\"4800\",\"lock\",\"unlock\")\n| transaction WorkstationName startswith=eval(action=\"unlock\") endswith=eval(action=\"lock\") maxspan=8h\n| eval idle_during=if(duration>3600 AND eventcount<3,1,0)\n| where idle_during=1\n| table WorkstationName, duration, user, _time",
+  "value": "Correlates long gaps between workstation unlock events in nursing stations with active Hyperspace sessions to reduce shoulder-surfing and unauthorized viewing risks.",
+  "implementation": "(1) Deploy only on designated clinical OU to limit noise; (2) pair with physical security rounds checklist; (3) educate on clean desk + lock policy.",
+  "visualization": "Histogram (session durations), Table (worst workstations).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

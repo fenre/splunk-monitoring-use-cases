@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.4.1",
+  "title": "CCPA Consumer Data Access and Deletion Request Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.100-105",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=itsm` `sourcetype=\"snow:sc_req_item\"` (number, opened_at, closed_at, state, cat_item, short_description) or `sourcetype=\"snow:incident\"` (number, opened_at, closed_at, state, short_description)",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "index=itsm (sourcetype=\"snow:sc_req_item\" OR sourcetype=\"snow:incident\")\n    (cat_item=\"*CCPA*\" OR cat_item=\"*Privacy*\" OR short_description=\"*CCPA*\" OR short_description=\"*Consumer Privacy*\")\n| eval opened_epoch=strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| eval closed_epoch=if(isnotnull(closed_at), strptime(closed_at, \"%Y-%m-%d %H:%M:%S\"), null())\n| eval age_days=round((now()-opened_epoch)/86400, 1)\n| eval sla_days=45\n| eval breach=if(isnull(closed_epoch) AND age_days>sla_days, 1, 0)\n| eval days_remaining=if(isnull(closed_epoch), sla_days-age_days, null())\n| table _time, number, state, age_days, days_remaining, breach, short_description\n| sort - breach, days_remaining",
+  "value": "Tracks privacy request fulfillment work items end-to-end and flags requests at risk of missing the 45-day statutory response window.",
+  "implementation": "(1) Configure ServiceNow inputs for sc_req_item and/or incidents; (2) normalize catalog item names to match the filter (adjust `cat_item` strings); (3) if CCPA allows extensions, add fields for `extension_days` and update `sla_days` logic; (4) schedule daily with alert on `breach=1`.",
+  "visualization": "Table (open requests with SLA countdown), Histogram (age distribution), Single value (% within 45 days).",
+  "cimModels": [
+    "Ticket Management"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Ticket Management",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "servicenow"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.19",
+  "title": "EACMS and IRA Authentication Failure Concentration",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-005-6 R4 Part 4.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=network` `sourcetype=eacms:auth`, `index=os` `sourcetype=linux:secure`",
+  "app": "Splunk Add-on for Unix and Linux (833), Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "(index=network sourcetype=eacms:auth result=\"failure\") OR (index=os sourcetype=linux:secure \"Failed password\")\nearliest=-24h\n| eval user=coalesce(user, account)\n| lookup eacms_asset_map host OUTPUT eacms_id\n| stats count by user, src_ip, host, eacms_id\n| where count>25\n| sort - count",
+  "value": "We detect brute-force patterns against Electronic Access Control and Monitoring Systems that gate ESP remote access.",
+  "implementation": "(1) Normalize vendor syslog into `eacms:auth`. (2) Distinguish IRA accounts from vendors. (3) Integrate with ES adaptive response. (4) Retain raw events per records retention.",
+  "visualization": "Table (top sources), Time chart (failures), Single value (locked-out systems)",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.src, Authentication.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

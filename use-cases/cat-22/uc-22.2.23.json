@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.23",
+  "title": "NIS2 Incident Handling Procedure Adherence and Playbook Execution",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`` `notable` `` macro, `index=itsm` linked incidents, `nis2_playbook_stage_map.csv`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "`notable` urgency IN (\"high\",\"critical\") earliest=-30d\n| eval incident_id=rule_name.\"|\"._time\n| join incident_id type=left [\n    search index=itsm sourcetype=\"snow:incident\" earliest=-30d\n    | eval incident_id=correlation_id\n    | eval stages_complete=mvcount(mvappend(\n        if(match(work_notes,\"(?i)contain\"),\"contain\",\"\"),\n        if(match(work_notes,\"(?i)erad\"),\"erad\",\"\"),\n        if(match(work_notes,\"(?i)recover\"),\"recover\",\"\"),\n        if(match(work_notes,\"(?i)lessons\"),\"lessons\",\"\")))\n    | stats latest(stages_complete) as stages_complete by incident_id\n]\n| eval playbook_gap=if(stages_complete < 4, 1, 0)\n| where playbook_gap=1 AND status!=\"Closed\"\n| table _time, rule_name, status, owner, stages_complete",
+  "value": "Policies on handling incidents must be effective in practice. This use case tracks whether incident tickets traverse required playbook stages (triage, containment, eradication, recovery, lessons learned) within SLA — correlating SOC workflow fields with NIS2 incident classes.",
+  "implementation": "(1) Standardise work-note keywords for each playbook stage; (2) link ES notables to ServiceNow `correlation_id`; (3) alert IR leads on missing stages before closure; (4) include lessons-learned completion in post-incident review; (5) export metrics for supervisory evidence packs.",
+  "visualization": "Funnel chart (stage completion), Table (incomplete incidents), Single value (% full playbook adherence).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1048"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

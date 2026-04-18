@@ -1,0 +1,101 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.37.1",
+  "title": "Consent capture evidence freshness — stale-consent alerting",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "DPO",
+  "controlFamily": "data-subject-request-lifecycle",
+  "exclusions": "Does NOT evaluate whether the consent text itself meets Art.7 transparency — that is a legal review, handled outside the platform.",
+  "evidence": "Daily 'consent_freshness' search writes per-subject consent age and scope to compliance_summary; panel shows distribution of consent ages by lawful basis.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.7",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.7 conditions for consent — the UC evidences when consent was captured and surfaces subjects whose consent is older than the policy threshold."
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.6(1)(a) lawful basis of consent requires demonstrable consent. Missing or stale evidence means no lawful basis."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.7 (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.7",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.6 (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.6",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a subject's active consent grant is older than the configured max_consent_age_days (default 365) and the processing activity is still observed in application logs, the UC fires.",
+    "negativeScenario": "Processing activities with lawful basis ≠ consent (e.g. Art.6(1)(c) legal obligation) do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.37.1-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=cmp sourcetype=onetrust:consent earliest=-400d\n| stats max(_time) as last_consent by subject_token purpose\n| eval consent_age_days=round((now()-last_consent)/86400,0)\n| where consent_age_days>365\n| join subject_token [search index=app_activity earliest=-30d | stats count by subject_token | where count>0]\n| table subject_token purpose last_consent consent_age_days",
+  "description": "Flags subjects whose consent is older than the program threshold yet whose data is still being processed. Stale consent is a lawful-basis failure — Art.6/Art.7 require consent to remain current and demonstrable.",
+  "value": "Prevents the 'set-and-forget' consent anti-pattern that surfaces in nearly every GDPR supervisory-authority enforcement action.",
+  "implementation": "(1) Ingest CMP events with purpose taxonomy; (2) set max_consent_age_days via macro; (3) run daily; (4) pipe to SOAR to drive a re-consent workflow.",
+  "visualization": "Histogram of consent age by purpose; table of stale subjects; single-value for '% of processing with fresh consent'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Long-lived contractual relationships where consent is not the lawful basis. Use a lawful_basis.csv join to filter them out.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

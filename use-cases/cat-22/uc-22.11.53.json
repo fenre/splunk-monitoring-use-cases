@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.53",
+  "title": "Remote Access MFA Evidence Correlation — VPN Success Without Step-Up Token",
+  "criticality": "critical",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "8.5.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=netfw` `pan:globalprotect`; `index=o365` `azure:aad:signin`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757), Splunk Add-on for Microsoft Office 365 (4055) for AAD sign-ins",
+  "spl": "index=netfw sourcetype=\"pan:globalprotect\" subtype=\"gateway-connected\" earliest=-24h\n| eval session=coalesce(session_id,gp_session_id)\n| eval user=lower(user)\n| join type=left max=1 user [\n    search index=o365 sourcetype=\"azure:aad:signin\" earliest=-24h\n    | eval user=lower(userPrincipalName)\n    | where authenticationRequirement=\"multiFactorAuthentication\" OR mfaDetail!=\"[]\"\n    | stats latest(_time) as mfa_time by user\n  ]\n| where isnull(mfa_time) OR mfa_time > _time + 300\n| stats count by user, src, portal\n| sort - count",
+  "value": "Joins VPN authentication logs with identity provider MFA success events to prove remote entry into the CDE used multi-factor authentication for each session where policy requires it.",
+  "implementation": "(1) Clock-skew normalize `_time` fields across sources. (2) Tune join window; `mfa_time` should precede VPN connect. (3) Replace logic if Okta/other IdP. (4) Document compensating SAML MFA at IdP only.",
+  "visualization": "Table (sessions missing MFA join), timeline, single value (violations).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "azure",
+    "m365",
+    "okta",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ]
+}

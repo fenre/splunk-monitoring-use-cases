@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.9.6",
+  "title": "Compliance Trending — SOC 2 Control Test Pass Rate vs Prior Quarter Baseline",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "Multiple",
+      "version": "n/a",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=compliance` `sourcetype=\"grc:control_test\"` (framework, control_id, test_result, test_date, period_label)",
+  "app": "Splunk DB Connect (GRC export), or `index=compliance` HEC from Archer/ServiceNow GRC",
+  "spl": "index=compliance sourcetype=\"grc:control_test\" framework=\"SOC2\" earliest=-400d\n| eval pass=if(lower(test_result) IN (\"pass\",\"effective\",\"no_exception\"),1,0)\n| eval test_epoch=strptime(test_date,\"%Y-%m-%d\")\n| bin test_epoch span=90d as period\n| stats avg(pass) as pass_rate by period\n| sort period\n| streamstats window=1 global=f latest(pass_rate) as prev_pass_rate by framework\n| eval delta_pp=round(100*(pass_rate-prev_pass_rate),2)\n| table period, pass_rate, prev_pass_rate, delta_pp",
+  "value": "Framework-specific trending shows whether SOC 2 Type II control tests are improving or eroding compared to your own prior quarter baseline—not just a static “percent pass today”—so leadership sees trajectory for trust services commitments.",
+  "implementation": "(1) Normalize `test_result` vocabulary via lookup; (2) align `period` to fiscal calendar if needed; (3) exclude duplicate tester reruns via `dedup control_id test_date`; (4) annotate dashboard with SOC subservice scope; (5) export quarterly screenshot for audit committee pack.",
+  "visualization": "Line chart (pass_rate), Column chart (delta_pp), Single value (latest pass_rate).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1562"
+  ],
+  "equipment": [
+    "db_connect",
+    "servicenow"
+  ]
+}

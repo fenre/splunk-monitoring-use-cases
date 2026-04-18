@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.102",
+  "title": "PCI-DSS 10.7 — Log retention: CDE data-source retention + immutability attestation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Head of Platform",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does NOT change retention; attests (a) configured index retention for CDE indexes ≥ 365d and (b) WORM archive currency.",
+  "evidence": "Saved search 'pci_10_7_retention_attest' (daily) emits per index: index, configured_days, oldest_event_age_d, worm_last_write, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.7",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 10.7 Log retention — retention + WORM attestation is directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.33",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.33 Protection of records — directly evidenced."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-11",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "NIST 800-53 AU-11 Audit Record Retention — directly evidenced."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Logging.Integrity",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOX-ITGC Logging.Integrity — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Setting a CDE index frozenTimePeriodInSecs to 180d returns configured_days=180 in the output.",
+    "negativeScenario": "An index with 400d retention + recent WORM heartbeat is absent.",
+    "fixtureRef": "sample-data/uc-22.11.102-fixture.json"
+  },
+  "dataSources": "Splunk REST /services/data/indexes; `index=compliance` sourcetype=worm:signer.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| rest /services/data/indexes\n| where match(title,\"^(cde|pci)_\")\n| eval configured_days=round(frozenTimePeriodInSecs/86400,0)\n| table title configured_days minTime maxTime\n| rename title AS index\n| eval oldest_event_age_d=round((now()-strptime(minTime,\"%Y-%m-%dT%H:%M:%S%z\"))/86400,0)\n| join type=outer index\n  [search index=compliance sourcetype=worm:signer earliest=-7d\n   | stats latest(_time) AS worm_last_write BY index]\n| where configured_days<365 OR oldest_event_age_d<365 OR worm_last_write<now()-86400\n| table index configured_days oldest_event_age_d worm_last_write",
+  "description": "Attests the retention and WORM posture required by PCI-DSS 10.7 (one-year retention, three months immediately available).",
+  "value": "Prevents the audit-killing discovery that retention was silently reduced during an index rebuild. Daily attestation beats the quarterly spot-check.",
+  "implementation": "(1) Name CDE indexes with cde_/pci_ prefix; (2) WORM signer writes per-index heartbeat; (3) schedule UC daily; (4) gap opens a Platform ticket; (5) monthly CISO review.",
+  "visualization": "Bar of retention days by index, table of gaps, single value 'indexes below 365d'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "SOX-ITGC PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "New indexes legitimately have oldest_event_age_d<365 until one year passes — mark age_exempt=true in an index-metadata lookup.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "index",
+    "frozenTimePeriodInSecs",
+    "minTime",
+    "maxTime"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

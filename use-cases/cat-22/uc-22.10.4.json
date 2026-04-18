@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.4",
+  "title": "Workforce Clearance — HR Hire vs AD Account Creation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.308(a)(3)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Security` EventCode IN (4720,4722,4738), `index=hr` `sourcetype=workday:worker` or CSV HEC (`employee_id`, `clearance_status`, `effective_date`)",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "(index=windows EventCode IN (\"4720\",\"4722\") TargetUserName=\"*\") OR (index=hr sourcetype=\"workday:worker\")\n| eval emp_id=coalesce(employee_id, TargetUserName)\n| eval event_type=if(EventCode=\"4720\",\"AccountCreated\",if(EventCode=\"4722\",\"AccountEnabled\",\"HRRecord\"))\n| stats earliest(_time) as first_ad latest(_time) as last_hr by emp_id, event_type\n| join type=outer emp_id [\n    search index=hr sourcetype=\"workday:worker\" earliest=-180d\n    | eval clearance_epoch=strptime(effective_date,\"%Y-%m-%d\")\n    | table employee_id, clearance_status, clearance_epoch\n    | rename employee_id as emp_id ]\n| eval violation=if(first_ad < clearance_epoch AND clearance_status=\"Cleared\",\"PreClearance_AD\",null())\n| where isnotnull(violation)",
+  "value": "Flags Active Directory accounts created or enabled before HR clearance effective date, supporting workforce clearance procedures for roles with ePHI access.",
+  "implementation": "(1) Normalize timestamps to UTC; (2) map service accounts to exclusion lookup; (3) route violations to IAM and HR; (4) quarterly attestation report.",
+  "visualization": "Table (account, violation, timestamps), Single value (violations 30d).",
+  "cimModels": [
+    "Authentication (optional for 4624 correlation)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "tenable"
+  ]
+}

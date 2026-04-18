@@ -1,0 +1,88 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.40.3",
+  "title": "Periodic access review SLA — stale certifications by control owner",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "exclusions": "Does NOT judge the quality of the certification (rubber-stamp vs diligent); follows up with sampling review.",
+  "evidence": "Daily report 'access_review_freshness' writes review-age per control owner to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "AC-2(j) requires review of accounts at least annually; the UC measures compliance continuously."
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.18",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "A.5.18 access rights — periodic review is a core requirement."
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.Review",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX ITGC periodic access review is a cornerstone audit test."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a control owner has not completed an access review for a scoped application in 90+ days, the UC fires with the owner, app_id, and last_review_at.",
+    "negativeScenario": "Applications with reviews certified within the 90-day window do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.40.3-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=grc sourcetype=iam:access_review earliest=-365d\n| stats max(_time) as last_review by app_id reviewer\n| eval days_since=round((now()-last_review)/86400,0)\n| where days_since>90\n| lookup app_inventory.csv app_id OUTPUT owner criticality\n| table owner app_id criticality last_review days_since",
+  "description": "Tracks the age of the most recent access review per application and control owner. Applications falling outside the 90-day cadence drive follow-up tickets.",
+  "value": "Access review is the #1 ITGC deficiency in typical public-company audits; turning it into a green/red KPI changes the operating rhythm.",
+  "implementation": "(1) Ingest review-completion events from the GRC tool; (2) refresh app_inventory.csv weekly; (3) run daily.",
+  "visualization": "Heatmap of owner × application age, table of overdue, single-value '% of apps reviewed within 90 days'.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/82875.html",
+      "title": "ISO/IEC 27001:2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "New applications added in-cycle need a baseline review; track onboarding date.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

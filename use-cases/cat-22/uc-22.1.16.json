@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.16",
+  "title": "GDPR Consent Withdrawal Processing Enforcement",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.7(3)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.18",
+      "clauseUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "GDPR Art.18 Right to restrict processing — UC enforces consent-withdrawal processing, the technical signal behind a restriction decision propagating across processing systems."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.18",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.18 (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.18",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "dataSources": "`index=consent` (consent management platform events), `index=email` (marketing automation logs), `index=web` (tracking/analytics events), application audit logs",
+  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), HTTP Event Collector (HEC)",
+  "spl": "| inputlookup gdpr_consent_withdrawals.csv WHERE withdrawal_date!=\"\"\n| eval withdrawal_epoch=strptime(withdrawal_date, \"%Y-%m-%d\")\n| eval subject_hash=subject_identifier\n| join type=left subject_hash [\n    search (index=email OR index=marketing) earliest=-30d\n    | eval subject_hash=coalesce(recipient_hash, subscriber_id, user_hash)\n    | where isnotnull(subject_hash)\n    | stats count as post_withdrawal_events, latest(_time) as last_processing_time by subject_hash\n]\n| where isnotnull(post_withdrawal_events) AND last_processing_time > withdrawal_epoch\n| eval days_processing_after_withdrawal=round((last_processing_time - withdrawal_epoch)/86400, 1)\n| sort - days_processing_after_withdrawal\n| table subject_hash, withdrawal_date, consent_purpose, post_withdrawal_events, days_processing_after_withdrawal",
+  "value": "Article 7(3) requires that withdrawal of consent be as easy as giving consent, and processing based on consent must stop after withdrawal. While UC-22.1.5 tracks the consent audit trail, this use case verifies that processing actually ceases after a data subject withdraws consent — detecting systems that continue sending marketing communications, tracking cookies, or processing data for purposes that relied on the withdrawn consent.",
+  "implementation": "(1) Export consent withdrawal events from your CMP (OneTrust, Cookiebot, custom) to `gdpr_consent_withdrawals.csv` with hashed subject identifiers and consent purposes; (2) search marketing automation and tracking systems for activity after withdrawal dates; (3) alert on any processing found after withdrawal; (4) escalate to marketing operations for immediate suppression; (5) document remediation for accountability evidence.",
+  "visualization": "Table (subjects with post-withdrawal processing), Single value (violations found), Bar chart (violations by consent purpose), Timeline (violation discovery).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "m365"
+  ]
+}

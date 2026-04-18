@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.4.17",
+  "title": "CCPA/CPRA — Minor Consent — Age-Gating API Denials vs Account Creation Success Mismatch",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=app` `sourcetype=\"auth:signup\"` (session_id, account_created, _time); `index=app` `sourcetype=\"identity:age_check\"` (session_id, age_band, decision, _time)",
+  "app": "Application logs via HEC",
+  "spl": "index=app sourcetype=\"identity:age_check\" decision=\"under16\" earliest=-30d\n| join type=left session_id [\n    search index=app sourcetype=\"auth:signup\" account_created=true earliest=-30d\n    | fields session_id, account_created, _time\n    | rename _time as signup_time\n  ]\n| where isnotnull(account_created)\n| table session_id, decision, signup_time, account_created",
+  "value": "Selling or sharing minors’ PI requires affirmative authorization under specified conditions. Detecting account creation paths that succeed when age-gate APIs return under-16/under-13 outcomes indicates broken client flows or server-side bypass.",
+  "implementation": "(1) Align `session_id` correlation; (2) immediate P1 to product security; (3) block accounts via batch job downstream; (4) legal determines applicable age threshold by business line; (5) never log raw DOB in Splunk—use `age_band` only.",
+  "visualization": "Table (incidents), Single value (count), Timeline.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

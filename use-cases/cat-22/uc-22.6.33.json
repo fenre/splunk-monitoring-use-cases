@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.33",
+  "title": "Information Deletion — S3 Object Delete Storm Outside Retention Workflow",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.10",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`aws:cloudtrail` eventName=DeleteObject",
+  "app": "Splunk Add-on for AWS (Splunkbase 1876)",
+  "spl": "index=aws sourcetype=aws:cloudtrail eventName=DeleteObject earliest=-24h\n| stats count as deletes by userIdentity.arn, bucketName\n| where deletes>1000\n| lookup approved_bulk_delete.csv userIdentity.arn, bucketName OUTPUT approved\n| where isnull(approved)",
+  "value": "Detects mass delete operations not tagged with approved legal-hold workflow ID for controlled deletion.",
+  "implementation": "(1) Tag lifecycle jobs in lookup; (2) correlate with backup jobs; (3) insider risk review.",
+  "visualization": "Table, Time chart",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user, All_Changes.object | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws"
+  ]
+}

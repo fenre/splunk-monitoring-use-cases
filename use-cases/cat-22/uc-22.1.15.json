@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.15",
+  "title": "GDPR Third-Party Processor Compliance Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.28",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Network_Traffic data model, proxy/firewall logs, `gdpr_processor_register.csv`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)",
+  "spl": "| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.action=\"allowed\"\n  by All_Traffic.dest\n| rename All_Traffic.* as *\n| lookup gdpr_processor_register.csv dest_domain AS dest OUTPUT processor_name, dpa_signed, last_audit_date, approved_data_categories, sub_processors\n| where isnotnull(processor_name)\n| eval days_since_audit=if(isnotnull(last_audit_date), round((now()-strptime(last_audit_date,\"%Y-%m-%d\"))/86400,0), 9999)\n| eval audit_status=case(days_since_audit > 365, \"OVERDUE\", days_since_audit > 270, \"DUE_SOON\", 1=1, \"CURRENT\")\n| eval bytes_gb=round(bytes_out/1073741824, 2)\n| sort - bytes_gb\n| table dest, processor_name, dpa_signed, bytes_gb, sources, audit_status, days_since_audit, sub_processors",
+  "value": "Article 28 requires controllers to use only processors providing sufficient guarantees and to monitor their compliance. This use case tracks data flows to processors, monitors their security posture indicators, detects data transfers exceeding agreed scope, and flags processors with overdue security assessments — providing continuous evidence that processor oversight is active, not just contractual.",
+  "implementation": "(1) Build `gdpr_processor_register.csv` from your Art. 28 processor inventory with destination domains/IPs, DPA status, and audit dates; (2) monitor actual data transfer volumes to each processor; (3) alert on processors with overdue audits or unsigned DPAs; (4) detect unexpected volume spikes indicating scope creep; (5) track sub-processor changes reported by primary processors.",
+  "visualization": "Table (processor compliance status), Bar chart (data transfer by processor), Single value (overdue audits count), Timeline (transfer volume trends).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

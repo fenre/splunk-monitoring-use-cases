@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.13",
+  "title": "SOC 2 CC4 — Enterprise Risk Register Ingestion and Coverage Gaps",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=risk` `sourcetype=\"grc:risk_register\"` (risk_id, system_id, owner, inherent_score, residual_score, last_review_date, status)",
+  "app": "Splunk DB Connect (Splunkbase 2686), HTTP Event Collector",
+  "spl": "index=risk sourcetype=\"grc:risk_register\" earliest=-1d\n| eval last_rev=strptime(last_review_date,\"%Y-%m-%d\")\n| eval days_since_review=round((now()-last_rev)/86400,0)\n| eval gap=case(\n    isnull(system_id) OR system_id=\"\", \"NO_SYSTEM_MAPPING\",\n    days_since_review>365, \"STALE_REVIEW\",\n    status!=\"active\" AND residual_score>12, \"INACTIVE_HIGH_RESIDUAL\",\n    1=1, \"OK\")\n| where gap!=\"OK\"\n| stats count by gap, owner\n| sort - count",
+  "value": "CC4 requires consideration of risks to objectives. Monitoring the risk register for stale reviews, missing owners, or systems without mapped risks shows the assessment process is operational—not a static spreadsheet export.",
+  "implementation": "(1) Normalize `system_id` to CMDB keys; (2) integrate GRC export nightly; (3) alert on `NO_SYSTEM_MAPPING` for production systems from `cmdb:production_systems.csv`; (4) tie residual_score scale to your GRC methodology; (5) quarterly attestation that zero high risks lack owners.",
+  "visualization": "Table (gaps), Pie chart (gap types), Single value (stale reviews).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect"
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.35.1",
+  "title": "Audit-log continuity: detect indexing gap indicating lost evidence",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "CISO",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does NOT detect confidentiality compromise of log content itself, nor physical tampering of the indexer host; see UC-22.35.2 (indexer integrity) and UC-22.35.3 (log-content confidentiality).",
+  "evidence": "Saved search 'audit_log_gap_detection' (daily) outputs a per-source gap report to the compliance summary index; dashboard panel 'Audit log continuity — last 30d' on the evidence-pack dashboard.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.32(1)(b)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2016/679/oj#d1e2833-1-1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Detects interruption of the audit trail (the 'ability to ensure the ongoing ... resilience of processing systems'), but the clause also requires confidentiality and integrity guarantees not covered here."
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.312(b)",
+      "clauseUrl": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-164.312#p-164.312(b)",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "§164.312(b) 'Audit controls' is satisfied when the covered entity can show audit logs are captured continuously; this UC produces that evidence directly."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.2.1",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#page=126",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI 10.2.1 requires that audit logs are enabled and active for all system components; this UC detects loss of telemetry but does not validate 10.2.1's sub-requirements (10.2.1.1-10.2.1.7) for specific event types."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "CC7.2 requires monitoring of system components 'to detect anomalies' — detecting audit-log gaps is one necessary signal but the criterion covers broader system monitoring."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Logging.Continuity",
+      "mode": "detects-violation-of",
+      "assurance": "contributing",
+      "assurance_rationale": "A material weakness finding for ITGCs often follows from unexplained gaps in the audit trail; this UC raises the signal but SOX evidence requires additional management attestation."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.32(1)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.32(1)(b) (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.32(1)(b)",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When any ingest source known to produce continuous events stops producing events for more than 60 seconds (and no planned-maintenance window is active), the UC fires within the next search interval and names the affected source.",
+    "negativeScenario": "Normal event-rate jitter (up to 30-second gaps), or a source in a pre-declared maintenance window (tag=maintenance), does NOT fire the UC.",
+    "fixtureRef": "sample-data/uc-22.35.1-fixture.json",
+    "attackTechnique": "T1562.008"
+  },
+  "dataSources": "_internal metrics.log (group=per_sourcetype_thruput), _audit (action=indexing), or any index-time metric that exposes per-source event rates.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform (native; no separate TA required)",
+  "spl": "| tstats count as events where index=_internal source=*metrics.log* group=per_sourcetype_thruput earliest=-30m by sourcetype _time span=1m\n| eventstats avg(events) as avg_events, stdev(events) as stdev_events by sourcetype\n| where events=0 AND avg_events>0\n| eval gap_seconds=60\n| table _time sourcetype events avg_events stdev_events gap_seconds\n| sort - _time",
+  "description": "Detects any sourcetype that was previously producing events but has stopped indexing for more than a rolling 60-second window. A regression in event ingestion is the earliest indicator that the audit trail required by almost every modern regulation has been compromised — whether by accident (agent failure, network partition, licensing quota) or by intent (attacker clearing logs).",
+  "value": "Without continuous audit logs, compliance claims are unfalsifiable. Auditors across GDPR, HIPAA, PCI DSS, SOC 2, and SOX all treat log-gaps as a finding. This UC lets a customer show the auditor a green dashboard: 'here is every second of the last 30 days, accounted for by source.'",
+  "implementation": "(1) Schedule every 5 minutes; (2) route hits to a restricted summary index (compliance_summary); (3) wire to ITSI service health or ES notable depending on deployment; (4) maintain a maintenance-window lookup (maintenance_windows.csv) listing tagged sources that should NOT alert.",
+  "visualization": "Timeline of event rate per sourcetype with red bars for gap periods; heat-map of sources-by-day with green/amber/red cells; single value for '% of last 30d with full coverage'.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — General Data Protection Regulation",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA Security Rule",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0 (March 2022)",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/008/",
+      "title": "MITRE ATT&CK — T1562.008 Impair Defenses: Disable or Modify Cloud Logs",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance windows or expected cold-standby sources that receive low volume. Mitigate with a maintenance_windows.csv lookup and a `not source IN [$lookup]` clause.",
+  "mitreAttack": [
+    "T1562.008"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "sourcetype",
+    "_time"
+  ],
+  "equipment": [
+    "itsi"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

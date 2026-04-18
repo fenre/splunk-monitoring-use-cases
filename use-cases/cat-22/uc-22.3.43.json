@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.43",
+  "title": "DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT replace the scanner; consumes the scanner's output and prioritises findings on the subset of hosts classified as 'critical financial service' per DORA Art.8(1).",
+  "evidence": "Saved search 'dora_art8_new_crit_exposure' (every 15m) emits, per finding: finding_id, ict_service, cvss, cve, discovered_time, registration_sla_met (boolean), to the compliance_summary index.",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.8",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.8 requires continuous identification of ICT-related risks; a 15-minute detection + 24h register SLA directly maps to that obligation for critical services."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.8",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.8 Management of technical vulnerabilities — directly evidenced."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIST 800-53 RA-5 Vulnerability Scanning — contributes; monitoring here is a scanner consumer."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "11.3.1",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI-DSS 11.3.1 internal vulnerability scans; this UC reuses the same scanner feed to detect material exposures."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Creating a test finding with CVSS=8 on a host tagged criticality_tier=critical causes the UC to fire within 15m naming the CVE and ict_service.",
+    "negativeScenario": "A CVSS=5 or non-critical host finding does NOT fire.",
+    "fixtureRef": "sample-data/uc-22.3.43-fixture.json",
+    "attackTechnique": "T1190"
+  },
+  "dataSources": "`index=vm` sourcetype=tenable:sc:vuln OR sourcetype=qualys:host; `index=cmdb` sourcetype=cmdb:ci_ict_service; DORA critical-service lookup `dora_critical_services.csv`.",
+  "app": "Splunk Enterprise Security, Splunk Add-on for Tenable, Splunk Add-on for Qualys",
+  "spl": "index=vm sourcetype IN (tenable:sc:vuln,qualys:host) cvss>=7 earliest=-15m\n| rename dest AS hostname\n| lookup dora_critical_services.csv hostname OUTPUT ict_service criticality_tier\n| where criticality_tier=\"critical\"\n| eval registration_sla_met=if(relative_time(now(),\"-24h\")<=_time,1,0)\n| stats count BY ict_service cvss cve hostname registration_sla_met",
+  "description": "Identifies newly-discovered CVSS>=7 exposures on hosts supporting a DORA-critical financial service. Measures whether the finding is registered in the ICT risk register within the 24h target implied by Art.8 'continuous identification'.",
+  "value": "Produces per-finding evidence that critical-service exposure is identified and logged within the DORA-aligned window, rather than relying on monthly scanner review meetings.",
+  "implementation": "(1) Onboard scanner output; (2) tag hosts with ict_service + criticality_tier nightly; (3) schedule UC every 15m; (4) each hit opens a risk-register entry (ServiceNow) within 24h; (5) weekly report to ICT risk committee; (6) breach of 24h SLA escalates to the Head of IR and Board/Audit Committee.",
+  "visualization": "Timechart of new criticals per ICT service, table of unresolved findings, single value 'findings past 24h SLA'.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1190/",
+      "title": "MITRE ATT&CK — T1190",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Scanner re-baselines after signature updates can produce a one-time spike of 're-discovered' findings — cross-reference against first_seen and exclude.",
+  "mitreAttack": [
+    "T1190"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "threat",
+  "requiredFields": [
+    "dest",
+    "cvss",
+    "cve",
+    "_time"
+  ],
+  "equipment": [
+    "qualys",
+    "servicenow",
+    "tenable"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.51",
+  "title": "Engineering Workstation Access Control — RDP Skips Jump Tier",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "IEC 62443-3-2 / Engineering workstation access control",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Security` 4624 type=10; `pan:traffic` rdp",
+  "app": "Windows + firewall",
+  "spl": "(index=windows EventCode=4624 Logon_Type=10 host=\"PLC-WIN-IO-*\") OR (index=fw sourcetype=\"pan:traffic\" app=\"rdp\" dest_zone=\"OT-L1\")\n| eval session_key=coalesce(src_ip, src)\n| lookup ot_jump_required.csv dest_ip OUTPUT jump_required\n| where jump_required=\"true\"\n| stats count by user, dest_ip, host\n| sort - count",
+  "value": "Alerts when RDP/WinRM sessions skip the jump tier and land directly on low-Purdue controllers or Windows I/O servers.",
+  "implementation": "(1) Disable RDP on controllers; (2) enforce PSM-only path; (3) GPO firewall; (4) weekly exception report.",
+  "visualization": "Table, Timeline, Single value (violations).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.dest | sort - count",
+  "references": [
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

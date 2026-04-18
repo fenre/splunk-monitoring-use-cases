@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.46",
+  "title": "GDPR Consent Mechanism Audit (Lawful Basis Alignment)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.25(1)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.21",
+      "clauseUrl": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "GDPR Art.21 Right to object — UC audits the consent mechanism against lawful-basis alignment, covering the opt-out / objection propagation that Art.21 requires."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.21",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.21 (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.21",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "dataSources": "`index=consent` (CMP events), `index=web` (tag loading), `gdpr_consent_policy.csv`",
+  "app": "HTTP Event Collector (HEC), Splunk Add-on for Stream (Splunkbase 1809)",
+  "spl": "(index=web sourcetype=\"js_tag\") earliest=-24h\n| eval before_consent=if(consent_state=\"unknown\" AND match(tag_category,\"(?i)marketing|analytics\"),1,0)\n| stats sum(before_consent) as early_nonessential_tags by site_id tag_vendor\n| where early_nonessential_tags > 100\n| lookup gdpr_consent_policy.csv site_id OUTPUT required_banner_version\n| join site_id [\n    search index=consent earliest=-24h\n    | stats latest(banner_version) as live_banner by site_id\n]\n| where live_banner != required_banner_version\n| table site_id, tag_vendor, early_nonessential_tags, live_banner, required_banner_version",
+  "value": "By design, consent collection must be granular and verifiable. This use case monitors CMP and web telemetry for consent banner versions, non-essential cookies fired before consent, and mismatches between claimed purposes in the CMP and tags observed in the browser stream.",
+  "implementation": "(1) Instrument sites to emit tag and consent state events; (2) define required banner versions per site in policy lookup; (3) alert marketing and privacy when non-essential tags load pre-consent; (4) block releases that downgrade banner version without approval; (5) align with UC-22.1.5/UC-22.1.16 for withdrawal enforcement.",
+  "visualization": "Table (sites with violations), Single value (sites off-policy), Heatmap (violations by region), Bar chart (tag vendors).",
+  "cimModels": [
+    "Web"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

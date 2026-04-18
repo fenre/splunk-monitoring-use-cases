@@ -1,0 +1,88 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.48.1",
+  "title": "Segregation of duties — toxic role combinations in IAM",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "access-review-cadence",
+  "exclusions": "Does NOT assess business-justified exceptions; captured in a lookup.",
+  "evidence": "Daily 'sod_toxic_combos' writes toxic-combo findings to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.SOD",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX SoD — matching toxic combinations is the canonical SOX-ITGC test."
+    },
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "7.2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI 7.2 privilege assignment — SoD is a typical implementation."
+    },
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.5.3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "A.5.3 segregation of duties — explicit policy control."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When any principal (human or service account) holds two roles listed as a toxic combo in sod_matrix.csv, the UC fires with principal, role_a, role_b.",
+    "negativeScenario": "Principals with role-combos that are expressly marked permitted_with_compensating=true do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.48.1-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| rest /services/iam/principals splunk_server=* | fields principal roles\n| mvexpand roles\n| join principal [| rest /services/iam/principals splunk_server=* | fields principal roles | mvexpand roles | rename roles as other_role]\n| where roles!=other_role\n| lookup sod_matrix.csv role_a=roles role_b=other_role OUTPUT toxic permitted_with_compensating\n| where toxic=\"true\" AND permitted_with_compensating!=\"true\"\n| table principal roles other_role",
+  "description": "Enforces the SoD matrix every day across all principals. Toxic combos become visible the moment they are assigned, not at the next audit.",
+  "value": "SoD failures are the top SOX ITGC finding in the Fortune-1000 cohort; automating them is the only defensible posture.",
+  "implementation": "(1) Maintain sod_matrix.csv with the company's SoD rules; (2) ingest IAM state via REST; (3) run daily; (4) on finding, auto-open a remediation ticket.",
+  "visualization": "Table of violations, network graph of role interactions, single-value 'principals with SoD violations'.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/82875.html",
+      "title": "ISO/IEC 27001:2022",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Break-glass admin accounts require explicit permitted_with_compensating=true.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.29",
+  "title": "Device & Media Controls — USB Mass Storage on ePHI Workstations",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.310(d)(1)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Microsoft-Windows-Kernel-PnP/Configuration` 400, `index=endpoint` `sourcetype=crowdstrike:usb` if available",
+  "app": "Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Microsoft-Windows-Kernel-PnP/Configuration\" EventCode=\"400\" earliest=-7d\n| where match(ClassName,\"USBSTOR|Disk&Ven_\")\n| lookup clinical_workstations.csv ComputerName OUTPUT contains_ephi_workstation\n| where contains_ephi_workstation=\"true\"\n| stats count by ComputerName, ClassName, DeviceID\n| sort - count",
+  "value": "Captures removable media mount attempts on endpoints that access Hyperspace so device and media control policies for ePHI workstations are enforceable and auditable.",
+  "implementation": "(1) Enforce BitLocker + DLP on exceptions; (2) require temporary USB grants via ServiceNow with ticket ID in log annotation optional; (3) quarterly exception review.",
+  "visualization": "Table (host, device class, count), Single value (violations).",
+  "cimModels": [
+    "Endpoint"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for CrowdStrike FDR",
+      "url": "https://splunkbase.splunk.com/app/5082"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for CrowdStrike FDR",
+      "url": "https://splunkbase.splunk.com/app/5994"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "crowdstrike",
+    "servicenow"
+  ]
+}

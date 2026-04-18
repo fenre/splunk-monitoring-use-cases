@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.5",
+  "title": "IACS Incident Response Containment Interval",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "4.3.4.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ot_incidents` ServiceNow `snow:incident` or SOAR with `contained_at`",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for ServiceNow (1928)",
+  "spl": "index=ot_incidents sourcetype=\"snow:incident\" earliest=-180d\n| where category=\"OT/Cyber\" OR match(short_description,\"(?i)ics|scada|plc\")\n| eval opened=strptime(opened_at,\"%Y-%m-%d %H:%M:%S\"), contained=strptime(contained_at,\"%Y-%m-%d %H:%M:%S\")\n| eval is_drill=if(match(tag,\"drill\") OR match(short_description,\"(?i)drill|tabletop\"),1,0)\n| eval contain_min=round((contained-opened)/60,1)\n| where isnotnull(contain_min)\n| stats median(contain_min) as p50, perc95(contain_min) as p95, count by is_drill",
+  "value": "Quantifies detection-to-containment for OT cyber incidents and separates drills from production to evidence an exercised IR plan.",
+  "implementation": "(1) Require containment milestone in workflow; (2) align timestamps to OT SOC clock; (3) compare drill vs live separately; (4) feed p95 into program KPIs.",
+  "visualization": "Box plot, Table (recent), Single value (p95 live).",
+  "cimModels": [
+    "Ticket Management"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Ticket Management",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Ticket_Management"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "servicenow"
+  ]
+}

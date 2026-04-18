@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.20",
+  "title": "GDPR Legitimate Interest Balancing Test Evidence",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.6(1)(f)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`gdpr_ropa_register.csv`, `gdpr_lia_register.csv` (Legitimate Interest Assessments), CIM Network_Traffic data model",
+  "app": "Splunk Enterprise Security (Splunkbase 263)",
+  "spl": "| inputlookup gdpr_ropa_register.csv WHERE legal_basis=\"legitimate_interest\"\n| lookup gdpr_lia_register.csv processing_activity OUTPUT lia_status, lia_date, lia_reviewer, lia_outcome, data_subject_objections\n| eval lia_coverage=case(\n    lia_status=\"completed\" AND lia_outcome=\"justified\", \"JUSTIFIED\",\n    lia_status=\"completed\" AND lia_outcome=\"not_justified\", \"STOP_PROCESSING\",\n    lia_status=\"in_progress\", \"IN_PROGRESS\",\n    isnull(lia_status), \"MISSING — LIA REQUIRED\")\n| eval review_overdue=if(isnotnull(lia_date) AND (now()-strptime(lia_date,\"%Y-%m-%d\"))/86400 > 365, \"REVIEW_DUE\", \"OK\")\n| eval objection_rate=if(isnotnull(data_subject_objections) AND data_subject_objections > 10, \"HIGH_OBJECTIONS — reassess\", \"Normal\")\n| where lia_coverage IN (\"MISSING — LIA REQUIRED\", \"STOP_PROCESSING\") OR review_overdue=\"REVIEW_DUE\" OR objection_rate=\"HIGH_OBJECTIONS — reassess\"\n| table processing_activity, system_name, lia_coverage, lia_date, review_overdue, data_subject_objections, objection_rate\n| sort lia_coverage",
+  "value": "Legitimate interest (Art. 6(1)(f)) is the most commonly misused legal basis — regulators have fined LinkedIn €310M and others hundreds of millions for relying on legitimate interest without proper balancing tests. This use case tracks which processing activities use legitimate interest as their legal basis, monitors whether balancing test documentation exists and is current, and detects processing scope creep beyond the original legitimate interest assessment — addressing the enforcement area that generates the highest fines in 2025-2026.",
+  "implementation": "(1) Tag ROPA entries using legitimate interest as legal basis; (2) maintain `gdpr_lia_register.csv` linking processing activities to Legitimate Interest Assessments; (3) alert on processing activities relying on legitimate interest without a completed LIA; (4) track data subject objections (Art. 21) per processing activity — high objection rates signal the balancing test may be failing; (5) flag LIAs not reviewed in >12 months; (6) stop processing immediately for any activity where LIA concludes \"not justified.\"",
+  "visualization": "Table (LIA coverage gaps), Pie chart (LIA status distribution), Bar chart (objections by processing activity), Single value (missing LIAs count).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

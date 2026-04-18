@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.41",
+  "title": "DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT assess control design effectiveness; only detects drift between the documented control catalogue and operational control inventory in the governance platform (Archer, ServiceNow GRC, etc.).",
+  "evidence": "Saved search 'dora_art6_control_catalogue_drift' (daily) produces the delta of documented vs operational controls, counts of orphaned controls, and the list of ICT assets whose controlFamily is not in the approved catalogue; routed to the compliance_summary index.",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.6",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.6 requires a 'sound, comprehensive and well-documented ICT risk-management framework'. A continuously-verified delta between documented and operational controls is the direct evidence a supervisor would request."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.1",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.1 policies for information security — contributing evidence that the policy framework is operational, but ISO requires additional management-review artefacts."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "PM-9",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NIST 800-53 PM-9 (Risk Management Strategy) — contributes by proving the strategy's control mapping is current."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Deleting a control in the GRC tool (state=inactive) that is still listed in dora_control_catalogue.csv causes the UC to fire within 24h naming the specific control_id and ict_service.",
+    "negativeScenario": "A newly-added control whose family is present in the approved catalogue and whose state is active does NOT fire.",
+    "fixtureRef": "sample-data/uc-22.3.41-fixture.json",
+    "attackTechnique": "T1562"
+  },
+  "dataSources": "`index=grc` sourcetype=archer:control, sourcetype=servicenow:grc_control; `index=cmdb` sourcetype=cmdb:ci_ict_service; controlFamily catalogue lookup `dora_control_catalogue.csv`.",
+  "app": "Splunk Enterprise Security, Splunk Add-on for ServiceNow",
+  "spl": "index=grc sourcetype IN (archer:control,servicenow:grc_control) earliest=-1d\n| stats latest(control_family) AS control_family latest(state) AS state BY control_id ict_service\n| lookup dora_control_catalogue.csv control_family OUTPUT approved\n| where isnull(approved) OR state=\"inactive\"\n| table ict_service control_id control_family state approved",
+  "description": "Compares the live control inventory from the governance platform against the Board-approved DORA control catalogue (per Art.6 requirement for a documented ICT risk-management framework). Surfaces orphan controls (in operations but not in catalogue) and decayed controls (in catalogue but now inactive).",
+  "value": "Replaces the annual 'do we still have the framework' attestation with a continuous reconciliation — regulators under DORA Art.6 expect the framework to be 'soundly, comprehensively and well-documented', meaning drift must be detected and remediated, not just discovered at the next audit.",
+  "implementation": "(1) Export control inventory daily from Archer/ServiceNow GRC into Splunk; (2) maintain dora_control_catalogue.csv as the Board-approved baseline with approval date and approver; (3) schedule UC daily; (4) drift >0 opens a risk-register entry assigned to the CISO with 30-day remediation SLA; (5) quarterly sign-off by the ICT risk committee.",
+  "visualization": "Table of drifted controls, timechart of drift count by day, single value 'days since last zero-drift state'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/",
+      "title": "MITRE ATT&CK — T1562",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Catalogue refreshes legitimately introduce new control_family values until the GRC platform syncs — maintain a 24h grace window in the lookup's effective-from date.",
+  "mitreAttack": [
+    "T1562"
+  ],
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "control_id",
+    "control_family",
+    "state",
+    "ict_service",
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

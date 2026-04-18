@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.13",
+  "title": "DORA Register of Information for ICT Third-Party Arrangements",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.28(3)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Network_Traffic data model, DNS logs, `dora_ict_provider_register.csv`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876)",
+  "spl": "| tstats `summariesonly` sum(All_Traffic.bytes) as total_bytes dc(All_Traffic.src) as internal_sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.action=\"allowed\" NOT All_Traffic.dest_category IN (\"internal\",\"internal_server\")\n  by All_Traffic.dest\n| rename All_Traffic.* as *\n| iplocation dest\n| lookup dora_ict_provider_register.csv dest_domain AS dest OUTPUT provider_name, contract_id, criticality, exit_plan_status, last_review_date\n| eval in_register=if(isnotnull(provider_name), \"REGISTERED\", \"NOT_IN_REGISTER\")\n| eval review_overdue=if(isnotnull(last_review_date) AND (now()-strptime(last_review_date,\"%Y-%m-%d\"))/86400 > 365, \"OVERDUE\", \"OK\")\n| eval bytes_gb=round(total_bytes/1073741824, 2)\n| where (in_register=\"NOT_IN_REGISTER\" AND bytes_gb > 0.1) OR review_overdue=\"OVERDUE\"\n| sort - bytes_gb\n| table dest, Country, provider_name, in_register, bytes_gb, internal_sources, criticality, exit_plan_status, review_overdue",
+  "value": "Article 28(3) requires financial entities to maintain and update a register of information on all contractual arrangements with ICT third-party service providers, distinguishing those supporting critical or important functions. This use case validates register completeness by comparing actual ICT provider traffic against the register and detecting unregistered providers or stale entries.",
+  "implementation": "(1) Maintain `dora_ict_provider_register.csv` with all ICT third-party arrangements per Art. 28(3) requirements; (2) include contract IDs, criticality flags, exit plan status, and review dates; (3) compare actual network traffic destinations against registered providers; (4) flag unregistered high-volume destinations for procurement review; (5) submit register to competent authorities upon request; (6) review annually with management body approval.",
+  "visualization": "Table (unregistered providers), Single value (register coverage %), Bar chart (traffic to unregistered destinations), Pie chart (registered vs unregistered by volume).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.37",
+  "title": "Unauthorized Firmware Upload Attempt on RTU",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "IEC 62443-4-2 / CR 2.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`claroty:alert` category=firmware; `pan:traffic` ftp/scp",
+  "app": "Dragos/Claroty alerts + firewall",
+  "spl": "index=ot_sec sourcetype=\"claroty:alert\" category=\"firmware\" earliest=-14d\n| append [ search index=fw sourcetype=\"pan:traffic\" app IN (\"ftp\",\"scp\",\"sftp\") dest_zone=\"OT-RTU\" earliest=-14d\n    | lookup ot_engineering_nets.csv src OUTPUT role | where role!=\"ews\" ]\n| stats earliest(_time) as t0, values(src) as sources by dest, signature, sourcetype\n| sort - t0",
+  "value": "Detects firmware or OS image transfer sessions to RTUs from non-engineering hosts, testing authorization enforcement on components.",
+  "implementation": "(1) Block firmware protocols except via jump host; (2) require signed images; (3) alert any ftp to field; (4) integrate vendor secure boot logs if available.",
+  "visualization": "Timeline, Table, Single value (events).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count",
+  "references": [
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

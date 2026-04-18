@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.29",
+  "title": "Scheduled Malware Scan or On-Demand Scan Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "5.3.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` `WinEventLog:Application` vendor AV EventCode; `sourcetype=\"WinEventLog:Microsoft-Windows-Windows Defender/Operational\"`",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Microsoft-Windows-Windows Defender/Operational\" earliest=-7d\n| lookup pci_windows_cde_assets.csv ComputerName OUTPUT cde_member\n| where cde_member=\"true\"\n| where EventCode IN (1008,1010,5001,5007)\n| stats count by ComputerName, EventCode, EventDescription\n| sort - count",
+  "value": "Captures failed or skipped AV scans on systems that can affect account data so periodic and real-time detection requirements remain demonstrable during operational reviews.",
+  "implementation": "(1) Map Defender EventCodes to human-readable descriptions via lookup. (2) Include legacy AV sourcetypes in append. (3) Alert on any failure in CDE. (4) Track re-scan completion in ITSM.",
+  "visualization": "Table (host, EventCode), column chart (failures by day), single value (open failures).",
+  "cimModels": [
+    "Malware"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Malware.Malware_Attacks by Malware_Attacks.action, Malware_Attacks.signature, Malware_Attacks.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Malware",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

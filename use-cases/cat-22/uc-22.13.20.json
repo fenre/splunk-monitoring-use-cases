@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.20",
+  "title": "ESP Security Rule Commit Without Approved Change Record",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-005-6 R1 Part 1.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=network` `sourcetype=pan:config`, `index=itsm` `sourcetype=chg:firewall`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=network sourcetype=pan:config earliest=-7d\n| where match(cmd,\"(?i)commit\")\n| join type=left max=0 admin [\n    search index=itsm sourcetype=chg:firewall earliest=-30d\n    | stats latest(change_id) as change_id by submitter\n    | rename submitter as admin\n  ]\n| where isnull(change_id)\n| table _time, admin, object, cmd, change_id",
+  "value": "We flag firewall commits affecting ESP rules when no linked change ticket exists, supporting controlled configuration of the security perimeter.",
+  "implementation": "(1) Map Panorama admin IDs to ITSM submitter IDs. (2) Require change_id in commit messages where supported. (3) Weekly governance report. (4) Escalate repeat offenders.",
+  "visualization": "Table (unapproved commits), Timeline, Bar chart (by admin)",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t latest(All_Changes.status) as agg_value from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

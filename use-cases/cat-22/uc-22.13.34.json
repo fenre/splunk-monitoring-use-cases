@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.34",
+  "title": "Failed and Successful Login Attempt Monitoring on BES Assets",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-007-6 R5 Part 5.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=wineventlog` `EventCode` 4624/4625, `bes_cyber_asset_inventory.csv`",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4624,4625) earliest=-24h\n| lookup bes_cyber_asset_inventory.csv ComputerName AS host OUTPUT bes_system\n| where isnotnull(bes_system)\n| eval outcome=if(EventCode==4625,\"fail\",\"success\")\n| stats count by Account_Name, ComputerName, outcome, bes_system\n| sort - count",
+  "value": "We summarize authentication successes and failures on BES Cyber Assets to support account lockout and misuse investigations.",
+  "implementation": "(1) Ensure 4625 auditing enabled. (2) Add threshold alerts for failures. (3) Correlate with password spray use cases. (4) Retain per entity log policy.",
+  "visualization": "Stacked bar (success vs fail), Table (top accounts), Single value (failure rate)",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

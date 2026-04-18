@@ -181,7 +181,45 @@ A helper script **`use-cases/list_ite_learn_procedures.py`** can be run against 
 
 ---
 
-## 7. Summary
+## 7. Companion app: Splunk UC Recommender
+
+This repository ships a unified
+**[Splunk UC Recommender](recommender-app.md)** app
+(`splunk-uc-recommender`) that subsumes what used to be a family of
+regulation-scoped compliance apps (CMMC, DORA, GDPR, HIPAA, ISO 27001,
+NIS2, NIST 800-53, NIST CSF, PCI DSS, SOC 2, SOX ITGC).
+
+Where IT Essentials / ITSI content packs / ESCU deliver a fixed
+library of saved searches bound to a specific data source or
+regulation, the recommender app solves the inverse problem: **"given
+the data I already have in Splunk, which of the 6 300+ use cases in
+this catalogue are worth turning on?"** — *and* it still ships all
+tier-1 compliance content for auditors in the same app.
+
+Key differences vs. the other apps discussed above:
+
+- It is **preview-only** for its recommender flow — it never writes
+  new saved searches when you explore recommendations. It scans your
+  inventory and shows a card grid with **Copy SPL** and **Open in
+  Search app** for every match.
+- It **bundles every tier-1 compliance UC** (GDPR, HIPAA, PCI-DSS,
+  NIS2, ISO 27001, NIST CSF, NIST 800-53, DORA, CMMC, SOC 2, SOX
+  ITGC) as **disabled, unscheduled** saved searches with a filterable
+  Compliance view so a single install covers both "what could we
+  monitor?" and "what do we need for audit evidence?".
+- It covers the **full catalogue** (all 23 categories, ~6 300 UCs)
+  for recommendations, not just the compliance-tagged subset.
+- It is **Splunk Cloud safe** — no custom commands, REST endpoints,
+  scripted inputs, or web.conf exposures; all catalogue fetches
+  happen in the browser against an allow-listed origin.
+
+See the [full guide](recommender-app.md) for install, architecture,
+scan cadence, the remote API contract, the bundled compliance
+content, and the security model.
+
+---
+
+## 8. Summary
 
 - **IT Essentials Learn:** 60+ procedures in 6 use case areas (Application, Cloud, Database, Network, Server/OS, Storage). Repo covers all areas except **Isilon**; procedure-level comparison needs the app’s procedure list.
 - **IT Essentials Work:** 10+ entity types with dashboards and vital metrics; concepts are covered by cat-01, 02, 03.

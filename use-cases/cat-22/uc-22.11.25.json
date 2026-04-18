@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.25",
+  "title": "Cleartext PAN Indicators in HTTP Headers or Query Strings",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "3.4.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=stream` `sourcetype=\"stream:http\"`; `index=web` `sourcetype=\"access_combined\"` where scheme=http",
+  "app": "Splunk Stream (1809), Splunk Enterprise Security (263)",
+  "spl": "(index=stream sourcetype=\"stream:http\" earliest=-24h uri=*)\n OR (index=web sourcetype=\"access_combined\" earliest=-24h)\n| where match(coalesce(uri,url,_raw), \"http://\")\n| where match(coalesce(uri,url,_raw), \"\\\\b(?:4[0-9]{12}(?:[0-9]{3})?)\\\\b\")\n| stats count by src_ip, dest_ip, coalesce(uri,url) as request_line\n| sort - count",
+  "value": "Detects PAN-like sequences in unencrypted HTTP request lines so cardholder data is not sent in cleartext over open networks, satisfying encryption and rendering unreadable expectations.",
+  "implementation": "(1) Block at WAF based on same patterns where possible. (2) Restrict Splunk role for this search. (3) Immediate incident for positives. (4) Redact dashboard fields.",
+  "visualization": "Table (aggregated URI patterns only), single value (violations), timeline.",
+  "cimModels": [
+    "Web"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.src, Web.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "hardware_bmc",
+    "stream"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ]
+}

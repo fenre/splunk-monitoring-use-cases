@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.5",
+  "title": "NIS2 Network and Information Systems Access Control Audit",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(i)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=windows` `sourcetype=\"WinEventLog:Security\"` (EventCode, Account_Name, Logon_Type, Workstation_Name, Status, dest)",
+  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+  "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (4624, 4625, 4672) earliest=-24h\n| eval auth_result=case(EventCode=4624,\"success\", EventCode=4625,\"failure\", EventCode=4672,\"special_privileges\", 1=1,\"other\")\n| eval after_hours=if(tonumber(strftime(_time,\"%H\"))<7 OR tonumber(strftime(_time,\"%H\"))>19, 1, 0)\n| stats count by EventCode, auth_result, Account_Name, dest, Logon_Type, after_hours\n| sort -count",
+  "value": "Audits interactive logon success/failure and special privilege assignment on Windows assets supporting essential services, including after-hours and non-interactive patterns, for access-control assurance.",
+  "implementation": "(1) Deploy Splunk Add-on for Windows (742) with Security log collection from domain controllers and member servers; (2) enable Group Policy auditing for logon events and special privileges; (3) tune out known service accounts via `lookup service_accounts.csv`; (4) send high-value rows (4625 spikes, 4672 after-hours) to SOAR/ITSM; (5) map to Authentication CIM for ES content.",
+  "visualization": "Time chart (failed logons 4625), Table (privileged logons 4672), Bar chart (after_hours vs business hours).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1098"
+  ]
+}

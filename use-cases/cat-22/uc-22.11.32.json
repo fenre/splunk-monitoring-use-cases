@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.32",
+  "title": "Anti-Malware Tamper and Bypass Attempt Telemetry",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "5.3.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=edr` `crowdstrike:detection` with technique “defense evasion”; `index=windows` Defender operational events for tamper protection",
+  "app": "Splunk Add-on for CrowdStrike FDR (5082), Splunk Add-on for Microsoft Windows (742)",
+  "spl": "(index=edr sourcetype=\"crowdstrike:detection\" earliest=-7d tactic=\"Defense Evasion\")\n OR (index=windows sourcetype=\"WinEventLog:Microsoft-Windows-Windows Defender/Operational\" EventCode=5001 earliest=-7d)\n| lookup pci_windows_cde_assets.csv coalesce(hostname,ComputerName) as host_key OUTPUT cde_member\n| where cde_member=\"true\"\n| stats earliest(_time) as first, latest(_time) as last, values(description) as titles by host_key\n| sort first",
+  "value": "Surfaces attempts to disable real-time protection or unload drivers on payment-facing hosts, evidencing detective controls when malware defenses are targeted.",
+  "implementation": "(1) Tune out known patch reboot sequences. (2) Map to insider-threat procedure if user context exists. (3) Immediate SOC escalation. (4) Retain raw events 12 months.",
+  "visualization": "Timeline (first/last), table (host_key, titles), single value (distinct hosts).",
+  "cimModels": [
+    "Malware"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Malware.Malware_Attacks by Malware_Attacks.action, Malware_Attacks.signature, Malware_Attacks.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for CrowdStrike FDR",
+      "url": "https://splunkbase.splunk.com/app/5082"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for CrowdStrike FDR",
+      "url": "https://splunkbase.splunk.com/app/5994"
+    },
+    {
+      "title": "CIM: Malware",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "crowdstrike"
+  ]
+}

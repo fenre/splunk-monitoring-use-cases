@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.41",
+  "title": "Excessive Database Grants on Schemas Storing Tokenized PAN",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "7.2.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=db` `sourcetype=\"sql:grants\"` — `principal`, `permission`, `schema_name`, `host`",
+  "app": "Splunk DB Connect, `sourcetype=\"mssql:audit\"` or scripted `sql:grants` HEC",
+  "spl": "index=db sourcetype=\"sql:grants\" earliest=-24h\n| where match(schema_name,\"(?i)token|vault|payment|cardholder)\")\n| lookup pci_db_allowed_principals.csv principal OUTPUT allowed\n| where isnull(allowed) OR allowed=\"false\"\n| stats values(permission) as perms by host, principal, schema_name\n| sort host, schema_name",
+  "value": "Highlights service accounts or users with `db_owner` or `SELECT` on token vault schemas beyond the documented roster, evidencing least privilege for access to systems with account data.",
+  "implementation": "(1) Export grants nightly via SQL job to HEC. (2) Refresh allowed principal list after each access review. (3) Auto-ticket violations. (4) Store weekly CSV for PCI Req 7 workpapers.",
+  "visualization": "Table (violations), heatmap (principal x schema), single value (distinct excessive grants).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect",
+    "hashicorp"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.21",
+  "title": "Forced Remote Engineering Session Termination After Hours",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "SR 2.6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`pan:traffic` app=ssl,sslvpn; `cyberark:psm` session end",
+  "app": "Palo Alto (2757), CyberArk (4295)",
+  "spl": "index=fw sourcetype=\"pan:traffic\" earliest=-2d\n| where app IN (\"ssl\",\"sslvpn\",\"gp-gateway\") AND dest_zone=\"OT-Jump\"\n| eval sess_key=concat(src,\"-\",dest_ip)\n| stats min(_time) as start, max(_time) as end by sess_key, user\n| eval span_h=(end-start)/3600\n| eval ended_after_shift=if((strftime(end,\"%H\")>\"22\" OR strftime(end,\"%H\")<\"05\") AND span_h>4,1,0)\n| where ended_after_shift=1\n| table start, end, span_h, sess_key, user",
+  "value": "Ensures vendor and internal remote sessions to OT are closed at shift end by correlating still-active tunnels with schedule.",
+  "implementation": "(1) Configure firewall idle timeouts; (2) CyberArk max session duration; (3) validate OT maintenance windows; (4) alert if sessions exceed 8h.",
+  "visualization": "Timeline, Table, Bar (duration buckets).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "references": [
+    {
+      "title": "Palo Alto",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CyberArk",
+      "url": "https://splunkbase.splunk.com/app/4295"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cyberark",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

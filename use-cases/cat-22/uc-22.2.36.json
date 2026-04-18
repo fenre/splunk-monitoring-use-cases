@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.36",
+  "title": "NIS2 OT Network Segmentation Validation",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(a)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "Firewall and IDS logs tagged with `zone`, `nis2_ot_segment_policy.csv`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Stream (Splunkbase 1809)",
+  "spl": "index=netfw earliest=-24h\n| lookup nis2_ot_segment_policy.csv src_zone dest_zone OUTPUT allowed\n| where allowed=\"false\"\n| stats sum(bytes) as bytes count as sessions by src_zone dest_zone dest_port app\n| where sessions > 10\n| sort - bytes\n| table src_zone, dest_zone, dest_port, app, bytes, sessions",
+  "value": "Operational technology environments rely on strict segmentation between IT and OT. This use case detects east-west flows that violate Purdue zone boundaries — for example SMB or RDP from corporate VLANs into PLC subnets documented as prohibited.",
+  "implementation": "(1) Standardise zone naming across OT and IT firewalls; (2) encode allowed zone pairs in policy lookup; (3) alert SOC-OT fusion cell on any denied-pattern traffic that actually occurred (policy violation or mis-tagging); (4) weekly review with plant engineering; (5) document change tickets for approved exceptions.",
+  "visualization": "Sankey (zone to zone), Table (violations), Single value (distinct forbidden paths), Heatmap (sessions by hour).",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T0881"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

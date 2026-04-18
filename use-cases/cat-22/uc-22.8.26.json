@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.26",
+  "title": "SOC 2 CC9 — Change Authorization Dual-Control on Privileged Cloud Roles",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "unspecified",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=aws` `sourcetype=\"aws:cloudtrail\"` eventName IN (\"AttachRolePolicy\",\"PutRolePolicy\") (requestParameters, userIdentity.arn, _time); `index=itsm` `sourcetype=\"snow:change_request\"` with `u_dual_approval=true`",
+  "app": "Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName IN (\"AttachRolePolicy\",\"PutRolePolicy\") earliest=-7d\n| eval ticket=mvindex(split(requestParameters.policyArn,\"/\"),-1)\n| join type=left userIdentity.arn [\n    search index=itsm sourcetype=\"snow:change_request\" u_dual_approval=true earliest=-14d\n    | rename opened_by as approver1, u_second_approver as approver2\n    | eval join_key=opened_by\n    | table number, join_key\n  ]\n| where isnull(number)\n| stats count by userIdentity.arn, eventName\n| sort - count",
+  "value": "CC9 addresses mitigation of fraud and management override. Ensuring IAM role attachments and policy updates have dual approval in PAM or ticketing prevents single-person override of segregation of duties—key for change authorization narratives.",
+  "implementation": "(1) Replace join with robust ticket id extracted from CloudTrail `requestParameters` or session context; (2) integrate CyberArk session id where available; (3) emergency break-glass via lookup with post-incident review flag; (4) SOX-style quarterly sampling export; (5) align with CC6 logical access monitoring.",
+  "visualization": "Table (unauthorized IAM changes), Single value (count), Timeline.",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1098"
+  ],
+  "equipment": [
+    "aws",
+    "cyberark",
+    "servicenow"
+  ]
+}

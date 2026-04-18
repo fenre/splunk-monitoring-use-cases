@@ -1,0 +1,120 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.12.39",
+  "title": "SOX-ITGC ChangeMgmt.Approval — Segregation of duties in financial-system change approval",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CFO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT configure workflow; detects changes where implementer == approver, or approval occurred AFTER implementation.",
+  "evidence": "Saved search 'sox_itgc_change_approval' (hourly) emits per change: change_id, system, implementer, approver, approval_before_implementation, sod_violation, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Approval",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX-ITGC ChangeMgmt.Approval — SoD evidence is direct."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOC 2 CC8.1 Change management — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.3",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.3 Segregation of duties — contributing."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "6.4.4",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI-DSS 6.4.4 Change approvals — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A financial-system change with implementer=approver returns sod_violation=1.",
+    "negativeScenario": "A change with distinct implementer/approver and approval_date<=state_date is absent.",
+    "fixtureRef": "sample-data/uc-22.12.39-fixture.json",
+    "attackTechnique": "T1098"
+  },
+  "dataSources": "`index=change` sourcetype=servicenow:change (workflow events).",
+  "app": "Splunk Add-on for ServiceNow",
+  "spl": "index=change sourcetype=servicenow:change earliest=-7d\n| stats latest(implementer) AS implementer latest(approver) AS approver latest(approval_date) AS approved_at latest(state_date) AS implemented_at BY change_id system\n| lookup financial_systems_apps.csv system OUTPUT in_scope\n| where in_scope=\"yes\"\n| eval sod_violation=if(implementer=approver,1,0)\n| eval approval_before_implementation=if(approved_at<=implemented_at,1,0)\n| where sod_violation=1 OR approval_before_implementation=0\n| table change_id system implementer approver approved_at implemented_at sod_violation approval_before_implementation",
+  "description": "Detects (a) implementer = approver SoD violations and (b) approvals post-dating implementation.",
+  "value": "Eliminates the two patterns that SOX auditors most frequently cite. The daily report is the control evidence.",
+  "implementation": "(1) Maintain financial_systems_apps.csv; (2) capture ServiceNow workflow events; (3) schedule UC hourly; (4) violations open an immediate deficiency; (5) monthly CFO report.",
+  "visualization": "Table of violations, bar chart by system, single value 'SoD + post-implementation approvals'.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "SOX-ITGC PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1098/",
+      "title": "MITRE ATT&CK — T1098",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Standard-pre-approved changes legitimately have matching implementer/approver — filter on type!='standard'.",
+  "mitreAttack": [
+    "T1098"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "change_id",
+    "implementer",
+    "approver",
+    "approval_date",
+    "state_date",
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

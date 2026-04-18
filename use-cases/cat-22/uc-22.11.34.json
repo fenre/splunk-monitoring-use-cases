@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.34",
+  "title": "Critical CVE Remediation SLA Breach Tracking",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.3.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vm` `tenable:sc:vuln` — `first_found`, `last_found`, `severity`, `host_fqdn`",
+  "app": "Splunk Add-on for Tenable (4060)",
+  "spl": "index=vm sourcetype=\"tenable:sc:vuln\" severity=\"Critical\" earliest=-90d\n| lookup pci_in_scope_hosts.csv fqdn AS host_fqdn OUTPUT in_scope\n| where in_scope=\"true\"\n| where match(state,\"(?i)open|reopened)\")\n| eval age_days=round((now()-first_found)/86400,1)\n| eval sla_days=30\n| where age_days>sla_days\n| stats max(age_days) as max_age by host_fqdn, plugin_name\n| sort - max_age",
+  "value": "Computes age in days for critical vulnerabilities against the organization’s documented remediation SLA so PCI expectations for timely flaw correction are measurable.",
+  "implementation": "(1) Adjust `sla_days` per risk policy (15 for internet-facing). (2) Join patch ticket state from ITSM to exclude in-progress. (3) Weekly governance email. (4) Document exceptions with compensating controls.",
+  "visualization": "Bar (max_age by host), table (plugin_name), single value (count of SLA breaches).",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "tenable"
+  ]
+}

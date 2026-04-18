@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.20",
+  "title": "Remote Working — VPN Split Tunnel and Sensitive App Access",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.6.7",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`globalprotect` or `vpn:session`",
+  "app": "Palo Alto GlobalProtect or AnyConnect logs",
+  "spl": "index=vpn sourcetype=globalprotect earliest=-24h\n| eval split=if(match(config,\"split\"),1,0)\n| stats max(split) as used_split by user, private_ip\n| join user [| search index=proxy sourcetype=bluecoat:proxy earliest=-24h | stats values(url) as urls by user | where match(urls,\"(?i)/finance/|/hr/\") ]\n| where used_split=1",
+  "value": "Detects VPN sessions advertising split tunnel with subsequent access to finance or HR apps from same user session.",
+  "implementation": "(1) Normalize user identifiers; (2) tune URL patterns; (3) align with remote work policy; (4) user education.",
+  "visualization": "Table, Map",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "references": [
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ]
+}

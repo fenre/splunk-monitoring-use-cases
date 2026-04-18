@@ -1,0 +1,61 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.32",
+  "title": "Workstation Use — After-Hours Login from Non-Clinical IP Space",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.310(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.310(c)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=citrix` `sourcetype=citrix:session`, MaxMind `iplocation`",
+  "app": "Splunk Add-on for Citrix (2757), Splunk Common Information Model Add-on (1621)",
+  "spl": "index=citrix sourcetype=\"citrix:session\" earliest=-7d\n| eval hour=strftime(_time,\"%H\")\n| where (hour<6 OR hour>22)\n| iplocation client_ip\n| lookup clinical_role_users.csv UserName OUTPUT role\n| where role IN (\"RN_INPATIENT\",\"MD_INPATIENT\") AND NOT match(Org,\"*Health System*\")\n| stats count by UserName, client_ip, Country, City, Org\n| sort - count",
+  "value": "Flags Citrix/VDI launches for inpatient CPOE roles originating from residential ISP ASNs outside hospital guest WiFi, supporting workstation use policies in shared clinical environments.",
+  "implementation": "(1) Replace `Org` heuristic with ASN lookup table; (2) allow VPN concentrator ranges; (3) route to privacy for workforce policy review.",
+  "visualization": "Map (client_ip), Table (user, ASN), Timeline (after-hours spikes).",
+  "cimModels": [
+    "Network_Traffic (optional enrichment)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Citrix",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "citrix",
+    "m365"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.22.17",
+  "title": "Sandbox vs Production Traffic Separation and Leakage",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PSD2",
+      "version": "Directive (EU) 2015/2366",
+      "clause": "PSD2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=openbanking` — tpp_id, consent_id, consent_scope, accessed_scope, http_status, environment, bytes_out",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for AWS (1876)",
+  "spl": "index=openbanking sourcetype=\"ob:api:access\" earliest=-24h\n| eval api_tag=\"env\"\n| eval is_prod=if(match(environment,\"(?i)prod\"),1,0)\n| eval scope_mismatch=if(isnotnull(consent_scope) AND isnotnull(accessed_scope) AND consent_scope!=accessed_scope,1,0)\n| stats count as calls, sum(eval(http_status>=400)) as err, sum(scope_mismatch) as sm, dc(tpp_id) as tpp by aspsp_id, api_tag, is_prod\n| eval uc_id=\"22.22.17\"\n| eval err_rate=round(100*err/calls,2)\n| where err_rate>2 OR sm>0 OR (api_tag=\"env\" AND is_prod=0 AND tpp>50)\n| sort - err_rate",
+  "value": "Monitors third-party provider access patterns, consent alignment, and API security controls required for PSD2 open banking operational resilience.",
+  "implementation": "(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review.",
+  "visualization": "Time chart (err_rate), Bar chart (calls by tpp_id), Table (scope_mismatch samples)",
+  "cimModels": [
+    "Web"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws"
+  ]
+}

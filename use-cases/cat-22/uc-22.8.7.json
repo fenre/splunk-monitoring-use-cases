@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.7",
+  "title": "SOC 2 Privacy — Consent Log Integrity and Downstream Propagation Checks",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "P4.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "P4.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=privacy` `sourcetype=\"_json\"` `source=\"http:consent_store\"` (profile_id, consent_email_marketing, updated_epoch_ms); `index=marketing` `sourcetype=\"_json\"` `source=\"http:campaign_send\"` (profile_id, channel, send_epoch_ms, campaign_id)",
+  "app": "Splunk HTTP Event Collector (core platform)",
+  "spl": "index=marketing sourcetype=\"_json\" source=\"http:campaign_send\" earliest=-7d channel IN (\"email\",\"sms\")\n| join type=left profile_id [\n    search index=privacy sourcetype=\"_json\" source=\"http:consent_store\" earliest=-30d\n    | eval withdraw=if(consent_email_marketing=\"false\", updated_epoch_ms, null())\n    | stats latest(withdraw) as last_withdraw_ms by profile_id\n  ]\n| eval send_ms=send_epoch_ms\n| where isnotnull(last_withdraw_ms) AND send_ms>last_withdraw_ms\n| stats count as sends_after_withdrawal by campaign_id, channel\n| sort - sends_after_withdrawal",
+  "value": "Privacy criteria expect notices about processing and consent to be accurate and current. Comparing consent-store updates to marketing execution logs detects cases where email or SMS campaigns run after withdrawal timestamps—an integrity failure with reputational and regulatory impact.",
+  "implementation": "(1) Ensure epoch fields share UTC basis; (2) use `profile_id` as stable key; (3) alert on any `sends_after_withdrawal>0`; (4) cap join window for performance using `subsearch` time range; (5) document corrective action in privacy incident register.",
+  "visualization": "Table (violating campaigns), Bar chart (sends_after_withdrawal), Single value (distinct profiles affected).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1565",
+    "T1005"
+  ]
+}

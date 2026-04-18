@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.9",
+  "title": "DORA Backup Completeness and Restoration Testing",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Compliance"
+  ],
+  "splunkPillar": "IT Operations",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.12",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=backup` (backup software logs), `dora_backup_schedule.csv` (expected backup frequency per system)",
+  "app": "Veeam App for Splunk (Splunkbase 7312), Splunk ITSI (Splunkbase 1841)",
+  "spl": "index=backup sourcetype IN (\"veeam:backup\",\"commvault:job\",\"rubrik:event\",\"aws:backup\") earliest=-7d\n| eval status=lower(coalesce(status, result, state))\n| eval success=if(match(status,\"(?i)success|completed|ok\"), 1, 0)\n| eval failed=if(match(status,\"(?i)fail|error|warning\"), 1, 0)\n| stats sum(success) as successes, sum(failed) as failures, latest(_time) as last_backup by job_name, target_system\n| lookup dora_critical_systems.csv system_name AS target_system OUTPUT critical_function, backup_frequency_hours\n| where isnotnull(critical_function)\n| eval hours_since_backup=round((now()-last_backup)/3600, 1)\n| eval backup_overdue=if(isnotnull(backup_frequency_hours) AND hours_since_backup > backup_frequency_hours, \"OVERDUE\", \"OK\")\n| eval backup_success_rate=round(100*successes/(successes+failures), 1)\n| where failures > 0 OR backup_overdue=\"OVERDUE\" OR backup_success_rate < 95\n| sort - failures\n| table target_system, critical_function, successes, failures, backup_success_rate, hours_since_backup, backup_overdue",
+  "value": "Article 12 requires documented backup policies specifying scope and frequency based on criticality, with backup systems physically and logically segregated. Restoration procedures must be periodically tested. This use case tracks backup job success/failure for DORA-regulated systems, validates segregation requirements, and monitors restoration test completion — going beyond cloud DR replication (UC-22.3.5) to cover the full backup lifecycle.",
+  "implementation": "(1) Forward backup software logs via syslog or HEC; (2) define expected backup frequency per DORA-critical system in `dora_backup_schedule.csv`; (3) alert on failed backups for critical functions immediately; (4) track restoration test completion in a KV store — DORA requires periodic testing; (5) validate physical/logical segregation by confirming backup destinations differ from source infrastructure.",
+  "visualization": "Table (backup status per critical system), Single value (backup success rate %), Bar chart (failures by system), Timeline (backup history).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Veeam App for Splunk",
+      "url": "https://splunkbase.splunk.com/app/7312"
+    },
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "commvault",
+    "hashicorp",
+    "itsi",
+    "syslog",
+    "veeam"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ],
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence (ITSI)"
+    }
+  ]
+}

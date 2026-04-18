@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.6",
+  "title": "DORA ICT Change Management and Patch Compliance",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.9(4)(e)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=itsm` `sourcetype=\"snow:change_request\"`, `index=windows` `sourcetype=\"WinEventLog:System\"`, CIM Change data model",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+  "spl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object All_Changes.command All_Changes.change_type _time span=1d\n| rename All_Changes.* as *\n| lookup dora_critical_systems.csv object AS object OUTPUT critical_function, business_service\n| where isnotnull(critical_function)\n| lookup change_ticket_lookup object AS object, _time OUTPUT ticket_number, approval_status, risk_assessment\n| eval unauthorized=if(isnull(ticket_number), 1, 0)\n| eval unapproved=if(isnotnull(ticket_number) AND approval_status!=\"approved\", 1, 0)\n| stats count, sum(unauthorized) as unauthorized_changes, sum(unapproved) as unapproved_changes by object, critical_function, business_service\n| where unauthorized_changes > 0 OR unapproved_changes > 0\n| sort - unauthorized_changes\n| table object, critical_function, business_service, count, unauthorized_changes, unapproved_changes",
+  "value": "Article 9(4)(e) requires documented ICT change management policies that are risk-assessed and approved before deployment. This use case tracks change ticket compliance for ICT systems supporting critical functions — detecting unauthorized changes, changes without approval, and emergency changes without post-implementation review — providing evidence that protection and prevention controls are operational.",
+  "implementation": "(1) Create `dora_critical_systems.csv` mapping ICT assets to critical/important business functions; (2) correlate CIM Change events with ServiceNow change tickets; (3) alert on any change to critical systems without an approved ticket; (4) track emergency changes separately and verify post-implementation review within 5 business days; (5) report change compliance rate as DORA governance KPI.",
+  "visualization": "Table (unauthorized changes), Bar chart (changes by approval status), Single value (change compliance %), Timeline (changes to critical systems).",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.object | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "servicenow"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
+}

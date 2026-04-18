@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.4",
+  "title": "DORA Third-Party ICT Provider Concentration Risk",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Risk",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.28-44",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=aws` `sourcetype=\"aws:cloudtrail\"` (eventSource, eventName, awsRegion, userIdentity.arn, recipientAccountId); `index=azure` `sourcetype=\"mscs:azure:auditlog\"` (operationName, resourceProvider, callerIpAddress, ResourceGroup)",
+  "app": "Splunk Add-on for Amazon Web Services (Splunkbase 1876), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)",
+  "spl": "(index=aws sourcetype=\"aws:cloudtrail\") OR (index=azure sourcetype=\"mscs:azure:auditlog\")\n| eval provider=if(sourcetype==\"aws:cloudtrail\", \"AWS\", \"Azure\")\n| eval service=coalesce(eventSource, resourceProvider)\n| eval region=coalesce(awsRegion, ResourceGroup)\n| stats count by provider, service, region\n| eventstats sum(count) as total\n| eval concentration_pct=round(100*count/total, 2)\n| sort - concentration_pct\n| head 50\n| table provider, service, region, count, concentration_pct",
+  "value": "Quantifies operational dependency on specific cloud providers by measuring API activity concentration across accounts, regions, and services, supporting third-party risk assessments and exit planning.",
+  "implementation": "(1) Ingest CloudTrail (org trail) into `index=aws` using AWS TA; (2) ingest Azure Activity via Event Hub using Microsoft Cloud Services TA; (3) create a saved search weekly for procurement/third-party governance dashboards; (4) enrich with cloud account tags via lookup (cost center, vendor name).",
+  "visualization": "Treemap (share by service), Stacked bar by provider, Table of top (service, region) pairs.",
+  "cimModels": [
+    "Change (CloudTrail often maps via TA)"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Amazon Web Services",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws",
+    "azure",
+    "m365"
+  ]
+}

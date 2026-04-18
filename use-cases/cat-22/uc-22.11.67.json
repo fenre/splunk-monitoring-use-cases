@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.67",
+  "title": "Comprehensive Audit Trail for Successful CDE Administrator Logons",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "10.2.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v3.2.1",
+      "clause": "10.1",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI_DSS_v3-2-1.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS v3.2.1 10.1 Audit trail linking access to user — UC builds the comprehensive audit trail for CDE administrator logons, linking every access to a specific user identity."
+    }
+  ],
+  "dataSources": "`index=windows` EventCode 4624; `index=linux` `auditd` type=USER_LOGIN",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833)",
+  "spl": "(index=windows sourcetype=\"WinEventLog:Security\" EventCode=4624 earliest=-24h)\n OR (index=linux sourcetype=\"linux:audit\" type=\"USER_LOGIN\" earliest=-24h)\n| lookup pci_cde_servers.csv coalesce(ComputerName,host) as host OUTPUT in_cde\n| where in_cde=\"true\"\n| eval user_id=coalesce(TargetUserName,acct)\n| eval src=coalesce(IpAddress,addr)\n| table _time, host, user_id, LogonType, src, TerminalSessionId\n| sort - _time",
+  "value": "Produces a consolidated view of successful interactive and remote logons to CDE admin jump accounts including user ID, time, origin, and object accessed for all individual user access to cardholder systems.",
+  "implementation": "(1) Ensure 4624 includes workstation name and IP fields populated. (2) Mask sensitive columns in shared dashboards. (3) Long retention index or archive for 12+ months. (4) Map to quarterly access review samples.",
+  "visualization": "Table (sortable audit view), timeline, pivot by user_id.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

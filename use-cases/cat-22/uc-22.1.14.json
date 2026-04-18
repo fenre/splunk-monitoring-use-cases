@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.14",
+  "title": "GDPR Data Protection Impact Assessment Coverage",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.35",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`gdpr_ropa_register.csv`, `gdpr_dpia_register.csv` (DPIA records), ES Asset Framework",
+  "app": "Splunk Enterprise Security (Splunkbase 263)",
+  "spl": "| inputlookup gdpr_ropa_register.csv\n| eval high_risk=case(\n    match(lower(processing_activity),\"(?i)profil|automat|scoring|systematic.monitor|biometric|genetic|health|ethnic|political|religious|trade.union|criminal\"), \"HIGH_RISK\",\n    match(lower(data_category),\"(?i)special_category|sensitive|health|biometric|genetic\"), \"HIGH_RISK\",\n    match(lower(scale),\"(?i)large\"), \"HIGH_RISK\",\n    1=1, \"Standard\")\n| where high_risk=\"HIGH_RISK\"\n| lookup gdpr_dpia_register.csv processing_activity OUTPUT dpia_status, dpia_date, dpia_reviewer, residual_risk\n| eval dpia_coverage=case(\n    dpia_status=\"completed\", \"COVERED\",\n    dpia_status=\"in_progress\", \"IN_PROGRESS\",\n    isnull(dpia_status), \"MISSING — DPIA REQUIRED\")\n| eval review_overdue=if(isnotnull(dpia_date) AND (now()-strptime(dpia_date,\"%Y-%m-%d\"))/86400 > 730, \"REVIEW_DUE\", \"OK\")\n| where dpia_coverage=\"MISSING — DPIA REQUIRED\" OR review_overdue=\"REVIEW_DUE\"\n| table processing_activity, system_name, data_category, high_risk, dpia_coverage, dpia_date, review_overdue\n| sort dpia_coverage",
+  "value": "Article 35 requires a Data Protection Impact Assessment (DPIA) for processing likely to result in high risk — including systematic monitoring of public areas, large-scale processing of special categories, and automated decision-making with legal effects. This use case tracks DPIA completion against processing activities identified in the ROPA, flags high-risk processing without DPIA coverage, and monitors for new processing activities that may require a DPIA.",
+  "implementation": "(1) Maintain `gdpr_dpia_register.csv` with DPIA records linked to ROPA processing activities; (2) auto-classify high-risk processing using Art. 35(3) criteria and DPA guidance lists; (3) alert the DPO on processing activities lacking DPIA coverage; (4) flag DPIAs not reviewed in >2 years; (5) when new systems appear in authentication logs without ROPA entries (UC-22.1.8), flag them for DPIA assessment.",
+  "visualization": "Table (DPIA coverage gaps), Pie chart (covered vs missing vs in-progress), Single value (missing DPIAs count), Bar chart (high-risk processing by category).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

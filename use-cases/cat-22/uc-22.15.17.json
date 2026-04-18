@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.17",
+  "title": "OT Access from Untrusted Networks Without Split Tunnel Block",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "SR 1.13",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`pan:globalprotect` with `public_ip`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=vpn sourcetype=\"pan:globalprotect\" earliest=-7d\n| iplocation public_ip\n| lookup ot_trusted_country.csv Country OUTPUT trust\n| where trust!=\"trusted\" OR like(ASN,\"*RESIDENTIAL*\")\n| lookup ot_jump_portals.csv portal OUTPUT sl_t\n| stats earliest(_time) as first, latest(_time) as last, values(public_ip) as ips by user, portal, Country\n| sort - last",
+  "value": "Flags VPN or agent sessions originating from high-risk geos or residential ASNs while accessing OT jump portals.",
+  "implementation": "(1) Maintain country allowlist aligned to business; (2) require hardware token from untrusted regions; (3) integrate threat intel ASN feed; (4) auto-disable accounts on repeat hits.",
+  "visualization": "Choropleth, Table, Single value (sessions).",
+  "cimModels": [
+    "Network_Traffic when joined to firewall"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic when joined to firewall",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic_when_joined_to_firewall"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ]
+}

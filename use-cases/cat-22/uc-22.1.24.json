@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.24",
+  "title": "GDPR Security Testing Evidence Aggregation (Pen Test / Red Team)",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.32(1)(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`gdpr_security_test_register.csv`, `index=itsm` (remediation tickets), `tenable:vuln` (scan completion)",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Tenable Add-On for Splunk (Splunkbase 4060)",
+  "spl": "| inputlookup gdpr_security_test_register.csv\n| eval test_date_epoch=strptime(last_test_date,\"%Y-%m-%d\")\n| eval days_since=round((now()-test_date_epoch)/86400,0)\n| eval cadence_days=case(test_type=\"external_pen_test\", 365, test_type=\"internal_va\", 90, 1=1, 180)\n| eval status=case(days_since > cadence_days, \"OVERDUE\", days_since > cadence_days*0.8, \"DUE_SOON\", 1=1, \"CURRENT\")\n| lookup gdpr_ropa_register.csv system_name OUTPUT processing_activity\n| where status!=\"CURRENT\"\n| table system_name, processing_activity, test_type, last_test_date, days_since, cadence_days, status\n| sort status, -days_since",
+  "value": "Article 32(1)(d) requires a process for regularly testing, assessing, and evaluating the effectiveness of security measures. This use case centralises penetration test, red-team, and vulnerability-assessment completion dates, scope coverage against personal-data systems, and remediation SLAs — proving the testing programme exists and covers GDPR-relevant assets.",
+  "implementation": "(1) Populate `gdpr_security_test_register.csv` with last test dates and types per in-scope system; (2) join to ROPA for processing-activity context; (3) alert when tests exceed policy cadence; (4) link ServiceNow remediation tickets for critical findings; (5) export annual effectiveness summary for Art. 32 evidence.",
+  "visualization": "Table (overdue tests), Timeline (tests by quarter), Single value (systems past cadence), Bar chart (coverage by business unit).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Tenable Add-On for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "servicenow",
+    "tenable"
+  ]
+}

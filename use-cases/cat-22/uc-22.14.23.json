@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.23",
+  "title": "Session Termination on Logoff and VPN Disconnect",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AC-12",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`cisco:asa` VPN teardown, `WinEventLog:Security` 4634",
+  "app": "Splunk Add-on for Cisco ASA (Splunkbase 1620), Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+  "spl": "index=net OR index=sec earliest=-24h (sourcetype=cisco:asa OR sourcetype=WinEventLog:Security)\n| eval et=case(EventCode=4634,\"win_logoff\", match(_raw,\"Teardown\"),\"vpn_teardown\",1=1,null())\n| stats count by et, user, src_ip\n| sort - count",
+  "value": "Correlates VPN connect/disconnect with OS logoff events to evidence AC-12 session termination when sessions end.",
+  "implementation": "(1) Normalize VPN user field to match AD `user`; (2) alert on long VPN sessions without logoff (heuristic); (3) document remote access policy mapping to AC-17; (4) tune for split tunnel false positives.",
+  "visualization": "Timeline (VPN vs logoff), Table (long sessions), Single value (disconnect anomalies)",
+  "cimModels": [
+    "Network_Traffic",
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Cisco ASA",
+      "url": "https://splunkbase.splunk.com/app/1620"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_asa"
+  ]
+}

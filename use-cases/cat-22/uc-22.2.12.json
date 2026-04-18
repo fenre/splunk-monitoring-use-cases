@@ -1,0 +1,65 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.12",
+  "title": "NIS2 Multi-Factor Authentication and Secure Communications",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(j)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=auth` (IdP authentication logs), `index=azure` `sourcetype=\"ms:aad:signin\"` (Azure AD sign-ins), `index=okta` `sourcetype=\"OktaIM2:log\"` (Okta system logs)",
+  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Okta Identity Cloud (Splunkbase 6553)",
+  "spl": "index=auth OR index=azure OR index=okta earliest=-24h\n  sourcetype IN (\"ms:aad:signin\",\"OktaIM2:log\",\"linux:auth\",\"WinEventLog:Security\")\n| eval user=coalesce(userPrincipalName, actor.alternateId, Account_Name, user)\n| eval mfa_used=case(\n    match(lower(_raw),\"(?i)mfa|multifactor|two.?factor|2fa|totp|fido|webauthn|push.*approve\"), 1,\n    match(lower(authenticationRequirement),\"(?i)multi\"), 1,\n    match(lower(factor),\"(?i)push|totp|sms|call|webauthn\"), 1,\n    1=1, 0)\n| eval is_admin=if(match(lower(user),\"(?i)admin|svc-|service|root|system\") OR match(lower(_raw),\"(?i)privileged|admin.*role\"), 1, 0)\n| stats count sum(mfa_used) as mfa_count by user, is_admin, sourcetype\n| eval mfa_pct=round(100*mfa_count/count, 1)\n| where (is_admin=1 AND mfa_pct < 100) OR (is_admin=0 AND mfa_pct < 80)\n| sort is_admin, mfa_pct\n| table user, is_admin, count, mfa_count, mfa_pct, sourcetype",
+  "value": "Article 21(2)(j) requires MFA or continuous authentication, secured voice/video/text communications, and emergency communication systems. This use case monitors MFA enforcement across critical systems, detects authentication bypasses, and validates that administrative and emergency access channels are secured — providing evidence of the strongest authentication controls NIS2 mandates.",
+  "implementation": "(1) Ingest IdP authentication logs (Azure AD, Okta, or on-prem AD with ADFS); (2) require 100% MFA for administrative access and 80%+ for general users; (3) alert on admin authentications without MFA; (4) track break-glass account usage separately; (5) validate secure communications by checking Teams/Webex/Signal usage for emergency channels; (6) document emergency communication drill results in a KV store for audit evidence.",
+  "visualization": "Single value (MFA coverage %), Table (users without MFA), Bar chart (MFA by authentication type), Gauge (admin MFA compliance).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Splunk Add-on for Okta Identity Cloud",
+      "url": "https://splunkbase.splunk.com/app/6553"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1556"
+  ],
+  "equipment": [
+    "azure",
+    "cisco",
+    "m365",
+    "okta"
+  ],
+  "equipmentModels": [
+    "cisco_webex"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.42",
+  "title": "Access Request and Approval Completeness for CDE VPN Accounts",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "8.2.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=netfw` GlobalProtect or `sourcetype=\"pan:globalprotect\"`; `index=itsm` `snow:sc_req_item`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757), Splunk Add-on for ServiceNow (1928)",
+  "spl": "index=netfw sourcetype=\"pan:globalprotect\" subtype=\"gateway-connected\" earliest=-7d\n| lookup pci_cde_vpn_profiles.csv portal OUTPUT cde_profile\n| where cde_profile=\"true\"\n| eval user=lower(user)\n| join type=left max=1 user [\n    search index=itsm sourcetype=\"snow:sc_req_item\" earliest=-30d short_description=\"*VPN*CDE*\"\n    | eval user=lower(caller_id)\n    | stats latest(state) as req_state by user\n  ]\n| where isnull(req_state) OR NOT match(req_state,\"(?i)closed|fulfilled\")\n| stats dc(_time) as connect_events by user, source\n| sort - connect_events",
+  "value": "Verifies each new VPN entitlement for CDE users has a matching approved access request record so access is granted only with documented business justification.",
+  "implementation": "(1) Normalize `user` to corporate UPN. (2) Align RITM naming with join filter. (3) Alert IAM on missing ticket within 24h of first connect. (4) Monthly reconciliation report.",
+  "visualization": "Table (users without tickets), column chart (connect_events), pie (fulfilled vs missing).",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ]
+}

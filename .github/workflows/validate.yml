@@ -8,11 +8,42 @@ on:
       - "build.py"
       - "non-technical-view.js"
       - "scripts/**"
+      - "schemas/**"
+      - "data/regulations.json"
+      - "data/crosswalks/**"
+      - "data/mini-categories/**"
+      - "data/per-regulation/**"
+      - "data/evidence-pack-extras.json"
+      - "tests/**"
+      - "api/v1/**"
+      - "splunk-apps/**"
+      - "docs/api-versioning.md"
+      - "docs/evidence-packs/**"
+      - "docs/peer-review-guide.md"
+      - "docs/legal-review-guide.md"
+      - "docs/sme-review-guide.md"
+      - "docs/regulatory-change-watch.md"
+      - "docs/signed-provenance.md"
+      - "data/regulations-watch.json"
+      - "schemas/regulations-watch.schema.json"
+      - "scripts/audit_regulatory_change_watch.py"
       - "CHANGELOG.md"
       - "index.html"
+      - "scorecard.html"
+      - "reports/compliance-coverage.json"
+      - "reports/compliance-gaps.json"
+      - "reports/sandbox-validation.json"
+      - "reports/attack-simulation.json"
+      - "reports/oscal-roundtrip.json"
+      - "reports/perf-a11y.json"
+      - "data/provenance/**"
+      - "scorecard.json"
       - "VERSION"
       - "custom-text.js"
+      - "LEGAL.md"
       - "tools/**"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 permissions:
@@ -29,6 +60,32 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Set up Node.js
+        # Node is required by (a) the recommender + scorecard drift
+        # guards that were already in this workflow, and (b) the
+        # Phase 4.5 QA gates: sandbox, ATT&CK, OSCAL round-trip, and
+        # axe-core perf+a11y.  The version is pinned to the active
+        # LTS line (20.x as of this writing) so CI and local dev
+        # agree on parser/ESM/Trusted-Types behaviour.  `cache: npm`
+        # + `package-lock.json` makes `npm ci` effectively free on
+        # subsequent runs.
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Node dependencies (axe-core, jsdom, ajv, etc.)
+        # Phase 4.5f needs axe-core + jsdom for the a11y audit.
+        # Every other Node-dev-dep (ajv for OSCAL validation, jsdom
+        # for sandbox/scorecard render tests) is also installed
+        # here so downstream steps do not have to reinvoke npm.
+        # `npm ci` refuses to run if package-lock.json drifts from
+        # package.json, which is itself a CI-blocking signal.
+        run: npm ci --no-audit --no-fund
+
+      - name: Install audit dependencies
+        run: pip install --disable-pip-version-check jsonschema PyYAML
 
       - name: UC ID uniqueness and ordering
         run: python3 scripts/audit_uc_ids.py
@@ -48,6 +105,399 @@ jobs:
       - name: Catalog schema validation
         run: python3 scripts/audit_catalog_schema.py
 
+      - name: Compliance mapping audit (schema + regulations + golden + baseline)
+        # Validates every use-cases/cat-*/uc-*.json sidecar against
+        # schemas/uc.schema.json, reconciles each compliance[] entry against
+        # data/regulations.json, runs the golden tuple set in
+        # tests/golden/compliance-mappings.yaml, and enforces the committed
+        # baseline in tests/golden/audit-baseline.json.  New clause-grammar
+        # errors (or any non-baselineable code) block merges; existing
+        # baselined findings are tolerated so cleanup can ship incrementally
+        # under Phase 3.1 of the Gold Standard plan.
+        run: python3 scripts/audit_compliance_mappings.py
+
+      - name: Compliance audit — generated reports committed
+        run: |
+          python3 scripts/audit_compliance_mappings.py
+          CHANGED=$(git diff --name-only -- reports/compliance-coverage.json docs/compliance-coverage.md)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::Compliance audit reports are out of date — run scripts/audit_compliance_mappings.py and commit: $CHANGED"
+            git --no-pager diff --stat -- reports/compliance-coverage.json docs/compliance-coverage.md
+            exit 1
+          fi
+
+      - name: Phase 2.2 mini-category generator regeneration check
+        # Phase 2.2 deliverable. scripts/generate_phase2_mini_categories.py
+        # is the single source of truth for the cat-22.35 - 22.49
+        # cross-regulation mini-categories: it reads
+        # data/mini-categories/phase2.2.json and emits matching markdown
+        # blocks (inside the <!-- PHASE-2.2 BEGIN --> / <!-- PHASE-2.2 END -->
+        # fence in use-cases/cat-22-regulatory-compliance.md) plus per-UC
+        # JSON sidecars under use-cases/cat-22/.  --check regenerates the
+        # outputs and diffs against the committed tree so any drift
+        # (hand-edited markdown, stale sidecar, missing new UC, etc.)
+        # fails CI.
+        run: python3 scripts/generate_phase2_mini_categories.py --check
+
+      - name: Phase 2.3 per-regulation content-fill generator regeneration check
+        # Phase 2.3 deliverable. scripts/generate_phase2_3_per_regulation.py
+        # is the single source of truth for the 45 per-regulation content
+        # fill UCs that close the remaining clause gaps for the thinnest
+        # tier-1 frameworks (DORA, ISO/IEC 27001:2022, SOC 2 2017 TSC,
+        # PCI-DSS v4.0, SOX-ITGC PCAOB AS 2201): it reads
+        # data/per-regulation/phase2.3.json and emits matching markdown
+        # blocks (inside the <!-- PHASE-2.3 BEGIN --> / <!-- PHASE-2.3 END -->
+        # fence in use-cases/cat-22-regulatory-compliance.md) plus per-UC
+        # JSON sidecars under use-cases/cat-22/.  --check regenerates the
+        # outputs and diffs against the committed tree so any drift
+        # (hand-edited markdown, stale sidecar, missing new UC, UC missing
+        # from authoring source, etc.) fails CI.
+        run: python3 scripts/generate_phase2_3_per_regulation.py --check
+
+      - name: Phase 3.1 clause-level backfill generator regeneration check
+        # Phase 3.1 deliverable. scripts/generate_phase3_1_backfill.py is
+        # the single source of truth for the clause-level backfill that
+        # closed the remaining tier-1 clause gaps on existing cat-22 UCs
+        # for CMMC 2.0, ISO/IEC 27001:2013, NIST CSF 1.1 & 2.0, PCI-DSS
+        # v3.2.1, GDPR 2016/679, NIST SP 800-53 Rev. 5 and HIPAA Security
+        # Rule 2013-final.  The generator reads
+        # data/per-regulation/phase3.1.json (the hand-curated manifest
+        # mapping each uncovered tier-1 clause to the existing UC that
+        # semantically covers it) and idempotently appends the compliance
+        # entry to the target UC's JSON sidecar. --check regenerates the
+        # sidecars into memory and diffs against the committed tree, so a
+        # forgotten regeneration, a hand-edited sidecar, or a manifest
+        # pointing at a non-existent UC all fail CI.
+        run: python3 scripts/generate_phase3_1_backfill.py --check
+
+      - name: Phase 3.2 cross-cutting compliance generator regeneration check
+        # Phase 3.2 deliverable. scripts/generate_phase3_2_cross_cutting.py
+        # is the single source of truth for the multi-regulation clause-level
+        # tags applied to existing UCs *outside* cat-22.  The generator reads
+        # data/per-regulation/phase3.2.json (the hand-curated manifest that
+        # maps 53 cross-cutting UCs to 182 tier-1/tier-2 clauses across 14
+        # categories) and idempotently writes minimal JSON sidecars at
+        # use-cases/cat-NN/uc-<id>.json that contain only the compliance[]
+        # entries — it never touches markdown and never authors SPL.  --check
+        # regenerates the sidecars into memory and diffs against the committed
+        # tree so drift (hand-edited sidecar, stale clause, forgotten
+        # regeneration, manifest entry pointing at a non-existent UC, or a
+        # uc_id starting with "22." which belongs to another generator)
+        # all fail CI.
+        run: python3 scripts/generate_phase3_2_cross_cutting.py --check
+
+      - name: Phase 3.3 derivative-regulation propagation regeneration check
+        # Phase 3.3 deliverable. scripts/generate_phase3_3_derivatives.py
+        # walks the derivesFrom graph in data/regulations.json and emits
+        # inherited compliance[] entries on every UC sidecar that already
+        # maps to a parent regulation (GDPR@2016/679 today; the graph is
+        # extensible).  UK GDPR inherits identity-mode (clause numbers
+        # preserved 1:1); Swiss nFADP, LGPD, APPI and CCPA/CPRA inherit in
+        # mapped mode via hand-curated clauseMapping tables.  Every inherited
+        # entry is tagged with provenance=derived-from-parent and a
+        # derivationSource object that captures parent reg/version/clause,
+        # parent assurance, inheritance mode, and any divergence note.
+        # Assurance degrades one step (full → partial, partial →
+        # contributing; contributing does not propagate further) so
+        # inherited entries can never claim stronger assurance than their
+        # parent.  Native (hand-authored) mappings always win — the
+        # generator never overwrites an entry with a matching
+        # (regulation, version, clause).  --check regenerates sidecars into
+        # memory and diffs them against the committed tree, so a forgotten
+        # regeneration, a hand-edited derived entry, or a stale parent
+        # mapping that should have been garbage-collected all fail CI.
+        run: python3 scripts/generate_phase3_3_derivatives.py --check
+
+      - name: Equipment-tags regeneration check (sidecar equipment[] / equipmentModels[])
+        # scripts/generate_equipment_tags.py is the single source of truth
+        # for the ``equipment[]`` and ``equipmentModels[]`` fields on every
+        # ``use-cases/cat-*/uc-*.json`` sidecar. It reads the EQUIPMENT
+        # registry from build.py (via scripts/equipment_lib.py) and
+        # substring-matches each UC's narrative (``app``, ``dataSources``,
+        # ``spl``, ``implementation``, ``description``) to produce a
+        # deterministic, schema-valid equipment tag set. ``build.py`` then
+        # uses those fields as the authoritative source when populating
+        # the compact ``e`` / ``em`` fields in catalog.json (falling back
+        # to the legacy substring match on the markdown ``App/TA:`` line
+        # only for UCs without a sidecar — cats 1-21 and 23 today).
+        # --check regenerates the tags into memory and diffs against
+        # disk, so a forgotten regeneration, a hand-edited sidecar, or
+        # an equipment-table rename without a regeneration all fail CI.
+        # See docs/equipment-table.md for the authoring model and
+        # precedence rules.
+        run: python3 scripts/generate_equipment_tags.py --check
+
+      - name: Phase 4.3 cat-22 non-technical block regeneration check
+        # Phase 4.3 deliverable. scripts/regenerate_cat22_ntv.py is the
+        # single source of truth for the ``"22": { ... }`` block in
+        # non-technical-view.js — the plain-language view shown to
+        # non-technical stakeholders (privacy officers, legal, risk,
+        # executives).  The generator owns every cat-22 area and
+        # rewrites the block from an authoritative Python dictionary
+        # that carries plain-language ``whatItIs`` / ``whoItAffects`` /
+        # ``splunkValue`` copy plus repo-relative ``primer`` and
+        # ``evidencePack`` links into docs/regulatory-primer.md and
+        # docs/evidence-packs/*.md.  --check regenerates the block in
+        # memory and diffs it against the committed file, so a
+        # forgotten regeneration, a hand-edited cat-22 area, or a
+        # stale primer/evidence link all fail CI before the dashboard
+        # can drift away from the authored source.
+        run: python3 scripts/regenerate_cat22_ntv.py --check
+
+      - name: API surface (api/v1) regeneration check
+        # Phase 1.7 deliverable. scripts/generate_api_surface.py is the
+        # single source of truth for /api/v1/*: it reads the UC sidecars,
+        # data/regulations.json, data/crosswalks/*, and the compliance
+        # coverage report, and emits a deterministic static JSON API.
+        # --check regenerates the tree into a tempdir and diffs it against
+        # the committed tree, so a forgotten regeneration fails CI.
+        run: python3 scripts/generate_api_surface.py --check
+
+      - name: Splunk app generator (splunk-apps/) regeneration check
+        # Phase 1.8 deliverable. scripts/generate_splunk_app.py is the
+        # single source of truth for splunk-apps/*: it reads the UC
+        # sidecars, data/regulations.json, and the VERSION file, and
+        # emits a deterministic AppInspect-shaped tree per regulation.
+        # --check regenerates the tree into a tempdir and diffs it
+        # against the committed tree, so a forgotten regeneration or
+        # non-deterministic drift fails CI.
+        run: python3 scripts/generate_splunk_app.py --check
+
+      - name: Splunk UC Recommender generator regeneration check
+        # scripts/generate_recommender_app.py is the single source of
+        # truth for splunk-apps/splunk-uc-recommender/ and
+        # splunk-apps/splunk-uc-recommender-ta/.  --check regenerates
+        # both trees into a tempdir and diffs them against the
+        # committed trees, so a forgotten regeneration (or any
+        # non-deterministic output from the generator itself) fails
+        # CI before the apps are shipped to operators.
+        run: python3 scripts/generate_recommender_app.py --check
+
+      - name: Recommender frontend unit tests
+        # Node --test runs tests/recommender/match.test.mjs which
+        # loads the generated recommender.js under node:vm and
+        # exercises the scoring and URL-sanitiser helpers.  This
+        # catches scoring regressions and XSS drift without needing
+        # a live Splunk search head.
+        run: node --test tests/recommender/match.test.mjs
+
+      - name: Phase 4.4 scorecard.html render test
+        # Phase 4.4 deliverable.  scorecard.html boots client-side
+        # JavaScript that fetches reports/compliance-coverage.json,
+        # reports/compliance-gaps.json, scorecard.json, and
+        # data/regulations.json, and renders the full auditor-facing
+        # scorecard panel.  tests/scorecard/render.test.mjs boots the
+        # inline <script> under node:vm against a minimal DOM shim and
+        # a filesystem-backed fetch() stub — it asserts that the global
+        # rollup metrics, tier grid, per-regulation tbody, per-category
+        # tbody, grade distribution, and findings grid all populate
+        # from the real JSON sources, and it fails fast if the inline
+        # script ever introduces an obvious XSS sink (document.write,
+        # eval, un-escaped innerHTML).  This is the drift guard for
+        # scorecard.html — without it the page could silently fail
+        # against a regenerated report and nobody would notice until
+        # an auditor opened the page.
+        run: node --test tests/scorecard/render.test.mjs
+
+      - name: Clause-level gap report (reports/compliance-gaps.json + docs/compliance-gaps.md) regeneration check
+        # Phase 2.1 deliverable. scripts/audit_compliance_gaps.py emits a
+        # per-regulation, clause-by-clause gap report against
+        # data/regulations.json commonClauses[].  CI runs --check so the
+        # committed report can never drift from the UC sidecars / regulations
+        # index it was generated from.
+        run: python3 scripts/audit_compliance_gaps.py --check
+
+      - name: Phase 4.2 evidence-pack generator regeneration check
+        # Phase 4.2 deliverable. scripts/generate_evidence_packs.py is the
+        # single source of truth for docs/evidence-packs/*.md and the JSON
+        # twins under api/v1/evidence-packs/*.json.  The generator reads
+        # data/regulations.json (clause inventory, derivation graph),
+        # data/evidence-pack-extras.json (auditor-facing metadata:
+        # retention, roles, authoritative guidance, common deficiencies,
+        # testing approach, reporting cadence, penalty structure), the
+        # UC sidecars in use-cases/cat-*/uc-*.json (compliance entries
+        # and evidence fields), and reports/compliance-gaps.json (the
+        # pre-computed per-clause coverage rollup).  It emits 12 auditor
+        # packs (the 11 tier-1 regulations + UK GDPR derivative), a
+        # README, and a machine-readable index with deterministic
+        # serialisation.  --check regenerates the tree into memory and
+        # diffs it against the committed tree, so a forgotten
+        # regeneration, a hand-edited markdown/JSON pack, a schema
+        # violation on evidence-pack-extras, or a drift in the
+        # underlying gap-report all fail CI.
+        run: python3 scripts/generate_evidence_packs.py --check
+
+      # ------------------------------------------------------------------
+      # Phase 4.5 — QA gates
+      # ------------------------------------------------------------------
+      # Six independent gates that block merges unless the repository is
+      # auditor-ready: peer reviews are recorded, legal reviews are
+      # recorded, every UC ships with a working sandbox fixture, every
+      # ATT&CK technique cited by a controlTest actually exists in the
+      # committed MITRE crosswalk, every OSCAL component-definition we
+      # expose round-trips through the NIST JSON schema byte-for-byte,
+      # and the static site stays within its perf + WCAG 2.1 AA
+      # accessibility envelope.
+      #
+      # Each gate has the same shape where applicable:
+      #   1. A Python script regenerates a deterministic JSON report.
+      #   2. The --check mode diffs the regenerated report against the
+      #      committed file and exits non-zero on drift (so reviewers
+      #      cannot "fix" a failing gate by hand-editing the report).
+      #   3. A Node --test drift guard validates the report's
+      #      structure against the source-of-truth files on disk
+      #      without re-running the Python generator (so contributors
+      #      without Python can still get a pre-commit signal).
+      #
+      # See docs/peer-review-guide.md and docs/legal-review-guide.md
+      # for the human procedures that produce the signoff files.
+      # ------------------------------------------------------------------
+
+      - name: Phase 4.5a peer-review signoff audit
+        # scripts/audit_peer_review_signoffs.py validates
+        # data/provenance/peer-review-signoffs.json against the signoff
+        # schema and the semantic invariants documented in
+        # docs/peer-review-guide.md (reviewer identity non-empty, UC
+        # reference resolves, signoff_date is ISO-8601, git commit is a
+        # valid 7+ char hex SHA, etc).  Exit 1 on any schema or
+        # semantic violation.
+        run: python3 scripts/audit_peer_review_signoffs.py
+
+      - name: Phase 4.5b legal-review signoff audit
+        # scripts/audit_legal_review_signoffs.py validates
+        # data/provenance/legal-review-signoffs.json against the legal
+        # review schema.  Enforces that every regulation with a
+        # registered legal advisor has a recent signoff and that the
+        # quoted clause language matches what is in data/regulations.json
+        # at the pinned version.  Exit 1 on any schema or semantic
+        # violation.
+        run: python3 scripts/audit_legal_review_signoffs.py
+
+      - name: Phase 5.2 SME-review signoff audit
+        # scripts/audit_sme_review_signoffs.py validates
+        # data/provenance/sme-signoffs.json against the SME review
+        # schema (schemas/sme-review-signoff.schema.json) and the
+        # semantic invariants documented in docs/sme-review-guide.md:
+        # outcome-specific required fields (revisions, caveats,
+        # rejectionReason), reviewer/commit uniqueness for dual-SME
+        # review, fixtureReplayResult self-consistency, UC-sidecar
+        # caveat mirroring, and fixture/evidence-pack path existence.
+        # Exit 1 on any schema or semantic violation.
+        run: python3 scripts/audit_sme_review_signoffs.py
+
+      - name: Phase 5.3 regulatory change-watch (hermetic)
+        # scripts/audit_regulatory_change_watch.py --check validates
+        # data/regulations-watch.json against its schema, confirms every
+        # sha256-vendor strategy references a known source_id in
+        # data/provenance/ingest-manifest.json, checks every
+        # regulationId against data/regulations.json frameworks[] (or
+        # the MITRE allow-list), and computes staleness from each
+        # entry's lastCheckedAt using the file's stalenessPolicy.
+        # Hermetic: no network calls, safe for pull-request CI.
+        # --fetch runs weekly in .github/workflows/regulatory-watch.yml.
+        run: python3 scripts/audit_regulatory_change_watch.py --check
+
+      - name: Phase 5.4 signed provenance ledger regenerate (determinism)
+        # scripts/generate_mapping_ledger.py --check rebuilds the ledger
+        # from every UC sidecar's compliance[] array in memory, compares
+        # byte-for-byte with the on-disk data/provenance/mapping-ledger.json,
+        # and fails on drift. The generator is deterministic because:
+        # (1) sidecars are iterated in sorted order, (2) regulation names
+        # are canonicalised via a fixed lookup table, (3) generatedAt is
+        # anchored to catalogueCommit's commit date (NOT wall-clock), and
+        # (4) git history is probed in a single bulk pass. Any content-level
+        # change to the compliance graph must be accompanied by a ledger
+        # regeneration in the same PR, or this gate fails.
+        run: python3 scripts/generate_mapping_ledger.py --check
+
+      - name: Phase 5.4 signed provenance ledger audit
+        # scripts/audit_mapping_ledger.py validates the ledger against
+        # schemas/mapping-ledger.schema.json, recomputes the canonicalHash
+        # for every entry, recomputes the merkleRoot over the sorted
+        # leaves, and performs forward+reverse referential integrity
+        # against the current UC sidecars. On PR builds the ledger is
+        # signature.state='unsigned' (no --require-signature); release.yml
+        # re-runs the audit with --require-signature --verify-signature
+        # after stamping and Sigstore attestation.
+        run: python3 scripts/audit_mapping_ledger.py
+
+      - name: Phase 4.5c sandbox validation gate
+        # scripts/audit_sandbox_validation.py walks every UC sidecar
+        # that declares a controlTest.fixtureRef, asserts the fixture
+        # exists on disk and has both a positive and negative case
+        # populated, and writes reports/sandbox-validation.json.  The
+        # --check step re-runs the audit in memory and diffs against
+        # the committed report so the CI fails on drift.
+        run: python3 scripts/audit_sandbox_validation.py --check
+
+      - name: Phase 4.5c sandbox validation Node drift guard
+        # Independent structural check: tests/sandbox/validate.test.mjs
+        # parses reports/sandbox-validation.json and asserts that
+        # every UC sidecar with a controlTest block has exactly one
+        # record, the record status is one of the known enum values,
+        # and the report is canonically serialised.  Runs even if
+        # Python is unavailable locally (pure Node).
+        run: node --test tests/sandbox/validate.test.mjs
+
+      - name: Phase 4.5d ATT&CK simulation gate
+        # scripts/simulate_controltest.py is a structural simulator —
+        # it does NOT run SPL against a live Splunk.  It verifies
+        # (a) every ATT&CK technique cited by a controlTest parses as
+        # the canonical T####[.###] grammar, (b) every such technique
+        # exists in the normalised MITRE crosswalk, and (c) populated
+        # fixtures have coherent positive/negative polarity.  The
+        # --check step re-runs the simulator in memory and diffs
+        # against reports/attack-simulation.json so drift fails CI.
+        run: python3 scripts/simulate_controltest.py --check
+
+      - name: Phase 4.5d ATT&CK simulation Node drift guard
+        # tests/attack/simulate.test.mjs is the Node-only twin of the
+        # ATT&CK simulator: it walks the UC sidecars and asserts the
+        # committed reports/attack-simulation.json has one record per
+        # controlTest, every technique matches T####[.###], the
+        # summary counts reconcile with the record set, and the
+        # payload is canonically sorted.
+        run: node --test tests/attack/simulate.test.mjs
+
+      - name: Phase 4.5e OSCAL round-trip gate
+        # scripts/audit_oscal_roundtrip.py validates every
+        # api/v1/oscal/component-definitions/*.json against the NIST
+        # OSCAL JSON schema (via ajv under the hood) and asserts that
+        # parse → re-serialise produces the exact same bytes as the
+        # committed file.  --check re-runs the audit in memory and
+        # diffs reports/oscal-roundtrip.json so any NIST schema drift,
+        # regeneration miss, or hand-edit blocks merges.
+        run: python3 scripts/audit_oscal_roundtrip.py --check
+
+      - name: Phase 4.5e OSCAL round-trip Node drift guard
+        # tests/oscal/roundtrip.test.mjs uses @splunk-free ajv to
+        # re-validate a sampled subset of the component-definitions
+        # against the NIST schema bundled under
+        # tools/vendor/oscal/schema/.  This catches regressions where
+        # a contributor edits a generator without regenerating the
+        # report, or where the NIST schema copy drifts from upstream.
+        run: node --test tests/oscal/roundtrip.test.mjs
+
+      - name: Phase 4.5f perf + a11y audit gate
+        # scripts/audit_perf_a11y.py enforces two dimensions: per-file
+        # byte budgets on critical-path + generated-data assets, and
+        # axe-core v4 accessibility audits (WCAG 2.1 A + AA +
+        # best-practice) run under jsdom against scorecard.html and
+        # index.html.  Serious / critical a11y violations hard-fail
+        # unless allowlisted with peer review.  --check diffs the
+        # regenerated report against reports/perf-a11y.json so drift
+        # (over-budget file, new violation, stale report) fails CI.
+        run: python3 scripts/audit_perf_a11y.py --check
+
+      - name: Phase 4.5f perf + a11y Node drift guard
+        # tests/a11y/perfa11y.test.mjs asserts
+        # reports/perf-a11y.json's top-level shape, that every perf
+        # budget's actual_bytes matches the on-disk size, that every
+        # a11y page in pages_audited exists on disk, that violation
+        # dispositions reconcile with hard_failures + warnings, and
+        # that the payload is canonically serialised.
+        run: node --test tests/a11y/perfa11y.test.mjs
+
       - name: Non-technical view JS syntax
         run: |
           node -e "
@@ -61,12 +511,20 @@ jobs:
       - name: Version consistency
         run: |
           VER=$(cat VERSION | tr -d '[:space:]')
-          CL_VER=$(grep -m1 '^## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
+          # First numbered `## [N.N]` heading in CHANGELOG.md (skips `[Unreleased]`,
+          # which is the Keep-a-Changelog staging block for work that has not yet
+          # been assigned a release number).  VERSION / CHANGELOG top / release
+          # notes popup must all agree on the latest *released* version.
+          CL_VER=$(grep -m1 -E '^## \[[0-9]' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
           RN_VER=$(python3 -c "import re; m=re.search(r'<span class=\"rn-version-tag[^\"]*\">([^<]+)</span>', open('index.html').read()); print(m.group(1).strip() if m else '')")
           echo "VERSION file: $VER"
-          echo "CHANGELOG top: $CL_VER"
+          echo "CHANGELOG top (released): $CL_VER"
           echo "Release notes top: $RN_VER"
           FAIL=0
+          if [ -z "$CL_VER" ]; then
+            echo "::error::CHANGELOG.md has no numbered release heading (e.g. '## [6.0]')."
+            FAIL=1
+          fi
           if [ "$VER" != "$CL_VER" ]; then
             echo "::error::VERSION ($VER) does not match CHANGELOG top entry ($CL_VER)"
             FAIL=1
@@ -117,4 +575,75 @@ jobs:
         with:
           name: splunk-cloud-compat
           path: test-results/splunk-cloud-compat.json
+          if-no-files-found: ignore
+
+      - name: Upload compliance audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-coverage
+          path: reports/compliance-coverage.json
+          if-no-files-found: ignore
+
+      - name: Upload clause-level gap report
+        # Phase 2.1 deliverable.  Reviewers can pull the artifact to triage
+        # gap worklists without regenerating locally.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-gaps
+          path: reports/compliance-gaps.json
+          if-no-files-found: ignore
+
+      - name: Upload API surface (for PR review)
+        # Makes the generated /api/v1/ tree available as a downloadable
+        # artifact on every CI run. Reviewers can diff the artifact against
+        # the committed tree to triage API drift regressions.  See
+        # docs/api-versioning.md for the governance policy.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-v1
+          path: api/v1/
+          if-no-files-found: ignore
+
+      - name: Upload Splunk app tree (for AppInspect / PR review)
+        # Makes the generated splunk-apps/ tree available as a downloadable
+        # artifact on every CI run. Reviewers can grab a single regulation
+        # app (e.g. splunk-uc-gdpr) and push it through AppInspect or a
+        # test Splunk Cloud tenant without having to regenerate locally.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: splunk-apps
+          path: splunk-apps/
+          if-no-files-found: ignore
+
+      - name: Upload Phase 4.5 QA reports
+        # Bundles the machine-readable reports produced by the Phase
+        # 4.5 QA gates — sandbox validation, ATT&CK simulation, OSCAL
+        # round-trip, and perf+a11y — into a single artifact.  Peer
+        # and legal signoff files are also included so external
+        # reviewers can pull one artifact and reproduce the gate's
+        # decision without having to clone the repo.  The Phase 5.4
+        # mapping-ledger is included as the single canonical provenance
+        # artefact; reviewers recomputing the merkle root against this
+        # file (or the release-stamped copy in dist/) can verify that
+        # every clause-level mapping is attested and that no mapping
+        # was added outside the approval flow.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-gates
+          path: |
+            reports/sandbox-validation.json
+            reports/attack-simulation.json
+            reports/oscal-roundtrip.json
+            reports/perf-a11y.json
+            data/provenance/peer-review-signoffs.json
+            data/provenance/legal-review-signoffs.json
+            data/provenance/sme-signoffs.json
+            data/provenance/mapping-ledger.json
+            data/regulations-watch.json
+            reports/regulatory-change-watch.json
           if-no-files-found: ignore

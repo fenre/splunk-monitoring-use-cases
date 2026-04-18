@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.5.2",
+  "title": "MiFID II Communications Recording and Retention Audit",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "MiFID II",
+      "version": "Directive 2014/65/EU",
+      "clause": "Art.16(7)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=collab` `sourcetype=\"cisco:webex:meetings:history:recordaccesshistory\"` (creationTime, meetingId, hostWebexID); `index=voip` `sourcetype=\"cisco:ucm:cdr\"` (callingPartyNumber, calledPartyNumber, duration, dateTimeOrigination, origCause_value)",
+  "app": "Cisco WebEx Meetings Add-on for Splunk (Splunkbase 4991), Cisco CDR Reporting and Analytics (Splunkbase 669)",
+  "spl": "(index=collab sourcetype=\"cisco:webex:meetings:history:recordaccesshistory\" earliest=-30d)\n| stats count as recording_events, dc(meetingId) as distinct_meetings by hostWebexID\n| sort - recording_events\n```\n```spl\nindex=voip sourcetype=\"cisco:ucm:cdr\" earliest=-30d\n| eval call_duration_min=round(duration/60, 1)\n| stats count as calls, avg(call_duration_min) as avg_duration, sum(eval(if(origCause_value!=\"0\" AND origCause_value!=\"16\", 1, 0))) as failed_calls by callingPartyNumber\n| where failed_calls>0 OR calls>100\n| sort - calls",
+  "value": "Correlates collaboration recording signals (Webex) with telephony metadata (CUCM CDR) to evidence recording coverage and catch missing/failed capture patterns across communication channels.",
+  "implementation": "(1) Install Webex Meetings inputs from TA 4991; (2) ingest CUCM CDR files into `index=voip` with `cisco:ucm:cdr` sourcetype via TA 669; (3) define retention dashboards using your legal minimum (e.g. 5 years for MiFID II) via lookups tied to meeting/call identifiers; (4) alert on recording failures or gaps.",
+  "visualization": "Timechart (recording events), CDR duration distribution, Table (failed calls).",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Cisco WebEx Meetings Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4991"
+    },
+    {
+      "title": "Cisco CDR Reporting and Analytics",
+      "url": "https://splunkbase.splunk.com/app/669"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_ucm",
+    "cisco_webex"
+  ]
+}
