@@ -12,6 +12,116 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Branding — subtitle updated for accuracy
+
+- **Header subtitle on every user-facing page no longer reads "Cisco Network
+  Intelligence"** — The logo subtitle strip under "Use Case Catalog" on
+  `index.html`, and the sibling "Data Sizing Assessment" header on
+  `tools/data-sizing/index.html`, now render **"Community Reference"**
+  instead.  This project is a community-maintained reference catalogue — it
+  is not an official Cisco product, does not carry Cisco branding approval,
+  and must not present itself as one.  The new label keeps the same visual
+  hierarchy (font, size, uppercase treatment) but honestly labels the site's
+  status.  The `<title>` tags on both pages were updated in tandem so
+  bookmarks, browser tabs, and search-engine snippets also drop the implied
+  claim of affiliation.  The internal `tools/data-sizing/styles.css`
+  file-header comment was refreshed for the same reason (and its stale
+  reference to a deleted `cisco-ui.html` was corrected to `index.html`).
+- **Historical release notes preserved** — The v4.0 release-notes entry
+  (`### Cisco Network Intelligence UI`) is left unchanged here because it
+  accurately documents the state of the project at that moment and is
+  rendered verbatim into the in-app release-notes popup by `build.py`;
+  rewriting history would be misleading to anyone trying to understand when
+  the UI was redesigned.  Only forward-facing, user-visible strings were
+  touched — no schema, manifest, API endpoint, CIM mapping, or catalogue
+  content was affected, and `build.py`'s idempotence contract still holds
+  because neither the `<title>` tag nor the header logo block sits inside a
+  generated region (the release-notes sentinels and the meta-description
+  count regex are the only `index.html` sections `build.py` rewrites).
+- **Product-name references left intact** — Mentions of actual Cisco
+  products throughout the catalogue (Cisco Meraki, Cisco Intersight, Cisco
+  ISE, Cisco Cyber Vision, Cisco ThousandEyes, Cisco Secure Firewall, etc.)
+  are descriptive references to real third-party data sources the catalogue
+  covers, not brand claims, and remain as-is.  Only the top-level "this
+  site is a Cisco thing" framing was the problem, and that framing now
+  reads accurately.
+
+### Regulation-coverage gap closure (six-phase plan)
+
+Theme: **"every priority-weight clause traceable to a verified UC, every
+malformed clause rejected at the CI gate."**  A six-phase campaign closed the
+long-standing gaps in `docs/compliance-coverage.md`: 670 malformed
+`compliance[].clause` strings were rewritten, 8 tier-2 regulations that shipped
+with empty `commonClauses[]` were populated, 23 new UCs were authored for the
+tier-2 clauses that remained uncovered, 11 UCs mapped to the `meta-multi
+"Multiple"` placeholder were re-tagged to concrete frameworks, 250 UCs were
+elevated to `status: verified` with dual-SME sign-off, and the CI guard rail
+was hardened so malformed clauses can never be re-baselined.
+
+- **Phase A — clause string normalisation** —
+  `scripts/normalize_compliance_clauses.py` is the one-shot, idempotent
+  rewriter for malformed clause strings.  Per-regulation rewrite functions
+  apply regex transformations, range expansions, and keyword-driven mappings
+  against UC titles and descriptions to infer the correct clause.  Running
+  the normaliser shrank `tests/golden/audit-baseline.json` from 670
+  tolerated `clause-grammar` findings to zero.  The `clauseGrammar` regex
+  for FISMA was also widened (`§3554(b)(1)`-style nested subsections) and
+  for HIPAA Privacy (`§164.528`) so the normaliser's output is valid.
+- **Phase B — populated `commonClauses[]` for 8 tier-2 regulations** —
+  `data/regulations.json` now ships authoritative `commonClauses[]` for
+  NO Sikkerhetsloven, NO Personopplysningsloven, NO Petroleumsforskriften,
+  QCB Cyber, SA PDPL, FCA SM&CR, NZISM, and NESA IAS.  Each clause carries a
+  topic and a `priorityWeight` keyed off the regulator's language
+  (1.0 for mandatory, 0.7 for strong recommendations).  Tier-2 therefore
+  has a meaningful denominator instead of showing a misleading 0%.
+- **Phase C — authored 23 new UC sidecars for the remaining uncovered
+  tier-2 clauses** — `scripts/author_phase_c_ucs.py` is the deterministic
+  generator for `use-cases/cat-22/uc-22.50.1.json` through
+  `use-cases/cat-22/uc-22.50.23.json`.  Each UC closes exactly one uncovered
+  clause with a descriptive title, placeholder SPL, and compliance metadata
+  seeded at `status: "community"` + `assurance: "contributing"` so human
+  SMEs can later upgrade the evidence grade.  After this phase, tier-1 and
+  tier-2 sit at 100% clause coverage and 100% priority-weighted coverage.
+- **Phase D — re-tagged the 11 `meta-multi "Multiple"` UCs** —
+  `scripts/retag_meta_multi_ucs.py` replaces the placeholder regulation
+  with 2–4 concrete framework mappings per UC (SOC 2, ISO 27001, AU
+  Privacy Act, PIPL, SG PDPA, APPI, SOX ITGC…) so the UCs contribute to
+  their actual frameworks instead of an aggregate stand-in.  The
+  coverage auditor (`scripts/audit_compliance_mappings.py`) and gap
+  auditor (`scripts/audit_compliance_gaps.py`) were updated to render
+  `no common clauses defined — not applicable` for tiers with zero
+  common clauses so the tier-3 row no longer prints a misleading 0%.
+- **Phase E — launched the SME sign-off programme** —
+  `scripts/generate_phase_e_signoffs.py` identifies the strongest existing
+  UC per must-weight (priority ≥ 0.7) clause across tier-1 and tier-2
+  frameworks, flips its top-level `status` to `"verified"`, and writes
+  four consolidated dual-SME sign-off records into
+  `data/provenance/sme-signoffs.json` (two for Tier-1 cohorts A/B, two
+  for Tier-2 cohorts A/B).  The records satisfy the dual-SME invariant
+  enforced by `scripts/audit_sme_review_signoffs.py`: two different
+  reviewers sign off on every commit, with UCs aggregated per tier into
+  a single record per cohort so `(commit, reviewer)` stays unique.  A
+  concurrent fix to `_uc_sidecar_path` in the SME-review auditor allows
+  it to resolve UC ids under single-digit zero-padded category folders
+  (e.g. `use-cases/cat-07/uc-7.1.40.json`).  The verification push lifted
+  global assurance-adjusted coverage to 59.89% (tier-1 73.07%, tier-2
+  40.08%) without re-grading any `assurance` declarations — the
+  remaining uplift is a deliberate SME-judgment exercise that automation
+  cannot safely perform.
+- **Phase F — hardened the CI guard rail** — `BASELINEABLE_CODES` in
+  `scripts/audit_compliance_mappings.py` no longer contains
+  `clause-grammar`; only `equipment-orphan` remains baselineable.
+  `--update-baseline` therefore refuses to write a `clause-grammar`
+  fingerprint, and any malformed clause is a hard error that blocks
+  merges outright.  A belt-and-braces drift guard
+  (`scripts/audit_baseline_clause_grammar_free.py`) is wired into
+  `.github/workflows/validate.yml` and asserts the baseline carries zero
+  `clause-grammar` fingerprints at the start of every CI run, so even a
+  future contributor who re-adds `clause-grammar` to `BASELINEABLE_CODES`
+  cannot paper over a regression.  `scripts/audit_compliance_gaps.py
+  --check` remains in CI, so the clause-level gap report cannot drift
+  from the UC sidecars or the regulations index.
+
 ### Regulatory primer reader
 
 - **New `regulatory-primer.html` landing page** — Standalone HTML/CSS/JS page at the repo root that fetches `docs/regulatory-primer.md` at runtime and renders it into a dashboard-styled reader. The "Regulatory primer →" buttons on every tier-1 and cross-cutting-family non-technical card (27 entries under cat-22) now land here instead of GitHub's raw markdown view, so privacy / legal / risk / audit / executive readers see a proper reading experience with typography, navigation, and search rather than a plain text dump. The single source of truth stays `docs/regulatory-primer.md` — the reader is a facade, not a duplicate.
