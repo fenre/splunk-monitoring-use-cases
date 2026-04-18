@@ -3293,6 +3293,7 @@ def main():
         f"{SITE_BASE_URL}/",
         f"{SITE_BASE_URL}/api-docs.html",
         f"{SITE_BASE_URL}/scorecard.html",
+        f"{SITE_BASE_URL}/regulatory-primer.html",
         f"{SITE_BASE_URL}/openapi.yaml",
         f"{SITE_BASE_URL}/llms.txt",
         f"{SITE_BASE_URL}/llms-full.txt",
