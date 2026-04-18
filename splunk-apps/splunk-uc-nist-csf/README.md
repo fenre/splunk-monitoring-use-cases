@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-nist-csf`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
@@ -19,13 +19,13 @@ This app packages **54 use cases** from the upstream catalogue that cite NIST Cy
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
 | `GV.PO-02` | 2 |
+| `ID.AM-01` | 2 |
 | `ID.IM-02` | 2 |
 | `PR.AC-1` | 2 |
 | `DE.AE-01` | 1 |
 | `DE.AE-02` | 1 |
 | `DE.AE-03` | 1 |
 | `DE.AE-3` | 1 |
-| `DE.CM-01` | 1 |
 
 ## Installation
 
@@ -69,8 +69,8 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-22.7.1 | NIST CSF Maturity Posture Dashboard | high | Id entify/Protect/Detect/Respond/Recover |
-| UC-22.7.2 | NIST CSF Detect Function Coverage Gap Analysis | high | DE.AE-3, MITRE ATT&CK |
+| UC-22.7.1 | NIST CSF Maturity Posture Dashboard | high | ID.AM-01 |
+| UC-22.7.2 | NIST CSF Detect Function Coverage Gap Analysis | high | DE.AE-3 |
 | UC-22.7.3 | NIST CSF Identify — Asset Inventory Coverage and Shadow SaaS Signals | high | ID.AM-1, ID.AM-2 |
 | UC-22.7.4 | NIST CSF Protect — Identity Authentication Hardening and MFA Gaps | critical | PR.AA-05, PR.AC-1 |
 | UC-22.7.5 | NIST CSF Detect — Continuous Vulnerability Exposure Drift on Critical Servers | high | DE.CM-09, DE.CM-7 |

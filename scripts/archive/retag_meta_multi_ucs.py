@@ -21,7 +21,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Mapping, Sequence
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 UC_DIR = REPO_ROOT / "use-cases" / "cat-22"
 
 

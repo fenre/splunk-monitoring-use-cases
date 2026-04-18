@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-dora`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
@@ -18,14 +18,14 @@ This app packages **72 use cases** from the upstream catalogue that cite EU Digi
 
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
-| `unspecified` | 20 |
-| `Art.28` | 7 |
-| `Art.12` | 5 |
-| `Art.17` | 5 |
-| `Art.24` | 4 |
-| `Art.19` | 3 |
-| `Art.6` | 3 |
-| `Art.10` | 2 |
+| `Art.5` | 14 |
+| `Art.24` | 9 |
+| `Art.28` | 9 |
+| `Art.17` | 8 |
+| `Art.12` | 7 |
+| `Art.19` | 5 |
+| `Art.6` | 4 |
+| `Art.10` | 3 |
 
 ## Installation
 
@@ -69,11 +69,11 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-22.3.1 | DORA ICT Risk Management Dashboard | critical | Art.5-16 |
-| UC-22.3.2 | DORA ICT Incident Classification and Reporting | critical | Art.17-23 |
-| UC-22.3.3 | DORA Digital Operational Resilience Testing | high | Art.24-27 |
-| UC-22.3.4 | DORA Third-Party ICT Provider Concentration Risk | high | Art.28-44 |
-| UC-22.3.5 | DORA Cross-Region Disaster Recovery Compliance | critical | Art.11-12 |
+| UC-22.3.1 | DORA ICT Risk Management Dashboard | critical | Art.10, Art.11, Art.12… |
+| UC-22.3.2 | DORA ICT Incident Classification and Reporting | critical | Art.17, Art.18, Art.19… |
+| UC-22.3.3 | DORA Digital Operational Resilience Testing | high | Art.24, Art.25, Art.26… |
+| UC-22.3.4 | DORA Third-Party ICT Provider Concentration Risk | high | Art.28, Art.29, Art.30… |
+| UC-22.3.5 | DORA Cross-Region Disaster Recovery Compliance | critical | Art.11, Art.12 |
 | UC-22.3.6 | DORA ICT Change Management and Patch Compliance | critical | Art.9(4)(e) |
 | UC-22.3.7 | DORA ICT Anomaly Detection Capabilities | critical | Art.10 |
 | UC-22.3.8 | DORA ICT Incident Response and Recovery Time Tracking | critical | Art.11 |
@@ -89,26 +89,26 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.3.18 | DORA ICT Third-Party Exit Strategy Readiness | high | Art.28(8) |
 | UC-22.3.19 | DORA Management Body ICT Governance and Oversight | high | Art.5 |
 | UC-22.3.20 | DORA ICT Crisis Communication Readiness | high | Art.14 |
-| UC-22.3.21 | DORA ICT Concentration — Single-Provider Spend and Workload Share Thresholds | high | unspecified |
-| UC-22.3.22 | DORA ICT Concentration — Critical Service Dependency Fan-In by Provider | critical | unspecified |
-| UC-22.3.23 | DORA ICT Concentration — Regional Provider Outage Correlation Exposure Score | high | unspecified |
-| UC-22.3.24 | DORA ICT Concentration — Substitutability and Secondary Sourcing Readiness Index | medium | unspecified |
-| UC-22.3.25 | DORA TLPT — Test Planning Milestone and Scope Lock Audit Trail | high | unspecified |
-| UC-22.3.26 | DORA TLPT — Tester Independence and Conflict-of-Interest Attestation Log | high | unspecified |
-| UC-22.3.27 | DORA TLPT — Findings Severity, Remediation Owner, and Due Date Tracking | high | unspecified |
-| UC-22.3.28 | DORA TLPT — Retest and Control Effectiveness Verification Events | high | unspecified |
-| UC-22.3.29 | DORA Information Sharing — FINCERT-Style Submission Timeliness and Acknowledgment Log | high | unspecified |
-| UC-22.3.30 | DORA Information Sharing — Indicator Distribution to Subsidiaries and Branches Coverage | medium | unspecified |
-| UC-22.3.31 | DORA Information Sharing — Anonymized Incident TTP Contribution Quality Metrics | medium | unspecified |
-| UC-22.3.32 | DORA Outsourcing Registers — Sub-Processor Notification Lag vs Contractual Notice Period | high | unspecified |
-| UC-22.3.33 | DORA Outsourcing Registers — Function Mapping Completeness for Each Outsourced Arrangement | high | unspecified |
-| UC-22.3.34 | DORA Outsourcing Registers — Data Localization and Cross-Border Transfer Field Validation | critical | unspecified |
-| UC-22.3.35 | DORA Exit Strategy — Alternative Provider Shortlist Currency and RFP Readiness | high | unspecified |
-| UC-22.3.36 | DORA Exit Strategy — Data Portability Test Evidence and Export Volume Integrity | high | unspecified |
-| UC-22.3.37 | DORA Exit Strategy — Runbook Step Completion and Sign-Off SLA for Critical Providers | high | unspecified |
-| UC-22.3.38 | DORA ICT Third-Party Risk Register — Inherent vs Residual Risk Score Reconciliation | high | unspecified |
-| UC-22.3.39 | DORA ICT Third-Party Risk Register — Control Testing Evidence Freshness by Provider Tier | high | unspecified |
-| UC-22.3.40 | DORA ICT Third-Party Risk Register — Issue Density and Open Finding Trend by Provider | medium | unspecified |
+| UC-22.3.21 | DORA ICT Concentration — Single-Provider Spend and Workload Share Thresholds | high | Art.5 |
+| UC-22.3.22 | DORA ICT Concentration — Critical Service Dependency Fan-In by Provider | critical | Art.5 |
+| UC-22.3.23 | DORA ICT Concentration — Regional Provider Outage Correlation Exposure Score | high | Art.17 |
+| UC-22.3.24 | DORA ICT Concentration — Substitutability and Secondary Sourcing Readiness Index | medium | Art.5 |
+| UC-22.3.25 | DORA TLPT — Test Planning Milestone and Scope Lock Audit Trail | high | Art.24 |
+| UC-22.3.26 | DORA TLPT — Tester Independence and Conflict-of-Interest Attestation Log | high | Art.5 |
+| UC-22.3.27 | DORA TLPT — Findings Severity, Remediation Owner, and Due Date Tracking | high | Art.24 |
+| UC-22.3.28 | DORA TLPT — Retest and Control Effectiveness Verification Events | high | Art.24 |
+| UC-22.3.29 | DORA Information Sharing — FINCERT-Style Submission Timeliness and Acknowledgment Log | high | Art.5 |
+| UC-22.3.30 | DORA Information Sharing — Indicator Distribution to Subsidiaries and Branches Coverage | medium | Art.5 |
+| UC-22.3.31 | DORA Information Sharing — Anonymized Incident TTP Contribution Quality Metrics | medium | Art.17 |
+| UC-22.3.32 | DORA Outsourcing Registers — Sub-Processor Notification Lag vs Contractual Notice Period | high | Art.5 |
+| UC-22.3.33 | DORA Outsourcing Registers — Function Mapping Completeness for Each Outsourced Arrangement | high | Art.5 |
+| UC-22.3.34 | DORA Outsourcing Registers — Data Localization and Cross-Border Transfer Field Validation | critical | Art.5 |
+| UC-22.3.35 | DORA Exit Strategy — Alternative Provider Shortlist Currency and RFP Readiness | high | Art.5 |
+| UC-22.3.36 | DORA Exit Strategy — Data Portability Test Evidence and Export Volume Integrity | high | Art.5 |
+| UC-22.3.37 | DORA Exit Strategy — Runbook Step Completion and Sign-Off SLA for Critical Providers | high | Art.5 |
+| UC-22.3.38 | DORA ICT Third-Party Risk Register — Inherent vs Residual Risk Score Reconciliation | high | Art.19 |
+| UC-22.3.39 | DORA ICT Third-Party Risk Register — Control Testing Evidence Freshness by Provider Tier | high | Art.24 |
+| UC-22.3.40 | DORA ICT Third-Party Risk Register — Issue Density and Open Finding Trend by Provider | medium | Art.28 |
 | UC-22.3.41 | DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection | high | Art.6 |
 | UC-22.3.42 | DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services | high | Art.7 |
 | UC-22.3.43 | DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services | critical | Art.8 |

@@ -40,7 +40,7 @@ Over 20 types of financial entities: credit institutions, investment firms, paym
 - **Clauses tracked**: 14
 - **Clauses covered by at least one UC**: 14 / 14 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 33
+- **Contributing UCs**: 52
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -50,20 +50,20 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.5) | ICT risk-management governance | 1.0 | `contributing` | [UC-22.3.19](#uc-22-3-19) |
-| [`Art.6`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.6) | ICT risk-management framework | 1.0 | `full` | [UC-22.11.106](#uc-22-11-106), [UC-22.3.41](#uc-22-3-41), [UC-22.6.46](#uc-22-6-46) |
-| [`Art.7`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.7) | ICT systems, protocols and tools | 1.0 | `full` | [UC-22.3.42](#uc-22-3-42), [UC-22.8.32](#uc-22-8-32) |
-| [`Art.8`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.8) | Identification | 1.0 | `full` | [UC-22.11.103](#uc-22-11-103), [UC-22.3.43](#uc-22-3-43) |
-| [`Art.9`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.9) | Protection and prevention | 1.0 | `partial` | [UC-22.11.97](#uc-22-11-97), [UC-22.41.3](#uc-22-41-3) |
-| [`Art.10`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.10) | Detection | 1.0 | `partial` | [UC-22.3.7](#uc-22-3-7), [UC-22.8.33](#uc-22-8-33) |
-| [`Art.11`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.11) | Response and recovery | 1.0 | `contributing` | [UC-22.3.8](#uc-22-3-8) |
-| [`Art.12`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.12) | Backup policies and recovery methods | 1.0 | `full` | [UC-22.3.9](#uc-22-3-9), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1), [UC-22.45.3](#uc-22-45-3) |
-| [`Art.17`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.17) | ICT-related incident management process | 1.0 | `full` | [UC-22.3.44](#uc-22-3-44), [UC-22.6.51](#uc-22-6-51), [UC-22.6.52](#uc-22-6-52), [UC-22.8.34](#uc-22-8-34), [UC-22.8.35](#uc-22-8-35) |
-| [`Art.18`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.18) | Classification of ICT-related incidents | 1.0 | `contributing` | [UC-22.3.11](#uc-22-3-11) |
-| [`Art.19`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.19) | Reporting of major ICT-related incidents | 1.0 | `full` | [UC-22.3.12](#uc-22-3-12), [UC-22.39.1](#uc-22-39-1) |
-| [`Art.24`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.24) | Digital operational-resilience testing | 0.7 | `full` | [UC-22.11.105](#uc-22-11-105), [UC-22.3.45](#uc-22-3-45) |
-| [`Art.26`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.26) | Threat-led penetration testing | 0.7 | `contributing` | [UC-22.3.17](#uc-22-3-17) |
-| [`Art.28`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.28) | ICT third-party risk | 1.0 | `full` | [UC-22.38.3](#uc-22-38-3), [UC-22.44.1](#uc-22-44-1), [UC-22.44.2](#uc-22-44-2), [UC-22.44.3](#uc-22-44-3), [UC-22.8.37](#uc-22-8-37) |
+| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.5) | ICT risk-management governance | 1.0 | `contributing` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.19](#uc-22-3-19), [UC-22.3.21](#uc-22-3-21), [UC-22.3.22](#uc-22-3-22), [UC-22.3.24](#uc-22-3-24), [UC-22.3.26](#uc-22-3-26) (+2 more) |
+| [`Art.6`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.6) | ICT risk-management framework | 1.0 | `full` | [UC-22.11.106](#uc-22-11-106), [UC-22.3.1](#uc-22-3-1), [UC-22.3.41](#uc-22-3-41), [UC-22.6.46](#uc-22-6-46) |
+| [`Art.7`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.7) | ICT systems, protocols and tools | 1.0 | `full` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.42](#uc-22-3-42), [UC-22.8.32](#uc-22-8-32) |
+| [`Art.8`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.8) | Identification | 1.0 | `full` | [UC-22.11.103](#uc-22-11-103), [UC-22.3.1](#uc-22-3-1), [UC-22.3.43](#uc-22-3-43) |
+| [`Art.9`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.9) | Protection and prevention | 1.0 | `partial` | [UC-22.11.97](#uc-22-11-97), [UC-22.3.1](#uc-22-3-1), [UC-22.41.3](#uc-22-41-3) |
+| [`Art.10`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.10) | Detection | 1.0 | `partial` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.7](#uc-22-3-7), [UC-22.8.33](#uc-22-8-33) |
+| [`Art.11`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.11) | Response and recovery | 1.0 | `contributing` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.8](#uc-22-3-8) |
+| [`Art.12`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.12) | Backup policies and recovery methods | 1.0 | `full` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.9](#uc-22-3-9), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1), [UC-22.45.3](#uc-22-45-3) |
+| [`Art.17`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.17) | ICT-related incident management process | 1.0 | `full` | [UC-22.3.2](#uc-22-3-2), [UC-22.3.23](#uc-22-3-23), [UC-22.3.31](#uc-22-3-31), [UC-22.3.44](#uc-22-3-44), [UC-22.6.51](#uc-22-6-51), [UC-22.6.52](#uc-22-6-52) (+2 more) |
+| [`Art.18`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.18) | Classification of ICT-related incidents | 1.0 | `contributing` | [UC-22.3.11](#uc-22-3-11), [UC-22.3.2](#uc-22-3-2) |
+| [`Art.19`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.19) | Reporting of major ICT-related incidents | 1.0 | `full` | [UC-22.3.12](#uc-22-3-12), [UC-22.3.2](#uc-22-3-2), [UC-22.3.38](#uc-22-3-38), [UC-22.39.1](#uc-22-39-1) |
+| [`Art.24`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.24) | Digital operational-resilience testing | 0.7 | `full` | [UC-22.11.105](#uc-22-11-105), [UC-22.3.25](#uc-22-3-25), [UC-22.3.27](#uc-22-3-27), [UC-22.3.28](#uc-22-3-28), [UC-22.3.3](#uc-22-3-3), [UC-22.3.39](#uc-22-3-39) (+1 more) |
+| [`Art.26`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.26) | Threat-led penetration testing | 0.7 | `contributing` | [UC-22.3.17](#uc-22-3-17), [UC-22.3.3](#uc-22-3-3) |
+| [`Art.28`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.28) | ICT third-party risk | 1.0 | `full` | [UC-22.3.4](#uc-22-3-4), [UC-22.3.40](#uc-22-3-40), [UC-22.38.3](#uc-22-38-3), [UC-22.44.1](#uc-22-44-1), [UC-22.44.2](#uc-22-44-2), [UC-22.44.3](#uc-22-44-3) (+1 more) |
 
 ### 4.1 Contributing UC detail
 
@@ -91,6 +91,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.11.97.json`](../../use-cases/cat-22/uc-22.11.97.json)
+<a id='uc-22-3-1'></a>
+- **UC-22.3.1** — DORA ICT Risk Management Dashboard
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.1.json`](../../use-cases/cat-22/uc-22.3.1.json)
 <a id='uc-22-3-11'></a>
 - **UC-22.3.11** — DORA Major ICT Incident 7-Criteria Classification
   - Control family: `—`
@@ -115,6 +121,108 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.3.19.json`](../../use-cases/cat-22/uc-22.3.19.json)
+<a id='uc-22-3-2'></a>
+- **UC-22.3.2** — DORA ICT Incident Classification and Reporting
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.2.json`](../../use-cases/cat-22/uc-22.3.2.json)
+<a id='uc-22-3-21'></a>
+- **UC-22.3.21** — DORA ICT Concentration — Single-Provider Spend and Workload Share Thresholds
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.21.json`](../../use-cases/cat-22/uc-22.3.21.json)
+<a id='uc-22-3-22'></a>
+- **UC-22.3.22** — DORA ICT Concentration — Critical Service Dependency Fan-In by Provider
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.22.json`](../../use-cases/cat-22/uc-22.3.22.json)
+<a id='uc-22-3-23'></a>
+- **UC-22.3.23** — DORA ICT Concentration — Regional Provider Outage Correlation Exposure Score
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.23.json`](../../use-cases/cat-22/uc-22.3.23.json)
+<a id='uc-22-3-24'></a>
+- **UC-22.3.24** — DORA ICT Concentration — Substitutability and Secondary Sourcing Readiness Index
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.24.json`](../../use-cases/cat-22/uc-22.3.24.json)
+<a id='uc-22-3-25'></a>
+- **UC-22.3.25** — DORA TLPT — Test Planning Milestone and Scope Lock Audit Trail
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.25.json`](../../use-cases/cat-22/uc-22.3.25.json)
+<a id='uc-22-3-26'></a>
+- **UC-22.3.26** — DORA TLPT — Tester Independence and Conflict-of-Interest Attestation Log
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.26.json`](../../use-cases/cat-22/uc-22.3.26.json)
+<a id='uc-22-3-27'></a>
+- **UC-22.3.27** — DORA TLPT — Findings Severity, Remediation Owner, and Due Date Tracking
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.27.json`](../../use-cases/cat-22/uc-22.3.27.json)
+<a id='uc-22-3-28'></a>
+- **UC-22.3.28** — DORA TLPT — Retest and Control Effectiveness Verification Events
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.28.json`](../../use-cases/cat-22/uc-22.3.28.json)
+<a id='uc-22-3-29'></a>
+- **UC-22.3.29** — DORA Information Sharing — FINCERT-Style Submission Timeliness and Acknowledgment Log
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.29.json`](../../use-cases/cat-22/uc-22.3.29.json)
+<a id='uc-22-3-3'></a>
+- **UC-22.3.3** — DORA Digital Operational Resilience Testing
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.3.json`](../../use-cases/cat-22/uc-22.3.3.json)
+<a id='uc-22-3-30'></a>
+- **UC-22.3.30** — DORA Information Sharing — Indicator Distribution to Subsidiaries and Branches Coverage
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.30.json`](../../use-cases/cat-22/uc-22.3.30.json)
+<a id='uc-22-3-31'></a>
+- **UC-22.3.31** — DORA Information Sharing — Anonymized Incident TTP Contribution Quality Metrics
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.31.json`](../../use-cases/cat-22/uc-22.3.31.json)
+<a id='uc-22-3-38'></a>
+- **UC-22.3.38** — DORA ICT Third-Party Risk Register — Inherent vs Residual Risk Score Reconciliation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.38.json`](../../use-cases/cat-22/uc-22.3.38.json)
+<a id='uc-22-3-39'></a>
+- **UC-22.3.39** — DORA ICT Third-Party Risk Register — Control Testing Evidence Freshness by Provider Tier
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.39.json`](../../use-cases/cat-22/uc-22.3.39.json)
+<a id='uc-22-3-4'></a>
+- **UC-22.3.4** — DORA Third-Party ICT Provider Concentration Risk
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.4.json`](../../use-cases/cat-22/uc-22.3.4.json)
+<a id='uc-22-3-40'></a>
+- **UC-22.3.40** — DORA ICT Third-Party Risk Register — Issue Density and Open Finding Trend by Provider
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.40.json`](../../use-cases/cat-22/uc-22.3.40.json)
 <a id='uc-22-3-41'></a>
 - **UC-22.3.41** — DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection
   - Control family: `policy-to-control-traceability`
@@ -145,6 +253,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.3.45.json`](../../use-cases/cat-22/uc-22.3.45.json)
+<a id='uc-22-3-5'></a>
+- **UC-22.3.5** — DORA Cross-Region Disaster Recovery Compliance
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.3.5.json`](../../use-cases/cat-22/uc-22.3.5.json)
 <a id='uc-22-3-7'></a>
 - **UC-22.3.7** — DORA ICT Anomaly Detection Capabilities
   - Control family: `—`
@@ -394,7 +508,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
+inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
 ```
 
 To re-generate:

@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-hipaa-security`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
@@ -25,7 +25,7 @@ This app packages **76 use cases** from the upstream catalogue that cite HIPAA S
 | `§164.312(c)(1)` | 4 |
 | `§164.502(b)` | 4 |
 | `§164.502(e)` | 4 |
-| `§policy` | 4 |
+| `§164.310(d)(1)` | 3 |
 
 ## Installation
 
@@ -105,12 +105,12 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.10.31 | Facility vs Logical Access — Badge-In Without VPN/SSO for Remote Roles | high | §164.310(a)(1) |
 | UC-22.10.32 | Workstation Use — After-Hours Login from Non-Clinical IP Space | high | §164.310(b), §164.310(c) |
 | UC-22.10.33 | Minimum Necessary — Access Outside Active Care Team | critical | §164.502(b), §164.514(d) |
-| UC-22.10.34 | Break-Glass — Emergency Access Reason Codes & Post-Review | critical | §164.502(a)(2)(ii), §policy |
+| UC-22.10.34 | Break-Glass — Emergency Access Reason Codes & Post-Review | critical | §164.502(a)(2)(ii) |
 | UC-22.10.35 | Non-Treating Provider — Specialty Mismatch Chart Access | high | §164.502(a)(1) |
 | UC-22.10.36 | Bulk ePHI Export — Clarity SQL / Caboodle Extract Volume Spike | critical | §164.312(b), §164.502(b) |
 | UC-22.10.37 | After-Hours ePHI Access — Billing Users on Inpatient Charts | high | §164.502(b) |
-| UC-22.10.38 | Deceased Patient Records — Access After Death Date | high | §164.502(f), §policy |
-| UC-22.10.39 | VIP / High-Profile Patient — Elevated Access Monitoring | critical | §164.502(a), §policy |
+| UC-22.10.38 | Deceased Patient Records — Access After Death Date | high | §164.502(f) |
+| UC-22.10.39 | VIP / High-Profile Patient — Elevated Access Monitoring | critical | §164.502(a) |
 | UC-22.10.40 | Research Access — Chart Views Without Active IRB Consent Flag | critical | §164.502(a)(1), §164.512(i) |
 | UC-22.10.41 | Accounting of Disclosures — Registry vs EHR-Logged Disclosures | high | §164.528 |
 | UC-22.10.42 | Patient Portal — Suspicious MyChart Password Reset & MFA Changes | critical | §164.312(d), §164.530(c) |
@@ -119,7 +119,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.10.45 | Individual Notification — Letter Generation & Mailing Evidence | critical | §164.404(b) |
 | UC-22.10.46 | HHS Secretary Notification — 500+ Individuals Threshold Watch | critical | §164.408 |
 | UC-22.10.47 | Media Notification — Large-State Resident Threshold Tracking | critical | §164.406(c) |
-| UC-22.10.48 | Breach Log / Incident Register — Immutable Chronological Record | high | §164.402, §policy |
+| UC-22.10.48 | Breach Log / Incident Register — Immutable Chronological Record | high | §164.402 |
 | UC-22.10.49 | Breach Remediation — Control Implementation Evidence Post-Incident | high | §164.308(a)(1)(ii)(A) |
 | UC-22.10.50 | Annual Breach Reporting — Trend of Affected Individuals & Root Cause | high | §164.408 |
 | UC-22.10.51 | Business Associate Access — VPN/SSO Sessions Originating from BA Address Space | high | §164.308(b), §164.502(e) |

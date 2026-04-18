@@ -39,9 +39,9 @@ Applies to controllers and processors established in the UK and to those outside
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 20
-- **Clauses covered by at least one UC**: 16 / 20 (80.0%)
-- **Priority-weighted coverage**: 80.3%
-- **Contributing UCs**: 24
+- **Clauses covered by at least one UC**: 15 / 20 (75.0%)
+- **Priority-weighted coverage**: 76.3%
+- **Contributing UCs**: 23
 - **Derived via `derivesFrom`**: parent `gdpr` (mode `identity`). Identity-mode derivatives inherit the parent's full clause set unless explicitly diverged. This pack reports coverage against the **inherited parent clause inventory** so the auditor view is comparable to the parent. Inherited mappings carry assurance degraded one step from the parent and are marked `provenance: derived-from-parent` in the UC sidecar. Native hand-authored mappings take precedence. Known divergences are listed in `data/regulations.json derivesFrom[].divergences`.
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
@@ -56,7 +56,7 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
 | [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `contributing` | [UC-22.37.1](#uc-22-37-1) |
 | [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `partial` | [UC-22.37.1](#uc-22-37-1), [UC-22.37.2](#uc-22-37-2), [UC-22.8.39](#uc-22-8-39) |
 | [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/Art.15) | Right of access | 1.0 | `partial` | [UC-22.36.1](#uc-22-36-1) |
-| [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/Art.16) | Right to rectification | 0.7 | `contributing` | [UC-22.1.2](#uc-22-1-2) |
+| [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/Art.16) | Right to rectification | 0.7 | `—` | _not yet covered_ |
 | [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `partial` | [UC-22.36.2](#uc-22-36-2), [UC-22.49.5](#uc-22-49-5) |
 | [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `contributing` | [UC-22.1.16](#uc-22-1-16) |
 | [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/Art.20) | Right to data portability | 0.7 | `partial` | [UC-22.36.3](#uc-22-36-3) |
@@ -81,12 +81,6 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.1.16.json`](../../use-cases/cat-22/uc-22.1.16.json)
-<a id='uc-22-1-2'></a>
-- **UC-22.1.2** — GDPR Data Subject Access Request Fulfillment Tracking
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.1.2.json`](../../use-cases/cat-22/uc-22.1.2.json)
 <a id='uc-22-1-46'></a>
 - **UC-22.1.46** — GDPR Consent Mechanism Audit (Lawful Basis Alignment)
   - Control family: `—`
@@ -302,6 +296,7 @@ Clauses tracked in `data/regulations.json` that are **not yet covered** by any U
 |---|---|---|
 | `Art.25` | Data protection by design and by default | 1.0 |
 | `Art.30` | Records of processing | 1.0 |
+| `Art.16` | Right to rectification | 0.7 |
 | `Art.22` | Automated decision making | 0.7 |
 | `Art.35` | DPIA | 0.7 |
 
@@ -347,7 +342,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
+inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
 ```
 
 To re-generate:

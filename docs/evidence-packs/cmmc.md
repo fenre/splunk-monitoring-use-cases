@@ -40,7 +40,7 @@ All DoD contractors and subcontractors handling FCI or CUI. Level 1: 15 basic sa
 - **Clauses tracked**: 9
 - **Clauses covered by at least one UC**: 9 / 9 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 9
+- **Contributing UCs**: 18
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -50,15 +50,15 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`AC.L2-3.1.1`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.1) | Authorized access to systems | 1.0 | `partial` | [UC-22.20.1](#uc-22-20-1) |
+| [`AC.L2-3.1.1`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.1) | Authorized access to systems | 1.0 | `partial` | [UC-22.20.1](#uc-22-20-1), [UC-22.20.10](#uc-22-20-10), [UC-22.20.11](#uc-22-20-11), [UC-22.20.12](#uc-22-20-12), [UC-22.20.13](#uc-22-20-13), [UC-22.20.14](#uc-22-20-14) (+2 more) |
 | [`AC.L2-3.1.5`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.5) | Least privilege | 1.0 | `partial` | [UC-22.20.2](#uc-22-20-2) |
 | [`AU.L2-3.3.1`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.1) | Create audit records | 1.0 | `partial` | [UC-22.20.3](#uc-22-20-3) |
 | [`AU.L2-3.3.2`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.2) | Ensure unique user traceability | 1.0 | `partial` | [UC-22.20.4](#uc-22-20-4) |
-| [`AU.L2-3.3.5`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.5) | Audit reporting and correlation | 1.0 | `partial` | [UC-22.20.5](#uc-22-20-5) |
+| [`AU.L2-3.3.5`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.5) | Audit reporting and correlation | 1.0 | `partial` | [UC-22.20.5](#uc-22-20-5), [UC-22.32.19](#uc-22-32-19) |
 | [`CM.L2-3.4.1`](https://dodcio.defense.gov/CMMC/#CM.L2-3.4.1) | Baseline configurations | 1.0 | `partial` | [UC-22.20.6](#uc-22-20-6) |
 | [`IR.L2-3.6.1`](https://dodcio.defense.gov/CMMC/#IR.L2-3.6.1) | Incident handling capability | 1.0 | `partial` | [UC-22.20.7](#uc-22-20-7) |
 | [`SC.L2-3.13.8`](https://dodcio.defense.gov/CMMC/#SC.L2-3.13.8) | Cryptographic mechanisms for CUI in transit | 1.0 | `partial` | [UC-22.20.8](#uc-22-20-8) |
-| [`SI.L2-3.14.6`](https://dodcio.defense.gov/CMMC/#SI.L2-3.14.6) | Monitor for attacks | 1.0 | `partial` | [UC-22.20.9](#uc-22-20-9) |
+| [`SI.L2-3.14.6`](https://dodcio.defense.gov/CMMC/#SI.L2-3.14.6) | Monitor for attacks | 1.0 | `partial` | [UC-22.20.9](#uc-22-20-9), [UC-22.32.21](#uc-22-32-21) |
 
 ### 4.1 Contributing UC detail
 
@@ -68,6 +68,48 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.20.1.json`](../../use-cases/cat-22/uc-22.20.1.json)
+<a id='uc-22-20-10'></a>
+- **UC-22.20.10** — CMMC Level 2 practice evidence — CUI control area 10
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.20.10.json`](../../use-cases/cat-22/uc-22.20.10.json)
+<a id='uc-22-20-11'></a>
+- **UC-22.20.11** — CMMC Level 3 enhanced practice — threat scenario 1
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.20.11.json`](../../use-cases/cat-22/uc-22.20.11.json)
+<a id='uc-22-20-12'></a>
+- **UC-22.20.12** — CMMC Level 3 enhanced practice — threat scenario 2
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.20.12.json`](../../use-cases/cat-22/uc-22.20.12.json)
+<a id='uc-22-20-13'></a>
+- **UC-22.20.13** — CMMC Level 3 enhanced practice — threat scenario 3
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.20.13.json`](../../use-cases/cat-22/uc-22.20.13.json)
+<a id='uc-22-20-14'></a>
+- **UC-22.20.14** — CMMC Level 3 enhanced practice — threat scenario 4
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.20.14.json`](../../use-cases/cat-22/uc-22.20.14.json)
+<a id='uc-22-20-15'></a>
+- **UC-22.20.15** — CMMC Level 3 enhanced practice — threat scenario 5
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.20.15.json`](../../use-cases/cat-22/uc-22.20.15.json)
+<a id='uc-22-20-16'></a>
+- **UC-22.20.16** — CMMC assessment readiness — artifact 1
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.20.16.json`](../../use-cases/cat-22/uc-22.20.16.json)
 <a id='uc-22-20-2'></a>
 - **UC-22.20.2** — CMMC Level 2 practice evidence — CUI control area 2
   - Control family: `—`
@@ -116,6 +158,18 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.20.9.json`](../../use-cases/cat-22/uc-22.20.9.json)
+<a id='uc-22-32-19'></a>
+- **UC-22.32.19** — CMMC assessment readiness scoring
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.32.19.json`](../../use-cases/cat-22/uc-22.32.19.json)
+<a id='uc-22-32-21'></a>
+- **UC-22.32.21** — Continuous monitoring for CMMC practice families
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.32.21.json`](../../use-cases/cat-22/uc-22.32.21.json)
 
 ## 5. Evidence collection
 
@@ -246,7 +300,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
+inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
 ```
 
 To re-generate:

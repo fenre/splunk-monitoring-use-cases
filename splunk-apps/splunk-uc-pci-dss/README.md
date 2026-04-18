@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-pci-dss`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
@@ -81,7 +81,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.11.5 | DMZ Originated Sessions Hitting CDE Internal Segments | critical | 1.3.7 |
 | UC-22.11.6 | Wireless Client Pools Reaching CDE Hosts | high | 2.2.4 |
 | UC-22.11.7 | Outbound Service Allow-List Violations from CDE Servers | medium | 1.2.6 |
-| UC-22.11.8 | Default and Vendor Account Authentications on In-Scope Systems | critical | PCI DSS Req 2.2.2 |
+| UC-22.11.8 | Default and Vendor Account Authentications on In-Scope Systems | critical | 2.2.2 |
 | UC-22.11.9 | Configuration Drift vs CIS Hardening Benchmark on Windows CDE Members | high | 2.2.3 |
 | UC-22.11.10 | Listening Services and Daemons on Linux Payment Middleware | medium | 2.2.5 |
 | UC-22.11.11 | System Component Inventory Reconciliation — New In-Scope Hosts | high | 2.1.2 |
@@ -128,7 +128,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.11.52 | Generic Account Prohibition — `admin` / `root` Interactive Success on CDE | critical | 2.2.2 |
 | UC-22.11.53 | Remote Access MFA Evidence Correlation — VPN Success Without Step-Up Token | critical | 8.5.1 |
 | UC-22.11.54 | Service Account Inventory Reconciliation — Unexpected SPN or Delegation Changes | high | 8.6.1 |
-| UC-22.11.55 | Session Timeout Enforcement on Payment Web Admin Consoles | medium | PCI DSS Req 8.2.8 |
+| UC-22.11.55 | Session Timeout Enforcement on Payment Web Admin Consoles | medium | 8.2.8 |
 | UC-22.11.56 | Physical Badge Access to Data Center Containing Cardholder Systems | high | 9.4.2 |
 | UC-22.11.57 | Visitor Log Completeness for Data Center Escorted Access | medium | 9.4.4 |
 | UC-22.11.58 | Secure Media Destruction Workflow Completion for Backup Tapes with CHD | high | 3.2.1 |

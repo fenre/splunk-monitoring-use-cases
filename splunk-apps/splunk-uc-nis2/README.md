@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-nis2`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
@@ -103,7 +103,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.2.32 | NIS2 Proportional Security Measure Verification by Tier | high | Art.21(2) |
 | UC-22.2.33 | NIS2 Incident Reporting Timeline Compliance (24h Early Warning / 72h Notification) | critical | Art.23 |
 | UC-22.2.34 | NIS2 Cross-Border Incident Coordination Task Tracking | high | Art.23(3) |
-| UC-22.2.35 | NIS2 Supervisory Compliance Evidence Pack Readiness | high | Art.32-33 |
+| UC-22.2.35 | NIS2 Supervisory Compliance Evidence Pack Readiness | high | Art.32, Art.33 |
 | UC-22.2.36 | NIS2 OT Network Segmentation Validation | critical | Art.21(2)(a) |
 | UC-22.2.37 | NIS2 SCADA System Access Monitoring | critical | Art.21(2)(a) |
 | UC-22.2.38 | NIS2 Industrial Control System Patching and Change Evidence | high | Art.21(2)(e) |

@@ -49,7 +49,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 REGS_PATH = REPO_ROOT / "data" / "regulations.json"
 UC_GLOB = "use-cases/cat-*/uc-*.json"
 

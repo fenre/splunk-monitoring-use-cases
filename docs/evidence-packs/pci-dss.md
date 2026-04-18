@@ -340,7 +340,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
+inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
 ```
 
 To re-generate:

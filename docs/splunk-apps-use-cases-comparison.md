@@ -101,7 +101,7 @@ From [Available content packs](https://help.splunk.com/en/splunk-it-service-inte
 
 ### 5.1 Repo structure (summary)
 
-This repo has **23 categories** (cat-01 … cat-23) with **6,300+ use cases** after build (including ESCU in cat-10). Non-ESCU use cases live in cat-01–09, 11–23; ESCU is in cat-10.
+This repo has **23 categories** (cat-01 … cat-23) with **6,400+ use cases** after build (including ESCU in cat-10). Non-ESCU use cases live in cat-01–09, 11–23; ESCU is in cat-10.
 
 | Repo category | Covers (examples) |
 |---------------|--------------------|

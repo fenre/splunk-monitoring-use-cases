@@ -24,7 +24,7 @@ import sys
 from typing import List, Tuple
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+REPO_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 UC_DIR = os.path.join(REPO_ROOT, "use-cases")
 
 SECURITY_CATS = {"09", "10", "14", "17", "22"}

@@ -29,7 +29,7 @@ import sys
 from typing import Dict, List, Tuple, Set
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+REPO_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 UC_DIR = os.path.join(REPO_ROOT, "use-cases")
 MITRE_JSON = os.path.join(REPO_ROOT, "mitre_techniques.json")
 

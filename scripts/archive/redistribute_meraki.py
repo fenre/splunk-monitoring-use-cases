@@ -3,7 +3,7 @@
 
 import re, os
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CAT05 = os.path.join(BASE, 'use-cases', 'cat-05-network-infrastructure.md')
 CAT09 = os.path.join(BASE, 'use-cases', 'cat-09-identity-access-management.md')
 CAT14 = os.path.join(BASE, 'use-cases', 'cat-14-iot-operational-technology-ot.md')

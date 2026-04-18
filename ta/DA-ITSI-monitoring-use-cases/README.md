@@ -41,7 +41,7 @@ common infrastructure health indicators.
 ## Extending the content pack
 
 The base searches in this pack are hand-curated from the catalog's
-**Quick Start** use cases.  The full catalog contains 6,300+ use cases;
+**Quick Start** use cases.  The full catalog contains 6,400+ use cases;
 use `scripts/build_itsi_cp.py` (to be added in a future release) to
 auto-generate additional KPI base searches from catalog data.
 

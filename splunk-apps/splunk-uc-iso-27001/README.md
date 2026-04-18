@@ -2,16 +2,16 @@
 
 App ID: `splunk-uc-iso-27001`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **105 use cases** from the upstream catalogue that cite ISO/IEC 27001 — ISMS (`iso-27001`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **109 use cases** from the upstream catalogue that cite ISO/IEC 27001 — ISMS (`iso-27001`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: GLOBAL
 * Versions covered: 2013, 2022
-* UCs by criticality: critical = 16, high = 57, medium = 32
+* UCs by criticality: critical = 16, high = 60, medium = 33
 
 
 ## Most-referenced clauses
@@ -19,13 +19,13 @@ This app packages **105 use cases** from the upstream catalogue that cite ISO/IE
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
 | `A.5.36` | 7 |
+| `9.1` | 6 |
 | `A.8.8` | 5 |
+| `8.2` | 3 |
 | `A.5.18` | 3 |
 | `A.5.24` | 3 |
 | `A.5.3` | 3 |
 | `A.8.12` | 3 |
-| `A.8.5` | 3 |
-| `A.8.9` | 3 |
 
 ## Installation
 
@@ -74,7 +74,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.3.43 | DORA Art.8 — ICT risk identification: newly discovered high-severity exposure on critical financial services | critical | A.8.8 |
 | UC-22.3.44 | DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence | critical | A.5.24 |
 | UC-22.3.45 | DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation | high | A.5.29 |
-| UC-22.6.1 | ISO 27001 Annex A Control Effectiveness Monitoring | critical | unspecified |
+| UC-22.6.1 | ISO 27001 Annex A Control Effectiveness Monitoring | critical | A.8.16 |
 | UC-22.6.2 | ISO 27001 Information Security Event Log Review Compliance | high | A.12.4, A.12.4.1 |
 | UC-22.6.3 | ISO 27001 Access Rights Review and Recertification | critical | A.9.2.5 |
 | UC-22.6.4 | ISO 27001 Information Labelling and Media Handling via DLP | high | A.8.2.3 |
@@ -141,6 +141,10 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.9.2 | Audit Finding Closure Rate Trending | high | A.5.36 |
 | UC-22.9.3 | Control Effectiveness Trending | high | A.5.36 |
 | UC-22.9.5 | Policy Violation Volume Trending | medium | A.5.36 |
+| UC-22.9.6 | Compliance Trending — SOC 2 Control Test Pass Rate vs Prior Quarter Baseline | medium | 9.1 |
+| UC-22.9.7 | Compliance Trending — ISO 27001 Statement of Applicability Control Exception Burn-Down | high | 8.2, 9.1 |
+| UC-22.9.9 | Compliance Trending — Regulatory Change Feed Impact Score on In-Scope Controls | high | 9.1 |
+| UC-22.9.10 | Compliance Trending — Weighted Compliance Posture Composite and Driver Attribution | high | 9.1 |
 | UC-22.11.91 | PCI-DSS 1.3 — CDE network boundary: unauthorised flows between CDE and untrusted networks | critical | A.8.22 |
 | UC-22.11.92 | PCI-DSS 2.2 — Secure configuration baseline: drift from approved hardening template | high | A.8.9 |
 | UC-22.11.93 | PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs | critical | A.8.12 |

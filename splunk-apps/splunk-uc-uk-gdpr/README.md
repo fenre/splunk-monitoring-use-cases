@@ -2,16 +2,16 @@
 
 App ID: `splunk-uc-uk-gdpr`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **32 use cases** from the upstream catalogue that cite UK General Data Protection Regulation (`uk-gdpr`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **31 use cases** from the upstream catalogue that cite UK General Data Protection Regulation (`uk-gdpr`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **2**
 * Jurisdictions: UK
 * Versions covered: post-Brexit
-* UCs by criticality: critical = 10, high = 18, medium = 4
+* UCs by criticality: critical = 9, high = 18, medium = 4
 
 
 ## Most-referenced clauses
@@ -69,7 +69,6 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-22.1.2 | GDPR Data Subject Access Request Fulfillment Tracking | critical | Art.16 |
 | UC-22.1.16 | GDPR Consent Withdrawal Processing Enforcement | high | Art.18 |
 | UC-22.1.46 | GDPR Consent Mechanism Audit (Lawful Basis Alignment) | high | Art.21 |
 | UC-22.8.39 | SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes | medium | Art.7 |

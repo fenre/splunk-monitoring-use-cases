@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-cmmc`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
@@ -18,14 +18,14 @@ This app packages **25 use cases** from the upstream catalogue that cite Cyberse
 
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
-| `CM MC 2.0 Level 2` | 10 |
-| `CM MC` | 5 |
-| `CM MC 2.0 Assessment` | 5 |
-| `CM MC 2.0 Level 3` | 5 |
-| `AC.L2-3.1.1` | 1 |
+| `AC.L2-3.1.1` | 15 |
+| `AU.L2-3.3.5` | 2 |
+| `SI.L2-3.14.6` | 2 |
 | `AC.L2-3.1.5` | 1 |
 | `AU.L2-3.3.1` | 1 |
 | `AU.L2-3.3.2` | 1 |
+| `CM.L2-3.4.1` | 1 |
+| `IR.L2-3.6.1` | 1 |
 
 ## Installation
 
@@ -69,31 +69,31 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-22.20.1 | CMMC Level 2 practice evidence — CUI control area 1 | high | AC.L2-3.1.1, CM MC 2.0 Level 2 |
-| UC-22.20.2 | CMMC Level 2 practice evidence — CUI control area 2 | medium | AC.L2-3.1.5, CM MC 2.0 Level 2 |
-| UC-22.20.3 | CMMC Level 2 practice evidence — CUI control area 3 | low | AU.L2-3.3.1, CM MC 2.0 Level 2 |
-| UC-22.20.4 | CMMC Level 2 practice evidence — CUI control area 4 | critical | AU.L2-3.3.2, CM MC 2.0 Level 2 |
-| UC-22.20.5 | CMMC Level 2 practice evidence — CUI control area 5 | high | AU.L2-3.3.5, CM MC 2.0 Level 2 |
-| UC-22.20.6 | CMMC Level 2 practice evidence — CUI control area 6 | medium | CM MC 2.0 Level 2, CM.L2-3.4.1 |
-| UC-22.20.7 | CMMC Level 2 practice evidence — CUI control area 7 | low | CM MC 2.0 Level 2, IR.L2-3.6.1 |
-| UC-22.20.8 | CMMC Level 2 practice evidence — CUI control area 8 | critical | CM MC 2.0 Level 2, SC.L2-3.13.8 |
-| UC-22.20.9 | CMMC Level 2 practice evidence — CUI control area 9 | high | CM MC 2.0 Level 2, SI.L2-3.14.6 |
-| UC-22.20.10 | CMMC Level 2 practice evidence — CUI control area 10 | medium | CM MC 2.0 Level 2 |
-| UC-22.20.11 | CMMC Level 3 enhanced practice — threat scenario 1 | low | CM MC 2.0 Level 3 |
-| UC-22.20.12 | CMMC Level 3 enhanced practice — threat scenario 2 | critical | CM MC 2.0 Level 3 |
-| UC-22.20.13 | CMMC Level 3 enhanced practice — threat scenario 3 | high | CM MC 2.0 Level 3 |
-| UC-22.20.14 | CMMC Level 3 enhanced practice — threat scenario 4 | medium | CM MC 2.0 Level 3 |
-| UC-22.20.15 | CMMC Level 3 enhanced practice — threat scenario 5 | low | CM MC 2.0 Level 3 |
-| UC-22.20.16 | CMMC assessment readiness — artifact 1 | critical | CM MC 2.0 Assessment |
-| UC-22.20.17 | CMMC assessment readiness — artifact 2 | high | CM MC 2.0 Assessment |
-| UC-22.20.18 | CMMC assessment readiness — artifact 3 | medium | CM MC 2.0 Assessment |
-| UC-22.20.19 | CMMC assessment readiness — artifact 4 | low | CM MC 2.0 Assessment |
-| UC-22.20.20 | CMMC assessment readiness — artifact 5 | critical | CM MC 2.0 Assessment |
-| UC-22.32.17 | Controlled unclassified information access control | critical | CM MC |
-| UC-22.32.18 | CMMC practice implementation evidence collection | medium | CM MC |
-| UC-22.32.19 | CMMC assessment readiness scoring | low | CM MC |
-| UC-22.32.20 | CUI incident response evidence | critical | CM MC |
-| UC-22.32.21 | Continuous monitoring for CMMC practice families | high | CM MC |
+| UC-22.20.1 | CMMC Level 2 practice evidence — CUI control area 1 | high | AC.L2-3.1.1 |
+| UC-22.20.2 | CMMC Level 2 practice evidence — CUI control area 2 | medium | AC.L2-3.1.5 |
+| UC-22.20.3 | CMMC Level 2 practice evidence — CUI control area 3 | low | AU.L2-3.3.1 |
+| UC-22.20.4 | CMMC Level 2 practice evidence — CUI control area 4 | critical | AU.L2-3.3.2 |
+| UC-22.20.5 | CMMC Level 2 practice evidence — CUI control area 5 | high | AU.L2-3.3.5 |
+| UC-22.20.6 | CMMC Level 2 practice evidence — CUI control area 6 | medium | CM.L2-3.4.1 |
+| UC-22.20.7 | CMMC Level 2 practice evidence — CUI control area 7 | low | IR.L2-3.6.1 |
+| UC-22.20.8 | CMMC Level 2 practice evidence — CUI control area 8 | critical | SC.L2-3.13.8 |
+| UC-22.20.9 | CMMC Level 2 practice evidence — CUI control area 9 | high | SI.L2-3.14.6 |
+| UC-22.20.10 | CMMC Level 2 practice evidence — CUI control area 10 | medium | AC.L2-3.1.1 |
+| UC-22.20.11 | CMMC Level 3 enhanced practice — threat scenario 1 | low | AC.L2-3.1.1 |
+| UC-22.20.12 | CMMC Level 3 enhanced practice — threat scenario 2 | critical | AC.L2-3.1.1 |
+| UC-22.20.13 | CMMC Level 3 enhanced practice — threat scenario 3 | high | AC.L2-3.1.1 |
+| UC-22.20.14 | CMMC Level 3 enhanced practice — threat scenario 4 | medium | AC.L2-3.1.1 |
+| UC-22.20.15 | CMMC Level 3 enhanced practice — threat scenario 5 | low | AC.L2-3.1.1 |
+| UC-22.20.16 | CMMC assessment readiness — artifact 1 | critical | AC.L2-3.1.1 |
+| UC-22.20.17 | CMMC assessment readiness — artifact 2 | high | AC.L2-3.1.1 |
+| UC-22.20.18 | CMMC assessment readiness — artifact 3 | medium | AC.L2-3.1.1 |
+| UC-22.20.19 | CMMC assessment readiness — artifact 4 | low | AC.L2-3.1.1 |
+| UC-22.20.20 | CMMC assessment readiness — artifact 5 | critical | AC.L2-3.1.1 |
+| UC-22.32.17 | Controlled unclassified information access control | critical | AC.L2-3.1.1 |
+| UC-22.32.18 | CMMC practice implementation evidence collection | medium | AC.L2-3.1.1 |
+| UC-22.32.19 | CMMC assessment readiness scoring | low | AU.L2-3.3.5 |
+| UC-22.32.20 | CUI incident response evidence | critical | AC.L2-3.1.1 |
+| UC-22.32.21 | Continuous monitoring for CMMC practice families | high | SI.L2-3.14.6 |
 
 ---
 

@@ -40,7 +40,7 @@ Applies to any organisation processing personal data of individuals located in t
 - **Clauses tracked**: 20
 - **Clauses covered by at least one UC**: 20 / 20 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 37
+- **Contributing UCs**: 42
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -50,16 +50,16 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.5) | Principles of processing | 1.0 | `full` | [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
-| [`Art.6`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.6) | Lawful basis | 1.0 | `partial` | [UC-22.37.1](#uc-22-37-1) |
+| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.5) | Principles of processing | 1.0 | `full` | [UC-22.1.1](#uc-22-1-1), [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
+| [`Art.6`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.6) | Lawful basis | 1.0 | `partial` | [UC-22.1.1](#uc-22-1-1), [UC-22.37.1](#uc-22-37-1) |
 | [`Art.7`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.7) | Conditions for consent | 0.7 | `full` | [UC-22.1.46](#uc-22-1-46), [UC-22.1.5](#uc-22-1-5), [UC-22.37.1](#uc-22-37-1), [UC-22.37.2](#uc-22-37-2), [UC-22.8.39](#uc-22-8-39) |
-| [`Art.15`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.15) | Right of access | 1.0 | `full` | [UC-22.36.1](#uc-22-36-1) |
-| [`Art.16`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.16) | Right to rectification | 0.7 | `partial` | [UC-22.1.2](#uc-22-1-2) |
-| [`Art.17`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.17) | Right to erasure | 1.0 | `full` | [UC-22.1.11](#uc-22-1-11), [UC-22.36.2](#uc-22-36-2) |
-| [`Art.18`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.18) | Right to restrict processing | 0.7 | `partial` | [UC-22.1.16](#uc-22-1-16) |
-| [`Art.20`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.20) | Right to data portability | 0.7 | `full` | [UC-22.36.3](#uc-22-36-3) |
-| [`Art.21`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.21) | Right to object | 0.7 | `partial` | [UC-22.1.46](#uc-22-1-46) |
-| [`Art.22`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.22) | Automated decision making | 0.7 | `contributing` | [UC-22.1.18](#uc-22-1-18) |
+| [`Art.15`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.15) | Right of access | 1.0 | `full` | [UC-22.1.2](#uc-22-1-2), [UC-22.36.1](#uc-22-36-1) |
+| [`Art.16`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.16) | Right to rectification | 0.7 | `contributing` | [UC-22.1.2](#uc-22-1-2) |
+| [`Art.17`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.17) | Right to erasure | 1.0 | `full` | [UC-22.1.11](#uc-22-1-11), [UC-22.1.2](#uc-22-1-2), [UC-22.36.2](#uc-22-36-2) |
+| [`Art.18`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.18) | Right to restrict processing | 0.7 | `partial` | [UC-22.1.16](#uc-22-1-16), [UC-22.1.2](#uc-22-1-2) |
+| [`Art.20`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.20) | Right to data portability | 0.7 | `full` | [UC-22.1.2](#uc-22-1-2), [UC-22.36.3](#uc-22-36-3) |
+| [`Art.21`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.21) | Right to object | 0.7 | `partial` | [UC-22.1.2](#uc-22-1-2), [UC-22.1.46](#uc-22-1-46) |
+| [`Art.22`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.22) | Automated decision making | 0.7 | `contributing` | [UC-22.1.18](#uc-22-1-18), [UC-22.1.2](#uc-22-1-2) |
 | [`Art.25`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.25) | Data protection by design and by default | 1.0 | `contributing` | [UC-22.1.9](#uc-22-1-9) |
 | [`Art.28`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.28) | Processor obligations | 1.0 | `full` | [UC-22.1.15](#uc-22-1-15), [UC-22.44.2](#uc-22-44-2) |
 | [`Art.30`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.30) | Records of processing | 1.0 | `contributing` | [UC-22.1.43](#uc-22-1-43), [UC-22.1.8](#uc-22-1-8) |
@@ -67,12 +67,18 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.33`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.33) | Breach notification to supervisory authority | 1.0 | `full` | [UC-22.1.29](#uc-22-1-29), [UC-22.1.3](#uc-22-1-3), [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2), [UC-22.9.4](#uc-22-9-4) |
 | [`Art.34`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.34) | Breach communication to data subjects | 1.0 | `full` | [UC-22.1.13](#uc-22-1-13), [UC-22.39.3](#uc-22-39-3) |
 | [`Art.35`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.35) | DPIA | 0.7 | `contributing` | [UC-22.1.14](#uc-22-1-14) |
-| [`Art.44`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.44) | International transfers — general principle | 1.0 | `full` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.3](#uc-22-38-3) |
-| [`Art.45`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.45) | Transfers via adequacy decision | 0.7 | `partial` | [UC-22.1.39](#uc-22-1-39), [UC-22.38.2](#uc-22-38-2) |
-| [`Art.46`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.46) | Transfers subject to safeguards | 0.7 | `full` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.2](#uc-22-38-2) |
+| [`Art.44`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.44) | International transfers — general principle | 1.0 | `full` | [UC-22.1.36](#uc-22-1-36), [UC-22.1.38](#uc-22-1-38), [UC-22.1.44](#uc-22-1-44), [UC-22.1.6](#uc-22-1-6), [UC-22.38.1](#uc-22-38-1), [UC-22.38.3](#uc-22-38-3) |
+| [`Art.45`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.45) | Transfers via adequacy decision | 0.7 | `partial` | [UC-22.1.36](#uc-22-1-36), [UC-22.1.38](#uc-22-1-38), [UC-22.1.39](#uc-22-1-39), [UC-22.1.44](#uc-22-1-44), [UC-22.1.6](#uc-22-1-6), [UC-22.38.2](#uc-22-38-2) |
+| [`Art.46`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.46) | Transfers subject to safeguards | 0.7 | `full` | [UC-22.1.36](#uc-22-1-36), [UC-22.1.38](#uc-22-1-38), [UC-22.1.44](#uc-22-1-44), [UC-22.1.6](#uc-22-1-6), [UC-22.38.1](#uc-22-38-1), [UC-22.38.2](#uc-22-38-2) |
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-22-1-1'></a>
+- **UC-22.1.1** — GDPR PII Detection in Application Log Data
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.1.1.json`](../../use-cases/cat-22/uc-22.1.1.json)
 <a id='uc-22-1-10'></a>
 - **UC-22.1.10** — GDPR Privileged Access to Personal Data Stores
   - Control family: `—`
@@ -133,6 +139,18 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.1.3.json`](../../use-cases/cat-22/uc-22.1.3.json)
+<a id='uc-22-1-36'></a>
+- **UC-22.1.36** — GDPR Transfer Impact Assessment (TIA) Status for Third-Country Transfers
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.1.36.json`](../../use-cases/cat-22/uc-22.1.36.json)
+<a id='uc-22-1-38'></a>
+- **UC-22.1.38** — GDPR Data Localization Enforcement for Restricted Processing
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.1.38.json`](../../use-cases/cat-22/uc-22.1.38.json)
 <a id='uc-22-1-39'></a>
 - **UC-22.1.39** — GDPR Adequacy Decision and Legal Basis Change Monitoring
   - Control family: `—`
@@ -151,6 +169,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.1.43.json`](../../use-cases/cat-22/uc-22.1.43.json)
+<a id='uc-22-1-44'></a>
+- **UC-22.1.44** — GDPR Cross-Border Personal Data Flow Anomaly Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.1.44.json`](../../use-cases/cat-22/uc-22.1.44.json)
 <a id='uc-22-1-46'></a>
 - **UC-22.1.46** — GDPR Consent Mechanism Audit (Lawful Basis Alignment)
   - Control family: `—`
@@ -163,6 +187,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.1.5.json`](../../use-cases/cat-22/uc-22.1.5.json)
+<a id='uc-22-1-6'></a>
+- **UC-22.1.6** — GDPR Cross-Border Data Transfer Monitoring
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.1.6.json`](../../use-cases/cat-22/uc-22.1.6.json)
 <a id='uc-22-1-7'></a>
 - **UC-22.1.7** — GDPR Security of Processing — Encryption and Pseudonymisation Coverage
   - Control family: `—`
@@ -420,7 +450,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
+inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
 ```
 
 To re-generate:

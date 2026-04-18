@@ -40,7 +40,7 @@ Any organisation seeking a structured, outcome-focused approach to cybersecurity
 - **Clauses tracked**: 17
 - **Clauses covered by at least one UC**: 17 / 17 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 17
+- **Contributing UCs**: 18
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -53,7 +53,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`GV.OC-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.OC-01) | Organisational context | 0.7 | `contributing` | [UC-22.7.8](#uc-22-7-8) |
 | [`GV.RM-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RM-01) | Risk management strategy | 1.0 | `contributing` | [UC-22.7.10](#uc-22-7-10) |
 | [`GV.RR-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RR-01) | Organisational leadership | 0.7 | `contributing` | [UC-22.7.11](#uc-22-7-11) |
-| [`ID.AM-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.AM-01) | Asset inventory | 1.0 | `contributing` | [UC-22.7.16](#uc-22-7-16) |
+| [`ID.AM-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.AM-01) | Asset inventory | 1.0 | `contributing` | [UC-22.7.1](#uc-22-7-1), [UC-22.7.16](#uc-22-7-16) |
 | [`ID.RA-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.RA-01) | Risk assessment | 1.0 | `contributing` | [UC-22.7.19](#uc-22-7-19) |
 | [`PR.AA-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-01) | Authentication | 1.0 | `contributing` | [UC-22.7.23](#uc-22-7-23) |
 | [`PR.AA-05`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-05) | Access permissions | 1.0 | `full` | [UC-22.7.4](#uc-22-7-4) |
@@ -70,6 +70,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-22-7-1'></a>
+- **UC-22.7.1** — NIST CSF Maturity Posture Dashboard
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.7.1.json`](../../use-cases/cat-22/uc-22.7.1.json)
 <a id='uc-22-7-10'></a>
 - **UC-22.7.10** — Enterprise Risk Appetite vs Open Critical Vulnerabilities
   - Control family: `—`
@@ -296,7 +302,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
+inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
 ```
 
 To re-generate:

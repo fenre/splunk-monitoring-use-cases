@@ -235,7 +235,7 @@ findings, **five** SPL warnings (all legitimate `dbxquery` callouts).
 ### vs. "just write your own"
 
 - **10,323 lines of automation** so you don't have to. Ours.
-- **6,304 UCs of curated content.** Would take a team of four three
+- **6,400+ UCs of curated content.** Would take a team of four three
   years to write from scratch.
 - **Zero runtime dependencies.** It'll still build in 2035.
 

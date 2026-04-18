@@ -15,7 +15,7 @@ import pathlib
 import re
 import sys
 
-REPO = pathlib.Path(__file__).resolve().parent.parent
+REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 USE_CASES = REPO / "use-cases"
 
 RE_CIM_MODELS = re.compile(

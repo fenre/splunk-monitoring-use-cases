@@ -17,8 +17,10 @@ Rules enforced
    Either the declaration is wrong or the SPL is copy-pasted from a
    different UC.
 
-The audit is advisory (no file edits). The `fix_cim_spl_alignment.py`
-companion script handles the mechanical rewrites surfaced here.
+The audit is advisory (no file edits). The companion fix script that
+performed the mechanical rewrites lives at
+``scripts/archive/fix_cim_spl_alignment.py`` (its authoring pass is
+complete; this audit catches any new drift at PR time).
 """
 from __future__ import annotations
 

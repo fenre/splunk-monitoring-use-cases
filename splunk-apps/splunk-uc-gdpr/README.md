@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-gdpr`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
@@ -18,14 +18,14 @@ This app packages **82 use cases** from the upstream catalogue that cite General
 
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
+| `Art.44` | 7 |
+| `Art.45` | 7 |
+| `Art.46` | 7 |
 | `Art.32` | 6 |
 | `Art.33` | 5 |
 | `Art.7` | 5 |
-| `Art.5(2)` | 4 |
-| `Art.17` | 3 |
-| `Art.25(1)` | 3 |
-| `Art.25(2)` | 3 |
-| `Art.32(1)(b)` | 3 |
+| `Art.17` | 4 |
+| `Art.47` | 4 |
 
 ## Installation
 
@@ -69,12 +69,12 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 
 | UC | Title | Criticality | Clauses |
 |----|-------|-------------|---------|
-| UC-22.1.1 | GDPR PII Detection in Application Log Data | critical | Art.5/6 |
-| UC-22.1.2 | GDPR Data Subject Access Request Fulfillment Tracking | critical | Art.15-22, Art.16 |
-| UC-22.1.3 | GDPR Breach Notification Timeline Monitoring | critical | Art.33, Art.72- |
+| UC-22.1.1 | GDPR PII Detection in Application Log Data | critical | Art.5, Art.6 |
+| UC-22.1.2 | GDPR Data Subject Access Request Fulfillment Tracking | critical | Art.15, Art.16, Art.17… |
+| UC-22.1.3 | GDPR Breach Notification Timeline Monitoring | critical | Art.33, Art.72 |
 | UC-22.1.4 | GDPR Data Retention Policy Enforcement | high | Art.5(1)(e) |
 | UC-22.1.5 | GDPR Consent Management Audit Trail | high | Art.7 |
-| UC-22.1.6 | GDPR Cross-Border Data Transfer Monitoring | critical | Art.44-49 |
+| UC-22.1.6 | GDPR Cross-Border Data Transfer Monitoring | critical | Art.44, Art.45, Art.46… |
 | UC-22.1.7 | GDPR Security of Processing — Encryption and Pseudonymisation Coverage | critical | Art.32 |
 | UC-22.1.8 | GDPR Records of Processing Activities Completeness | high | Art.30 |
 | UC-22.1.9 | GDPR Data Protection by Design — Data Minimisation Validation | high | Art.25 |
@@ -104,21 +104,21 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.1.33 | GDPR DPIA Residual Risk Scoring and Escalation | high | Art.35(7)(b) |
 | UC-22.1.34 | GDPR DPIA Supervisory Authority Consultation Tracking | high | Art.36 |
 | UC-22.1.35 | GDPR DPIA Remediation Monitoring and Mitigation Closure | high | Art.35(7)(d) |
-| UC-22.1.36 | GDPR Transfer Impact Assessment (TIA) Status for Third-Country Transfers | high | Art.44-46 |
+| UC-22.1.36 | GDPR Transfer Impact Assessment (TIA) Status for Third-Country Transfers | high | Art.44, Art.45, Art.46 |
 | UC-22.1.37 | GDPR Standard Contractual Clauses (SCCs) Compliance Tracking | high | Art.46(2)(c) |
-| UC-22.1.38 | GDPR Data Localization Enforcement for Restricted Processing | critical | Art.44-49 |
+| UC-22.1.38 | GDPR Data Localization Enforcement for Restricted Processing | critical | Art.44, Art.45, Art.46… |
 | UC-22.1.39 | GDPR Adequacy Decision and Legal Basis Change Monitoring | high | Art.45 |
 | UC-22.1.40 | GDPR Binding Corporate Rules (BCR) Evidence and Intra-Group Transfer Monitoring | high | Art.47 |
 | UC-22.1.41 | GDPR Unauthorized Cloud Service Detection (Shadow SaaS) | high | Art.32, Art.5(2) |
 | UC-22.1.42 | GDPR Shadow IT Personal Data Processing Indicators | high | Art.5(2) |
 | UC-22.1.43 | GDPR Personal Data in Non-Approved Systems (ROPA Drift Detection) | high | Art.30, Art.5(2) |
-| UC-22.1.44 | GDPR Cross-Border Personal Data Flow Anomaly Detection | high | Art.s. 44-49 |
+| UC-22.1.44 | GDPR Cross-Border Personal Data Flow Anomaly Detection | high | Art.44, Art.45, Art.46… |
 | UC-22.1.45 | GDPR Privacy Settings Default Validation (Privacy by Design / Default) | high | Art.25(2) |
 | UC-22.1.46 | GDPR Consent Mechanism Audit (Lawful Basis Alignment) | high | Art.21, Art.25(1), Art.7 |
 | UC-22.1.47 | GDPR Data Minimisation Compliance in Logs and APIs | high | Art.25(2), Art.5(1)(c) |
 | UC-22.1.48 | GDPR Purpose Limitation Enforcement Across Systems | high | Art.25(1), Art.5(1)(b) |
 | UC-22.1.49 | GDPR Storage Limitation Automation Evidence | high | Art.25(2), Art.5(1)(e) |
-| UC-22.1.50 | GDPR Transparency Notice Completeness and Version Alignment | high | Art.12-14, Art.25(1) |
+| UC-22.1.50 | GDPR Transparency Notice Completeness and Version Alignment | high | Art.12, Art.13, Art.14… |
 | UC-22.8.39 | SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes | medium | Art.7 |
 | UC-22.9.4 | Regulatory Incident Response Time Trending | medium | Art.33 |
 | UC-22.35.1 | Audit-log continuity: detect indexing gap indicating lost evidence | critical | Art.32(1)(b) |

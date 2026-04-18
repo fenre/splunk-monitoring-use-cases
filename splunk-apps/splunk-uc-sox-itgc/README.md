@@ -2,30 +2,30 @@
 
 App ID: `splunk-uc-sox-itgc`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **71 use cases** from the upstream catalogue that cite SOX — PCAOB AS 2201 ITGCs (`sox-itgc`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **72 use cases** from the upstream catalogue that cite SOX — PCAOB AS 2201 ITGCs (`sox-itgc`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: US
 * Versions covered: PCAOB AS 2201
-* UCs by criticality: critical = 23, high = 21, low = 9, medium = 12, unspecified = 6
+* UCs by criticality: critical = 23, high = 21, low = 9, medium = 13, unspecified = 6
 
 
 ## Most-referenced clauses
 
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
-| `SOX ITGC` | 8 |
-| `SOX §404` | 6 |
-| `ITGC.AccessMgmt.Privileged` | 4 |
-| `ITGC.ChangeMgmt.Approval` | 3 |
+| `ITGC.ChangeMgmt.Testing` | 29 |
+| `ITGC.AccessMgmt.Privileged` | 6 |
+| `ITGC.ChangeMgmt.Approval` | 5 |
+| `ITGC.Logging.Continuity` | 4 |
+| `ITGC.AccessMgmt.Provisioning` | 3 |
+| `ITGC.AccessMgmt.SOD` | 3 |
 | `ITGC.ChangeMgmt.Authorization` | 3 |
-| `ITGC.Logging.Continuity` | 3 |
 | `ITGC.Logging.Integrity` | 3 |
-| `SOX close` | 3 |
 
 ## Installation
 
@@ -76,44 +76,45 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-12.2.17 | Deploy Approval Bypass Detection |  | ITGC.ChangeMgmt.Approval |
 | UC-16.4.1 | Unauthorized Change Detection |  | ITGC.ChangeMgmt.Authorization |
 | UC-22.6.55 | ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence | medium | ITGC.ChangeMgmt.Approval |
+| UC-22.9.8 | Compliance Trending — Auditor Evidence Pack Generation Volume and Deficiency Rate | medium | ITGC.Logging.Continuity |
 | UC-22.11.95 | PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy | high | ITGC.ChangeMgmt.Testing |
 | UC-22.11.99 | PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source | critical | ITGC.Logging.Integrity |
 | UC-22.11.102 | PCI-DSS 10.7 — Log retention: CDE data-source retention + immutability attestation | high | ITGC.Logging.Integrity |
-| UC-22.12.1 | User provisioning evidence tied to financial application accounts | high | COSO |
-| UC-22.12.2 | Privileged access review completion and aging for financial systems | medium | SOX §404 |
-| UC-22.12.3 | Segregation of duties conflicts across SAP / Oracle financial roles | low | SOX §404 |
-| UC-22.12.4 | Administrator and break-glass usage on production financial hosts | critical | SOX §404 |
-| UC-22.12.5 | Terminated-user authentication after HR termination date | high | SOX §404 |
-| UC-22.12.6 | Periodic access certification exceptions for in-scope applications | medium | SOX §404 |
-| UC-22.12.7 | Orphaned and dormant accounts with recent interactive activity | low | SOX §404 |
-| UC-22.12.8 | Emergency change retrospective documentation completeness | critical | SOX ITGC |
-| UC-22.12.9 | Production configuration drift without matching approved change | high | SOX ITGC |
-| UC-22.12.10 | Change approval workflow evidence for financially material CIs | medium | SOX ITGC |
-| UC-22.12.11 | CAB evidence and high-risk change documentation gaps | low | SOX ITGC |
-| UC-22.12.12 | Production change volume during financial close windows | critical | SOX close |
-| UC-22.12.13 | Failed change rollback and backout evidence tracking | high | SOX ITGC |
-| UC-22.12.14 | Changes executed outside approved maintenance windows | medium | SOX ITGC |
-| UC-22.12.15 | Financial close batch job failures and runtime SLA breaches | low | SOX close |
-| UC-22.12.16 | General ledger database backup success within policy windows | critical | SOX ITGC |
-| UC-22.12.17 | Unauthorized batch schedule or dependency modifications | high | SOX ITGC |
-| UC-22.12.18 | ITSI service health for financial reporting dependency chain | medium | SOX availability |
-| UC-22.12.19 | Close-processing cluster CPU saturation during peak windows | low | SOX performance |
-| UC-22.12.20 | Disaster recovery test execution and evidence correlation | critical | SOX DR |
-| UC-22.12.21 | Priority incident aging for finance-critical configuration items | high | SOX operations |
-| UC-22.12.22 | Financial close checklist task completion by owner | medium | SOX close |
-| UC-22.12.23 | After-hours and high-value journal entry concentration | low | SOX JE |
-| UC-22.12.24 | Sequential ERP document number gap detection | critical | SOX audit trail |
-| UC-22.12.25 | Duplicate disbursement pattern detection in AP subledger | high | SOX cash |
-| UC-22.12.26 | Sensitive management financial report access and export | medium | SOX reporting |
-| UC-22.12.27 | Subledger-to-general-ledger reconciliation variance monitoring | low | SOX reconciliation |
-| UC-22.12.28 | Quarterly privileged ERP role population for sign-off | critical | SOX access |
-| UC-22.12.29 | IT control testing sample evidence retrieval by control ID | high | SOX testing |
-| UC-22.12.30 | Open IT control exception aging and escalation tiers | medium | SOX exceptions |
-| UC-22.12.31 | Audit finding remediation milestone and due-date risk | low | SOX remediation |
-| UC-22.12.32 | External audit IT finding closure and retest documentation | critical | SOX audit |
-| UC-22.12.33 | IT control self-assessment questionnaire completion rates | high | SOX CSA |
-| UC-22.12.34 | IT risk register residual score movement for financial reporting risks | medium | SOX risk |
-| UC-22.12.35 | Monthly ITGC KPI pack for management review evidence | low | SOX management review |
+| UC-22.12.1 | User provisioning evidence tied to financial application accounts | high | ITGC.AccessMgmt.Provisioning |
+| UC-22.12.2 | Privileged access review completion and aging for financial systems | medium | ITGC.AccessMgmt.Privileged |
+| UC-22.12.3 | Segregation of duties conflicts across SAP / Oracle financial roles | low | ITGC.AccessMgmt.SOD |
+| UC-22.12.4 | Administrator and break-glass usage on production financial hosts | critical | ITGC.ChangeMgmt.Testing |
+| UC-22.12.5 | Terminated-user authentication after HR termination date | high | ITGC.AccessMgmt.Termination |
+| UC-22.12.6 | Periodic access certification exceptions for in-scope applications | medium | ITGC.ChangeMgmt.Testing |
+| UC-22.12.7 | Orphaned and dormant accounts with recent interactive activity | low | ITGC.ChangeMgmt.Testing |
+| UC-22.12.8 | Emergency change retrospective documentation completeness | critical | ITGC.ChangeMgmt.Testing |
+| UC-22.12.9 | Production configuration drift without matching approved change | high | ITGC.ChangeMgmt.Testing |
+| UC-22.12.10 | Change approval workflow evidence for financially material CIs | medium | ITGC.ChangeMgmt.Approval |
+| UC-22.12.11 | CAB evidence and high-risk change documentation gaps | low | ITGC.ChangeMgmt.Approval |
+| UC-22.12.12 | Production change volume during financial close windows | critical | ITGC.ChangeMgmt.Testing |
+| UC-22.12.13 | Failed change rollback and backout evidence tracking | high | ITGC.ChangeMgmt.Testing |
+| UC-22.12.14 | Changes executed outside approved maintenance windows | medium | ITGC.ChangeMgmt.Testing |
+| UC-22.12.15 | Financial close batch job failures and runtime SLA breaches | low | ITGC.ChangeMgmt.Testing |
+| UC-22.12.16 | General ledger database backup success within policy windows | critical | ITGC.ChangeMgmt.Testing |
+| UC-22.12.17 | Unauthorized batch schedule or dependency modifications | high | ITGC.ChangeMgmt.Testing |
+| UC-22.12.18 | ITSI service health for financial reporting dependency chain | medium | ITGC.ChangeMgmt.Testing |
+| UC-22.12.19 | Close-processing cluster CPU saturation during peak windows | low | ITGC.ChangeMgmt.Testing |
+| UC-22.12.20 | Disaster recovery test execution and evidence correlation | critical | ITGC.ChangeMgmt.Testing |
+| UC-22.12.21 | Priority incident aging for finance-critical configuration items | high | ITGC.ChangeMgmt.Testing |
+| UC-22.12.22 | Financial close checklist task completion by owner | medium | ITGC.ChangeMgmt.Testing |
+| UC-22.12.23 | After-hours and high-value journal entry concentration | low | ITGC.ChangeMgmt.Testing |
+| UC-22.12.24 | Sequential ERP document number gap detection | critical | ITGC.ChangeMgmt.Testing |
+| UC-22.12.25 | Duplicate disbursement pattern detection in AP subledger | high | ITGC.ChangeMgmt.Testing |
+| UC-22.12.26 | Sensitive management financial report access and export | medium | ITGC.AccessMgmt.Review |
+| UC-22.12.27 | Subledger-to-general-ledger reconciliation variance monitoring | low | ITGC.ChangeMgmt.Testing |
+| UC-22.12.28 | Quarterly privileged ERP role population for sign-off | critical | ITGC.AccessMgmt.Privileged |
+| UC-22.12.29 | IT control testing sample evidence retrieval by control ID | high | ITGC.ChangeMgmt.Testing |
+| UC-22.12.30 | Open IT control exception aging and escalation tiers | medium | ITGC.ChangeMgmt.Testing |
+| UC-22.12.31 | Audit finding remediation milestone and due-date risk | low | ITGC.ChangeMgmt.Testing |
+| UC-22.12.32 | External audit IT finding closure and retest documentation | critical | ITGC.ChangeMgmt.Testing |
+| UC-22.12.33 | IT control self-assessment questionnaire completion rates | high | ITGC.ChangeMgmt.Testing |
+| UC-22.12.34 | IT risk register residual score movement for financial reporting risks | medium | ITGC.ChangeMgmt.Testing |
+| UC-22.12.35 | Monthly ITGC KPI pack for management review evidence | low | ITGC.ChangeMgmt.Testing |
 | UC-22.12.36 | SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence | high | ITGC.AccessMgmt.Provisioning |
 | UC-22.12.37 | SOX-ITGC AccessMgmt.Termination — Deprovisioning SLA after HR termination event | critical | ITGC.AccessMgmt.Termination |
 | UC-22.12.38 | SOX-ITGC ChangeMgmt.Testing — Financial-system change test-evidence completeness | high | ITGC.ChangeMgmt.Testing |

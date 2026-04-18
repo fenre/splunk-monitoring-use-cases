@@ -556,8 +556,8 @@ Non-trivial architectural changes are captured as ADRs under [`docs/adr/`](adr/)
 ### 12.2 Performance
 
 - Static site, cold page-load dominated by `data.js` size (currently ~37 MB).
-- **Virtualised list** renders only visible UCs; list of 6,300+ items remains responsive.
-- Search index is built once on page load and kept in memory; typing is O(n) over ~6,300 short strings (tens of ms).
+- **Virtualised list** renders only visible UCs; list of 6,400+ items remains responsive.
+- Search index is built once on page load and kept in memory; typing is O(n) over ~6,400 short strings (tens of ms).
 - `api/cat-N.json` shards limit payload size for programmatic consumers who only need one category.
 
 ### 12.3 SEO

@@ -196,7 +196,7 @@ def _tool_definitions() -> list[Tool]:
         Tool(
             name="search_use_cases",
             description=(
-                "Search the catalogue (6,424 UCs) by optional keyword + "
+                "Search the catalogue (6,400+ UCs) by optional keyword + "
                 "category/regulation/equipment/MITRE filters. Returns a "
                 "compact list suitable for follow-up get_use_case calls."
             ),
@@ -308,7 +308,7 @@ def _register_resources(server: Server, catalog: Catalog) -> None:
 
     @server.list_resources()
     async def _list_resources() -> list[Any]:
-        # The catalogue is 6,424 UCs + 60 regulations + 105 equipment — too
+        # The catalogue is 6,400+ UCs + 60 regulations + 105 equipment — too
         # many to enumerate eagerly. We publish resource *templates* via
         # read_resource instead of individual entries; clients that want
         # a full list can call list_categories / list_regulations /

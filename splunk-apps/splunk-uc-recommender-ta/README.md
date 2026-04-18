@@ -2,7 +2,7 @@
 
 App ID: `splunk-uc-recommender-ta`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`
+Generated: `2026-04-18T17:28:10Z`
 
 Enterprise-only companion TA for the primary
 [`splunk-uc-recommender`](../splunk-uc-recommender/README.md) app.

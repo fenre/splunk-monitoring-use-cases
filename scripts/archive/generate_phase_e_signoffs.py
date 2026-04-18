@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 REG_PATH = REPO_ROOT / "data" / "regulations.json"
 SIGNOFF_PATH = REPO_ROOT / "data" / "provenance" / "sme-signoffs.json"
 USE_CASES_ROOT = REPO_ROOT / "use-cases"

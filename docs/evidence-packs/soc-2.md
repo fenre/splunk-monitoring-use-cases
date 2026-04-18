@@ -40,7 +40,7 @@ Any service organisation whose customers rely on the organisation's controls for
 - **Clauses tracked**: 16
 - **Clauses covered by at least one UC**: 16 / 16 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 32
+- **Contributing UCs**: 56
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -50,21 +50,21 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`CC1.1`](https://www.aicpa-cima.com/tsc2017#CC1.1) | Integrity and ethical values | 0.7 | `full` | [UC-22.8.36](#uc-22-8-36) |
-| [`CC2.1`](https://www.aicpa-cima.com/tsc2017#CC2.1) | Internal communication | 0.7 | `contributing` | [UC-22.8.4](#uc-22-8-4) |
-| [`CC3.1`](https://www.aicpa-cima.com/tsc2017#CC3.1) | Risk assessment | 1.0 | `partial` | [UC-22.47.2](#uc-22-47-2) |
-| [`CC5.1`](https://www.aicpa-cima.com/tsc2017#CC5.1) | Control activities | 1.0 | `full` | [UC-22.47.1](#uc-22-47-1) |
-| [`CC6.1`](https://www.aicpa-cima.com/tsc2017#CC6.1) | Logical access controls | 1.0 | `full` | [UC-22.11.96](#uc-22-11-96), [UC-22.40.1](#uc-22-40-1) |
-| [`CC6.6`](https://www.aicpa-cima.com/tsc2017#CC6.6) | Encryption in transit | 1.0 | `full` | [UC-22.11.91](#uc-22-11-91), [UC-22.8.31](#uc-22-8-31) |
+| [`CC1.1`](https://www.aicpa-cima.com/tsc2017#CC1.1) | Integrity and ethical values | 0.7 | `full` | [UC-22.8.36](#uc-22-8-36), [UC-22.8.9](#uc-22-8-9) |
+| [`CC2.1`](https://www.aicpa-cima.com/tsc2017#CC2.1) | Internal communication | 0.7 | `contributing` | [UC-22.8.10](#uc-22-8-10), [UC-22.8.11](#uc-22-8-11), [UC-22.8.4](#uc-22-8-4), [UC-22.9.10](#uc-22-9-10) |
+| [`CC3.1`](https://www.aicpa-cima.com/tsc2017#CC3.1) | Risk assessment | 1.0 | `partial` | [UC-22.47.2](#uc-22-47-2), [UC-22.8.12](#uc-22-8-12), [UC-22.8.19](#uc-22-8-19), [UC-22.8.23](#uc-22-8-23), [UC-22.9.9](#uc-22-9-9) |
+| [`CC5.1`](https://www.aicpa-cima.com/tsc2017#CC5.1) | Control activities | 1.0 | `full` | [UC-22.47.1](#uc-22-47-1), [UC-22.8.15](#uc-22-8-15), [UC-22.9.8](#uc-22-9-8) |
+| [`CC6.1`](https://www.aicpa-cima.com/tsc2017#CC6.1) | Logical access controls | 1.0 | `full` | [UC-22.11.96](#uc-22-11-96), [UC-22.40.1](#uc-22-40-1), [UC-22.8.1](#uc-22-8-1), [UC-22.8.16](#uc-22-8-16) |
+| [`CC6.6`](https://www.aicpa-cima.com/tsc2017#CC6.6) | Encryption in transit | 1.0 | `full` | [UC-22.11.91](#uc-22-11-91), [UC-22.8.18](#uc-22-8-18), [UC-22.8.31](#uc-22-8-31) |
 | [`CC6.7`](https://www.aicpa-cima.com/tsc2017#CC6.7) | System boundaries and data transmission | 1.0 | `full` | [UC-22.8.32](#uc-22-8-32) |
-| [`CC7.1`](https://www.aicpa-cima.com/tsc2017#CC7.1) | System operations monitoring | 1.0 | `full` | [UC-22.11.101](#uc-22-11-101), [UC-22.11.104](#uc-22-11-104), [UC-22.12.40](#uc-22-12-40), [UC-22.6.49](#uc-22-6-49), [UC-22.8.33](#uc-22-8-33) |
-| [`CC7.2`](https://www.aicpa-cima.com/tsc2017#CC7.2) | System monitoring for anomalies | 1.0 | `partial` | [UC-22.11.99](#uc-22-11-99), [UC-22.35.2](#uc-22-35-2) |
+| [`CC7.1`](https://www.aicpa-cima.com/tsc2017#CC7.1) | System operations monitoring | 1.0 | `full` | [UC-22.11.101](#uc-22-11-101), [UC-22.11.104](#uc-22-11-104), [UC-22.12.40](#uc-22-12-40), [UC-22.6.49](#uc-22-6-49), [UC-22.8.1](#uc-22-8-1), [UC-22.8.33](#uc-22-8-33) |
+| [`CC7.2`](https://www.aicpa-cima.com/tsc2017#CC7.2) | System monitoring for anomalies | 1.0 | `partial` | [UC-22.11.99](#uc-22-11-99), [UC-22.35.2](#uc-22-35-2), [UC-22.8.13](#uc-22-8-13), [UC-22.8.14](#uc-22-8-14), [UC-22.8.17](#uc-22-8-17), [UC-22.8.20](#uc-22-8-20) (+2 more) |
 | [`CC7.3`](https://www.aicpa-cima.com/tsc2017#CC7.3) | Evaluated events and incidents | 1.0 | `full` | [UC-22.6.52](#uc-22-6-52), [UC-22.8.34](#uc-22-8-34) |
 | [`CC7.4`](https://www.aicpa-cima.com/tsc2017#CC7.4) | Incident response | 1.0 | `full` | [UC-22.11.105](#uc-22-11-105), [UC-22.8.35](#uc-22-8-35) |
-| [`CC8.1`](https://www.aicpa-cima.com/tsc2017#CC8.1) | Change management | 1.0 | `full` | [UC-22.11.92](#uc-22-11-92), [UC-22.11.95](#uc-22-11-95), [UC-22.12.38](#uc-22-12-38), [UC-22.12.39](#uc-22-12-39), [UC-22.42.1](#uc-22-42-1), [UC-22.6.55](#uc-22-6-55) |
+| [`CC8.1`](https://www.aicpa-cima.com/tsc2017#CC8.1) | Change management | 1.0 | `full` | [UC-22.11.92](#uc-22-11-92), [UC-22.11.95](#uc-22-11-95), [UC-22.12.38](#uc-22-12-38), [UC-22.12.39](#uc-22-12-39), [UC-22.42.1](#uc-22-42-1), [UC-22.6.55](#uc-22-6-55) (+2 more) |
 | [`CC9.1`](https://www.aicpa-cima.com/tsc2017#CC9.1) | Risk mitigation activities | 0.7 | `full` | [UC-22.8.37](#uc-22-8-37) |
-| [`A1.2`](https://www.aicpa-cima.com/tsc2017#A1.2) | Availability commitments | 0.7 | `full` | [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1) |
-| [`C1.1`](https://www.aicpa-cima.com/tsc2017#C1.1) | Confidentiality | 0.7 | `full` | [UC-22.11.93](#uc-22-11-93), [UC-22.8.38](#uc-22-8-38) |
+| [`A1.2`](https://www.aicpa-cima.com/tsc2017#A1.2) | Availability commitments | 0.7 | `full` | [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1), [UC-22.8.22](#uc-22-8-22), [UC-22.8.27](#uc-22-8-27), [UC-22.8.28](#uc-22-8-28) |
+| [`C1.1`](https://www.aicpa-cima.com/tsc2017#C1.1) | Confidentiality | 0.7 | `full` | [UC-22.11.93](#uc-22-11-93), [UC-22.8.29](#uc-22-8-29), [UC-22.8.38](#uc-22-8-38) |
 | [`P1.1`](https://www.aicpa-cima.com/tsc2017#P1.1) | Privacy notice | 0.4 | `full` | [UC-22.8.39](#uc-22-8-39) |
 
 ### 4.1 Contributing UC detail
@@ -201,6 +201,126 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.6.55.json`](../../use-cases/cat-22/uc-22.6.55.json)
+<a id='uc-22-8-1'></a>
+- **UC-22.8.1** — SOC 2 Trust Services Criteria Continuous Control Monitoring
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.1.json`](../../use-cases/cat-22/uc-22.8.1.json)
+<a id='uc-22-8-10'></a>
+- **UC-22.8.10** — SOC 2 CC2 — Ethical Conduct and Acceptable-Use Violation Monitoring
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.10.json`](../../use-cases/cat-22/uc-22.8.10.json)
+<a id='uc-22-8-11'></a>
+- **UC-22.8.11** — SOC 2 CC2 — Organizational Structure and Segregation-of-Duties Validation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.11.json`](../../use-cases/cat-22/uc-22.8.11.json)
+<a id='uc-22-8-12'></a>
+- **UC-22.8.12** — SOC 2 CC3 — Management Accountability for Control Deficiency Remediation SLAs
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.12.json`](../../use-cases/cat-22/uc-22.8.12.json)
+<a id='uc-22-8-13'></a>
+- **UC-22.8.13** — SOC 2 CC4 — Enterprise Risk Register Ingestion and Coverage Gaps
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.13.json`](../../use-cases/cat-22/uc-22.8.13.json)
+<a id='uc-22-8-14'></a>
+- **UC-22.8.14** — SOC 2 CC4 — Fraud Risk Scenario Testing Evidence from Anomaly Correlation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.14.json`](../../use-cases/cat-22/uc-22.8.14.json)
+<a id='uc-22-8-15'></a>
+- **UC-22.8.15** — SOC 2 CC5 — Change Impact Analysis Completeness for Production Releases
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.15.json`](../../use-cases/cat-22/uc-22.8.15.json)
+<a id='uc-22-8-16'></a>
+- **UC-22.8.16** — SOC 2 CC6 — Credential Lifecycle — Orphan and Contractor Account Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.16.json`](../../use-cases/cat-22/uc-22.8.16.json)
+<a id='uc-22-8-17'></a>
+- **UC-22.8.17** — SOC 2 CC6 — Physical Access Review Exception Tracking for Sensitive Facilities
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.17.json`](../../use-cases/cat-22/uc-22.8.17.json)
+<a id='uc-22-8-18'></a>
+- **UC-22.8.18** — SOC 2 CC6 — Encryption in Transit Policy Enforcement for Admin and API Paths
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.18.json`](../../use-cases/cat-22/uc-22.8.18.json)
+<a id='uc-22-8-19'></a>
+- **UC-22.8.19** — SOC 2 CC6 — Timeliness of Access Removal After HR Termination Events
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.19.json`](../../use-cases/cat-22/uc-22.8.19.json)
+<a id='uc-22-8-20'></a>
+- **UC-22.8.20** — SOC 2 CC7 — Unauthorized Production Configuration Change Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.20.json`](../../use-cases/cat-22/uc-22.8.20.json)
+<a id='uc-22-8-21'></a>
+- **UC-22.8.21** — SOC 2 CC7 — Incident Classification Consistency and Severity Drift Audit
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.21.json`](../../use-cases/cat-22/uc-22.8.21.json)
+<a id='uc-22-8-22'></a>
+- **UC-22.8.22** — SOC 2 CC7 — Operational Anomaly Detection on Critical Batch and API SLOs
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.22.json`](../../use-cases/cat-22/uc-22.8.22.json)
+<a id='uc-22-8-23'></a>
+- **UC-22.8.23** — SOC 2 CC7 — Vulnerability Management SLA and Exception Expiry Tracking
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.23.json`](../../use-cases/cat-22/uc-22.8.23.json)
+<a id='uc-22-8-24'></a>
+- **UC-22.8.24** — SOC 2 CC8 — Infrastructure-as-Code Drift vs Approved Terraform Modules
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.24.json`](../../use-cases/cat-22/uc-22.8.24.json)
+<a id='uc-22-8-25'></a>
+- **UC-22.8.25** — SOC 2 CC8 — Software Development Lifecycle Control Gates from CI/CD Telemetry
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.25.json`](../../use-cases/cat-22/uc-22.8.25.json)
+<a id='uc-22-8-27'></a>
+- **UC-22.8.27** — SOC 2 A1 — Capacity Planning Signals for In-Scope Production Services
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.27.json`](../../use-cases/cat-22/uc-22.8.27.json)
+<a id='uc-22-8-28'></a>
+- **UC-22.8.28** — SOC 2 A1 — Disaster Recovery Test Execution and Evidence Timestamps
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.28.json`](../../use-cases/cat-22/uc-22.8.28.json)
+<a id='uc-22-8-29'></a>
+- **UC-22.8.29** — SOC 2 C1 — Confidential Information Disposal and Secure Destruction Evidence
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.29.json`](../../use-cases/cat-22/uc-22.8.29.json)
 <a id='uc-22-8-31'></a>
 - **UC-22.8.31** — SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary
   - Control family: `crypto-drift`
@@ -261,6 +381,30 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [`use-cases/cat-22/uc-22.8.4.json`](../../use-cases/cat-22/uc-22.8.4.json)
+<a id='uc-22-8-9'></a>
+- **UC-22.8.9** — SOC 2 CC1 — Board and Committee ICT Oversight Evidence Trail
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.8.9.json`](../../use-cases/cat-22/uc-22.8.9.json)
+<a id='uc-22-9-10'></a>
+- **UC-22.9.10** — Compliance Trending — Weighted Compliance Posture Composite and Driver Attribution
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.9.10.json`](../../use-cases/cat-22/uc-22.9.10.json)
+<a id='uc-22-9-8'></a>
+- **UC-22.9.8** — Compliance Trending — Auditor Evidence Pack Generation Volume and Deficiency Rate
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.9.8.json`](../../use-cases/cat-22/uc-22.9.8.json)
+<a id='uc-22-9-9'></a>
+- **UC-22.9.9** — Compliance Trending — Regulatory Change Feed Impact Score on In-Scope Controls
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [`use-cases/cat-22/uc-22.9.9.json`](../../use-cases/cat-22/uc-22.9.9.json)
 
 ## 5. Evidence collection
 
@@ -384,7 +528,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
+inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
 ```
 
 To re-generate:

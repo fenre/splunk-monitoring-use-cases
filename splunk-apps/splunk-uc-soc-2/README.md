@@ -2,30 +2,30 @@
 
 App ID: `splunk-uc-soc-2`  
 App version: **6.1.0**  
-Generated: `2026-04-18T08:01:30Z`  
+Generated: `2026-04-18T17:28:10Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 
-This app packages **75 use cases** from the upstream catalogue that cite SOC 2 Trust Services Criteria (`soc-2`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
+This app packages **79 use cases** from the upstream catalogue that cite SOC 2 Trust Services Criteria (`soc-2`), together with the macros, eventtypes, tags, and lookup needed to operate them.  Every saved search is shipped **disabled by default** so an operator can review the SPL and tune indexes before enabling.
 
 * Regulation tier: **1**
 * Jurisdictions: US, GLOBAL
 * Versions covered: 2017 TSC
-* UCs by criticality: critical = 21, high = 40, medium = 14
+* UCs by criticality: critical = 21, high = 42, medium = 16
 
 
 ## Most-referenced clauses
 
 | Clause | UCs tagging this clause |
 |--------|-------------------------|
-| `unspecified` | 22 |
-| `CC8.1` | 9 |
-| `CC7.1` | 5 |
-| `CC7.2` | 4 |
-| `CC6.3` | 3 |
-| `A1.2` | 2 |
-| `C1.1` | 2 |
-| `CC4.1` | 2 |
+| `CC7.2` | 12 |
+| `CC8.1` | 12 |
+| `CC7.1` | 6 |
+| `A1.2` | 5 |
+| `CC3.1` | 5 |
+| `CC2.1` | 4 |
+| `CC6.1` | 4 |
+| `C1.1` | 3 |
 
 ## Installation
 
@@ -74,7 +74,7 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.6.52 | ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability | high | CC7.3 |
 | UC-22.6.54 | ISO/IEC 27001:2022 Clause 7.5 — Documented information control: policy register approval trail | medium | CC1.4 |
 | UC-22.6.55 | ISO/IEC 27001:2022 Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence | medium | CC8.1 |
-| UC-22.8.1 | SOC 2 Trust Services Criteria Continuous Control Monitoring | critical | CC6-CC8 |
+| UC-22.8.1 | SOC 2 Trust Services Criteria Continuous Control Monitoring | critical | CC6.1, CC7.1, CC8.1 |
 | UC-22.8.2 | SOC 2 System Availability and Incident Response Evidence Collection | critical | A1 |
 | UC-22.8.3 | SOC 2 Confidentiality Classification and DLP Event Audit | high | C1 |
 | UC-22.8.4 | SOC 2 Control Environment and Board-Level Attestation Workflow | medium | CC1.2, CC2.1 |
@@ -82,28 +82,28 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.8.6 | SOC 2 Processing Integrity — Financial Batch Job Reconciliation Exceptions | critical | PI1.3 |
 | UC-22.8.7 | SOC 2 Privacy — Consent Log Integrity and Downstream Propagation Checks | high | P4.2, P4.3 |
 | UC-22.8.8 | SOC 2 Fraud Risk and Anomalous Privileged Activity Correlation | critical | CC9.2 |
-| UC-22.8.9 | SOC 2 CC1 — Board and Committee ICT Oversight Evidence Trail | high | unspecified |
-| UC-22.8.10 | SOC 2 CC2 — Ethical Conduct and Acceptable-Use Violation Monitoring | medium | unspecified |
-| UC-22.8.11 | SOC 2 CC2 — Organizational Structure and Segregation-of-Duties Validation | high | unspecified |
-| UC-22.8.12 | SOC 2 CC3 — Management Accountability for Control Deficiency Remediation SLAs | high | unspecified |
-| UC-22.8.13 | SOC 2 CC4 — Enterprise Risk Register Ingestion and Coverage Gaps | high | unspecified |
-| UC-22.8.14 | SOC 2 CC4 — Fraud Risk Scenario Testing Evidence from Anomaly Correlation | critical | unspecified |
-| UC-22.8.15 | SOC 2 CC5 — Change Impact Analysis Completeness for Production Releases | high | unspecified |
-| UC-22.8.16 | SOC 2 CC6 — Credential Lifecycle — Orphan and Contractor Account Detection | high | unspecified |
-| UC-22.8.17 | SOC 2 CC6 — Physical Access Review Exception Tracking for Sensitive Facilities | high | unspecified |
-| UC-22.8.18 | SOC 2 CC6 — Encryption in Transit Policy Enforcement for Admin and API Paths | critical | unspecified |
-| UC-22.8.19 | SOC 2 CC6 — Timeliness of Access Removal After HR Termination Events | critical | unspecified |
-| UC-22.8.20 | SOC 2 CC7 — Unauthorized Production Configuration Change Detection | critical | unspecified |
-| UC-22.8.21 | SOC 2 CC7 — Incident Classification Consistency and Severity Drift Audit | high | unspecified |
-| UC-22.8.22 | SOC 2 CC7 — Operational Anomaly Detection on Critical Batch and API SLOs | high | unspecified |
-| UC-22.8.23 | SOC 2 CC7 — Vulnerability Management SLA and Exception Expiry Tracking | high | unspecified |
-| UC-22.8.24 | SOC 2 CC8 — Infrastructure-as-Code Drift vs Approved Terraform Modules | high | unspecified |
-| UC-22.8.25 | SOC 2 CC8 — Software Development Lifecycle Control Gates from CI/CD Telemetry | high | unspecified |
-| UC-22.8.26 | SOC 2 CC9 — Change Authorization Dual-Control on Privileged Cloud Roles | critical | unspecified |
-| UC-22.8.27 | SOC 2 A1 — Capacity Planning Signals for In-Scope Production Services | medium | unspecified |
-| UC-22.8.28 | SOC 2 A1 — Disaster Recovery Test Execution and Evidence Timestamps | high | unspecified |
-| UC-22.8.29 | SOC 2 C1 — Confidential Information Disposal and Secure Destruction Evidence | high | unspecified |
-| UC-22.8.30 | SOC 2 PI1 — Processing Completeness Validation Across Multi-Stage Pipelines | high | unspecified |
+| UC-22.8.9 | SOC 2 CC1 — Board and Committee ICT Oversight Evidence Trail | high | CC1.1 |
+| UC-22.8.10 | SOC 2 CC2 — Ethical Conduct and Acceptable-Use Violation Monitoring | medium | CC2.1 |
+| UC-22.8.11 | SOC 2 CC2 — Organizational Structure and Segregation-of-Duties Validation | high | CC2.1 |
+| UC-22.8.12 | SOC 2 CC3 — Management Accountability for Control Deficiency Remediation SLAs | high | CC3.1 |
+| UC-22.8.13 | SOC 2 CC4 — Enterprise Risk Register Ingestion and Coverage Gaps | high | CC7.2 |
+| UC-22.8.14 | SOC 2 CC4 — Fraud Risk Scenario Testing Evidence from Anomaly Correlation | critical | CC7.2 |
+| UC-22.8.15 | SOC 2 CC5 — Change Impact Analysis Completeness for Production Releases | high | CC5.1 |
+| UC-22.8.16 | SOC 2 CC6 — Credential Lifecycle — Orphan and Contractor Account Detection | high | CC6.1 |
+| UC-22.8.17 | SOC 2 CC6 — Physical Access Review Exception Tracking for Sensitive Facilities | high | CC7.2 |
+| UC-22.8.18 | SOC 2 CC6 — Encryption in Transit Policy Enforcement for Admin and API Paths | critical | CC6.6 |
+| UC-22.8.19 | SOC 2 CC6 — Timeliness of Access Removal After HR Termination Events | critical | CC3.1 |
+| UC-22.8.20 | SOC 2 CC7 — Unauthorized Production Configuration Change Detection | critical | CC7.2 |
+| UC-22.8.21 | SOC 2 CC7 — Incident Classification Consistency and Severity Drift Audit | high | CC8.1 |
+| UC-22.8.22 | SOC 2 CC7 — Operational Anomaly Detection on Critical Batch and API SLOs | high | A1.2 |
+| UC-22.8.23 | SOC 2 CC7 — Vulnerability Management SLA and Exception Expiry Tracking | high | CC3.1 |
+| UC-22.8.24 | SOC 2 CC8 — Infrastructure-as-Code Drift vs Approved Terraform Modules | high | CC7.2 |
+| UC-22.8.25 | SOC 2 CC8 — Software Development Lifecycle Control Gates from CI/CD Telemetry | high | CC7.2 |
+| UC-22.8.26 | SOC 2 CC9 — Change Authorization Dual-Control on Privileged Cloud Roles | critical | CC8.1 |
+| UC-22.8.27 | SOC 2 A1 — Capacity Planning Signals for In-Scope Production Services | medium | A1.2 |
+| UC-22.8.28 | SOC 2 A1 — Disaster Recovery Test Execution and Evidence Timestamps | high | A1.2 |
+| UC-22.8.29 | SOC 2 C1 — Confidential Information Disposal and Secure Destruction Evidence | high | C1.1 |
+| UC-22.8.30 | SOC 2 PI1 — Processing Completeness Validation Across Multi-Stage Pipelines | high | CC7.2 |
 | UC-22.8.31 | SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary | high | CC6.6 |
 | UC-22.8.32 | SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations | high | CC6.7 |
 | UC-22.8.33 | SOC 2 CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance | high | CC7.1 |
@@ -113,6 +113,10 @@ The per-regulation app still depends on your site's CIM / Enterprise Security in
 | UC-22.8.37 | SOC 2 CC9.1 — Risk-mitigation activity: vendor-risk action closure SLA | medium | CC9.1 |
 | UC-22.8.38 | SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary | high | C1.1 |
 | UC-22.8.39 | SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes | medium | P1.1 |
+| UC-22.9.6 | Compliance Trending — SOC 2 Control Test Pass Rate vs Prior Quarter Baseline | medium | CC7.2 |
+| UC-22.9.8 | Compliance Trending — Auditor Evidence Pack Generation Volume and Deficiency Rate | medium | CC5.1 |
+| UC-22.9.9 | Compliance Trending — Regulatory Change Feed Impact Score on In-Scope Controls | high | CC3.1 |
+| UC-22.9.10 | Compliance Trending — Weighted Compliance Posture Composite and Driver Attribution | high | CC2.1 |
 | UC-22.11.91 | PCI-DSS 1.3 — CDE network boundary: unauthorised flows between CDE and untrusted networks | critical | CC6.6 |
 | UC-22.11.92 | PCI-DSS 2.2 — Secure configuration baseline: drift from approved hardening template | high | CC8.1 |
 | UC-22.11.93 | PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs | critical | C1.1 |
