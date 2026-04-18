@@ -265,6 +265,18 @@ def _new_sidecar_from_uc(uc: Dict, existing_path: Path | None = None) -> Dict:
         for k in ("equipment", "equipmentModels"):
             if k in existing and k not in side:
                 side[k] = existing[k]
+
+        # 3) lifecycle fields that Phase 5.2 / Phase E (SME sign-off program)
+        #    owns.  This generator only seeds a sensible "community" default
+        #    at first-time UC creation; once a UC has been promoted to
+        #    ``verified`` by scripts/generate_phase_e_signoffs.py (with a
+        #    matching sme-signoffs.json record), or hand-edited by a
+        #    reviewer, we must not clobber it on regeneration.  Any existing
+        #    value always wins — the generator is never the authority on
+        #    lifecycle.
+        for k in ("status", "lastReviewed", "reviewer"):
+            if k in existing:
+                side[k] = existing[k]
     return side
 
 

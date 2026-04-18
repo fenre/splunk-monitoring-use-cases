@@ -148,11 +148,31 @@ jobs:
         # schemas/uc.schema.json, reconciles each compliance[] entry against
         # data/regulations.json, runs the golden tuple set in
         # tests/golden/compliance-mappings.yaml, and enforces the committed
-        # baseline in tests/golden/audit-baseline.json.  New clause-grammar
-        # errors (or any non-baselineable code) block merges; existing
-        # baselined findings are tolerated so cleanup can ship incrementally
-        # under Phase 3.1 of the Gold Standard plan.
+        # baseline in tests/golden/audit-baseline.json.
+        #
+        # Phase A of the regulation-coverage-gap plan drove the
+        # ``clause-grammar`` backlog from 670 findings to zero; Phase F then
+        # removed ``clause-grammar`` from ``BASELINEABLE_CODES`` in
+        # scripts/audit_compliance_mappings.py so it can never be
+        # re-baselined even with ``--update-baseline``.  Any malformed
+        # ``compliance[].clause`` string is now a hard error that blocks
+        # merges outright.  Only ``equipment-orphan`` remains baselineable;
+        # the goal is to keep that backlog shrinking until it hits zero too.
         run: python3 scripts/audit_compliance_mappings.py
+
+      - name: Compliance audit — baseline drift guard (Phase F)
+        # Phase F of the regulation-coverage-gap plan.  Double-checks that
+        # no ``clause-grammar`` fingerprint has been re-introduced into
+        # tests/golden/audit-baseline.json.  Even if a future contributor
+        # re-adds ``clause-grammar`` to BASELINEABLE_CODES in
+        # scripts/audit_compliance_mappings.py, this step would still fail
+        # CI on any baselined malformed clause.  Belt-and-braces for the
+        # "new malformed clauses are rejected outright" invariant.
+        #
+        # Fingerprints produced by
+        # ``scripts/audit_compliance_mappings.py::Finding.fingerprint``
+        # are tab-separated: ``<code>\t<uc_id>\t<path>\t<message>``.
+        run: python3 scripts/audit_baseline_clause_grammar_free.py
 
       - name: Compliance audit — generated reports committed
         run: |
@@ -245,6 +265,20 @@ jobs:
         # regeneration, a hand-edited derived entry, or a stale parent
         # mapping that should have been garbage-collected all fail CI.
         run: python3 scripts/generate_phase3_3_derivatives.py --check
+
+      - name: Phase C tier-2 gap-closure regeneration check
+        # Phase C of the regulation-coverage gap plan.
+        # scripts/author_phase_c_ucs.py is the single source of truth for the
+        # 23 tier-2 gap-closure UCs (uc-22.50.1.json .. uc-22.50.23.json) and
+        # the matching ``<!-- PHASE-C BEGIN -->`` / ``<!-- PHASE-C END -->``
+        # block in use-cases/cat-22-regulatory-compliance.md.  --check
+        # re-renders the JSON and markdown into memory and exits non-zero
+        # when either has drifted from the SPECS table inside the script.
+        # The generator is intentionally non-destructive on JSON sidecars
+        # so SME-uplift work in ``status``/``assurance`` is preserved
+        # between Phase E runs (the JSON-drift check therefore only fires
+        # when a wholly new sidecar is missing, never on field edits).
+        run: python3 scripts/author_phase_c_ucs.py --check
 
       - name: Equipment-tags regeneration check (sidecar equipment[] / equipmentModels[])
         # scripts/generate_equipment_tags.py is the single source of truth

@@ -109,12 +109,29 @@ def _validate_schema(data: dict) -> list[str]:
 def _uc_sidecar_path(uc_id: str) -> Path | None:
     """Return the expected sidecar path for a UC id, or ``None`` if the
     id does not parse.
+
+    The historical ``use-cases/`` layout uses zero-padded category
+    directories for single-digit categories (``cat-01`` … ``cat-09``)
+    and un-padded for two-digit (``cat-10`` upwards).  Resolve against
+    whichever variant actually exists on disk.
     """
     m = _UC_ID_RE.match(uc_id)
     if not m:
         return None
     cat = m.group("cat")
-    return USE_CASES / f"cat-{cat}" / f"uc-{uc_id}.json"
+    filename = f"uc-{uc_id}.json"
+    # Prefer the padded variant when the category is single-digit AND
+    # the file exists there; fall back to the un-padded form otherwise.
+    candidates: list[Path] = []
+    if len(cat) == 1:
+        candidates.append(USE_CASES / f"cat-0{cat}" / filename)
+    candidates.append(USE_CASES / f"cat-{cat}" / filename)
+    for cand in candidates:
+        if cand.is_file():
+            return cand
+    # Return the un-padded form as the "expected" path when neither
+    # variant exists so the error message reads naturally.
+    return candidates[-1]
 
 
 def _collect_uc_sme_caveats(uc_ids: list[str]) -> set[str]:

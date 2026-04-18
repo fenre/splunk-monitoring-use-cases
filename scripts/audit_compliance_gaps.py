@@ -621,6 +621,11 @@ def main(argv: Sequence[str]) -> int:
     print("Compliance gap analysis")
     for tier_label in sorted(rollups.keys()):
         r = rollups[tier_label]
+        if not r["common_clause_count"]:
+            print(
+                f"  {tier_label:6s}  no common clauses defined — not applicable"
+            )
+            continue
         print(
             f"  {tier_label:6s}  clauses={r['common_clause_count']:>4d}  "
             f"covered={r['covered_count']:>4d}  "

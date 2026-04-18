@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.4",
+  "title": "§164.504(e) Business Associate activity — PHI access by BA principals",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "DPO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=HIPAA Privacy, clause=§164.504(e), available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "HIPAA Privacy",
+      "version": "current",
+      "clause": "§164.504(e)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting HIPAA Privacy §164.504(e) (Business Associate contracts). Uses continuous, production-grade Splunk telemetry to provide auditor-facing evidence; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "Access logs from PHI systems enriched with principal classification (workforce vs BA).",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=phi_access earliest=-7d\n| lookup principals.csv principal_id OUTPUT principal_type, ba_contract_id, ba_expiry\n| where principal_type=\"business_associate\"\n| eval contract_valid=if(strptime(ba_expiry, \"%Y-%m-%d\") > now(), \"yes\", \"no\")\n| stats count AS accesses values(action) AS actions min(_time) AS first_seen max(_time) AS last_seen BY principal_id, ba_contract_id, contract_valid\n| where contract_valid=\"no\" OR isnull(ba_contract_id)",
+  "description": "Flags PHI access by business associates whose BAA is missing or expired, providing §164.504(e) evidence.",
+  "value": "HIPAA §164.504(e) requires BAAs; continuous verification that no BA accesses PHI outside a valid contract is primary evidence.",
+  "implementation": "(1) Maintain principals.csv mapping principal_id→ba_contract_id/ba_expiry; (2) schedule daily; (3) route findings to the HIPAA Privacy Officer queue.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "45 CFR §164.504(e)",
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-E/section-164.504",
+      "retrieved": "2026-04-18"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "mitreAttack": [],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-18",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

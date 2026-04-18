@@ -97,12 +97,20 @@ except Exception:  # pragma: no cover - defensive for bootstrap paths
 
 # Codes that can be tolerated via the baseline. Adding a code here means CI
 # will accept existing occurrences of it but still block new ones.
+#
 # ``equipment-orphan`` is baselineable because the lint is informational
 # (narrative matches aren't always semantically meaningful — a string like
 # "Cisco" may be part of a hostname, not an equipment reference). The
 # baseline tracks the current backlog and prevents new regressions without
 # blocking on imperfect narrative-to-tag alignment.
-BASELINEABLE_CODES = frozenset({"clause-grammar", "equipment-orphan"})
+#
+# Phase F of the regulation-coverage-gap plan removed ``clause-grammar``
+# from this set.  After Phase A drove that baseline to zero, tolerating
+# any future ``clause-grammar`` finding would defeat the purpose of the
+# ``clauseGrammar`` regex in ``data/regulations.json``.  Malformed
+# clauses are now a hard error and cannot be re-baselined even with
+# ``--update-baseline``.
+BASELINEABLE_CODES = frozenset({"equipment-orphan"})
 
 
 def _deterministic_timestamp() -> str:
@@ -959,6 +967,11 @@ def _markdown_for(payload: Dict[str, Any]) -> str:
     out.append("| Tier | Clause % | Priority-weighted % | Assurance-adjusted % |")
     out.append("|------|----------|----------------------|-----------------------|")
     for tier, m in payload["coverage"]["perTier"].items():
+        if not m.get("denominator_count", 0):
+            out.append(
+                f"| {tier} | n/a (no common clauses defined) | n/a | n/a |"
+            )
+            continue
         out.append(
             f"| {tier} | {m['clause_pct']} | {m['priority_pct']} | {m['assurance_pct']} |"
         )
@@ -1284,6 +1297,11 @@ def _print_pretty(payload: Dict[str, Any]) -> None:
         f"assurance% {g['assurance_pct']:>6.2f}\n"
     )
     for tier, m in payload["coverage"]["perTier"].items():
+        if not m.get("denominator_count", 0):
+            out.write(
+                f"  {tier:<8s} no common clauses defined — not applicable\n"
+            )
+            continue
         out.write(
             f"  {tier:<8s} clause% {m['clause_pct']:>6.2f}  "
             f"priority% {m['priority_pct']:>6.2f}  "

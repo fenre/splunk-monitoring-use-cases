@@ -27,7 +27,7 @@ Grades:
 
 ## Global rollup
 
-- **Total UCs:** 6,424
+- **Total UCs:** 6,447
 - **Weighted composite score:** 63.1 — overall grade **Bronze**
 
 ## Per-category scorecard
@@ -55,7 +55,7 @@ Grades:
 | 19 | Compute Infrastructure (HCI & Converged) | 72 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 20 | Cost & Capacity Management | 77 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 | 21 | Industry Verticals | 129 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
-| 22 | Regulatory and Compliance Frameworks | 1,287 | 100.0% | 100.0% | 10% | — | 99 | 0.0% | **65.7** | **Bronze** |
+| 22 | Regulatory and Compliance Frameworks | 1,310 | 100.0% | 100.0% | 10% | — | 98 | 0.0% | **65.4** | **Bronze** |
 | 23 | Business Analytics & Executive Intelligence | 63 | 100.0% | 0.0% | 0% | — | 100 | 0.0% | **50.0** | **Needs work** |
 
 \* MITRE coverage counts only UCs whose `pillar` is `security` or `both`.
@@ -66,7 +66,7 @@ Grades:
 | ----- | ---------- | --------- |
 | **Gold** | 0 | 0 |
 | **Silver** | 3 | 2,611 |
-| **Bronze** | 4 | 2,019 |
+| **Bronze** | 4 | 2,042 |
 | **Needs work** | 16 | 1,794 |
 
 ## How to improve a score

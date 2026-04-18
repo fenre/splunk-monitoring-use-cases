@@ -74,14 +74,32 @@ was hardened so malformed clauses can never be re-baselined.
   topic and a `priorityWeight` keyed off the regulator's language
   (1.0 for mandatory, 0.7 for strong recommendations).  Tier-2 therefore
   has a meaningful denominator instead of showing a misleading 0%.
-- **Phase C — authored 23 new UC sidecars for the remaining uncovered
-  tier-2 clauses** — `scripts/author_phase_c_ucs.py` is the deterministic
-  generator for `use-cases/cat-22/uc-22.50.1.json` through
-  `use-cases/cat-22/uc-22.50.23.json`.  Each UC closes exactly one uncovered
-  clause with a descriptive title, placeholder SPL, and compliance metadata
-  seeded at `status: "community"` + `assurance: "contributing"` so human
-  SMEs can later upgrade the evidence grade.  After this phase, tier-1 and
-  tier-2 sit at 100% clause coverage and 100% priority-weighted coverage.
+- **Phase C — authored 23 new UCs for the remaining uncovered
+  tier-2 clauses (markdown + JSON, single source of truth)** —
+  `scripts/author_phase_c_ucs.py` is the deterministic generator for both
+  the JSON sidecars (`use-cases/cat-22/uc-22.50.1.json` through
+  `uc-22.50.23.json`) **and** the matching markdown block in
+  `use-cases/cat-22-regulatory-compliance.md`.  Each UC closes exactly one
+  uncovered clause with a descriptive title, scaffolded SPL, and compliance
+  metadata seeded at `status: "community"` + `assurance: "contributing"` so
+  human SMEs can later upgrade the evidence grade.  The script renders the
+  markdown block between `<!-- PHASE-C BEGIN -->` / `<!-- PHASE-C END -->`
+  fences identical in shape to the Phase 2.2 / 2.3 generators it sits next
+  to, is non-destructive on existing JSON sidecars (so `status` and
+  `assurance` SME uplifts are preserved between Phase E runs), and ships
+  with a CI guard (`scripts/author_phase_c_ucs.py --check`) wired into
+  `.github/workflows/validate.yml` so any drift between the SPECS table,
+  the 23 sidecars, and the markdown block fails the build.  As a
+  sweep-up, the longstanding title-drift on `UC-22.19.3` was reconciled
+  ("Continuous monitoring — indicator 3" → "STIG file-integrity hash
+  mismatch (FISMA / FedRAMP)" — the descriptive markdown title is now
+  canonical, the JSON `cimModels` lost its parser-artefact `"or N/A"`
+  entry, and the markdown CIM SPL was retargeted from
+  `Authentication.Authentication` to `Change.All_Changes` so it actually
+  reflects the file-integrity check the SPL performs).  After this
+  phase, tier-1 and tier-2 sit at 100% clause coverage and 100%
+  priority-weighted coverage, and the catalogue grew from 6,424 to
+  6,447 UCs.
 - **Phase D — re-tagged the 11 `meta-multi "Multiple"` UCs** —
   `scripts/retag_meta_multi_ucs.py` replaces the placeholder regulation
   with 2–4 concrete framework mappings per UC (SOC 2, ISO 27001, AU
