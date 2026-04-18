@@ -1060,7 +1060,8 @@ index=messaging sourcetype="rabbitmq:queue"
 ```spl
 index=kafka sourcetype="kafka:broker"
 | stats latest(UnderReplicatedPartitions) as under_replicated, latest(ActiveControllerCount) as controllers by broker_id
-| where under_replicated > 0 OR controllers != 1
+| eventstats sum(controllers) as cluster_controllers
+| where under_replicated > 0 OR cluster_controllers != 1
 ```
 - **Implementation:** Poll broker health metrics via JMX every minute. Track disk usage, CPU, memory, network I/O. Alert on broker offline, under-replicated partitions, or controller election. Monitor ISR (In-Sync Replica) shrink rate.
 - **Visualization:** Status grid (broker × health), Single value (under-replicated partitions), Table (broker metrics), Line chart (broker resource usage).
@@ -1799,7 +1800,8 @@ index=api sourcetype="kong:access"
 - **SPL:**
 ```spl
 index=api sourcetype="kong:access"
-| stats count, dc(src) as ips by credential_id, _time span=1h
+| bin _time span=1h
+| stats count, dc(src) as ips by credential_id, _time
 | where count > 10000 OR ips > 50
 | table credential_id count ips
 ```
@@ -2301,7 +2303,8 @@ index=nomad sourcetype="nomad:allocations"
 ```spl
 index=asterisk sourcetype="asterisk:cdr"
 | eval duration_sec=tonumber(duration)
-| stats count as calls, avg(duration_sec) as acd, count(eval(disposition=="ANSWERED")) as answered by _time span=1h
+| bin _time span=1h
+| stats count as calls, avg(duration_sec) as acd, count(eval(disposition=="ANSWERED")) as answered by, _time
 | eval asr=round(answered/calls*100,2)
 | where asr < 80 OR acd < 60
 ```

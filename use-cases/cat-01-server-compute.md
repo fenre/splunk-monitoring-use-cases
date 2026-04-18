@@ -530,10 +530,8 @@ index=os sourcetype=syslog ("Remounting filesystem read-only" OR "EXT4-fs error"
 index=os sourcetype=syslog ("Initializing cgroup subsys" OR "Linux version" OR "Command line:" OR "systemd.*Started" OR "Booting Linux")
 | stats latest(_time) as last_boot by host
 | eval hours_since_boot = round((now() - last_boot) / 3600, 1)
-| sort hours_since_boot
-
-| comment "Cross-reference with maintenance windows"
 | join max=1 host [| inputlookup maintenance_windows.csv | where status="approved"]
+| sort hours_since_boot
 ```
 - **Implementation:** Forward syslog. Detect boot-up log patterns. Cross-reference boot times with maintenance window lookups to flag unplanned reboots. Alert on any reboot outside approved windows.
 - **Visualization:** Table (host, last boot, planned/unplanned), Timeline of reboots, Single value panel (unexpected reboots last 7d).
@@ -2880,8 +2878,10 @@ index=os sourcetype=systemd_units host=*
 | stats latest(ActiveState) as state, latest(SubState) as substate, values(Unit) as units by host
 | where state!="active"
 | table host state substate units
+```
+> **Restart count tracking.**
 
-| comment "Restart count tracking"
+```spl
 index=os sourcetype=systemd_units host=* NRestarts>0
 | stats sum(NRestarts) as total_restarts by host, Unit
 | where total_restarts > 5
@@ -2908,8 +2908,10 @@ index=os sourcetype=psi host=*
 | eval resource=coalesce(cpu_resource, mem_resource, io_resource)
 | timechart span=5m avg(avg10) as avg10_pct, avg(avg60) as avg60_pct, avg(avg300) as avg300_pct by host, resource
 | where avg10_pct > 10 OR avg60_pct > 5
+```
+> **Per-cgroup PSI (if collected).**
 
-| comment "Per-cgroup PSI (if collected)"
+```spl
 index=os sourcetype=psi host=* cgroup=*
 | stats latest(avg10) as pressure by host, cgroup, resource
 | where pressure > 20
@@ -2936,8 +2938,10 @@ index=os sourcetype=entropy host=*
 | stats latest(entropy_avail) as avail by host
 | where avail < 200
 | table host avail
+```
+> **Trending.**
 
-| comment "Trending"
+```spl
 index=os sourcetype=entropy host=*
 | timechart span=5m avg(entropy_avail) as entropy by host
 | where entropy < 500
@@ -2963,8 +2967,10 @@ index=os sourcetype=journal_health host=*
 | stats latest(disk_usage_mb) as size_mb, latest(corruption_status) as corrupt, latest(suppressed_count) as suppressed by host
 | where corrupt="inconsistent" OR corrupt="corrupt" OR size_mb > 4096 OR suppressed > 100
 | table host size_mb corrupt suppressed
+```
+> **Size trending.**
 
-| comment "Size trending"
+```spl
 index=os sourcetype=journal_health host=*
 | timechart span=1h avg(disk_usage_mb) as journal_mb by host
 ```
@@ -2989,8 +2995,10 @@ index=os sourcetype=ntp_status host=*
 | stats latest(offset_ms) as offset, latest(stratum) as stratum, latest(reachability) as reach by host
 | where abs(offset) > 100 OR stratum > 10 OR reachability < 377
 | table host offset stratum reachability
+```
+> **Offset trending.**
 
-| comment "Offset trending"
+```spl
 index=os sourcetype=ntp_status host=*
 | timechart span=15m avg(offset_ms) as offset_ms by host
 | where abs(offset_ms) > 50
@@ -3016,8 +3024,10 @@ index=os sourcetype=vmstat host=*
 | eval swap_io_rate = si + so
 | timechart span=5m avg(swap_io_rate) as avg_swap_rate, avg(si) as swap_in, avg(so) as swap_out by host
 | where avg_swap_rate > 100
+```
+> **Baseline deviation alert.**
 
-| comment "Baseline deviation alert"
+```spl
 index=os sourcetype=vmstat host=*
 | eval swap_rate = si + so
 | bin _time span=1h
@@ -3052,8 +3062,10 @@ index=os sourcetype=df_inode host=*
 | where inode_pct > 90
 | sort -inode_pct
 | table host Filesystem MountedOn inode_pct
+```
+> **Warning threshold.**
 
-| comment "Warning threshold"
+```spl
 index=os sourcetype=df_inode host=*
 | stats latest(IUsePct) as inode_pct by host, MountedOn
 | where inode_pct > 80
@@ -3079,8 +3091,10 @@ index=os sourcetype=irq_stats host=*
 | eval irq_pct = softirq_pct + hardirq_pct
 | timechart span=5m avg(irq_pct) as irq_total, avg(softirq_pct) as softirq, avg(hardirq_pct) as hardirq by host
 | where irq_total > 20
+```
+> **Per-CPU IRQ breakdown.**
 
-| comment "Per-CPU IRQ breakdown"
+```spl
 index=os sourcetype=irq_stats host=* cpu=*
 | stats latest(softirq_pct) as softirq, latest(hardirq_pct) as hardirq by host, cpu
 | where softirq > 30 OR hardirq > 15
@@ -3110,8 +3124,10 @@ index=os sourcetype=tcp_states host=*
 | stats latest(ESTAB) as established, latest(TIME-WAIT) as time_wait, latest(CLOSE-WAIT) as close_wait, latest(SYN-RECV) as syn_recv by host
 | where close_wait > 1000 OR time_wait > 10000
 | table host established time_wait close_wait syn_recv
+```
+> **Connection leak detection (CLOSE_WAIT growth).**
 
-| comment "Connection leak detection (CLOSE_WAIT growth)"
+```spl
 index=os sourcetype=tcp_states host=*
 | timechart span=15m avg(CLOSE-WAIT) as close_wait by host
 | where close_wait > 500
@@ -3139,8 +3155,10 @@ index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
 | rex "Killed process (?<pid>\d+) \((?<process>[^)]+)\)"
 | stats count as oom_count by host, process, _time
 | sort -_time -oom_count
+```
+> **OOM events in last 24h.**
 
-| comment "OOM events in last 24h"
+```spl
 index=os (sourcetype=syslog OR sourcetype=linux_secure) host=*
 | search "oom-kill" OR "Out of memory" "Killed process"
 | stats count by host
@@ -3469,8 +3487,10 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=1001 SourceName="Bug
 index=wineventlog sourcetype="WinEventLog:Security" EventCode=4624 LogonType=10
 | table _time TargetUserName IpAddress host
 | sort -_time
+```
+> **Also check TerminalServices for session duration.**
 
-| comment "Also check TerminalServices for session duration"
+```spl
 index=wineventlog source="WinEventLog:Microsoft-Windows-TerminalServices-LocalSessionManager/Operational" (EventCode=21 OR EventCode=23 OR EventCode=24 OR EventCode=25)
 | table _time host User EventCode
 ```
@@ -3516,8 +3536,10 @@ index=wineventlog sourcetype="WinEventLog:Microsoft-Windows-PowerShell/Operation
 index=wineventlog sourcetype="WinEventLog:DNS Server"
 | stats count by EventCode
 | sort -count
+```
+> **Query volume trending.**
 
-| comment "Query volume trending"
+```spl
 index=dns sourcetype="MSAD:NT6:DNS"
 | timechart span=5m count as query_count by QTYPE
 ```
@@ -4768,8 +4790,10 @@ index=wineventlog sourcetype="WinEventLog:System" EventCode=1101
 | table _time, host, Channel
 | stats count by host, Channel
 | sort -count
+```
+> **Alternatively via scripted input.**
 
-| comment "Alternatively via scripted input"
+```spl
 index=os sourcetype=windows:eventlog:size
 | where used_pct > 90
 | table _time, host, log_name, current_size_MB, max_size_MB, used_pct
@@ -4849,8 +4873,10 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4769
 | where TicketEncryptionType="0x17" AND ticket_age > 36000
 | table _time, host, TargetUserName, ServiceName, IpAddress, TicketEncryptionType
 | sort -_time
+```
+> **Also detect TGT requests with RC4 from non-standard IPs.**
 
-| comment "Also detect TGT requests with RC4 from non-standard IPs"
+```spl
 index=wineventlog sourcetype="WinEventLog:Security" EventCode=4768 TicketEncryptionType=0x17
 | stats count by TargetUserName, IpAddress
 ```
@@ -6381,11 +6407,13 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operationa
 - **SPL:**
 ```spl
 index=wineventlog source="WinEventLog:System" EventCode=7036 ServiceName="Spooler"
-| eval state=case(Message="*stopped*", "stopped", Message="*started*", "started", "running")
+| eval state=case(match(Message, "stopped"), "stopped", match(Message, "started"), "started", true(), "running")
 | stats latest(_time) as last_change, latest(state) as current_state by host
 | where current_state="stopped"
+```
+> **Print queue depth.**
 
-| comment "Print queue depth"
+```spl
 index=perfmon sourcetype=Perfmon:PrintQueue host=* counter="Jobs"
 | stats latest(Value) as queue_depth by host, instance
 | where queue_depth > 50
@@ -6413,8 +6441,10 @@ index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operationa
 | eval task_result=case(ResultCode=0,"Success", ResultCode=1,"InProgress", ResultCode=2,"Disabled", ResultCode=267009,"AccessDenied", ResultCode=2147942401,"IncorrectPath", 1=1,"Other")
 | table _time host TaskName ResultCode task_result
 | sort -_time
+```
+> **Failed task count by host.**
 
-| comment "Failed task count by host"
+```spl
 index=wineventlog source="WinEventLog:Microsoft-Windows-TaskScheduler/Operational" EventCode=201 ResultCode!=0
 | stats count by host, TaskName
 | sort -count
@@ -6440,8 +6470,10 @@ index=os sourcetype=wmi_verify host=*
 | stats latest(verify_result) as result, latest(repository_status) as status by host
 | where result!="consistent" OR status="inconsistent"
 | table host result status
+```
+> **WMI verification failure events.**
 
-| comment "WMI verification failure events"
+```spl
 index=os sourcetype=wmi_verify host=*
 | search "inconsistent" OR "corrupt" OR "failed"
 | table _time host _raw
@@ -6467,8 +6499,10 @@ index=os sourcetype=windows_pending_reboot host=*
 | stats latest(reboot_pending) as pending, latest(reason) as reason by host
 | where pending="true"
 | table host pending reason
+```
+> **Fleet pending reboot count.**
 
-| comment "Fleet pending reboot count"
+```spl
 index=os sourcetype=windows_pending_reboot host=*
 | stats latest(reboot_pending) as pending by host
 | search pending="true"
@@ -6608,8 +6642,10 @@ index=os sourcetype=macos_gatekeeper host=*
 | stats latest(gatekeeper_status) as gatekeeper, latest(xprotect_version) as xprotect_ver, latest(xprotect_date) as xprotect_date by host
 | where gatekeeper!="assessments enabled" OR gatekeeper="disabled"
 | table host gatekeeper xprotect_ver xprotect_date
+```
+> **XProtect definition age.**
 
-| comment "XProtect definition age"
+```spl
 index=os sourcetype=macos_gatekeeper host=*
 | eval xprotect_age_days = now() - strptime(xprotect_date, "%Y-%m-%d")
 | where xprotect_age_days > 30

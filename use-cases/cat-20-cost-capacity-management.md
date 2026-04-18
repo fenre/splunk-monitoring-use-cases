@@ -278,7 +278,8 @@ index=aws sourcetype="aws:cloudtrail" earliest=-30d
 ```spl
 index=finops sourcetype="aws:budget:alert" earliest=-7d
 | eval budget_name=coalesce(budget_name,BudgetName)
-| join type=left max=1 budget_name [ search index=cloud_cost sourcetype="cost:daily" earliest=-7d | stats sum(cost) as daily_cost by account_id, _time span=1d ]
+| join type=left max=1 budget_name [ search index=cloud_cost sourcetype="cost:daily" earliest=-7d | bin _time span=1d
+| stats sum(cost) as daily_cost by account_id, _time ]
 | table _time, budget_name, threshold_type, daily_cost
 ```
 - **Implementation:** Ingest budget notifications via HEC or Lambda. Drill down to service cost change same day. Link to change tickets.
@@ -870,7 +871,8 @@ index=cloud_cost sourcetype="aws:savings_plan"
 - **SPL:**
 ```spl
 index=cloud_cost sourcetype="cost:daily"
-| stats sum(cost) as daily_cost by service, account_id, _time span=1d
+| bin _time span=1d
+| stats sum(cost) as daily_cost by service, account_id, _time
 | eventstats avg(daily_cost) as avg_cost, stdev(daily_cost) as std_cost by service, account_id
 | where daily_cost > (avg_cost + (3*std_cost))
 | table service, account_id, daily_cost, avg_cost, std_cost
@@ -964,7 +966,8 @@ index=cloud_cost sourcetype="cost:forecast"
 index=licenses (sourcetype="license:server" OR sourcetype="license:usage")
 | eval concurrent_in_use=coalesce(concurrent_in_use, in_use, used_count)
 | eval total_licensed=coalesce(total_licensed, total_entitled, license_count)
-| stats latest(concurrent_in_use) as used, latest(total_licensed) as total by product, vendor, license_server, _time span=1d
+| bin _time span=1d
+| stats latest(concurrent_in_use) as used, latest(total_licensed) as total by product, vendor, license_server, _time
 | eval utilization_pct=round((used/total)*100, 1)
 | eval status=case(utilization_pct>=95, "At Risk", utilization_pct>=80, "High", utilization_pct<40, "Over-licensed", 1==1, "Healthy")
 | lookup cmdb_software_inventory product OUTPUT cost_per_seat, cost_center

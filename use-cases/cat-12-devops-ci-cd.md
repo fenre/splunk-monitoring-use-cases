@@ -1230,11 +1230,12 @@ index=cicd sourcetype="release:build"
 - **Monitoring type:** Security
 - **Value:** Cosign/Notary verification results at deploy time—signature missing or wrong key.
 - **App/TA:** Cosign, Sigstore Rekor
-- **Data Sources:** Verify command JSON `verified`, `issuer`
+- **Data Sources:** Verify command JSON `verified`, `issuer`; lookup `trusted_signing_issuers.csv` maintained by the platform team with `issuer` → `trusted` (true/false)
 - **SPL:**
 ```spl
 index=cicd sourcetype="cosign:verify"
-| where verified="false" OR issuer NOT IN ("oidc://token.actions.githubusercontent.com","https://kubernetes.io/...")
+| lookup trusted_signing_issuers.csv issuer OUTPUT trusted
+| where verified="false" OR trusted!="true"
 | table _time, image, issuer, reason
 ```
 - **Implementation:** Ingest verification from CD pipeline. Block deploy on false. Rotate keys per runbook.
@@ -1477,7 +1478,8 @@ index=cicd sourcetype="release:gate"
 - **SPL:**
 ```spl
 index=app sourcetype="feature_flag:eval"
-| stats count, sum(eval(if(error="true",1,0))) as errors by flag_name, variant, _time span=1h
+| bin _time span=1h
+| stats count, sum(eval(if(error="true",1,0))) as errors by flag_name, variant, _time
 | eval error_rate=round((errors/count)*100, 2)
 | where error_rate > 5
 ```

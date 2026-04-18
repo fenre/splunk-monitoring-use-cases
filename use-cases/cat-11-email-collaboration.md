@@ -991,7 +991,8 @@ index=ucm sourcetype="voicemail:metadata"
 - **SPL:**
 ```spl
 index=mail sourcetype="exchange:message_trace" direction=outbound
-| stats count by user, recipient_domain, _time span=1h
+| bin _time span=1h
+| stats count by user, recipient_domain, _time
 | eventstats avg(count) as avg_count by user
 | where count > (avg_count * 3)
 | sort -count
@@ -2364,7 +2365,8 @@ index=mail sourcetype=syslog (process=postfix OR process=sendmail) ("authenticat
 - **SPL:**
 ```spl
 index=mail sourcetype=mail_delivery
-| stats count(eval(status="delivered")) as delivered, count(eval(status="bounce")) as bounces by domain, _time span=1h
+| bin _time span=1h
+| stats count(eval(status="delivered")) as delivered, count(eval(status="bounce")) as bounces by domain, _time
 | eval bounce_rate=round(bounces/(delivered+bounces)*100, 2)
 | where bounce_rate > 5 OR delivered < 10
 | table domain delivered bounces bounce_rate
@@ -2387,7 +2389,8 @@ index=mail sourcetype=mail_delivery
 - **SPL:**
 ```spl
 index=mail sourcetype=mail_send
-| stats dc(recipient) as recipients, count as msg_count by sender, _time span=1h
+| bin _time span=1h
+| stats dc(recipient) as recipients, count as msg_count by sender, _time
 | eventstats avg(msg_count) as avg_count, stdev(msg_count) as std_count by sender
 | eval z_score=if(std_count>0, (msg_count-avg_count)/std_count, 0)
 | where z_score > 3 OR recipients > 100

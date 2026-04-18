@@ -4286,7 +4286,8 @@ index=cisco_network sourcetype="meraki:api" ap_name=*
 - **SPL:**
 ```spl
 index=cisco_network sourcetype=meraki:wireless (event_type="association_failed" OR event_type="roam_failed")
-| stats count by ap_serial, ssid, _time span=15m
+| bin _time span=15m
+| stats count by ap_serial, ssid, _time
 | where count > 20
 | sort -count
 ```
@@ -5396,7 +5397,8 @@ index=network sourcetype=dhcp_scope
 - **SPL:**
 ```spl
 index=network sourcetype=dns_query
-| stats avg(response_time_ms) as avg_ms, count(eval(response_code="NXDOMAIN" OR response_code="SERVFAIL")) as failures, count as total by resolver_ip, _time span=5m
+| bin _time span=5m
+| stats avg(response_time_ms) as avg_ms, count(eval(response_code="NXDOMAIN" OR response_code="SERVFAIL")) as failures, count as total by resolver_ip, _time
 | eval fail_rate=round(failures/total*100, 2)
 | where avg_ms > 200 OR fail_rate > 5
 | table resolver_ip avg_ms fail_rate total
@@ -7414,10 +7416,12 @@ index=oncall sourcetype="oncall:incidents" monitoring_tool="ThousandEyes"
 - **SPL:**
 ```spl
 `stream_index` thousandeyes.test.type="agent-to-server"
-| stats avg(network.latency) as avg_net_latency_s avg(network.loss) as avg_net_loss by server.address, _time span=5m
+| bin _time span=5m
+| stats avg(network.latency) as avg_net_latency_s avg(network.loss) as avg_net_loss by server.address, _time
 | join type=outer max=1 server.address [
   search index=apm_traces
-  | stats avg(duration_ms) as avg_app_latency_ms p99(duration_ms) as p99_app_latency_ms by service.name, server.address, _time span=5m
+  | bin _time span=5m
+| stats avg(duration_ms) as avg_app_latency_ms p99(duration_ms) as p99_app_latency_ms by service.name, server.address, _time
 ]
 | eval avg_net_latency_ms=round(avg_net_latency_s*1000,1)
 | eval root_cause=case(avg_net_latency_ms>200 AND avg_app_latency_ms<500, "Network", avg_net_latency_ms<50 AND avg_app_latency_ms>2000, "Application", avg_net_latency_ms>200 AND avg_app_latency_ms>2000, "Both", 1=1, "Normal")
@@ -7902,7 +7906,7 @@ sourcetype="stream:sip" method="INVITE" reply_code=200
 ```
 - **Implementation:** Subscribe to `/acl/acl-sets/acl-set/acl-entries/acl-entry/state` at 30s intervals. Identify deny rules with increasing hit counts — these represent blocked attack traffic. Identify permit rules with zero hits over 30 days — candidates for cleanup. Cross-reference with firewall logs and IDS alerts for security correlation. Generate monthly ACL effectiveness reports for compliance.
 - **Visualization:** Table (ACL rules sorted by hit rate), Bar chart (top 10 deny rules by hits), Stacked chart (permit vs deny hits over time), List (zero-hit rules for cleanup).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count

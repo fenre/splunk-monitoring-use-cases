@@ -1309,7 +1309,7 @@ index=business sourcetype="expense_reports" earliest=-90d
 | eval anomaly_flags=mvappend(
     if(amount=round(amount,0) AND amount>=100, "ROUND_NUMBER", null()),
     if(amount>=490 AND amount<500, "JUST_BELOW_THRESHOLD", null()),
-    if(match(expense_date,".*(Sat|Sun).*") OR tonumber(strftime(strptime(expense_date,"%Y-%m-%d"),"%u"))>=6, "WEEKEND", null()),
+    if(tonumber(strftime(strptime(expense_date,"%Y-%m-%d"),"%u"))>=6, "WEEKEND", null()),
     if(receipt_attached="no" AND amount>25, "NO_RECEIPT", null()))
 | eventstats avg(amount) as dept_avg, stdev(amount) as dept_stdev by department, category
 | eval statistical_outlier=if(amount > dept_avg + 2*dept_stdev, "STATISTICAL_OUTLIER", null())

@@ -382,7 +382,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 6.0
+catalogue_version: 6.1
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     eceb48321d6d6223c896ea1309066c147e35a478780e5a8de46f2f7ad1a08de4
 ```

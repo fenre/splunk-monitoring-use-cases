@@ -185,7 +185,7 @@ def _render_phase23_section(ucs: List[Dict], subcat_titles: Dict[str, str]) -> s
     grouped = _group_by_subcat(ucs)
     for sub, subucs in grouped.items():
         title = subcat_titles.get(sub, "")
-        parts.append(f"### {sub} — per-regulation content fill ({title})")
+        parts.append(f"### {sub} — {title} (extended clauses)")
         parts.append("")
         for uc in subucs:
             parts.append(_render_markdown_block(uc))

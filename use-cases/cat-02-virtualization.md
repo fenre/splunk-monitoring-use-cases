@@ -205,7 +205,8 @@ index=vmware sourcetype="vmware:events" (event_type="DasVmPoweredOnEvent" OR eve
 - **SPL:**
 ```spl
 index=vmware sourcetype="vmware:events" event_type="DrsVmMigratedEvent"
-| timechart span=1h count by cluster
+| bin _time span=1h
+| stats count by _time, cluster
 | where count > 20
 ```
 - **Implementation:** Monitor DRS migration frequency. High migration counts suggest oscillation. Also check for unapplied DRS recommendations (DRS set to manual mode). Correlate with CPU/memory utilization per host.
@@ -1097,7 +1098,7 @@ index=vmware sourcetype="vmware:inv:vm" snapshot_name=*
 ### UC-2.1.46 · vCenter Alarm Acknowledgment Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Track alarms that remain unacknowledged for extended periods. Unacknowledged alarms indicate ignored issues — either operational gaps or alarm fatigue. Ensures critical alerts receive follow-up and supports SLA tracking for incident response.
 - **App/TA:** `Splunk_TA_vmware`
 - **Data Sources:** `sourcetype=vmware:events` (AlarmStatusChangedEvent)
@@ -1896,7 +1897,8 @@ index=virtualization sourcetype="kvm_disk_config"
 - **SPL:**
 ```spl
 index=os sourcetype=syslog "libvirtd" ("error" OR "warning" OR "failed" OR "timed out")
-| stats count as errors by host, _time span=5m
+| bin _time span=5m
+| stats count as errors by host, _time
 | where errors > 5
 | table _time, host, errors
 ```
@@ -3071,7 +3073,7 @@ index=uberagent sourcetype="uberAgent:Process:NetworkTargetPerformance" earliest
 ```
 - **Implementation:** Enable uberAgent's per-application network monitoring feature. Identify bandwidth-heavy applications and high-latency network targets. Use to validate that HDX redirection policies are routing multimedia traffic efficiently. Detect applications bypassing proxy or connecting to unexpected external hosts.
 - **Visualization:** Table (top bandwidth consumers), Bar chart (latency by target), Sankey diagram (app to network target flow).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -3100,7 +3102,7 @@ index=uberagent sourcetype="uberAgentESA:ActivityMonitoring:ProcessTagging" earl
 ```
 - **Implementation:** Enable uberAgent ESA with default Sigma rule pack. Customise rules for Citrix-specific threats (e.g., lateral movement via published apps, credential dumping in shared sessions). Forward ESA events to Splunk Enterprise Security as notable events. The MITRE ATT&CK integration maps detections to tactics and techniques for SOC workflows.
 - **Visualization:** Table (threat detections), Bar chart (by MITRE tactic), Timeline (detection events), Single value (critical alerts).
-- **CIM Models:** Intrusion Detection, Endpoint
+- **CIM Models:** Intrusion_Detection, Endpoint
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.dest | sort - count

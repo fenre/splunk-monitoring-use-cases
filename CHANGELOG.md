@@ -12,6 +12,205 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [6.1] - 2026-04-16
+
+### Content quality hardening
+
+Theme: **"every claim auditable, every detection executable."** Twenty-six
+parallel review agents swept all 6,300+ UCs against a single quality rubric —
+SPL correctness, MITRE taxonomy, CIM alignment, monitoring-type policy, and
+known-false-positive hygiene. Where the review surfaced systematic defects,
+the fix landed as a deterministic linter rather than a one-off patch, so the
+same class of defect cannot regress through CI again.
+
+- **Six new content-quality linters** — Each ships with a `--check` flag that
+  exits non-zero on HIGH severity findings and is wired into
+  `.github/workflows/validate.yml` to run on every PR.
+  - `scripts/audit_spl_grammar.py` — Catches leading-pipe SPL, `stats span=`
+    (invalid; `span` is a `timechart`/`bin` modifier), `| comment` dividers
+    treated as executable syntax, unmatched parentheses, `case()` with literal
+    wildcards (e.g. `case(Message="*stopped*", …)` must be
+    `match(Message, "stopped")`), and other grammar mistakes that AppInspect
+    or Splunk Cloud vetting would reject.
+  - `scripts/audit_placeholders.py` — Detects editorial scaffolding that
+    slipped into shipped content: `TBD`, `TODO`, `Phase 2.3 backfill`, `XXX`,
+    `FIXME`, and similar placeholders that signal an incomplete UC.
+  - `scripts/audit_mitre_taxonomy.py` — Validates every `MITRE ATT&CK:` field
+    against the ingested ATT&CK Enterprise + Mobile + ICS corpus; flags
+    CVE-IDs (e.g. `CVE-2023-12345`), malformed technique-IDs, and
+    tactic-without-technique references.
+  - `scripts/audit_monitoring_type.py` — Enforces the monitoring-type policy:
+    security detections must carry `Security`; compliance UCs with MITRE
+    mappings must also carry `Security`; UCs tagged `Performance` must
+    actually describe a performance signal. The primary fix path is the
+    generator-owned `monitoringType` in `data/mini-categories/phase2.2.json`
+    and `data/per-regulation/phase2.3.json`.
+  - `scripts/audit_cim_spl_alignment.py` — Cross-references every
+    `CIM Models:` declaration against the SPL that follows. A UC claiming
+    compliance with the `Authentication` data model must use the
+    Authentication fields (`user`, `src`, `action`, `app`) in its SPL; a UC
+    claiming `Ticket_Management` must not silently drift to the unsupported
+    `Ticket Management` spelling (the underscored form is canonical). Tiered
+    severity: HIGH for hard mismatches, MED for narrative-only claims.
+  - `scripts/audit_known_fp.py` — Audits the `Known false positives:` field
+    for generic boilerplate, empty entries, and single-clause placeholders.
+    Every non-trivial detection must document at least one concrete FP
+    scenario an analyst might hit.
+- **Informational SPL duplicate audit (`scripts/audit_spl_duplicates.py`)** —
+  Non-blocking. Emits a report of UCs whose SPL shares ≥90% similarity with
+  another UC, so authors can review whether the overlap is deliberate (e.g.
+  shared prelude) or a copy-paste error that should diverge. Ships without
+  `--check` mode: the goal is discoverability, not enforcement.
+- **Semantic fixes across the catalogue** — Targeted corrections identified
+  by the parallel review:
+  - **Cat-01 (Server & Compute)** — Rewrote 20 instances of `| comment`
+    dividers in SPL blocks (legal as SPL but ambiguous in Markdown where a
+    reader cannot tell if the text is code or prose) into separate code
+    fences with preceding explanatory notes. Consolidated a split UC-1.1.20
+    SPL block into a single valid fence. Fixed UC-1.2.131 to use
+    `match(Message, "stopped")` instead of `Message="*stopped*"` (literal
+    asterisks do not wildcard inside `case()`).
+  - **Cat-10 (Security Infrastructure)** — Reformatted §10.6-§10.7
+    ESCU-mirror UCs as explicit pointers to the upstream Splunk Enterprise
+    Security Content library instead of verbatim copies, clarifying
+    provenance and removing maintenance risk.
+  - **Cat-22 (Regulatory Compliance)** — Renamed 85 generically-titled UCs
+    (e.g. *"Access logging control"* → *"NIS 2 Article 21 §2(g) access
+    logging for essential services"*). Normalized `Ticket Management` →
+    `Ticket_Management` (the CIM-canonical form) in both sidecar generators.
+    Fixed monitoring-type tagging for 4 UCs with valid MITRE mappings where
+    the type was incorrectly set to `Compliance`-only.
+  - **CVE-ID cleanup** — Several UCs referenced CVE identifiers in the
+    `MITRE ATT&CK` field; these were moved to the `References:` field and
+    the MITRE field re-populated with the technique the CVE exploits
+    (T1190, T1059, …).
+  - **Monitoring-type corrections** — UCs describing authentication / access
+    / privileged-action detections that were incorrectly tagged
+    `Performance` were re-tagged `Security`.
+- **Generator drift reconciliation** —
+  `generate_phase2_mini_categories.py` and
+  `generate_phase2_3_per_regulation.py` both revealed drift between their
+  committed output (`use-cases/cat-22-regulatory-compliance.md`) and their
+  JSON source of truth. Drift was resolved by correcting the JSON sources
+  (`data/mini-categories/phase2.2.json`,
+  `data/per-regulation/phase2.3.json`) so re-running the generator produces
+  byte-identical output against the committed tree.
+- **CI integration (`.github/workflows/validate.yml`)** — Six new workflow
+  steps added after the existing UC structure audit and before the
+  non-technical-view sync check. Each step runs the corresponding linter
+  with `--check`, failing the PR on any HIGH severity finding. Stable
+  order: grammar → placeholders → MITRE → monitoring-type → CIM alignment
+  → known-FP.
+
+### MCP server — Phase 6 LLM-addressable catalogue
+
+Theme: **"the catalogue as a first-class tool for AI agents"**. Phase 6 ships
+a Model Context Protocol server (`splunk-uc-mcp`, Python 3.11+) that lets
+compliance officers, auditors, and detection engineers talk to the catalogue
+from inside Cursor, Claude Desktop, Claude Code, or any MCP-compatible agent
+— no more copy-pasting JSON, no more hand-composed URLs. The server reads
+`api/v1/*.json` directly (local clone preferred, HTTPS to
+`https://fenre.github.io/splunk-monitoring-use-cases/` as a fallback) and
+exposes the catalogue over JSON-RPC stdio using the
+[Model Context Protocol](https://modelcontextprotocol.io/). Read-only by
+construction; no tool mutates a single byte of catalogue data.
+
+- **Package scaffolding (`mcp/`)** — A new top-level `mcp/` subdirectory
+  hosting `splunk_uc_mcp` (`pyproject.toml`, `src/splunk_uc_mcp/`,
+  `tests/`, `README.md`). Installable via `pip install -e mcp/`. Ships a
+  `splunk-uc-mcp` console entry point. Uses the official
+  [`mcp`](https://pypi.org/project/mcp/) Python SDK (>=1.6) for
+  protocol transport and schema handling. Zero runtime dependencies
+  beyond `mcp` and `httpx` (HTTPS fallback). Stdio transport only — no
+  HTTP listener, no auth surface, no DNS-rebinding risk (CoSAI MCP
+  Security §5.1).
+- **Eight read-only tools** — Each tool has a JSON `inputSchema` and
+  `outputSchema` that the SDK validates on both sides of the wire:
+  - `search_use_cases(query, category, regulation, equipment, mitre, limit)`
+    — Full-text search across `name` + `description`, with optional
+    category / regulation / equipment / MITRE filters. Capped at 100
+    results per call.
+  - `get_use_case(uc_id)` — Full sidecar for one UC, including `spl`,
+    `implementation`, `compliance[]`, `mitreAttack[]`, `equipment[]`,
+    `equipmentModels[]`, and provenance fields.
+  - `list_categories` — The 23 categories with per-subcategory UC counts.
+  - `list_regulations` — All 60 regulations with `tier`, `jurisdiction`,
+    `tags`, and per-regulation UC counts.
+  - `get_regulation(regulation_id, version?)` — Detail view, optionally
+    pinned to a specific version (e.g. `gdpr@2016-679`).
+  - `list_equipment` — All 105 equipment slugs with UC + compliance
+    rollups, regulation ids, and enriched model objects (Phase 5.5).
+  - `get_equipment(equipment_id)` — Full equipment detail: UCs grouped
+    by category, regulations grouped by framework with clause mappings.
+  - `find_compliance_gap(regulations[], equipment_id?)` — Pre-computed
+    uncovered clauses per regulation. When `equipment_id` is supplied,
+    the response carries an `equipmentOverlay` block listing the UCs
+    already covered by that equipment, so auditors can answer
+    *"which gaps can I close with my existing Azure logs?"* in one
+    call.
+- **Four URI-addressable resources** — Agents that prefer MCP resources
+  over tool calls can fetch catalogue documents by URI:
+  - `uc://usecase/{uc_id}` — e.g. `uc://usecase/22.1.1`
+  - `uc://category/{cat_id}` — e.g. `uc://category/22`
+  - `reg://{regulation_id}` and `reg://{regulation_id}@{version}`
+  - `equipment://{equipment_id}`
+  - `ledger://` — summary view of the signed provenance ledger (local
+    clone only; the HTTPS fallback does not publish the ledger).
+- **Input validation + payload caps** — Every tool validates its
+  arguments with `isinstance` checks, length limits, and slug regexes
+  (`^[a-z0-9][a-z0-9_-]*$`) before touching the catalogue. Query
+  strings are capped at 200 chars, `limit` is bounded 1..100,
+  per-file reads are capped at 10 MB, and HTTPS responses are streamed
+  with the same cap. Tool arguments are SHA-256-hashed (first 12
+  bytes) before logging so prompts and secrets never hit stderr.
+  Traversal sequences (`..`, `/`, absolute paths) are rejected by
+  `Catalog.load_data_file`; the HTTPS fallback only allows the
+  configured `--base-url`.
+- **Error envelope (`CallToolResult(isError=True)`)** — Invalid input,
+  missing identifiers, and catalogue-loading errors return a canonical
+  `{"error": "invalid_input" | "not_found" | "catalog_error",
+  "message": "..."}` JSON envelope wrapped in a
+  `CallToolResult(isError=True)`. This lets the MCP SDK skip
+  `outputSchema` validation on errors (the error envelope never
+  matches a success schema) while giving agents an unambiguous
+  `isError` signal. `call_tool` is registered with
+  `validate_input=False` so the in-tool regex + isinstance checks
+  produce the identical error payload whether the client is a strict
+  MCP SDK or a hand-rolled JSON-RPC caller.
+- **Drift guard (`scripts/audit_mcp_tool_schemas.py`)** — A new CI
+  audit that (a) asserts the 8 tools are declared with non-empty
+  descriptions and schemas, (b) freezes the slug regex set at its
+  current 4 entries, (c) verifies `api/v1/manifest.json` still
+  exposes the endpoints the remote-fallback catalogue depends on
+  (`recommender.ucThin`, `compliance.ucs`, `compliance.gaps`,
+  `compliance.regulations`, `equipment.index`), and — most
+  importantly — (d) runs every tool against the committed
+  `api/v1/*.json` tree and validates each response against its
+  declared `outputSchema`. If anyone renames a field in the API
+  surface without updating the matching tool schema (or vice versa),
+  the MCP server would silently start returning `"Output validation
+  error"` to every client; the drift guard catches that in CI
+  before it ships.
+- **Unit-test harness (`mcp/tests/`)** — 291 tests, 100% of the
+  catalogue-loading code + every tool + every resource URI +
+  happy-path + edge cases + error paths. Fixtures in `conftest.py`
+  build a synthetic `api/v1` tree so the tests run offline in
+  <2 seconds. Verified locally with `pytest -q` (291 passed) and
+  wired into CI.
+- **CI integration (`.github/workflows/validate.yml`)** — Three new
+  steps added after the `api/v1` regeneration check:
+  `Install MCP server (splunk-uc-mcp) for drift guard + tests`,
+  `MCP server unit tests`, and `MCP tool schema drift guard`.
+  `mcp/**` was added to the workflow's `paths:` trigger so MCP-only
+  changes still exercise the audit.
+- **Documentation** — Comprehensive operator + developer guide at
+  [`docs/mcp-server.md`](docs/mcp-server.md): architecture, install,
+  Cursor / Claude Desktop / Claude Code / MCP Inspector configuration,
+  full tool + resource reference with request/response examples,
+  persona-based transcripts (Compliance Officer and Detection Engineer),
+  security model, troubleshooting, and developer guide. A shorter
+  quick-start lives at `mcp/README.md` alongside the package.
+
 ### Compliance gold standard — Phase 5.5 structured equipment tagging
 
 Theme: **"which of my log sources does this UC need?"**. An April 2026 audit of

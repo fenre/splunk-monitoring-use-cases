@@ -66,7 +66,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 ```
 - **Implementation:** (1) Install Splunk Add-on for ServiceNow (1928) with sc_req_item and incident inputs enabled; (2) align `cat_item`/`short_description` filters with your DSAR catalogue naming; (3) confirm timestamp format in `opened_at`/`closed_at` and adjust `strptime` format if needed; (4) schedule daily and alert on `open_breach`.
 - **Visualization:** Column chart (Met vs Missed), Time chart (DSAR volume), Table (open breaches), Single value (% within 30 days).
-- **CIM Models:** Ticket Management (ServiceNow TA mappings)
+- **CIM Models:** Ticket_Management (ServiceNow TA mappings)
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
@@ -108,7 +108,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 ### UC-22.1.4 · GDPR Data Retention Policy Enforcement (Art. 5(1)(e))
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance, Capacity
+- **Monitoring type:** Security, Compliance, Capacity
 - **MITRE ATT&CK:** T1005
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
@@ -414,7 +414,7 @@ index=dbaudit sourcetype IN ("mssql:audit","oracle:audit","postgres:csv","mysql:
 ### UC-22.1.13 · GDPR High-Risk Breach Communication to Data Subjects (Art. 34)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1048
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
@@ -595,7 +595,7 @@ index=_audit earliest=-24h
 ### UC-22.1.18 · GDPR Automated Decision-Making and Profiling Transparency (Art. 22)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1565, T1005
 - **Splunk Pillar:** Security
 - **Regulations:** GDPR
@@ -989,7 +989,7 @@ index=itsm sourcetype="snow:incident" category="*Vendor*" OR short_description="
 ```
 - **Implementation:** (1) Standardise processor breach intake in ServiceNow with vendor name and reported time; (2) store per-processor SLA hours in `gdpr_processor_register.csv`; (3) alert legal/DPO on approaching SLA; (4) integrate HEC if processors send structured webhook notifications; (5) retain closed tickets as Art. 28(3)(f) evidence.
 - **Visualization:** Table (SLA breaches), Single value (mean acknowledgement hours), Timeline (processor incidents), Bar chart (breaches by vendor).
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
@@ -1191,7 +1191,7 @@ index=itsm sourcetype="snow:incident" category="*Vendor*" OR short_description="
 ```
 - **Implementation:** (1) Export mitigation action list from each approved DPIA into `gdpr_dpia_mitigation_register.csv`; (2) create linked ServiceNow tasks with due dates; (3) alert owners weekly on overdue items; (4) optionally confirm technical controls via GitHub merge events or Terraform apply logs; (5) close DPIA only when all mitigations are verified.
 - **Visualization:** Table (overdue mitigations), Single value (open high-risk mitigations), Burndown chart (open vs closed), Bar chart (age by owner).
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
@@ -2396,7 +2396,7 @@ index=backup sourcetype IN ("veeam:backup","commvault:job","rubrik:event","aws:b
 ### UC-22.2.21 · NIS2 Risk Analysis Evidence for Essential Entities (Art. 21(2))
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Risk, Compliance
+- **Monitoring type:** Security, Risk, Compliance
 - **MITRE ATT&CK:** T1048
 - **Splunk Pillar:** Security
 - **Regulations:** NIS2
@@ -2636,7 +2636,7 @@ index=itsm sourcetype="snow:incident" category="*Vulnerability Disclosure*" earl
 ```
 - **Implementation:** (1) Publish disclosure policy URL in security.txt and monitor referrers optionally; (2) auto-create ServiceNow incidents from email and bounty webhooks; (3) alert on SLA breaches; (4) link findings to engineering Jira; (5) annual report on researcher cooperation metrics.
 - **Visualization:** Table (breached tickets), Line chart (triage time trend), Single value (breach %), Bar chart (by product team).
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
@@ -2866,7 +2866,7 @@ index=stream sourcetype="stream:tls" earliest=-24h
 ```
 - **Implementation:** (1) When cross-border flag is set, auto-spawn tasks per Member State template; (2) track filing confirmations as attachments; (3) alert incident commander on open_tasks; (4) post-incident merge lessons into UC-22.2.23; (5) legal owns register accuracy.
 - **Visualization:** Table (open coordination tasks), Map (Member States), Gantt-style panel (optional), Single value (incidents with open tasks).
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
@@ -3476,7 +3476,7 @@ index=itsi_summary is_service_in_maintenance=0 earliest=-24h
 ### UC-22.3.8 · DORA ICT Incident Response and Recovery Time Tracking (Art. 11)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability, Compliance
+- **Monitoring type:** Security, Availability, Compliance
 - **MITRE ATT&CK:** T1048, T1562
 - **Industry:** Financial Services
 - **Splunk Pillar:** Security
@@ -4545,7 +4545,7 @@ index=itsm (sourcetype="snow:sc_req_item" OR sourcetype="snow:incident")
 ```
 - **Implementation:** (1) Configure ServiceNow inputs for sc_req_item and/or incidents; (2) normalize catalog item names to match the filter (adjust `cat_item` strings); (3) if CCPA allows extensions, add fields for `extension_days` and update `sla_days` logic; (4) schedule daily with alert on `breach=1`.
 - **Visualization:** Table (open requests with SLA countdown), Histogram (age distribution), Single value (% within 45 days).
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
@@ -9146,7 +9146,7 @@ index=itsm sourcetype="snow:change_request" state IN ("Implement","Closed") earl
 ### UC-22.8.17 · SOC 2 CC6 — Physical Access Review Exception Tracking for Sensitive Facilities
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance, Physical
+- **Monitoring type:** Compliance, Physical Security
 - **Splunk Pillar:** Security
 - **Regulations:** SOC 2
 - **Value:** CC6 includes physical protections. Correlating badge reader logs with quarterly access certification exceptions proves reviews occurred and lingering physical access was explicitly accepted or revoked.
@@ -9370,7 +9370,7 @@ index=vuln sourcetype="tenable:vuln" severity IN ("Critical","High") earliest=-1
 ### UC-22.8.24 · SOC 2 CC8 — Infrastructure-as-Code Drift vs Approved Terraform Modules
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Compliance, Change
+- **Monitoring type:** Security, Compliance, Change
 - **MITRE ATT&CK:** T1190
 - **Splunk Pillar:** Security
 - **Regulations:** SOC 2
@@ -9711,7 +9711,7 @@ index=compliance sourcetype IN ("compliance:control_test","nessus:sc:compliance"
 ### UC-22.9.4 · Regulatory Incident Response Time Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1048, T1562
 - **Value:** Mean time to resolve compliance-tagged incidents by quarter proves that regulatory and policy breaches are handled with discipline—supporting supervisory expectations and internal KPIs beyond generic IT MTTR.
 - **App/TA:** Splunk Enterprise Security (Splunkbase 263)
@@ -9798,7 +9798,7 @@ index=vm OR index=compliance sourcetype IN ("nessus:sc:*","qualys:host") earlies
 ### UC-22.9.6 · Compliance Trending — SOC 2 Control Test Pass Rate vs Prior Quarter Baseline
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1562
 - **Splunk Pillar:** Security
 - **Regulations:** Multiple
@@ -13108,7 +13108,8 @@ index=epic sourcetype="epic:audit" AccessType="PatientChart" earliest=-30d
 | eval account=upper(coalesce(USER_ID, UserName))
 | lookup forbidden_shared_accounts.csv account OUTPUT policy
 | where isnotnull(policy)
-| stats dc(PAT_ID) as patients dc(client_ip) as src_ips count as events by account, _time span=1h
+| bin _time span=1h
+| stats dc(PAT_ID) as patients dc(client_ip) as src_ips count as events by account, _time
 | where events>10
 | sort - events
 ```
@@ -18850,7 +18851,7 @@ index=ot_incidents sourcetype="snow:incident" earliest=-180d
 ```
 - **Implementation:** (1) Require containment milestone in workflow; (2) align timestamps to OT SOC clock; (3) compare drill vs live separately; (4) feed p95 into program KPIs.
 - **Visualization:** Box plot, Table (recent), Single value (p95 live).
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Ticket_Management.All_Ticket_Management by All_Ticket_Management.status, All_Ticket_Management.priority, All_Ticket_Management.category | sort - count
@@ -20323,7 +20324,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-24h EventCode=4720
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count
@@ -20356,7 +20357,7 @@ index=itsm sourcetype=snow:sc_req_item earliest=-120d (short_description="*acces
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20388,7 +20389,7 @@ index=erp sourcetype=sap:audit earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20420,7 +20421,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-7d EventCode IN (467
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t dc(Authentication.dest) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value
@@ -20453,7 +20454,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-14d EventCode IN (46
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20485,7 +20486,7 @@ index=itsm sourcetype=snow:sc_req_item earliest=-180d short_description="*access
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20516,7 +20517,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode IN (46
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20548,7 +20549,7 @@ index=itsm sourcetype=snow:change_request earliest=-180d type="emergency"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20580,7 +20581,7 @@ index=os sourcetype=perfmon:cpu host="FIN-PROD-*" earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest span=1h | sort - count
@@ -20612,7 +20613,7 @@ index=itsm sourcetype=snow:change_request earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20642,7 +20643,7 @@ index=itsm sourcetype=snow:change_request earliest=-180d risk IN ("High","Critic
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20672,7 +20673,7 @@ index=itsm sourcetype=snow:change_request earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=1w | sort - count
@@ -20704,7 +20705,7 @@ index=itsm sourcetype=snow:change_request earliest=-365d state IN ("4","-1")
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20737,7 +20738,7 @@ index=itsm sourcetype=snow:change_request earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20769,7 +20770,7 @@ index=scheduler sourcetype=control-m:job job_name="*FIN_CLOSE*" earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20800,7 +20801,7 @@ index=backup sourcetype=commvault:job earliest=-14d subclient_name="*GLDB*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=1d | sort - count
@@ -20832,7 +20833,7 @@ index=scheduler sourcetype=control-m:audit action="UPDATE" object_type="JOB" ear
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20860,7 +20861,7 @@ index=itsi_summary earliest=-30d service_title="*Financial Reporting*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=1h | sort - count
@@ -20891,7 +20892,7 @@ index=os (sourcetype=perfmon:cpu OR sourcetype=perfmon:mem) host="FIN-CLOSE-*" e
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count
@@ -20920,7 +20921,7 @@ index=itsm sourcetype=snow:change_request earliest=-730d short_description="*DR 
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20953,7 +20954,7 @@ index=itsm sourcetype=snow:incident priority IN ("1","2") earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -20983,7 +20984,7 @@ index=erp sourcetype=sap:close_task earliest=-60d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21014,7 +21015,7 @@ index=erp sourcetype=sap:bseg earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21046,7 +21047,7 @@ index=erp sourcetype=sap:bkpf earliest=-7d bukrs="1000"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21075,7 +21076,7 @@ index=erp sourcetype=sap:bsik earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21104,7 +21105,7 @@ index=app sourcetype=obiee:usage report_path="*/Management/Financial*" earliest=
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.action | sort - count
@@ -21136,7 +21137,7 @@ index=erp sourcetype=sap:faglflext racct="0000110000" earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21164,7 +21165,7 @@ index=erp sourcetype=sap:agr_users agr_name="*FICO*ADMIN*" earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21192,7 +21193,7 @@ index=summary sourcetype=sox:control_evidence earliest=-365d control_id="ITGC-AC
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21223,7 +21224,7 @@ index=itsm sourcetype=snow:problem category="Control Exception" earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21253,7 +21254,7 @@ index=itsm sourcetype=snow:problem short_description="*audit finding*" earliest=
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21283,7 +21284,7 @@ index=itsm sourcetype=snow:problem u_external_audit_source="*" earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21314,7 +21315,7 @@ index=itsm sourcetype=snow:sc_req_item cat_item="*IT Control Self-Assessment*" e
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21344,7 +21345,7 @@ index=summary sourcetype=risk:register domain="IT" earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -21373,7 +21374,7 @@ index=summary sourcetype=sox:kpi_monthly metric_category="ITGC" earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket Management, or N/A
+- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -22311,13 +22312,13 @@ index=dns sourcetype=infoblox:dns view="OT" earliest=-7d
 
 ---
 
-### UC-22.18.1 · RTU/HMI access control — control point 1 (API RP 1164)
+### UC-22.18.1 · FactoryTalk excessive operator login sessions (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "RTU/HMI access control — control point 1" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22340,13 +22341,13 @@ index=scada sourcetype=factorytalk:audit earliest=-7d event="Login"
 
 ---
 
-### UC-22.18.2 · RTU/HMI access control — control point 2 (API RP 1164)
+### UC-22.18.2 · FactoryTalk compressor-area role mismatch (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "RTU/HMI access control — control point 2" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22369,13 +22370,13 @@ index=scada sourcetype=factorytalk:audit earliest=-30d
 
 ---
 
-### UC-22.18.3 · RTU/HMI access control — control point 3 (API RP 1164)
+### UC-22.18.3 · OPC-UA Write method without named approver (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "RTU/HMI access control — control point 3" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22399,13 +22400,13 @@ index=ot sourcetype=opcua:audit earliest=-7d event_type="MethodCall" method="Wri
 
 ---
 
-### UC-22.18.4 · RTU/HMI access control — control point 4 (API RP 1164)
+### UC-22.18.4 · FactoryTalk rejected open/close commands (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "RTU/HMI access control — control point 4" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22429,13 +22430,13 @@ index=scada sourcetype=factorytalk:audit earliest=-14d
 
 ---
 
-### UC-22.18.5 · RTU/HMI access control — control point 5 (API RP 1164)
+### UC-22.18.5 · FactoryTalk operator sessions idle over 2 h (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "RTU/HMI access control — control point 5" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22460,13 +22461,13 @@ index=scada sourcetype=factorytalk:audit earliest=-24h
 
 ---
 
-### UC-22.18.6 · RTU/HMI access control — control point 6 (API RP 1164)
+### UC-22.18.6 · Vendor or field-tech Windows logons outside depot hours (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "RTU/HMI access control — control point 6" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22490,13 +22491,13 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-7d EventCode=4624
 
 ---
 
-### UC-22.18.7 · RTU/HMI access control — control point 7 (API RP 1164)
+### UC-22.18.7 · Pipeline HMI app running on jailbroken mobile (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "RTU/HMI access control — control point 7" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22520,13 +22521,13 @@ index=mdm sourcetype=mobileiron:scada earliest=-30d
 
 ---
 
-### UC-22.18.8 · SCADA command authentication — control point 1 (API RP 1164)
+### UC-22.18.8 · DNP3 high-volume direct-operate commands (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "SCADA command authentication — control point 1" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22550,13 +22551,13 @@ index=ot sourcetype=dnp3:traffic earliest=-24h func_code IN (5,6)
 
 ---
 
-### UC-22.18.9 · SCADA command authentication — control point 2 (API RP 1164)
+### UC-22.18.9 · PI-AF setpoint changes beyond 15 percent (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "SCADA command authentication — control point 2" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22579,13 +22580,13 @@ index=scada sourcetype=pi:af:audit earliest=-7d
 
 ---
 
-### UC-22.18.10 · SCADA command authentication — control point 3 (API RP 1164)
+### UC-22.18.10 · Modbus coil writes on SIL-rated registers (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "SCADA command authentication — control point 3" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22610,13 +22611,13 @@ index=edge sourcetype=edge_hub:modbus earliest=-24h
 
 ---
 
-### UC-22.18.11 · SCADA command authentication — control point 4 (API RP 1164)
+### UC-22.18.11 · Ignition pump actions originating from scripts (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "SCADA command authentication — control point 4" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22640,13 +22641,13 @@ index=scada sourcetype=ignition:audit earliest=-30d
 
 ---
 
-### UC-22.18.12 · SCADA command authentication — control point 5 (API RP 1164)
+### UC-22.18.12 · ESD or shutdown alarm acknowledgements (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "SCADA command authentication — control point 5" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22670,13 +22671,13 @@ index=scada sourcetype=factorytalk:audit earliest=-90d
 
 ---
 
-### UC-22.18.13 · SCADA command authentication — control point 6 (API RP 1164)
+### UC-22.18.13 · Rockwell controller program download or upload by vendor (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "SCADA command authentication — control point 6" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22699,13 +22700,13 @@ index=ot sourcetype=rockwell:audit earliest=-14d
 
 ---
 
-### UC-22.18.14 · SCADA command authentication — control point 7 (API RP 1164)
+### UC-22.18.14 · OPC-UA unsigned program downloads (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "SCADA command authentication — control point 7" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22729,13 +22730,13 @@ index=ot sourcetype=opcua:audit earliest=-30d event_type="MethodCall" method="Pr
 
 ---
 
-### UC-22.18.15 · Pipeline SCADA network segmentation — control point 1 (API RP 1164)
+### UC-22.18.15 · FIELD zone to SCADA-DMZ unexpected bytes (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Pipeline SCADA network segmentation — control point 1" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22758,13 +22759,13 @@ index=ot sourcetype=pan:traffic earliest=-24h zone_src="FIELD-*" zone_dest="SCAD
 
 ---
 
-### UC-22.18.16 · Pipeline SCADA network segmentation — control point 2 (API RP 1164)
+### UC-22.18.16 · ENTERPRISE to SCADA-DMZ flows (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Pipeline SCADA network segmentation — control point 2" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22787,13 +22788,13 @@ index=ot sourcetype=pan:traffic earliest=-7d
 
 ---
 
-### UC-22.18.17 · Pipeline SCADA network segmentation — control point 3 (API RP 1164)
+### UC-22.18.17 · DNP3 traffic on non-standard ports (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Pipeline SCADA network segmentation — control point 3" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22816,13 +22817,13 @@ index=ot sourcetype=dnp3:traffic earliest=-7d
 
 ---
 
-### UC-22.18.18 · Pipeline SCADA network segmentation — control point 4 (API RP 1164)
+### UC-22.18.18 · Pipeline-field WiFi without WPA3-Enterprise (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Pipeline SCADA network segmentation — control point 4" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22845,13 +22846,13 @@ index=ot sourcetype=aruba:iap earliest=-14d ssid="PIPELINE-FIELD"
 
 ---
 
-### UC-22.18.19 · Pipeline SCADA network segmentation — control point 5 (API RP 1164)
+### UC-22.18.19 · Edge Modbus gateway exposing over 200 unit IDs (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Pipeline SCADA network segmentation — control point 5" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22874,13 +22875,13 @@ index=edge sourcetype=edge_hub:modbus earliest=-30d
 
 ---
 
-### UC-22.18.20 · Pipeline SCADA network segmentation — control point 6 (API RP 1164)
+### UC-22.18.20 · OT-PLC TLSv1.0 connections (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Pipeline SCADA network segmentation — control point 6" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22904,13 +22905,13 @@ index=ot sourcetype=pan:traffic earliest=-7d
 
 ---
 
-### UC-22.18.21 · Pipeline SCADA network segmentation — control point 7 (API RP 1164)
+### UC-22.18.21 · Vendor GlobalProtect jump from non-standard image (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Pipeline SCADA network segmentation — control point 7" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22933,13 +22934,13 @@ index=vpn sourcetype=paloalto:globalprotect earliest=-7d
 
 ---
 
-### UC-22.18.22 · Field device integrity — control point 1 (API RP 1164)
+### UC-22.18.22 · Field devices on firmware behind ICS-CERT required version (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Field device integrity — control point 1" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22965,13 +22966,13 @@ index=ot sourcetype=nozomi:asset earliest=-14d
 
 ---
 
-### UC-22.18.23 · Field device integrity — control point 2 (API RP 1164)
+### UC-22.18.23 · Schneider PLC logic changes by user span (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Field device integrity — control point 2" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -22996,13 +22997,13 @@ index=ot sourcetype=schneider:ecostruxure:audit earliest=-30d
 
 ---
 
-### UC-22.18.24 · Field device integrity — control point 3 (API RP 1164)
+### UC-22.18.24 · Modbus CRC success rate below 99.5 percent (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Field device integrity — control point 3" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23025,13 +23026,13 @@ index=edge sourcetype=edge_hub:modbus earliest=-7d
 
 ---
 
-### UC-22.18.25 · Field device integrity — control point 4 (API RP 1164)
+### UC-22.18.25 · Wonderware flow/pressure tag jumps over 50 percent (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Field device integrity — control point 4" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23057,13 +23058,13 @@ index=scada sourcetype=wonderware:hist earliest=-1d
 
 ---
 
-### UC-22.18.26 · Field device integrity — control point 5 (API RP 1164)
+### UC-22.18.26 · RTU-ROW-12 off-role Genetec badge swipes (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Field device integrity — control point 5" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23086,13 +23087,13 @@ index=physical sourcetype=genetec:access earliest=-7d
 
 ---
 
-### UC-22.18.27 · Field device integrity — control point 6 (API RP 1164)
+### UC-22.18.27 · DNP3 sequence-number gaps (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Field device integrity — control point 6" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23117,13 +23118,13 @@ index=ot sourcetype=dnp3:traffic earliest=-24h
 
 ---
 
-### UC-22.18.28 · Field device integrity — control point 7 (API RP 1164)
+### UC-22.18.28 · Claroty devices with unverified integrity state (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "Field device integrity — control point 7" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23146,13 +23147,13 @@ index=ot sourcetype=claroty:xtended earliest=-7d
 
 ---
 
-### UC-22.18.29 · API 1164 incident and compliance — control point 1 (API RP 1164)
+### UC-22.18.29 · Pipeline cyber incident MTTR tracking (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "API 1164 incident and compliance — control point 1" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23177,13 +23178,13 @@ index=itsm sourcetype=snow:incident category="Pipeline Cyber" earliest=-365d
 
 ---
 
-### UC-22.18.30 · API 1164 incident and compliance — control point 2 (API RP 1164)
+### UC-22.18.30 · API 1164 domain-score regression year-over-year (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "API 1164 incident and compliance — control point 2" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23207,13 +23208,13 @@ index=summary sourcetype=api1164:assessment earliest=-730d
 
 ---
 
-### UC-22.18.31 · API 1164 incident and compliance — control point 3 (API RP 1164)
+### UC-22.18.31 · Critical SCADA vulnerabilities by Tenable plugin (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "API 1164 incident and compliance — control point 3" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23237,13 +23238,13 @@ index=vuln sourcetype=tenable:ot earliest=-14d
 
 ---
 
-### UC-22.18.32 · API 1164 incident and compliance — control point 4 (API RP 1164)
+### UC-22.18.32 · SCADA tabletop exercises missing evidence (API RP 1164)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "API 1164 incident and compliance — control point 4" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23267,13 +23268,13 @@ index=itsm sourcetype=snow:change_request short_description="*tabletop*SCADA*" e
 
 ---
 
-### UC-22.18.33 · API 1164 incident and compliance — control point 5 (API RP 1164)
+### UC-22.18.33 · Pipeline SCADA risks with open treatment (API RP 1164)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "API 1164 incident and compliance — control point 5" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23296,13 +23297,13 @@ index=grc sourcetype=archer:risk earliest=-365d program="Pipeline SCADA"
 
 ---
 
-### UC-22.18.34 · API 1164 incident and compliance — control point 6 (API RP 1164)
+### UC-22.18.34 · Pipeline cyber training overdue (API RP 1164)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "API 1164 incident and compliance — control point 6" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23326,13 +23327,13 @@ index=hr sourcetype=workday:training earliest=-365d course="*Pipeline*Cyber*"
 
 ---
 
-### UC-22.18.35 · API 1164 incident and compliance — control point 7 (API RP 1164)
+### UC-22.18.35 · API 1164 regulatory reports past due (API RP 1164)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** API RP 1164
-- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA by monitoring "API 1164 incident and compliance — control point 7" using OT and engineering audit sources.
+- **Value:** Evidences API RP 1164 cybersecurity practices for pipeline SCADA using OT and engineering audit sources.
 - **App/TA:** Splunk OT Security Add-on (5151), Splunk Industrial Asset Intelligence, Splunk Enterprise Security (263), Splunk Edge Hub, Nozomi Networks TA for Splunk (6905), Splunk Add-on for CyberArk (4295), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** RTU/PLC, DNP3, Modbus OPC-UA, Wonderware/Ignition, historian, OT firewall, wireless sensor feeds
 - **SPL:**
@@ -23363,13 +23364,13 @@ index=summary sourcetype=api1164:reg_report earliest=-400d
 
 ---
 
-### UC-22.17.1 · Electronic records integrity — control theme 1 (21 CFR Part 11)
+### UC-22.17.1 · LIMS audit entries missing reason codes (21 CFR Part 11)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic records integrity — control theme 1" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23393,13 +23394,13 @@ index=gxp sourcetype=lims:audit earliest=-24h action IN ("INSERT","UPDATE","DELE
 
 ---
 
-### UC-22.17.2 · Electronic records integrity — control theme 2 (21 CFR Part 11)
+### UC-22.17.2 · LIMS excessive record modifications per batch (21 CFR Part 11)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic records integrity — control theme 2" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23423,13 +23424,13 @@ index=gxp sourcetype=lims:audit earliest=-30d object_id="BATCH-8891*"
 
 ---
 
-### UC-22.17.3 · Electronic records integrity — control theme 3 (21 CFR Part 11)
+### UC-22.17.3 · MES batch clock-skew vs generated timestamp (21 CFR Part 11)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic records integrity — control theme 3" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23453,13 +23454,13 @@ index=gxp sourcetype=mes:batch earliest=-7d
 
 ---
 
-### UC-22.17.4 · Electronic records integrity — control theme 4 (21 CFR Part 11)
+### UC-22.17.4 · Veeva document hash mismatch (21 CFR Part 11)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic records integrity — control theme 4" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23483,13 +23484,13 @@ index=gxp sourcetype=veeva:audit earliest=-14d
 
 ---
 
-### UC-22.17.5 · Electronic records integrity — control theme 5 (21 CFR Part 11)
+### UC-22.17.5 · LIMS records past retention without disposition (21 CFR Part 11)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic records integrity — control theme 5" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23513,13 +23514,13 @@ index=gxp sourcetype=lims:audit earliest=-400d
 
 ---
 
-### UC-22.17.6 · Electronic signatures — control theme 1 (21 CFR Part 11)
+### UC-22.17.6 · ELN signatures beyond delegated authority (21 CFR Part 11)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic signatures — control theme 1" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23543,13 +23544,13 @@ index=gxp sourcetype=eln:signature earliest=-90d
 
 ---
 
-### UC-22.17.7 · Electronic signatures — control theme 2 (21 CFR Part 11)
+### UC-22.17.7 · ELN signatures missing certificate or hash binding (21 CFR Part 11)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic signatures — control theme 2" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23573,13 +23574,13 @@ index=gxp sourcetype=eln:signature earliest=-180d
 
 ---
 
-### UC-22.17.8 · Electronic signatures — control theme 3 (21 CFR Part 11)
+### UC-22.17.8 · ELN logins without FIDO2 or X.509 credential (21 CFR Part 11)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic signatures — control theme 3" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23602,13 +23603,13 @@ index=gxp sourcetype=okta:auth earliest=-30d application="ELN-Prod"
 
 ---
 
-### UC-22.17.9 · Electronic signatures — control theme 4 (21 CFR Part 11)
+### UC-22.17.9 · ELN signatures missing meaning code (21 CFR Part 11)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic signatures — control theme 4" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23631,13 +23632,13 @@ index=gxp sourcetype=eln:signature earliest=-365d
 
 ---
 
-### UC-22.17.10 · Electronic signatures — control theme 5 (21 CFR Part 11)
+### UC-22.17.10 · ELN release signatures bypassing multi-step flow (21 CFR Part 11)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Electronic signatures — control theme 5" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23661,13 +23662,13 @@ index=gxp sourcetype=eln:signature earliest=-30d
 
 ---
 
-### UC-22.17.11 · Audit trails — control theme 1 (21 CFR Part 11)
+### UC-22.17.11 · CDS injections with too few audit entries (21 CFR Part 11)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Audit trails — control theme 1" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23690,13 +23691,13 @@ index=gxp sourcetype=cds:chrom_audit earliest=-7d
 
 ---
 
-### UC-22.17.12 · Audit trails — control theme 2 (21 CFR Part 11)
+### UC-22.17.12 · LIMS sample touched by multiple actors (21 CFR Part 11)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Audit trails — control theme 2" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23720,13 +23721,13 @@ index=gxp sourcetype=lims:audit earliest=-24h
 
 ---
 
-### UC-22.17.13 · Audit trails — control theme 3 (21 CFR Part 11)
+### UC-22.17.13 · MES record UPDATE without change reason (21 CFR Part 11)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Audit trails — control theme 3" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23749,13 +23750,13 @@ index=gxp sourcetype=mes:batch earliest=-30d
 
 ---
 
-### UC-22.17.14 · Audit trails — control theme 4 (21 CFR Part 11)
+### UC-22.17.14 · HPLC NTP drift over 500 ms (21 CFR Part 11)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Audit trails — control theme 4" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23778,13 +23779,13 @@ index=gxp sourcetype=ntp:drift earliest=-7d host="HPLC-CLUSTER-*"
 
 ---
 
-### UC-22.17.15 · Audit trails — control theme 5 (21 CFR Part 11)
+### UC-22.17.15 · Veeam LIMS database backup failures (21 CFR Part 11)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "Audit trails — control theme 5" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23807,13 +23808,13 @@ index=backup sourcetype=veeam:Backup.JobSession object="LIMS-DB" earliest=-14d
 
 ---
 
-### UC-22.17.16 · ALCOA+ data integrity — control theme 1 (21 CFR Part 11)
+### UC-22.17.16 · MES batch entries missing ALCOA who/when/what/why fields (21 CFR Part 11)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "ALCOA+ data integrity — control theme 1" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23837,13 +23838,13 @@ index=gxp sourcetype=mes:batch earliest=-14d
 
 ---
 
-### UC-22.17.17 · ALCOA+ data integrity — control theme 2 (21 CFR Part 11)
+### UC-22.17.17 · Commvault MES subclient backups not completed (21 CFR Part 11)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "ALCOA+ data integrity — control theme 2" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23866,13 +23867,13 @@ index=backup sourcetype=commvault:job subclient_name="MES-*" earliest=-7d
 
 ---
 
-### UC-22.17.18 · ALCOA+ data integrity — control theme 3 (21 CFR Part 11)
+### UC-22.17.18 · LIMS COPY action without independent witness (21 CFR Part 11)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "ALCOA+ data integrity — control theme 3" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23895,13 +23896,13 @@ index=gxp sourcetype=lims:audit earliest=-30d action="COPY"
 
 ---
 
-### UC-22.17.19 · ALCOA+ data integrity — control theme 4 (21 CFR Part 11)
+### UC-22.17.19 · CDS raw vs processed chromatogram file mismatch (21 CFR Part 11)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "ALCOA+ data integrity — control theme 4" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23924,13 +23925,13 @@ index=gxp sourcetype=cds:chrom_audit earliest=-90d
 
 ---
 
-### UC-22.17.20 · ALCOA+ data integrity — control theme 5 (21 CFR Part 11)
+### UC-22.17.20 · Lab instrument integrity-check failures (21 CFR Part 11)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "ALCOA+ data integrity — control theme 5" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23953,13 +23954,13 @@ index=gxp sourcetype=labinstrument:diag earliest=-7d
 
 ---
 
-### UC-22.17.21 · GxP computer system validation — control theme 1 (21 CFR Part 11)
+### UC-22.17.21 · LIMS-PROD PQ sign-offs incomplete (21 CFR Part 11)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "GxP computer system validation — control theme 1" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -23982,13 +23983,13 @@ index=gxp sourcetype=validation:iq_oq_pq earliest=-730d system_id="LIMS-PROD"
 
 ---
 
-### UC-22.17.22 · GxP computer system validation — control theme 2 (21 CFR Part 11)
+### UC-22.17.22 · LIMS change requests without CSV risk assessment (21 CFR Part 11)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "GxP computer system validation — control theme 2" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -24012,13 +24013,13 @@ index=itsm sourcetype=snow:change_request cmdb_ci="*LIMS*" earliest=-365d
 
 ---
 
-### UC-22.17.23 · GxP computer system validation — control theme 3 (21 CFR Part 11)
+### UC-22.17.23 · Periodic system reviews overdue (21 CFR Part 11)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "GxP computer system validation — control theme 3" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -24042,13 +24043,13 @@ index=gxp sourcetype=periodic_review:log earliest=-400d
 
 ---
 
-### UC-22.17.24 · GxP computer system validation — control theme 4 (21 CFR Part 11)
+### UC-22.17.24 · GxP workstation Windows account changes (21 CFR Part 11)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "GxP computer system validation — control theme 4" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -24072,13 +24073,13 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode IN (47
 
 ---
 
-### UC-22.17.25 · GxP computer system validation — control theme 5 (21 CFR Part 11)
+### UC-22.17.25 · Overdue GxP computer-systems training by course (21 CFR Part 11)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FDA 21 CFR Part 11
-- **Value:** Supports Part 11 technical controls evidence for "GxP computer system validation — control theme 5" by correlating validated system audit trails with identity and change records.
+- **Value:** Supports Part 11 technical controls evidence by correlating validated system audit trails with identity and change records.
 - **App/TA:** Splunk Enterprise Security (263), Splunk DB Connect (2686), Splunk Add-on for Microsoft Windows (742), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** LIMS, MES, ELN, CDS, QMS/ERP validation logs, Windows security for GxP workstations
 - **SPL:**
@@ -24110,13 +24111,13 @@ index=hr sourcetype=workday:training earliest=-365d curriculum="*GxP*Computer*"
 
 ---
 
-### UC-22.19.1 · Continuous monitoring — indicator 1 (FISMA / FedRAMP)
+### UC-22.19.1 · CloudTrail high-volume mutating actions (FISMA / FedRAMP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Continuous monitoring — indicator 1" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24139,13 +24140,13 @@ index=aws sourcetype=aws:cloudtrail earliest=-24h readOnly=false
 
 ---
 
-### UC-22.19.2 · Continuous monitoring — indicator 2 (FISMA / FedRAMP)
+### UC-22.19.2 · Tenable FedRAMP compliance failures (FISMA / FedRAMP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Continuous monitoring — indicator 2" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24169,13 +24170,13 @@ index=vuln sourcetype=tenable:sc:analysis earliest=-3d plugin_family="Policy Com
 
 ---
 
-### UC-22.19.3 · Continuous monitoring — indicator 3 (FISMA / FedRAMP)
+### UC-22.19.3 · STIG file-integrity hash mismatch (FISMA / FedRAMP)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Continuous monitoring — indicator 3" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24199,13 +24200,13 @@ index=os sourcetype=stash:file_integrity earliest=-7d
 
 ---
 
-### UC-22.19.4 · Continuous monitoring — indicator 4 (FISMA / FedRAMP)
+### UC-22.19.4 · WSUS patch coverage below 95 percent (FISMA / FedRAMP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Continuous monitoring — indicator 4" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24228,13 +24229,13 @@ index=os sourcetype=updates:wsus earliest=-14d
 
 ---
 
-### UC-22.19.5 · Continuous monitoring — indicator 5 (FISMA / FedRAMP)
+### UC-22.19.5 · FedRAMP servers not discovered in 30 days (FISMA / FedRAMP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Continuous monitoring — indicator 5" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24257,13 +24258,13 @@ index=cmdb sourcetype=snow:cmdb_ci_server earliest=-1d
 
 ---
 
-### UC-22.19.6 · Authorization and boundary — indicator 1 (FISMA / FedRAMP)
+### UC-22.19.6 · GovCloud SSP sections incomplete (FISMA / FedRAMP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Authorization and boundary — indicator 1" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24286,13 +24287,13 @@ index=grc sourcetype=fedramp:ssp earliest=-365d system_name="*GovCloud*"
 
 ---
 
-### UC-22.19.7 · Authorization and boundary — indicator 2 (FISMA / FedRAMP)
+### UC-22.19.7 · FedRAMP POA&M items past planned finish (FISMA / FedRAMP)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Authorization and boundary — indicator 2" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24316,13 +24317,13 @@ index=grc sourcetype=fedramp:poam earliest=-365d
 
 ---
 
-### UC-22.19.8 · Authorization and boundary — indicator 3 (FISMA / FedRAMP)
+### UC-22.19.8 · Risk acceptances past review date (FISMA / FedRAMP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Authorization and boundary — indicator 3" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24345,13 +24346,13 @@ index=grc sourcetype=fedramp:risk earliest=-730d
 
 ---
 
-### UC-22.19.9 · Authorization and boundary — indicator 4 (FISMA / FedRAMP)
+### UC-22.19.9 · Azure VNet peerings outside approved list (FISMA / FedRAMP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Authorization and boundary — indicator 4" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24375,13 +24376,13 @@ index=azure sourcetype=azure:monitor_activity earliest=-7d operationName="PutVir
 
 ---
 
-### UC-22.19.10 · Authorization and boundary — indicator 5 (FISMA / FedRAMP)
+### UC-22.19.10 · AWS SG ingress opened to 0.0.0.0/0 (FISMA / FedRAMP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Authorization and boundary — indicator 5" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24404,13 +24405,13 @@ index=aws sourcetype=aws:cloudtrail eventName="AuthorizeSecurityGroupIngress" ea
 
 ---
 
-### UC-22.19.11 · Federal incident handling — indicator 1 (FISMA / FedRAMP)
+### UC-22.19.11 · FedRAMP notable events unactioned over 8 h (FISMA / FedRAMP)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Federal incident handling — indicator 1" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24435,13 +24436,13 @@ index=notable earliest=-7d
 
 ---
 
-### UC-22.19.12 · Federal incident handling — indicator 2 (FISMA / FedRAMP)
+### UC-22.19.12 · US-CERT or CISA incidents unresolved (FISMA / FedRAMP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Federal incident handling — indicator 2" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24464,13 +24465,13 @@ index=itsm sourcetype=snow:incident category="Security" earliest=-90d
 
 ---
 
-### UC-22.19.13 · Federal incident handling — indicator 3 (FISMA / FedRAMP)
+### UC-22.19.13 · Phantom high-severity containers off NIST DE.CM (FISMA / FedRAMP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Federal incident handling — indicator 3" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24493,13 +24494,13 @@ index=case sourcetype=phantom:container earliest=-30d
 
 ---
 
-### UC-22.19.14 · Federal incident handling — indicator 4 (FISMA / FedRAMP)
+### UC-22.19.14 · FedRAMP hosts with cleared Windows Security log (FISMA / FedRAMP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Federal incident handling — indicator 4" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24523,13 +24524,13 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-14d EventCode=1102
 
 ---
 
-### UC-22.19.15 · Federal incident handling — indicator 5 (FISMA / FedRAMP)
+### UC-22.19.15 · Federal IR lessons-learned not published (FISMA / FedRAMP)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Federal incident handling — indicator 5" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24552,13 +24553,13 @@ index=summary sourcetype=ir:lessons earliest=-400d program="Federal"
 
 ---
 
-### UC-22.19.16 · Privileged and remote access — indicator 1 (FISMA / FedRAMP)
+### UC-22.19.16 · Fed apps accepting single-factor authentication (FISMA / FedRAMP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Privileged and remote access — indicator 1" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24582,13 +24583,13 @@ index=o365 sourcetype=ms:aad:signin earliest=-24h
 
 ---
 
-### UC-22.19.17 · Privileged and remote access — indicator 2 (FISMA / FedRAMP)
+### UC-22.19.17 · CyberArk Fed-Admin safe checkout surge (FISMA / FedRAMP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Privileged and remote access — indicator 2" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24611,13 +24612,13 @@ index=pam sourcetype=cyberark:pta earliest=-30d safe="Fed-Admin"
 
 ---
 
-### UC-22.19.18 · Privileged and remote access — indicator 3 (FISMA / FedRAMP)
+### UC-22.19.18 · Dormant privileged accounts beyond 90 days (FISMA / FedRAMP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Privileged and remote access — indicator 3" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24641,13 +24642,13 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode IN (47
 
 ---
 
-### UC-22.19.19 · Privileged and remote access — indicator 4 (FISMA / FedRAMP)
+### UC-22.19.19 · Fed-VDP VPN from unexpected private subnets (FISMA / FedRAMP)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Privileged and remote access — indicator 4" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24670,13 +24671,13 @@ index=vpn sourcetype=paloalto:globalprotect earliest=-7d
 
 ---
 
-### UC-22.19.20 · Privileged and remote access — indicator 5 (FISMA / FedRAMP)
+### UC-22.19.20 · SAP users with excessive role stacking (FISMA / FedRAMP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Privileged and remote access — indicator 5" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24701,13 +24702,13 @@ index=erp sourcetype=sap:audit earliest=-90d
 
 ---
 
-### UC-22.19.21 · Assessment and FedRAMP evidence — indicator 1 (FISMA / FedRAMP)
+### UC-22.19.21 · FedRAMP 2026 control assessments failed (FISMA / FedRAMP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Assessment and FedRAMP evidence — indicator 1" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24730,13 +24731,13 @@ index=grc sourcetype=fedramp:assessment earliest=-400d assessment_year=2026
 
 ---
 
-### UC-22.19.22 · Assessment and FedRAMP evidence — indicator 2 (FISMA / FedRAMP)
+### UC-22.19.22 · Open 3PAO findings by severity (FISMA / FedRAMP)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔴 Expert
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Assessment and FedRAMP evidence — indicator 2" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24759,13 +24760,13 @@ index=grc sourcetype=fedramp:3pao_finding earliest=-365d
 
 ---
 
-### UC-22.19.23 · Assessment and FedRAMP evidence — indicator 3 (FISMA / FedRAMP)
+### UC-22.19.23 · CDM devices without hardware root of trust (FISMA / FedRAMP)
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🟠 Advanced
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Assessment and FedRAMP evidence — indicator 3" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24788,13 +24789,13 @@ index=summary sourcetype=cdm:device earliest=-1d
 
 ---
 
-### UC-22.19.24 · Assessment and FedRAMP evidence — indicator 4 (FISMA / FedRAMP)
+### UC-22.19.24 · Risk score above 80 on CUI systems (FISMA / FedRAMP)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Assessment and FedRAMP evidence — indicator 4" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -24817,13 +24818,13 @@ index=risk sourcetype=es:risk_score_by_system earliest=-7d
 
 ---
 
-### UC-22.19.25 · Assessment and FedRAMP evidence — indicator 5 (FISMA / FedRAMP)
+### UC-22.19.25 · FedRAMP marketplace listings not active (FISMA / FedRAMP)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
 - **Monitoring type:** Security, Compliance
 - **Splunk Pillar:** Security
 - **Regulations:** FISMA / FedRAMP
-- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP by operationalizing "Assessment and FedRAMP evidence — indicator 5" across cloud, endpoint, and GRC feeds.
+- **Value:** Strengthens agency or cloud service continuous authorization evidence under FISMA / FedRAMP across cloud, endpoint, and GRC feeds.
 - **App/TA:** Splunk Enterprise Security (263), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk Add-on for Tenable (4060), Splunk Common Information Model Add-on (1621).
 - **Data Sources:** CloudTrail, Azure Monitor, Tenable/STIG scans, POA&M exports, AAD/O365 sign-in, inventory
 - **SPL:**
@@ -35009,7 +35010,7 @@ Authoritative content lives in the matching JSON sidecars under use-cases/cat-22
 ### UC-22.35.3 · Indexer replication lag exposing evidence to single-point failure
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance, Operational
+- **Monitoring type:** Compliance, Operations
 - **Splunk Pillar:** Platform
 - **Regulations:** DORA, GDPR, NIST 800-53, SOC 2
 - **Value:** Turns an otherwise-silent SLO breach into evidence that the control was monitored continuously, even across shards that never had an incident.
@@ -35055,7 +35056,7 @@ index=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy earliest=-9
 ```
 - **Implementation:** (1) Ingest the DSAR platform (OneTrust, TrustArc, ServiceNow Privacy) via its API; (2) join to an `extensions.csv` for legitimately extended tickets; (3) alert to DPO when breach is imminent; (4) emit KPI to ITSI privacy service.
 - **Visualization:** Funnel (received → verified → responded → fulfilled), aging bar chart, single-value for '% of DSARs fulfilled within SLA (90d)'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Legitimately extended requests (Art.12(3)) look like SLA breaches unless the extension_approved_on field in extensions.csv is populated.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [California Consumer Privacy Act (CCPA/CPRA)](https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=CIV&division=3.&title=1.81.5.&part=4.&chapter=&article=)
 
@@ -35082,7 +35083,7 @@ index=dsar subject_token=* action=erasure earliest=-180d
 ```
 - **Implementation:** (1) Publish a ropa_system_map.csv lookup keyed by ticket_id → list of systems-in-scope; (2) ingest deletion-ack events from each system (DB TTL jobs, DWH deletion manifests, app-level hooks); (3) run hourly; (4) integrate with SOAR to auto-reopen tickets with missing acks.
 - **Visualization:** Matrix of ticket_id × system with green/red cells; aging histogram; single-value for 'in-scope systems with ack in SLA'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Systems that hold data under a legitimate retention obligation (tax law, medical records) will 'miss' an ack. Use erasure_exceptions.csv to exclude them per ticket.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [California Consumer Privacy Act (CCPA/CPRA)](https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=CIV&division=3.&title=1.81.5.&part=4.&chapter=&article=)
 
@@ -35321,7 +35322,7 @@ index=cloud_storage sourcetype=aws:s3:objectaccess OR sourcetype=azure:blob:acce
 ```
 - **Implementation:** (1) Ingest classifications from ServiceNow / ES incident index; (2) maintain sla_catalog.csv with regulator → SLA hours; (3) ingest notification-portal tracking IDs; (4) schedule every 15 min; (5) integrate with SOAR to auto-escalate.
 - **Visualization:** Gantt of incidents vs SLA deadlines, single-value 'incidents notified on time (90d)', breakdown by regulator.
-- **CIM Models:** Alerts, Ticket Management
+- **CIM Models:** Alerts, Ticket_Management
 - **Known false positives:** Incidents whose submission happens offline with post-hoc upload require a timezone-normalised submitted_at; mis-mapped timezones produce false SLA breaches.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [Directive (EU) 2022/2555 — NIS2](https://eur-lex.europa.eu/eli/dir/2022/2555/oj), [Regulation (EU) 2022/2554 — DORA](https://eur-lex.europa.eu/eli/reg/2022/2554/oj), [45 CFR Part 164 — HIPAA](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164)
 
@@ -35347,7 +35348,7 @@ index=notifications sourcetype=regulator:submission earliest=-72h
 ```
 - **Implementation:** (1) Instrument submission and ack channels to emit matching tracking_ids; (2) schedule hourly; (3) on miss, SOAR opens an incident-notification retry case.
 - **Visualization:** Funnel (submitted → acked), bar chart of delays by regulator, single-value 'submissions acked within 15 min'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Regulator portals that batch acks daily produce legitimate lag; configure a per-regulator grace window.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [Directive (EU) 2022/2555 — NIS2](https://eur-lex.europa.eu/eli/dir/2022/2555/oj)
 
@@ -35375,7 +35376,7 @@ index=comms sourcetype=breach:notification earliest=-90d
 ```
 - **Implementation:** (1) Ingest campaign events from the messaging platform; (2) join to breach_campaigns.csv with classification timestamps; (3) run daily; (4) escalate via SOAR.
 - **Visualization:** Per-campaign completion funnel, aging bar chart, single-value '% of campaigns on track'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Subjects without deliverable contact info require the fall-back channel; bounces without fall-back handling should be followed up manually.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [45 CFR Part 164 — HIPAA](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164)
 
@@ -36212,7 +36213,7 @@ index=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy action=veri
 ```
 - **Implementation:** (1) Ensure DSAR verification events emit subject_token and result; (2) run daily; (3) feed findings to a DPO review dashboard; (4) after a fixed threshold, escalate via SOAR for legal review.
 - **Visualization:** Bar chart of verification failure rate per channel, table of repeat-failure subjects, single-value 'repeat-failure subjects (14d)'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Genuine impersonation attempts will (correctly) produce multiple failures for the same subject_token; pair with IdP risk signals before escalating.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [California CCPA/CPRA](https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=CIV&division=3.&title=1.81.5.&part=4.&chapter=&article=)
 
@@ -36241,7 +36242,7 @@ index=dsar sourcetype=onetrust:dsar OR sourcetype=servicenow:privacy earliest=-8
 ```
 - **Implementation:** (1) Ensure DSAR events emit a canonical request_type from an allow-list; (2) run weekly; (3) on fire, open a DPO + engineering review ticket.
 - **Visualization:** Stacked area of request-type mix over 12 weeks, bar chart of current-vs-baseline deltas, single-value 'drift categories this week'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Seasonal campaigns (e.g., year-end 'delete my data' reminders) legitimately shift the mix; maintain a known-campaign lookup to dampen the signal for those windows.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [California CCPA/CPRA](https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=CIV&division=3.&title=1.81.5.&part=4.&chapter=&article=)
 
@@ -36279,7 +36280,7 @@ index=app_activity earliest=-1h token_purpose=*
 ### UC-22.37.5 · IAB TCF consent string mutation without user interaction
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1557
 - **Splunk Pillar:** Security
 - **Regulations:** CCPA, GDPR
@@ -36379,7 +36380,7 @@ index=notifications sourcetype=regulator:submission earliest=-30d
 ```
 - **Implementation:** (1) Normalise submission events to carry canonical material-fact fields; (2) run 24h after any new submission for the incident_id; (3) alert DPO + legal if divergence found.
 - **Visualization:** Table of divergent incidents, bar chart of divergence magnitude, single-value 'incidents with consistent submissions'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Genuine refinement of scope between the initial 72h notice and the 30-day follow-up is legitimate and expected; parametrise a tolerance window.
 - **References:** [Regulation (EU) 2016/679 — GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [Directive (EU) 2022/2555 — NIS2](https://eur-lex.europa.eu/eli/dir/2022/2555/oj), [Regulation (EU) 2022/2554 — DORA](https://eur-lex.europa.eu/eli/reg/2022/2554/oj)
 
@@ -36901,7 +36902,7 @@ index=tls sourcetype=tls:scan earliest=-24h
 ### UC-22.47.4 · Evidence-pack drift — auditor-facing vs pre-production evidence
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1070
 - **Splunk Pillar:** Platform
 - **Regulations:** SOC-2, SOX-ITGC
@@ -37095,7 +37096,7 @@ index=assets sourcetype=asset:disposal earliest=-7d method=cryptographic_erasure
   the remaining clause gaps for the thinnest tier-1 frameworks.
 -->
 
-### 22.3 — per-regulation content fill (DORA — per-regulation content fill (Phase 2.3))
+### 22.3 — DORA (extended clauses)
 
 ### UC-22.3.41 · DORA Art.6 — ICT risk-management framework evidence: control catalogue drift detection
 - **Criticality:** 🟠 High
@@ -37200,7 +37201,7 @@ index=soar sourcetype IN (servicenow:sir_incident,phantom:incident) tag::major_i
 ```
 - **Implementation:** (1) Normalise detected_at/classified_at/notified_at/intermediate_at/final_at in the IR tool; (2) tag major incidents at classification; (3) schedule UC every 5m; (4) SLA_breached=1 escalates to CISO + Head of IR; (5) monthly roll-up to Board; (6) annual tabletop exercise validates clock fidelity.
 - **Visualization:** Per-incident Gantt of phase durations, timechart of breaches per quarter, single value 'open incidents at risk of SLA breach in next 4h'.
-- **CIM Models:** Alerts, Ticket Management
+- **CIM Models:** Alerts, Ticket_Management
 - **Known false positives:** Incidents re-classified as non-major after initial raise can show a misleading 'breach' until tag::major_incident is cleared — dedup on latest tag state before computing SLAs.
 - **References:** [DORA Regulation (EU) 2022/2554](https://eur-lex.europa.eu/eli/reg/2022/2554/oj), [NIS2 Directive (EU) 2022/2555](https://eur-lex.europa.eu/eli/dir/2022/2555/oj), [ISO/IEC 27001 2022](https://www.iso.org/standard/27001), [MITRE ATT&CK — T1090](https://attack.mitre.org/techniques/T1090/)
 
@@ -37235,7 +37236,7 @@ index=soar sourcetype IN (servicenow:sir_incident,phantom:incident) tag::major_i
 
 ---
 
-### 22.6 — per-regulation content fill (ISO/IEC 27001 — per-regulation content fill (Phase 2.3))
+### 22.6 — ISO/IEC 27001 (extended clauses)
 
 ### UC-22.6.46 · ISO/IEC 27001:2022 Clause 6.1 — Risk-assessment evidence: live risk register decay
 - **Criticality:** 🟠 High
@@ -37424,7 +37425,7 @@ search `notable` severity IN ("high","critical") earliest=-7d
 ```
 - **Implementation:** (1) Ensure SOAR writes classification decisions with alert_id tag; (2) schedule UC every 10m; (3) SLA miss escalates to shift lead; (4) daily SOC report of adherence %; (5) monthly to Audit Committee.
 - **Visualization:** Funnel from total alerts → classified → on-time, line chart of adherence %, single value 'open unclassified alerts'.
-- **CIM Models:** Alerts, Ticket Management
+- **CIM Models:** Alerts, Ticket_Management
 - **Known false positives:** Alerts suppressed by tuning rules do not need classification decisions — filter out suppression_reason IS NOT NULL.
 - **References:** [ISO/IEC 27001 2022](https://www.iso.org/standard/27001), [SOC-2 2017 TSC](https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services), [DORA Regulation (EU) 2022/2554](https://eur-lex.europa.eu/eli/reg/2022/2554/oj), [NIST 800-53 Rev. 5](https://doi.org/10.6028/NIST.SP.800-53r5), [MITRE ATT&CK — T1070](https://attack.mitre.org/techniques/T1070/)
 
@@ -37513,7 +37514,7 @@ index=change sourcetype=servicenow:change state IN (implemented,closed) earliest
 
 ---
 
-### 22.8 — per-regulation content fill (SOC 2 — per-regulation content fill (Phase 2.3))
+### 22.8 — SOC 2 (extended clauses)
 
 ### UC-22.8.31 · SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary
 - **Criticality:** 🟠 High
@@ -37651,7 +37652,7 @@ index=soar sourcetype=phantom:incident state=closed earliest=-30d
 ```
 - **Implementation:** (1) Ensure PIR Jira project is populated; (2) schedule UC daily; (3) pir_sla_met=0 opens a reminder ticket; (4) weekly SOC report; (5) quarterly Board report.
 - **Visualization:** Waterfall of incidents → PIR completed → on time, single value 'open incidents overdue PIR'.
-- **CIM Models:** Ticket Management
+- **CIM Models:** Ticket_Management
 - **Known false positives:** Incidents reopened and later re-closed legitimately extend the window — use latest(closed_at).
 - **References:** [SOC-2 2017 TSC](https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services), [ISO/IEC 27001 2022](https://www.iso.org/standard/27001), [DORA Regulation (EU) 2022/2554](https://eur-lex.europa.eu/eli/reg/2022/2554/oj)
 
@@ -37764,7 +37765,7 @@ index=consent sourcetype=onetrust:consent earliest=-14d
 
 ---
 
-### 22.11 — per-regulation content fill (PCI DSS v4.0 — per-regulation content fill (Phase 2.3))
+### 22.11 — PCI DSS v4.0 (extended clauses)
 
 ### UC-22.11.91 · PCI-DSS 1.3 — CDE network boundary: unauthorised flows between CDE and untrusted networks
 - **Criticality:** 🔴 Critical
@@ -38207,12 +38208,12 @@ index=vm sourcetype IN (tenable:sc:vuln,qualys:host) earliest=-120d
 
 ---
 
-### 22.12 — per-regulation content fill (SOX / ITGC — per-regulation content fill (Phase 2.3))
+### 22.12 — SOX / ITGC (extended clauses)
 
 ### UC-22.12.36 · SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1098
 - **Splunk Pillar:** Security
 - **Regulations:** ISO/IEC 27001, PCI-DSS, SOC-2, SOX-ITGC
@@ -38305,7 +38306,7 @@ index=change sourcetype=servicenow:change state=implemented earliest=-7d
 ### UC-22.12.39 · SOX-ITGC ChangeMgmt.Approval — Segregation of duties in financial-system change approval
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1098
 - **Splunk Pillar:** Security
 - **Regulations:** ISO/IEC 27001, PCI-DSS, SOC-2, SOX-ITGC

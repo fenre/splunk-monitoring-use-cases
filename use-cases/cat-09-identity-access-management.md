@@ -330,7 +330,7 @@ index=azure sourcetype="azure:aad:signin"
 ### UC-9.1.12 · Conditional Access Policy Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1078
 - **Value:** Conditional Access blocks indicate non-compliant devices or policy misconfigurations. Monitoring ensures security policies work without excessive user friction.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
@@ -746,8 +746,11 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode=4886
 index=wineventlog sourcetype="WinEventLog:Directory Service" (EventCode=1864 OR EventCode=1865 OR EventCode=2042 OR EventCode=1388 OR EventCode=1988)
 | table _time host EventCode Message
 | sort -_time
+```
 
-| comment "Replication health from scripted input"
+*Replication health from scripted input:*
+
+```spl
 index=ad sourcetype=repadmin_replsummary
 | where failures > 0
 | table source_dc dest_dc failures last_failure last_success
@@ -795,7 +798,7 @@ index=wineventlog sourcetype="WinEventLog:Security" EventCode IN (4886, 4887, 48
 ### UC-9.2.1 · Bind Failure Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
+- **Monitoring type:** Security, Fault
 - **MITRE ATT&CK:** T1110, T1110.001
 - **Value:** LDAP bind failures indicate authentication issues, misconfigured applications, or brute-force attempts against directory services.
 - **App/TA:** Syslog, LDAP server logs
@@ -850,7 +853,7 @@ index=ldap sourcetype="openldap:access" operation="SEARCH"
 ### UC-9.2.3 · Schema Modification Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1484
 - **Value:** Schema changes to directory services can break applications and are rarely expected. Detection ensures change control compliance.
 - **App/TA:** LDAP audit log
@@ -904,7 +907,7 @@ index=ldap sourcetype="openldap:syncrepl"
 ### UC-9.2.5 · Azure AD / Entra ID Conditional Access Policy Evaluation Failures
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Security, Operational
+- **Monitoring type:** Security, Operations
 - **MITRE ATT&CK:** T1078
 - **Value:** Policy conflicts causing access denials; helps fine-tune conditional access and reduce user friction.
 - **App/TA:** Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`)
@@ -996,7 +999,7 @@ index=ldap sourcetype="syslog" "BIND" ("err=49" OR "data 52e")
 ### UC-9.2.8 · Active Directory Schema Modification Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Configuration, Compliance
+- **Monitoring type:** Security, Configuration, Compliance
 - **MITRE ATT&CK:** T1484
 - **Value:** Schema changes in AD (classes/attributes) are rare and high impact; complements generic LDAP schema logging for OpenLDAP/389.
 - **App/TA:** `Splunk_TA_windows`
@@ -1137,7 +1140,7 @@ index=ldap sourcetype="openldap:access" (message="REFERRAL" OR like(_raw,"%refer
 ### UC-9.3.1 · MFA Challenge Failure Rate
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
+- **Monitoring type:** Security, Fault
 - **MITRE ATT&CK:** T1621
 - **Value:** High MFA failure rates indicate user friction, potential phishing, or MFA fatigue attacks. Monitoring supports both security and user experience.
 - **App/TA:** `Splunk_TA_okta`, `Cisco Security Cloud` app (Splunkbase, replaces Duo Splunk Connector)
@@ -1265,7 +1268,7 @@ index=okta sourcetype="OktaIM2:log" eventType="user.authentication.sso"
 ### UC-9.3.5 · IdP Availability Monitoring
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** IdP outage blocks all SSO authentication across the organization. Rapid detection enables failover and communication.
 - **App/TA:** Scripted input (HTTP check), `Splunk_TA_okta`
@@ -1288,7 +1291,7 @@ index=synthetic sourcetype="http_check" target="*.okta.com"
 ### UC-9.3.6 · Phishing-Resistant MFA Adoption
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1621
 - **Value:** Tracks migration from phishable factors (SMS, phone) to phishing-resistant factors (FIDO2, WebAuthn). Supports zero-trust maturity goals.
 - **App/TA:** `Splunk_TA_okta`, IdP MFA enrollment data
@@ -1599,7 +1602,7 @@ index=proxy sourcetype="access_combined" uri_path="/oauth2/v2.0/token"
 ### UC-9.4.1 · Privileged Session Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078.002
 - **Value:** Complete audit trail of privileged sessions is required for compliance (SOX, PCI, HIPAA) and security investigation.
 - **App/TA:** Splunk_TA_cyberark, BeyondTrust TA for Splunk
@@ -1655,7 +1658,7 @@ index=pam sourcetype="cyberark:vault"
 ### UC-9.4.3 · Break-Glass Account Usage
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1078.002, T1078.004
 - **Value:** Break-glass accounts provide emergency access and should rarely be used. Any usage requires immediate investigation and documentation.
 - **App/TA:** Splunk_TA_cyberark, custom alert
@@ -1679,7 +1682,7 @@ index=pam sourcetype="cyberark:vault"
 ### UC-9.4.4 · Credential Rotation Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078, T1098
 - **Value:** Overdue password rotations increase exposure window if credentials are compromised. Compliance tracking ensures policy adherence.
 - **App/TA:** PAM TA, scripted input
@@ -1705,7 +1708,7 @@ index=pam sourcetype="cyberark:account_inventory"
 ### UC-9.4.5 · Suspicious Session Commands
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1078, T1003
 - **Value:** Detecting dangerous commands during privileged sessions enables real-time intervention before damage occurs.
 - **App/TA:** CyberArk PSM, BeyondTrust session monitoring
@@ -1785,7 +1788,8 @@ index=iam sourcetype="idp:health"
 - **SPL:**
 ```spl
 index=iam sourcetype="api:token_audit"
-| stats dc(ip) as unique_ips, count as requests by token_id, _time span=1h
+| bin _time span=1h
+| stats dc(ip) as unique_ips, count as requests by token_id, _time
 | where unique_ips > 3 OR requests > 1000
 | sort -requests
 ```
@@ -1894,7 +1898,8 @@ index=iam sourcetype="sync:job"
 - **SPL:**
 ```spl
 index=radius sourcetype="radius:probe"
-| stats avg(response_ms) as avg_ms, max(response_ms) as max_ms, count(eval(response_ms>2000)) as slow_count by server, _time span=5m
+| bin _time span=5m
+| stats avg(response_ms) as avg_ms, max(response_ms) as max_ms, count(eval(response_ms>2000)) as slow_count by server, _time
 | where avg_ms > 500 OR max_ms > 2000 OR slow_count > 0
 | table _time, server, avg_ms, max_ms, slow_count
 ```
@@ -1910,7 +1915,7 @@ index=radius sourcetype="radius:probe"
 ### UC-9.4.13 · Active Directory Domain Controller Response Time
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance, Availability
+- **Monitoring type:** Security, Performance, Availability
 - **MITRE ATT&CK:** T1003.003
 - **Value:** LDAP bind time, DNS query time per DC — slow DCs cause auth delays and user lockouts.
 - **App/TA:** `Splunk_TA_windows`, custom scripted input
@@ -1918,7 +1923,8 @@ index=radius sourcetype="radius:probe"
 - **SPL:**
 ```spl
 index=ad_perf sourcetype="ad:dc_probe"
-| stats avg(ldap_bind_ms) as avg_ldap, avg(dns_query_ms) as avg_dns, count(eval(ldap_bind_ms>1000)) as slow_ldap by dc_host, _time span=5m
+| bin _time span=5m
+| stats avg(ldap_bind_ms) as avg_ldap, avg(dns_query_ms) as avg_dns, count(eval(ldap_bind_ms>1000)) as slow_ldap by dc_host, _time
 | where avg_ldap > 500 OR avg_dns > 200 OR slow_ldap > 0
 | table _time, dc_host, avg_ldap, avg_dns, slow_ldap
 ```
@@ -2555,16 +2561,19 @@ index=okta sourcetype="OktaIM2:log"
 ### UC-9.6.1 · Device Compliance Status and Policy Enforcement
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078
 - **Value:** Ensures all managed devices comply with security policies and configuration standards.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
 - **Data Sources:** `sourcetype=meraki:api compliance_status=*`
 - **SPL:**
 ```spl
-index=cisco_network sourcetype="meraki:api" (compliance_status="noncompliant" OR compliance_status="unknown")
-| stats count as noncompliant_count by os_type, compliance_reason
+index=cisco_network sourcetype="meraki:api" compliance_status=*
+| stats count as total_devices,
+        count(eval(compliance_status IN ("noncompliant","unknown"))) as noncompliant_count
+        by os_type, compliance_reason
 | eval compliance_pct=round(noncompliant_count*100/total_devices, 2)
+| where noncompliant_count > 0
 ```
 - **Implementation:** Query device compliance status from SM API. Alert on noncompliance.
 - **Visualization:** Compliance status table; compliance percentage gauge; noncompliant device list.
@@ -2578,7 +2587,7 @@ index=cisco_network sourcetype="meraki:api" (compliance_status="noncompliant" OR
 ### UC-9.6.2 · Mobile Device Enrollment and MDM Status Tracking
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1078
 - **Value:** Tracks device enrollment status to ensure mobile device management coverage.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)
@@ -2601,7 +2610,7 @@ index=cisco_network sourcetype="meraki:api" enrollment_status IN ("enrolled", "p
 ### UC-9.6.3 · Geofencing Alerts and Location-Based Policy Triggers
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1078
 - **Value:** Uses geofencing to detect when devices leave secure zones and trigger location-based policies.
 - **App/TA:** `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)

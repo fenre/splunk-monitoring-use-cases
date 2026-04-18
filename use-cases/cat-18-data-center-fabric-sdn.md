@@ -845,7 +845,7 @@ index=vmware sourcetype="vmware:nsx:intelligence_flow" earliest=-24h
 ```
 - **Implementation:** (1) Enable Intelligence flow export to Splunk HEC with CIM-friendly field names. (2) Baseline per domain; exclude backup VLANs via lookup. (3) Correlate spikes with DFW deny events (UC-18.2.1).
 - **Visualization:** Table (top talkers), Sankey (src to service), Timechart (bytes per domain).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -901,7 +901,7 @@ index=vmware sourcetype="vmware:nsx:edge_bfd" earliest=-4h
 ```
 - **Implementation:** (1) Ingest BFD telemetry from NSX Manager API or Edge syslog. (2) Join with `vmware:nsx:edge_status` (UC-18.2.8) for BGP state. (3) Page on any BFD not UP on production T0 uplinks.
 - **Visualization:** Status grid (edge × uplink), Timeline (BFD events), Table (non-UP sessions).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -1073,7 +1073,8 @@ index=sdn sourcetype="vxlan:tunnel"
 ```spl
 index=sdn sourcetype="evpn:route"
 | search (type=mac_ip OR type=mac_mobility)
-| stats count by vni, host, _time span=5m
+| bin _time span=5m
+| stats count by vni, host, _time
 | where count > 100
 | sort -count
 ```
@@ -1096,7 +1097,8 @@ index=sdn sourcetype="evpn:route"
 ```spl
 index=aci sourcetype="aci:contract_stats"
 | where action="deny" OR action="drop"
-| stats sum(packets) as denied by contract_name, src_epg, dest_epg, _time span=1h
+| bin _time span=1h
+| stats sum(packets) as denied by contract_name, src_epg, dest_epg, _time
 | where denied > 1000
 | sort -denied
 ```
@@ -1383,7 +1385,7 @@ index=network sourcetype="bgp:evpn_events" earliest=-1h
 ```
 - **Implementation:** (1) Stream BGP UPDATE syslog or BMP into `bgp:evpn_events` with normalized `event_type`. (2) Tune per-fabric scale; exclude RR-only peers if needed. (3) Correlate with spine-leaf neighbor state (UC-18.3.14).
 - **Visualization:** Timechart (withdrawals per minute), Table (worst peers), Single value (peak wdr).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest span=1m | sort - count
@@ -1417,7 +1419,7 @@ index=network sourcetype="fabric:ecmp_member" earliest=-30m
 ```
 - **Implementation:** (1) Ingest per-member interface counters from telemetry at 30–60s. (2) Alert on sustained skew; verify hashing seeds and broken members. (3) Compare with interface errors on hot members.
 - **Visualization:** Heatmap (member_if × leaf skew), Bar chart (skew by spine), Table (outliers).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -1499,7 +1501,7 @@ index=network sourcetype="fabric:mtu_diag" earliest=-24h
 ```
 - **Implementation:** (1) Run scheduled jumbo ping/UDP probes between loopbacks with DF set. (2) Ingest syslog `ICMP unreachable` / `MTU` messages. (3) Document expected MTU (for example 9216) per site and alert on regression.
 - **Visualization:** Table (bad pairs), Diagram (site × path status), Single value (paths failing MTU).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -1647,7 +1649,7 @@ index=network sourcetype="cisco:nexus" "BGP-5-ADJCHANGE" OR "BGP-3-NOTIFICATION"
 ```
 - **Implementation:** Forward NX-OS syslog to Splunk (facility BGP). Optionally stream BGP state via gNMI for sub-second detection. Alert on any peer leaving Established state. Correlate with interface flaps (UC-18.3.14) and VTEP reachability (UC-18.3.9).
 - **Visualization:** Status grid (peer status matrix), Table (non-established peers), Timeline (flap events).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
@@ -1677,7 +1679,7 @@ index=network sourcetype="cisco:nexus:copp" OR (sourcetype="cisco:nexus" "COPP" 
 ```
 - **Implementation:** Poll CoPP counters via scripted input or gNMI every 60 seconds. Baseline normal drop rates per class. Alert on sustained drops exceeding baseline, particularly for BGP, OSPF, and management classes. Investigate as potential security events.
 - **Visualization:** Table (CoPP classes with drops), Bar chart (drops by class), Line chart (drop rate trending).
-- **CIM Models:** Intrusion Detection
+- **CIM Models:** Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.dest | sort - count
@@ -1818,7 +1820,7 @@ index=cisco_dc sourcetype="cisco:ndfc:flow_export" earliest=-4h
 ```
 - **Implementation:** (1) Ingest NDFC telemetry health API or collector events with per-switch counters. (2) Baseline `eps` per site. (3) Alert on drops or sustained low export rate; verify CPU and sampler intervals on switches.
 - **Visualization:** Timechart (export rate), Table (switches with drops), Single value (total dropped flows).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value

@@ -435,7 +435,8 @@ index=storage sourcetype="pure:array"
 - **SPL:**
 ```spl
 index=storage sourcetype="iscsi:session"
-| stats dc(session_id) as sessions by host, target_iqn, _time span=5m
+| bin _time span=5m
+| stats dc(session_id) as sessions by host, target_iqn, _time
 | eventstats avg(sessions) as baseline by host, target_iqn
 | where sessions < baseline OR sessions=0
 ```
@@ -458,7 +459,8 @@ index=storage sourcetype="iscsi:session"
 ```spl
 index=os (sourcetype=linux_syslog OR sourcetype=syslog) (multipath OR "path failed" OR "switching path" OR mpio)
 | rex "(?i)path (?<path_id>\S+).*failed|(?i)switching.*path"
-| stats count by host, path_id, _time span=1h
+| bin _time span=1h
+| stats count by host, path_id, _time
 | where count > 0
 ```
 - **Implementation:** Forward multipath daemon logs from all SAN-attached hosts. Tag events for failback/failover. Alert on any path down >5m or repeated failovers per hour.

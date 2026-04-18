@@ -570,7 +570,8 @@ index=_internal sourcetype=splunkd (bundle OR BundleReplication)
 ```spl
 index=_internal sourcetype=splunkd
 | search ("Splunkd starting" OR "Shutting down" OR "splunkd restarted" OR "detected unexpected")
-| stats count by host, _time span=1h
+| bin _time span=1h
+| stats count by host, _time
 | where count > 3
 ```
 - **Implementation:** Tune for crash loops; join with OOM killer logs on the OS if forwarded. Alert when hourly restart count exceeds threshold.
@@ -2192,7 +2193,8 @@ index=alerts sourcetype=*
 ```spl
 index=slos sourcetype="slo:compliance"
 | eval burn_rate=1-(success_count/(success_count+failure_count))
-| stats avg(burn_rate) as avg_burn, sum(error_budget_consumed) as consumed by service, slo_name, _time span=1h
+| bin _time span=1h
+| stats avg(burn_rate) as avg_burn, sum(error_budget_consumed) as consumed by service, slo_name, _time
 | where avg_burn > 0.1
 ```
 - **Implementation:** Compute SLO compliance and error budget from availability/latency data. Ingest into Splunk. Alert on burn rate above threshold or error budget exhaustion. Report on remaining budget by service.
@@ -2213,7 +2215,8 @@ index=slos sourcetype="slo:compliance"
 - **SPL:**
 ```spl
 index=traces sourcetype="trace:span"
-| stats count as spans, dc(trace_id) as traces, avg(sample_rate) as avg_sample by service, _time span=1h
+| bin _time span=1h
+| stats count as spans, dc(trace_id) as traces, avg(sample_rate) as avg_sample by service, _time
 | eval spans_per_trace=spans/traces
 | where spans_per_trace < 5 OR avg_sample < 0.01
 ```
@@ -2280,7 +2283,8 @@ index=_audit action=view OR action=run
 ```spl
 index=synthetic sourcetype="synthetic:check"
 | where success="false" OR response_time_ms > 5000
-| stats count, avg(response_time_ms) as avg_ms by check_name, location, _time span=15m
+| bin _time span=15m
+| stats count, avg(response_time_ms) as avg_ms by check_name, location, _time
 | sort -count
 ```
 - **Implementation:** Ingest synthetic check results from Datadog, Pingdom, or custom scripts. Alert on failure or latency above threshold. Compare success rate and latency by region. Report on SLA by check and location.

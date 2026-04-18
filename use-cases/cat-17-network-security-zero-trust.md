@@ -39,7 +39,7 @@ index=nac sourcetype="cisco:ise:auth"
 ### UC-17.1.2 · Endpoint Posture Failures
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078
 - **Value:** Non-compliant endpoints accessing the network pose security risks. Posture tracking ensures endpoint hygiene enforcement.
 - **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
@@ -72,7 +72,7 @@ index=nac sourcetype="cisco:ise:posture"
 ### UC-17.1.3 · VLAN Assignment Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1078
 - **Value:** Dynamic VLAN assignments reflect authorization decisions. Anomalous placements may indicate policy misconfiguration or attacks.
 - **App/TA:** `Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog
@@ -324,7 +324,7 @@ index=nac sourcetype="radius:accounting"
 ### UC-17.1.11 · Posture Assessment Failure Trends
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078
 - **Value:** Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.
 - **App/TA:** Splunk_TA_cisco-ise
@@ -547,7 +547,7 @@ index=nac sourcetype="nac:quarantine" earliest=-30d
 ### UC-17.1.18 · NAC Policy Compliance Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1562.004
 - **Value:** Daily percentage of authentications that receive “permit” vs “deny” vs “redirect” per authorization policy — trending for policy drift and rollout validation.
 - **App/TA:** Splunk_TA_cisco-ise
@@ -578,7 +578,7 @@ index=nac sourcetype="cisco:ise:auth" earliest=-30d
 ### UC-17.1.19 · Endpoint Compliance Scoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078
 - **Value:** Composite score per endpoint from posture checks (AV, patch, encryption) for executive dashboards and exception reporting.
 - **App/TA:** Splunk_TA_cisco-ise
@@ -613,7 +613,7 @@ index=nac sourcetype="cisco:ise:posture" earliest=-4h
 ### UC-17.1.20 · Quarantine Release Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078, T1562.004
 - **Value:** Audit trail of who released endpoints from quarantine and whether release matched policy (e.g., IT-only, ticket required).
 - **App/TA:** Splunk_TA_cisco-ise, `nac:quarantine`
@@ -639,7 +639,7 @@ index=nac (sourcetype="nac:quarantine" OR sourcetype="cisco:ise:admin")
 ### UC-17.1.21 · ISE Endpoint Posture Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078
 - **Value:** Non-compliant endpoints (missing patches, disabled AV) on the network increase attack surface. ISE posture data enables enforcement visibility.
 - **App/TA:** `Splunk_TA_cisco-ise`
@@ -796,7 +796,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 ### UC-17.2.4 · Split-Tunnel Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1572, T1048
 - **Value:** Split-tunnel configurations affect security visibility. Ensuring compliance with tunnel policy maintains security posture.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
@@ -830,7 +830,7 @@ index=vpn sourcetype="cisco:asa"
 ### UC-17.2.5 · VPN Tunnel Stability
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`
@@ -875,8 +875,8 @@ index=vpn sourcetype="cisco:asa"
 - **SPL:**
 ```spl
 index=vpn sourcetype="cisco:asa" action="session_connect"
-| eval hour=strftime(_time,"%H")
-| where (hour < 5 OR hour > 23)
+| eval hour=tonumber(strftime(_time,"%H"))
+| where (hour < 5 OR hour >= 22)
 | lookup user_roles.csv user OUTPUT department, role
 | where role!="on_call" AND role!="sysadmin"
 | table _time, user, department, src, hour
@@ -902,7 +902,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect"
 ### UC-17.2.7 · VPN Bandwidth Consumption
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1048, T1041
 - **Value:** Per-user bandwidth tracking identifies heavy users, guides capacity planning, and detects potential data exfiltration.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`, RADIUS accounting
@@ -1070,7 +1070,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="ses
 ### UC-17.2.12 · VPN Concentrator Capacity
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Capacity
+- **Monitoring type:** Security, Capacity
 - **MITRE ATT&CK:** T1133
 - **Value:** Tracks session count and CPU/memory against platform limits to avoid remote-access brownouts during peaks.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), SNMP TA
@@ -1159,7 +1159,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 ### UC-17.2.15 · VPN Tunnel Keepalive Failure Analysis
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`
@@ -1184,7 +1184,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:system") earliest=-24h
 ### UC-17.2.16 · Remote Desktop Gateway Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1021.001
 - **Value:** Monitors RD Gateway (HTTP/UDP) auth success, connection failures, and capacity for hybrid workers.
 - **App/TA:** Windows TA, IIS TA
@@ -1217,7 +1217,7 @@ index=windows sourcetype="WinEventLog:Microsoft-Windows-TerminalServices-Gateway
 ### UC-17.2.17 · VPN Client Version Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1133, T1078
 - **Value:** Reports AnyConnect/GlobalProtect client versions against minimum supported builds.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect)
@@ -1251,7 +1251,7 @@ index=vpn (sourcetype="cisco:asa" OR sourcetype="pan:globalprotect") action="ses
 ### UC-17.2.18 · Site-to-Site Tunnel Flapping
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Counts IKE/IPsec up/down events per peer for unstable WAN or crypto issues.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, `Splunk_TA_juniper`
@@ -1278,7 +1278,7 @@ index=vpn sourcetype="cisco:asa" earliest=-24h
 ### UC-17.2.19 · Always-On VPN Enforcement
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1572, T1048
 - **Value:** Identifies corporate assets connecting without Always-On (pre-login) VPN when policy requires it.
 - **App/TA:** Splunk_TA_cisco-asa, endpoint inventory
@@ -1304,7 +1304,7 @@ index=vpn sourcetype="cisco:asa" action="session_connect" earliest=-24h
 ### UC-17.2.20 · VPN Bandwidth Utilization Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance, Capacity
+- **Monitoring type:** Security, Performance, Capacity
 - **MITRE ATT&CK:** T1133
 - **Value:** Time-series bandwidth per headend and user cohort — complements UC-17.2.7 top talkers with **trend** and **gateway** dimension.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, NetFlow
@@ -1336,7 +1336,7 @@ index=vpn sourcetype="cisco:asa" earliest=-7d
 ### UC-17.2.21 · SSL VPN Certificate Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance, Availability
+- **Monitoring type:** Security, Compliance, Availability
 - **MITRE ATT&CK:** T1573
 - **Value:** Tracks server certificate expiry and chain errors on SSL VPN / GlobalProtect portals from TLS handshake logs.
 - **App/TA:** `Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`
@@ -1389,7 +1389,7 @@ index=vpn sourcetype="vpn:session" earliest=-7d
 ### UC-17.2.23 · VPN Session Duration and Idle Timeout
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1021
 - **Value:** Anomalously long or short VPN sessions may indicate abuse or connectivity issues. Monitoring supports policy tuning and security review.
 - **App/TA:** VPN gateway logs, RADIUS accounting
@@ -1420,7 +1420,7 @@ index=vpn sourcetype="vpn:session"
 ### UC-17.3.1 · Conditional Access Enforcement
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1071.001
 - **Value:** A spike in policy blocks for a single application after a policy publish suggests a rule-order or identity claim error. Gradual deny-rate growth across multiple apps indicates posture drift or certificate expiry across a device cohort. Both patterns require different response workflows.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293), `Splunk_TA_microsoft-cloudservices` (Entra ID)
@@ -1451,7 +1451,7 @@ index=zt sourcetype="zscaler:zpa"
 ### UC-17.3.2 · Device Trust Scoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1200
 - **Value:** Device trust scores drive access decisions in zero-trust architecture. Monitoring ensures devices maintain compliance.
 - **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune), `TA-crowdstrike-falcon`
@@ -1482,7 +1482,7 @@ index=zt sourcetype="zscaler:device_posture"
 ### UC-17.3.3 · Micro-Segmentation Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1021, T1570
 - **Value:** Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.
 - **App/TA:** VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)
@@ -1514,7 +1514,7 @@ index=zt sourcetype="microseg:policy"
 ### UC-17.3.4 · ZTNA Application Access
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1021, T1071.001
 - **Value:** Per-application access patterns in ZTNA reveal usage trends, security risks, and application performance issues.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
@@ -1545,7 +1545,7 @@ index=zt sourcetype="zscaler:zpa"
 ### UC-17.3.5 · Posture Assessment Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078, T1133
 - **Value:** Endpoint posture compliance rates over time measure security improvement and identify persistent non-compliance areas.
 - **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `Splunk_TA_microsoft-cloudservices` (Entra ID / Intune)
@@ -1575,7 +1575,7 @@ index=zt sourcetype="zt:posture"
 ### UC-17.3.6 · Policy Drift Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Zero-trust policies require continuous validation. Drift from baseline configuration introduces security gaps.
 - **App/TA:** `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
@@ -1607,7 +1607,7 @@ index=zt sourcetype="zt:admin_audit"
 ### UC-17.3.7 · Device Certificate Expiration and Renewal
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1573.002
 - **Value:** Expired device certificates break ZTNA and VPN access. Monitoring expiration and renewal success ensures continuous access and avoids outages.
 - **App/TA:** PKI/certificate inventory, `Splunk_TA_zscaler`, Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access)
@@ -1632,7 +1632,7 @@ index=zt sourcetype="device:cert"
 ### UC-17.3.8 · Zero Trust Access Denial Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1071.001, T1046
 - **Value:** High denial rates may indicate policy misconfiguration or attacker probing. Trending supports tuning and security analysis.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)
@@ -1641,7 +1641,8 @@ index=zt sourcetype="device:cert"
 ```spl
 index=zt sourcetype="zt:access"
 | where decision="deny"
-| stats count by user, application, deny_reason, _time span=1h
+| bin _time span=1h
+| stats count by user, application, deny_reason, _time
 | where count > 20
 | sort -count
 ```
@@ -1665,7 +1666,8 @@ index=zt sourcetype="zt:access"
 - **SPL:**
 ```spl
 index=flows sourcetype="netflow"
-| stats sum(bytes) as bytes, count by src_segment, dest_segment, _time span=1h
+| bin _time span=1h
+| stats sum(bytes) as bytes, count by src_segment, dest_segment, _time
 | eventstats avg(bytes) as avg_bytes by src_segment, dest_segment
 | where bytes > (avg_bytes * 5)
 | table src_segment, dest_segment, bytes, avg_bytes
@@ -1716,7 +1718,7 @@ index=proxy sourcetype="zscaler:web" earliest=-30d
 ### UC-17.3.13 · ZPA Application Segment Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Tracks connector health, app segment reachability, and error rates for ZPA-published apps.
 - **App/TA:** Zscaler TA
@@ -1778,7 +1780,7 @@ index=dns sourcetype="umbrella:dns" earliest=-7d
 ### UC-17.3.15 · SASE Tunnel Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Monitors IPSec/GRE/SSL tunnels from branch to SASE PoPs — packet loss, latency, and down events.
 - **App/TA:** `Splunk_TA_zscaler`, `Splunk_TA_paloalto` (Prisma Access), Cato Networks Events App (Splunkbase 8037), `TA-fortinet_fortigate` (FortiSASE), Netskope Add-on for Splunk (Splunkbase 3808)
@@ -1869,7 +1871,7 @@ index=zt sourcetype="microseg:policy" earliest=-7d
 ### UC-17.3.18 · Device Trust Score Trending
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1200
 - **Value:** Fleet-level and cohort trend of device trust scores — extends point-in-time UC-17.3.2.
 - **App/TA:** `Splunk_TA_zscaler`, `Splunk_TA_microsoft-cloudservices` (Entra ID), `TA-crowdstrike-falcon`
@@ -1897,7 +1899,7 @@ index=zt sourcetype="zscaler:device_posture" earliest=-30d
 ### UC-17.3.19 · Continuous Authentication Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1021
 - **Value:** Tracks step-up auth, re-auth, and session risk evaluation outcomes for policies requiring continuous verification.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices` (Entra ID Protection), `Splunk_TA_okta`, Zscaler ZPA TA
@@ -1928,7 +1930,7 @@ index=identity sourcetype="azure:signin" earliest=-7d
 ### UC-17.3.20 · Browser Isolation Usage
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Operational
+- **Monitoring type:** Security, Operations
 - **MITRE ATT&CK:** T1133
 - **Value:** Measures adoption of remote browser isolation (RBI) sessions vs direct access — for licensing and risky-site coverage.
 - **App/TA:** Menlo Security syslog, `Splunk_TA_zscaler` (RBI), Island Enterprise Browser syslog, Broadcom Symantec WSS Add-on (Splunkbase 3856), Forcepoint ONE syslog
@@ -1983,7 +1985,7 @@ index=proxy sourcetype="zscaler:web" earliest=-24h
 ### UC-17.3.22 · ZTNA Application Access Latency
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1133
 - **Value:** p95 latency per published application for user experience SLAs on ZTNA paths.
 - **App/TA:** `Splunk_TA_zscaler` (ZPA), Cloudflare Logpush integration
@@ -2013,7 +2015,7 @@ index=zt sourcetype="zscaler:zpa" earliest=-24h
 ### UC-17.3.23 · Prisma Access Tunnel Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** IPSec/SSL tunnel state, latency, and error codes for Palo Alto Prisma Access remote networks and mobile users.
 - **App/TA:** Splunk_TA_paloalto, Prisma Access cloud logging
@@ -2038,7 +2040,7 @@ index=sase sourcetype="prisma:access:tunnel" earliest=-24h
 ### UC-17.3.24 · Conditional Access Policy Enforcement (Entra ID)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1021
 - **Value:** Volume of grants vs blocks per named CA policy — complements generic UC-17.3.1 with Microsoft-specific policy dimension.
 - **App/TA:** Azure / Entra TA
@@ -2102,7 +2104,7 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
 ### UC-17.3.26 · Cato WAN Link Health and Quality (Cato Networks)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance, Availability
+- **Monitoring type:** Security, Performance, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Cato SD-WAN measures latency, jitter, and packet loss per Socket uplink (MPLS, broadband, LTE). When quality falls below policy thresholds, Cato steers flows to healthier paths automatically. Retaining link-quality telemetry in Splunk exposes chronic ISP issues, validates steering decisions, and supports capacity conversations with carriers using your own historical evidence.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
@@ -2172,7 +2174,7 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-24h
 ### UC-17.3.28 · Cato Cloud Firewall Policy Audit (Cato Networks)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration, Compliance
+- **Monitoring type:** Security, Configuration, Compliance
 - **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Cloud firewall policies are authored centrally in Cato Management and enforced at every PoP, so one misconfiguration has global blast radius. Auditing administrator actions, policy edits, and time-ordered changes lets you tie traffic anomalies to specific change records and demonstrate who approved risky rules.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); Cato Events API audit stream
@@ -2206,7 +2208,7 @@ index=sase sourcetype IN ("cato:events","cato:sase") earliest=-30d
 ### UC-17.3.29 · Cato SD-WAN Tunnel Health (Cato Networks)
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Cato Sockets build IPsec/DTLS tunnels to the nearest PoP; when tunnels drop, the site loses cloud-delivered security, path selection, and centralized breakout. Measuring down events, duration, and time-to-recover supports SLA reporting and distinguishes transient blips from structural connectivity failures.
 - **App/TA:** Cato Networks Events App (Splunkbase 8037); `eventsFeed.py` from [catonetworks/cato-splunk-integration](https://github.com/catonetworks/cato-splunk-integration)
@@ -2432,7 +2434,7 @@ index=proxy sourcetype="netskope:events" earliest=-7d
 ### UC-17.3.36 · Netskope Private Access (NPA) Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Netskope Private Access (NPA) is the ZTNA component — replacing VPN for private application access. Publisher (connector) health, error rates, and latency determine whether users can reach internal apps.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
@@ -2459,7 +2461,7 @@ index=casb sourcetype="netskope:connection" earliest=-24h
 ### UC-17.3.37 · Netskope CASB Inline Policy Enforcement
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1048, T1041
 - **Value:** Netskope CASB enforces activity-level policies on sanctioned SaaS apps (block upload, read-only, quarantine). Monitoring enforcement actions validates that cloud governance policies are working and identifies gaps.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
@@ -2491,7 +2493,7 @@ index=casb sourcetype="netskope:events" earliest=-7d
 ### UC-17.3.38 · Netskope Admin Audit Trail
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration, Compliance
+- **Monitoring type:** Security, Configuration, Compliance
 - **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Administrative changes to Netskope policies, steering configs, and tenant settings have global impact. Audit trail ensures accountability and change correlation.
 - **App/TA:** Netskope Add-on for Splunk (Splunkbase 3808)
@@ -2553,7 +2555,7 @@ index=proxy sourcetype="fgt_utm" subtype="webfilter" earliest=-7d
 ### UC-17.3.40 · FortiSASE ZTNA Application Access (Fortinet)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1021, T1071.001
 - **Value:** FortiSASE ZTNA tags replace traditional VPN by granting per-application access based on device posture and identity. Monitoring ZTNA tag matches and application access patterns validates zero-trust enforcement.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE ZTNA logs)
@@ -2614,7 +2616,7 @@ index=ids sourcetype="fgt_utm" subtype IN ("ips","virus","anomaly") earliest=-24
 ### UC-17.3.42 · FortiSASE Thin Edge Health (Fortinet)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** FortiSASE thin edges (FortiExtender, FortiGate in SASE mode) connect branches to the nearest FortiSASE PoP. Tunnel state, latency, and failover events determine branch connectivity and SLA compliance.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE tunnel/system logs)
@@ -2646,7 +2648,7 @@ index=sase sourcetype="fgt_event" subtype IN ("vpn","system") earliest=-24h
 ### UC-17.3.43 · FortiSASE Admin Configuration Audit (Fortinet)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration, Compliance
+- **Monitoring type:** Security, Configuration, Compliance
 - **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** FortiSASE policies are centrally managed and affect all connected users globally. Configuration audit logs enable change tracking, compliance, and root-cause analysis when policies cause access issues.
 - **App/TA:** `TA-fortinet_fortigate` (FortiSASE admin audit)
@@ -2740,7 +2742,7 @@ index=proxy sourcetype="cp_log" product="URL Filtering" earliest=-7d
 ### UC-17.3.46 · Check Point Harmony SASE Private Access (Check Point)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Harmony SASE Private Access (ZTNA) grants per-application access to private resources without VPN. Connector health, access decisions, and latency determine user experience for internal applications.
 - **App/TA:** Check Point App for Splunk (Splunkbase 4293)
@@ -2774,7 +2776,7 @@ index=zt sourcetype="cp_log" product="VPN" earliest=-24h
 ### UC-17.3.47 · Check Point Harmony SASE Admin Audit (Check Point)
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration, Compliance
+- **Monitoring type:** Security, Configuration, Compliance
 - **MITRE ATT&CK:** T1562.004, T1133
 - **Value:** Centralized SASE policy changes affect all connected users and sites. Audit logs enable compliance, change correlation, and accountability.
 - **App/TA:** Check Point App for Splunk (Splunkbase 4293)
@@ -3115,7 +3117,7 @@ index=proxy sourcetype="cloudflare:gateway" earliest=-7d
 ### UC-17.3.58 · Cloudflare Tunnel Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Cloudflare Tunnels (formerly Argo Tunnels) connect private infrastructure to Cloudflare without opening inbound ports. Tunnel health determines whether users can reach private applications through Cloudflare Access.
 - **App/TA:** Cloudflare App for Splunk (Splunkbase 4501)
@@ -3173,7 +3175,7 @@ index=proxy sourcetype="forcepoint:one" earliest=-7d
 ### UC-17.3.60 · Forcepoint ONE ZTNA Private Access Health (Forcepoint)
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1133
 - **Value:** Forcepoint ONE ZTNA provides agentless and agent-based private application access. Connector health and access decision monitoring ensures application reachability.
 - **App/TA:** Forcepoint Insights SIEM App (Splunkbase 8053)

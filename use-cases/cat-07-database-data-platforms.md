@@ -338,12 +338,13 @@ index=database sourcetype="mssql:audit" action_id IN ("CR","AL","DR")
 - **Monitoring type:** Fault
 - **Value:** Query plan changes can cause sudden performance degradation. Detection enables rapid intervention (plan forcing, hint application).
 - **App/TA:** DB Connect
-- **Data Sources:** SQL Server Query Store, `sys.dm_exec_query_plan`, PostgreSQL `pg_stat_statements`
+- **Data Sources:** SQL Server Query Store, `sys.dm_exec_query_plan`, PostgreSQL `pg_stat_statements`; lookup `query_baselines.csv` with columns `query_id, baseline_avg` (rolling 30-day median rebuilt nightly)
 - **SPL:**
 ```spl
 index=database sourcetype="dbconnect:query_store"
 | stats avg(avg_duration) as current_avg by query_id, plan_id
-| join max=1 query_id [| inputlookup query_baselines.csv]
+| lookup query_baselines.csv query_id OUTPUT baseline_avg
+| where isnotnull(baseline_avg) AND baseline_avg > 0
 | eval regression_pct=round((current_avg-baseline_avg)/baseline_avg*100,1)
 | where regression_pct > 50
 ```
@@ -1462,7 +1463,8 @@ index=database sourcetype="clickhouse:query_log"
 - **SPL:**
 ```spl
 index=datawarehouse sourcetype="snowflake:warehouse_metering"
-| stats sum(credits_used) as credits by warehouse_name, _time span=1d
+| bin _time span=1d
+| stats sum(credits_used) as credits by warehouse_name, _time
 | eventstats avg(credits) as avg_c, stdev(credits) as s by warehouse_name
 | where credits > avg_c + 3*s
 | table warehouse_name credits avg_c
@@ -1486,7 +1488,8 @@ index=datawarehouse sourcetype="snowflake:warehouse_metering"
 ```spl
 index=databricks sourcetype="databricks:cluster_event"
 | where event_type IN ("RUNNING","TERMINATED")
-| stats sum(uptime_seconds) as uptime, dc(cluster_id) as clusters by _time span=1d
+| bin _time span=1d
+| stats sum(uptime_seconds) as uptime, dc(cluster_id) as clusters by, _time
 | eval dbu_estimate=uptime/3600*0.1
 ```
 - **Implementation:** Ingest cluster lifecycle and DBU billing lines. Alert on clusters RUNNING >8h with low task activity (correlate with job logs). Normalize fields from your workspace audit pipeline.
@@ -1575,7 +1578,8 @@ index=datawarehouse sourcetype="snowflake:query_history"
 - **SPL:**
 ```spl
 index=databricks sourcetype="databricks:job_run"
-| stats count(eval(result_state="FAILED")) as failed, count as total by job_name, _time span=1d
+| bin _time span=1d
+| stats count(eval(result_state="FAILED")) as failed, count as total by job_name, _time
 | eval fail_rate=round(failed/total*100,1)
 | where fail_rate > 5 OR failed > 0 AND total < 5
 | table job_name failed total fail_rate
@@ -1932,13 +1936,15 @@ index=database sourcetype="dbconnect:oracle_tablespace"
 - **Monitoring type:** Availability
 - **Value:** `pg_stat_replication` write/flush/replay lag bytes and seconds catch standby drift before read-your-writes violations. Complements generic replication UC with PostgreSQL-native metrics.
 - **App/TA:** DB Connect, `pg_stat_replication` scripted export
-- **Data Sources:** `write_lag`, `flush_lag`, `replay_lag`, `sent_lsn`
+- **Data Sources:** `write_lag`, `flush_lag`, `replay_lag`, `sent_lsn`, `lsn_gap_bytes` (computed in DB Connect SQL via `pg_wal_lsn_diff(sent_lsn, replay_lsn)`)
 - **SPL:**
 ```spl
 index=database sourcetype="dbconnect:pg_replication"
-| eval replay_lag_sec=extract(replay_lag, "(\d+)").0
-| where replay_lag_sec > 60 OR pg_wal_lsn_diff(sent_lsn, replay_lsn) > 104857600
-| table application_name client_addr replay_lag_sec state
+| rex field=replay_lag "(?<replay_lag_sec>\d+)"
+| eval replay_lag_sec=tonumber(replay_lag_sec),
+       lsn_gap_bytes=tonumber(lsn_gap_bytes)
+| where replay_lag_sec > 60 OR lsn_gap_bytes > 104857600
+| table application_name client_addr replay_lag_sec lsn_gap_bytes state
 ```
 - **Implementation:** Poll replication view every 1m. Map `application_name` to replica. Alert on replay lag > RPO seconds or LSN gap >100MB. Correlate with `archive_command` and network.
 - **Visualization:** Line chart (replay lag per standby), Table (standby, lag sec), Single value (max lag).
@@ -1962,7 +1968,8 @@ index=database sourcetype="dbconnect:pg_replication"
 ```spl
 index=database sourcetype="dbconnect:mysql_status"
 | eval hit_ratio=round(100*(1-Innodb_buffer_pool_reads/nullif(Innodb_buffer_pool_read_requests,0)),2)
-| stats avg(hit_ratio) as fleet_avg, min(hit_ratio) as worst by _time span=1h
+| bin _time span=1h
+| stats avg(hit_ratio) as fleet_avg, min(hit_ratio) as worst by, _time
 | where fleet_avg < 99 OR worst < 95
 ```
 - **Implementation:** Aggregate hourly for executive view; retain per-host series for alerts. Correlate drops with large table scans or buffer pool size changes.

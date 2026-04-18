@@ -42,8 +42,11 @@ index=containers sourcetype="docker:events" action="die"
 index=containers sourcetype="docker:events" action="oom"
 | table _time container_name image host
 | sort -_time
+```
 
-| comment "Also check host syslog for cgroup OOM"
+*Also check host syslog for cgroup OOM:*
+
+```spl
 index=os sourcetype=syslog "Memory cgroup out of memory" OR "oom-kill"
 | rex "task (?<process>\S+)"
 | table _time host process _raw
@@ -201,8 +204,11 @@ index=containers sourcetype="docker:daemon" level="error" OR level="fatal"
 index=containers sourcetype="docker:info"
 | stats latest(ServerVersion) as version, latest(Containers) as containers, latest(Images) as images by host
 | table host version containers images _time
+```
 
-| comment "Version drift across hosts"
+*Version drift across hosts:*
+
+```spl
 index=containers sourcetype="docker:info"
 | stats values(ServerVersion) as versions by host
 | eval version_count = mvcount(versions)
@@ -324,8 +330,11 @@ index=containers sourcetype="docker:daemon" (network OR overlay OR iptables OR v
 | search (level="error" OR level="warn")
 | stats count by host, msg
 | sort -count
+```
 
-| comment "Host network stack"
+*Host network stack:*
+
+```spl
 index=os sourcetype=syslog (docker OR "br-" OR "vxlan")
 | search fail OR error OR unreachable
 | stats count by host, _raw
@@ -464,8 +473,11 @@ index=containers sourcetype="docker:daemon" ("log driver" OR "failed to log" OR 
 index=containers sourcetype="docker:daemon" ("mirror" OR "registry-mirror" OR "connection refused")
 | stats count by host, msg
 | sort -count
+```
 
-| comment "Mirror reachability synthetic"
+*Mirror reachability synthetic:*
+
+```spl
 index=containers sourcetype="http:check" check_type="registry_mirror"
 | where status!=200 OR response_time_ms>2000
 | table _time mirror_url host status response_time_ms
@@ -540,7 +552,7 @@ index=containers sourcetype="docker:stats"
 ```
 - **Implementation:** Collect `docker stats` output or cAdvisor metrics at regular intervals. Extract `rx_bytes`, `tx_bytes`, `rx_packets`, `tx_packets`, and `rx_dropped`/`tx_dropped` per container. Baseline per-container network profiles and alert on deviations above 3 standard deviations. High TX from a container that normally has low outbound traffic is a strong exfiltration indicator. Dropped packets signal network saturation.
 - **Visualization:** Line chart (TX/RX per container), Bar chart (top talkers), Table (anomalous containers).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value
@@ -755,8 +767,11 @@ index=k8s sourcetype="kube:events" reason="FailedScheduling"
 index=k8s sourcetype="kube:events" reason="NodeNotReady"
 | table _time node message
 | sort -_time
+```
 
-| comment "Or from node conditions"
+*Or from node conditions:*
+
+```spl
 index=k8s sourcetype="kube:node:meta"
 | where condition_ready="False"
 | table _time node condition_ready
@@ -975,8 +990,11 @@ index=k8s sourcetype="kube:audit" responseStatus.code>=403
 index=k8s sourcetype="kube:events" involvedObject.kind="Certificate" reason="Issuing" OR reason="Expired"
 | table _time namespace involvedObject.name reason message
 | sort -_time
+```
 
-| comment "Or from cert-manager metrics"
+*Or from cert-manager metrics:*
+
+```spl
 index=k8s sourcetype="certmanager:metrics"
 | eval days_left = round((certmanager_certificate_expiration_timestamp_seconds - now()) / 86400, 0)
 | where days_left < 30
@@ -1147,8 +1165,11 @@ index=k8s sourcetype="kube:daemonset:meta"
 index=k8s sourcetype="kube:events" (involvedObject.kind="Job" OR involvedObject.kind="CronJob") (reason="Failed" OR reason="BackoffLimitExceeded")
 | stats count by namespace, involvedObject.name, involvedObject.kind, message
 | sort -count
+```
 
-| comment "CronJob missed schedule - last_schedule_time stale"
+*CronJob missed schedule - last_schedule_time stale:*
+
+```spl
 index=k8s sourcetype="kube:metrics" metric_name="kube_cronjob_status_last_schedule_time"
 | eval hours_since_schedule = (now() - _value) / 3600
 | where hours_since_schedule > 2
@@ -1242,8 +1263,11 @@ index=k8s sourcetype="kube:audit" verb="create" OR verb="patch" OR verb="update"
 index=k8s sourcetype="kube:objects:events" involvedObject.kind="HorizontalPodAutoscaler"
 | stats latest(message) as msg, count by namespace, involvedObject.name, reason
 | sort -count
+```
 
-| comment "Current replicas"
+*Current replicas:*
+
+```spl
 index=k8s sourcetype="kube:metrics" metric_name="kube_horizontalpodautoscaler_status_current_replicas"
 | stats latest(_value) as current by namespace, horizontalpodautoscaler
 | join type=left max=1 namespace horizontalpodautoscaler [
@@ -1347,8 +1371,11 @@ index=k8s sourcetype="kube:ingress:nginx"
 index=k8s sourcetype="kube:node:meta"
 | where condition_memory_pressure="True" OR condition_disk_pressure="True" OR condition_pid_pressure="True"
 | table _time node condition_memory_pressure condition_disk_pressure condition_pid_pressure
+```
 
-| comment "Related events"
+*Related events:*
+
+```spl
 index=k8s sourcetype="kube:events" (reason="EvictionThresholdMet" OR reason="FreeDiskSpaceFailed")
 | stats count by involvedObject.kind, involvedObject.name, message
 ```
@@ -1372,8 +1399,11 @@ index=k8s sourcetype="kube:events" (reason="EvictionThresholdMet" OR reason="Fre
 index=k8s sourcetype="kube:events" involvedObject.kind="Job" (reason="BackoffLimitExceeded" OR reason="Failed")
 | stats count by namespace, involvedObject.name, message
 | sort -count
+```
 
-| comment "Stale CronJob schedule"
+*Stale CronJob schedule:*
+
+```spl
 index=k8s sourcetype="kube:metrics" metric_name="kube_cronjob_status_last_schedule_time"
 | eval hours_since=(now()-_value)/3600
 | where hours_since>24
@@ -1399,8 +1429,11 @@ index=k8s sourcetype="kube:metrics" metric_name="kube_cronjob_status_last_schedu
 index=k8s sourcetype="kube:objects:events" "*init container*" (Failed OR Error)
 | stats count by namespace, involvedObject.name, message
 | sort -count
+```
 
-| comment "Init container state"
+*Init container state:*
+
+```spl
 index=k8s sourcetype="kube:container:meta" init="true"
 | where exit_code!=0 OR state="waiting"
 | table namespace pod_name container_name state exit_code
@@ -1471,8 +1504,11 @@ index=k8s sourcetype="kube:audit" objectRef.resource="nodes" (verb="patch" OR ve
 | search "unschedulable" OR "NoSchedule"
 | stats count by user.username, objectRef.name
 | sort -count
+```
 
-| comment "Drain-related events"
+*Drain-related events:*
+
+```spl
 index=k8s sourcetype="kube:objects:events" "*drain*" OR reason="NodeSchedulable"
 | table _time involvedObject.name message
 ```
@@ -1496,8 +1532,11 @@ index=k8s sourcetype="kube:objects:events" "*drain*" OR reason="NodeSchedulable"
 index=k8s sourcetype="kube:coredns" (SERVFAIL OR timeout OR "i/o timeout")
 | stats count by qname, rcode, pod_name
 | sort -count
+```
 
-| comment "Response codes"
+*Response codes:*
+
+```spl
 index=k8s sourcetype="kube:metrics" metric_name="coredns_dns_responses_total"
 | stats sum(_value) as responses by rcode
 | where rcode!="NOERROR" AND rcode!="NXDOMAIN"
@@ -1544,8 +1583,11 @@ index=k8s sourcetype="kube:events" reason="FailedScheduling"
 index=k8s sourcetype="kube:objects:events" "*LimitRange*" OR "*exceeds limit*"
 | stats count by namespace, involvedObject.name, message
 | sort -count
+```
 
-| comment "Admission denied"
+*Admission denied:*
+
+```spl
 index=k8s sourcetype="kube:audit" objectRef.resource="pods" responseStatus.code=422
 | stats count by objectRef.namespace, user.username
 ```
@@ -1648,8 +1690,11 @@ index=k8s sourcetype="kube:objects:events" type="Warning"
 index=k8s sourcetype="kube:objects:events" involvedObject.kind="VolumeSnapshot" (Failed OR Error)
 | stats count by namespace, involvedObject.name, message
 | sort -count
+```
 
-| comment "Snapshot not ready"
+*Snapshot not ready:*
+
+```spl
 index=k8s sourcetype="kube:metrics" metric_name="kube_volume_snapshot_ready"
 | where _value=0
 | table namespace volumesnapshot _time
@@ -1701,8 +1746,11 @@ index=k8s sourcetype="kube:kubelet" ("certificate" OR "x509" OR "rotate")
 | search fail OR error OR expired
 | stats count by host, message
 | sort -count
+```
 
-| comment "Structured notAfter"
+*Structured notAfter:*
+
+```spl
 index=k8s sourcetype="kube:node:cert" role="kubelet"
 | eval days_left=round((not_after-now())/86400,0)
 | where days_left<30
@@ -1728,8 +1776,11 @@ index=k8s sourcetype="kube:node:cert" role="kubelet"
 index=k8s sourcetype="kube:kubelet" ("Probe failed" OR "Liveness probe failed" OR "Readiness probe failed")
 | stats count by host, pod, container
 | sort -count
+```
 
-| comment "Unhealthy events"
+*Unhealthy events:*
+
+```spl
 index=k8s sourcetype="kube:objects:events" reason="Unhealthy"
 | stats count by namespace, involvedObject.name, message
 ```
@@ -1798,8 +1849,11 @@ index=k8s sourcetype="kube:apiserver" metric_name="apiserver_admission_webhook_a
 index=k8s sourcetype="kube:cluster-autoscaler" ("scale-up" OR "failed" OR "NotTriggeredScaleUp")
 | stats count by cluster_name, _raw
 | sort -count
+```
 
-| comment "Long-pending pods"
+*Long-pending pods:*
+
+```spl
 index=k8s sourcetype="kube:events" reason="FailedScheduling"
 | eval age_sec=now()-_time
 | where age_sec>300
@@ -1918,8 +1972,11 @@ index=openshift sourcetype="openshift:audit" responseStatus.code=403 objectRef.r
 index=k8s sourcetype="helm:list"
 | stats latest(chart) as chart, latest(app_version) as app_version, latest(updated) as updated by namespace, name
 | table namespace name chart app_version updated
+```
 
-| comment "Compare with GitOps desired state"
+*Compare with GitOps desired state:*
+
+```spl
 index=k8s (sourcetype="helm:list" OR sourcetype="gitops:desired")
 | eval chart_version = mvindex(split(chart, "-"), -1)
 | stats values(chart_version) as versions by namespace, name, source
@@ -1992,8 +2049,11 @@ index=openshift sourcetype="openshift:route"
 | where days_left < 30 OR isnull(days_left)
 | table namespace name host tls_not_after days_left
 | sort days_left
+```
 
-| comment "cert-manager Certificate"
+*cert-manager Certificate:*
+
+```spl
 index=openshift sourcetype="certmanager:metrics" metric_name="certmanager_certificate_expiration_timestamp_seconds"
 | eval days_left=round((_value-now())/86400,0)
 | where days_left < 30
@@ -2538,7 +2598,7 @@ index=containers sourcetype="cilium:hubble:flows"
 ```
 - **Implementation:** Deploy Cilium as the Kubernetes CNI with Hubble enabled. Hubble captures eBPF-level network flows including source/destination pod, namespace, identity, IP, port, protocol, L7 protocol details (HTTP method/path, DNS query/response, Kafka topic), verdict (forwarded/dropped), and drop reason. Export Hubble flows to Splunk via the OTel Collector's Hubble receiver or by relaying Hubble's gRPC stream to a log pipeline. Key detections: dropped flows indicate network policy violations or misconfigurations; unexpected destination identities signal lateral movement or misconfigured services; DNS failures (NXDOMAIN, timeout) from Hubble's DNS-aware L7 parsing reveal resolution issues before they cascade. Correlate dropped flows with Cilium network policies to identify which policy blocked the traffic. Track flow volume per namespace to detect traffic anomalies.
 - **Visualization:** Sankey diagram (namespace-to-namespace traffic flow), Table (dropped flows with source/destination), Line chart (flow volume and drop rate over 24 hours), Bar chart (top drop reasons), Network graph (pod communication map).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - count

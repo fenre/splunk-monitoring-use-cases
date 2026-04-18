@@ -68,7 +68,32 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 Building on the v6.0 foundation, the v6.1 focus is **raising the scorecard
 grades** — most categories currently sit in "Needs work" because KFP, MITRE
 mappings, reviewed-dates and sample fixtures haven't been authored for
-non-security UCs.
+non-security UCs — **and shipping the two currently-unreleased workstreams
+that already sit on the `main` tip** (Phase 5.5 structured equipment tagging
+and Phase 6 MCP server).
+
+### Already merged, awaiting release
+
+- **Phase 5.5 — Compliance structured equipment tagging.** Equipment is now
+  a first-class, schema-validated field on every cat-22 UC
+  (`equipment: string[]`, `equipmentModels: string[]`). Two new API
+  endpoints (`api/v1/equipment/index.json`, `api/v1/equipment/{id}.json`)
+  expose the equipment→UC→regulation graph for auditor workflows. Raised
+  cat-22 equipment coverage from 65.3 % to **73.1 %** and whole-catalogue
+  coverage to **81.8 %**. See the `[Unreleased]` section of
+  [`CHANGELOG.md`](CHANGELOG.md) for the detailed release notes.
+- **Phase 6 — Model Context Protocol (MCP) server.** A new `mcp/` package
+  (`splunk-uc-mcp`, Python 3.11+) exposes the catalogue to AI agents over
+  JSON-RPC stdio. Eight read-only tools (`search_use_cases`,
+  `get_use_case`, `list_categories`, `list_regulations`, `get_regulation`,
+  `list_equipment`, `get_equipment`, `find_compliance_gap`), four URI
+  resources (`uc://`, `reg://`, `equipment://`, `ledger://`), 291 unit
+  tests, a drift guard, and full documentation at
+  [`docs/mcp-server.md`](docs/mcp-server.md). Read-only by construction,
+  stdio-only transport (no auth surface), compliant with CoSAI MCP
+  security guidance.
+
+### Content + tooling work targeted for v6.1 itself
 
 - **Top-200 sample-event coverage** — Expand the `samples/` tree from 15
   fixtures to 200, targeting the most-used UCs identified by dashboard
@@ -112,6 +137,16 @@ requests or issues advocating for any of them are welcome.
   Splunk via IaC.
 - **VS Code extension** — Autocomplete for UC IDs, hover for UC summaries,
   quick-insert of SPL snippets into `.spl` or SPL scratch files.
+- **MCP server (`splunk-uc-mcp`) — follow-ups after Phase 6.** Publish
+  `splunk-uc-mcp` to PyPI (currently installed from source via
+  `pip install -e mcp/`), add HTTP streaming transport as an opt-in for
+  remote single-tenant deployments (stdio stays the default and the
+  recommended mode per CoSAI guidance), expose a `list_mitre_techniques`
+  tool (currently only filterable, not enumerable), add a
+  `subscribe_use_cases` streaming resource so long-running agent sessions
+  can be notified of new catalogue commits, and wire structured prompts
+  (MCP `prompts/`) for the two canonical personas (compliance officer,
+  detection engineer).
 
 ### Community & process
 

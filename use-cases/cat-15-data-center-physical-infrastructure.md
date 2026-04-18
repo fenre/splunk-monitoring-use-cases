@@ -743,7 +743,8 @@ index=cooling sourcetype="bms:crac"
 - **SPL:**
 ```spl
 index=environment sourcetype="sensor:temperature" row_id=*
-| stats avg(eval(if(position="cold_aisle",temp_c,null()))) as cold_c, avg(eval(if(position="hot_aisle",temp_c,null()))) as hot_c by row_id, _time span=5m
+| bin _time span=5m
+| stats avg(eval(if(position="cold_aisle",temp_c,null()))) as cold_c, avg(eval(if(position="hot_aisle",temp_c,null()))) as hot_c by row_id, _time
 | eval delta_t=hot_c-cold_c
 | where delta_t < 8 OR delta_t > 22
 | table row_id, cold_c, hot_c, delta_t

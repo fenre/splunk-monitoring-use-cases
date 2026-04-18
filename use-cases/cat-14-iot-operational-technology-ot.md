@@ -302,9 +302,14 @@ index=cisco_network sourcetype="meraki" type=security_event signature="*temperat
 - **Data Sources:** `sourcetype=meraki type=security_event signature="*humidity*"`
 - **SPL:**
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*humidity*"
-| stats latest(humidity) as current_humidity, avg(humidity) as avg_humidity by sensor_location
-| eval dew_point="calculated_value"
+index=cisco_network sourcetype="meraki" (metric="humidity" OR metric="temperature")
+| stats latest(eval(if(metric="humidity", value, null()))) as humidity_pct,
+        latest(eval(if(metric="temperature", value, null()))) as temp_c
+        by sensor_location
+| eval a=17.625, b=243.04
+| eval alpha=ln(humidity_pct/100) + (a*temp_c)/(b+temp_c)
+| eval dew_point_c=round((b*alpha)/(a-alpha), 2)
+| fields - a, b, alpha
 ```
 - **Implementation:** Monitor humidity sensor data. Calculate dew point for condensation risk.
 - **Visualization:** Humidity gauge per location; humidity vs temperature correlation; trend chart.
@@ -1556,6 +1561,7 @@ index=ot sourcetype="opcua:control"
 index=ot sourcetype="opcua:process"
 | timechart span=1h avg(value) as avg_val by tag_name
 | predict avg_val as pred future_timespan=24
+| lookup ot_tag_limits.csv tag_name OUTPUT high_limit, low_limit
 | where pred > high_limit OR pred < low_limit
 ```
 - **Implementation:** Use `predict` for critical tags. Alert when forecast crosses limits before physical alarm. Tune per process area.
@@ -1882,8 +1888,11 @@ index=supply sourcetype="edi:asn"
   where index=edge-hub-data AND metric_name=temperature
   span=5m by extracted_host
 | where avg_temp > 35 OR avg_temp < 10
+```
 
-| comment "Anomaly query"
+*Anomaly query:*
+
+```spl
 | mstats count where index=edge-hub-anomalies AND metric_name=temperature AND type="anomaly-detector"
   span=1h by extracted_host
 | where count > 0
@@ -1910,8 +1919,11 @@ index=supply sourcetype="edi:asn"
   where index=edge-hub-data AND metric_name IN (accelerometer_x, accelerometer_y, accelerometer_z)
   span=5m by metric_name, extracted_host
 | eval rms = sqrt(pow(avg_accel, 2))
+```
 
-| comment "Anomaly-based approach"
+*Anomaly-based approach:*
+
+```spl
 | mstats count where index=edge-hub-anomalies AND metric_name="accelerometer*" AND type="anomaly-detector"
   span=1h by extracted_host
 | where count > 0
@@ -1938,8 +1950,11 @@ index=supply sourcetype="edi:asn"
   where index=edge-hub-data AND metric_name IN (voc, iaq_score)
   span=15m by metric_name, extracted_host
 | where metric_name="iaq_score" AND avg_iaq > 200
+```
 
-| comment "Combined with humidity for comfort index"
+*Combined with humidity for comfort index:*
+
+```spl
 | mstats avg(_value) as value
   where index=edge-hub-data AND metric_name IN (voc, humidity, temperature)
   span=15m by metric_name, extracted_host
@@ -1966,8 +1981,11 @@ index=supply sourcetype="edi:asn"
   where index=edge-hub-data AND metric_name=sound_level
   span=5m by extracted_host
 | where avg_db > 85
+```
 
-| comment "Anomaly detection"
+*Anomaly detection:*
+
+```spl
 | mstats count where index=edge-hub-anomalies AND metric_name=sound_level AND type="anomaly-detector"
   span=1h by extracted_host
 | where count > 0
@@ -1990,12 +2008,14 @@ index=supply sourcetype="edi:asn"
 - **Data Sources:** `index=edge-hub-data` (metrics from MQTT topics), `index=edge-hub-logs sourcetype=splunk_edge_hub_log` (broker logs)
 - **SPL:**
 ```spl
-| comment "Metrics from MQTT-connected sensors"
 | mstats avg(_value) as avg_v
   where index=edge-hub-data AND metric_name=temperature_celsius
   span=1m by extracted_host
+```
 
-| comment "Broker health via device logs"
+**Companion — broker health via device logs:**
+
+```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" OR "broker"
 | stats count by log_level, message
 ```
@@ -2020,8 +2040,11 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "mqtt" OR "broker"
 index=edge-hub-snmp hub_name="datacenter-eh-01" sourcetype=edge_hub
 | stats latest(value) as current by oid_alias
 | table oid_alias, current
+```
 
-| comment "Monitor polling health"
+*Monitor polling health:*
+
+```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log "snmp" ("timeout" OR "unreachable")
 | stats count by host, message
 ```
@@ -2043,13 +2066,15 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log "snmp" ("timeout" OR "unreach
 - **Data Sources:** `index=edge-hub-health sourcetype=edge_hub` (device health metrics), `index=edge-hub-logs sourcetype=splunk_edge_hub_log` (system logs)
 - **SPL:**
 ```spl
-| comment "Device resource health"
 index=edge-hub-health sourcetype=edge_hub
 | stats latest(cpu_usage) as CPU, latest(memory_usage) as Memory,
         latest(disk_usage) as Disk by host
 | eval Health=if(CPU<80 AND Memory<80 AND Disk<80, "Healthy", "Warning")
+```
 
-| comment "Connectivity and forwarding issues"
+**Companion — connectivity and forwarding issues:**
+
+```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log
   ("connection" OR "unreachable" OR "timeout")
 | timechart count by log_level
@@ -2313,8 +2338,9 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true
 - **SPL:**
 ```spl
 index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_signature_extracted=true
+| bin _time span=5m
 | stats avg(peak_frequency_hz) as avg_peak, stdev(peak_frequency_hz) as freq_std,
-        max(frequency_band_2k_4k_db) as mid_high_power by equipment_id, _time span=5m
+        max(frequency_band_2k_4k_db) as mid_high_power by equipment_id, _time
 | eval freq_shift=abs(avg_peak - 3000)
 | where freq_shift > 500
 | eval signature_change="DEGRADATION_RISK"
@@ -2708,8 +2734,9 @@ index=edge-hub-logs sourcetype=edge_hub modbus_register
 ```spl
 (index=edge-hub-logs sourcetype=splunk_edge_hub_opcua OR index=edge-hub-logs sourcetype=splunk_edge_hub_log mqtt_topic=*)
 OR index=edge-hub-data metric_name=temperature
+| bin _time span=5m
 | stats avg(temperature) as temp, avg(opc_ua_motor_current) as motor_current,
-        avg(mqtt_load_percent) as load by equipment_id, _time span=5m
+        avg(mqtt_load_percent) as load by equipment_id, _time
 | eval correlation=correlation(temp, motor_current)
 | where correlation > 0.8
 | eval root_cause=case(
@@ -2961,9 +2988,10 @@ index=edge-hub-health sourcetype=edge_hub
 - **SPL:**
 ```spl
 index=edge-hub-health sourcetype=edge_hub
+| bin _time span=1h
 | stats avg(cpu_percent) as avg_cpu, max(cpu_percent) as peak_cpu,
         avg(memory_percent) as avg_mem, max(memory_percent) as peak_mem,
-        latest(disk_used_mb) as disk_used by host, _time span=1h
+        latest(disk_used_mb) as disk_used by host, _time
 | eval cpu_headroom=(100 - peak_cpu), mem_headroom=(100 - peak_mem), disk_available_mb=(32000 - disk_used)
 | where cpu_headroom < 10 OR mem_headroom < 5 OR disk_available_mb < 1000
 | eval resource_alert="CAPACITY_WARNING"
@@ -4204,8 +4232,10 @@ index=edge-hub-logs sourcetype=splunk_edge_hub_log ("container" OR "module" OR "
 ```spl
 index=ot sourcetype=mqtt_tls_log ("handshake failed" OR "certificate verify" OR "TLS")
 | rex "cipher=(?<cipher>\S+)|protocol=(?<protocol>\S+)"
-| stats count by cipher, protocol, reason
-| where cipher!="*TLS_AES*" OR protocol!="TLSv1.2" OR reason="failed"
+| eval modern_tls=if(protocol IN ("TLSv1.2","TLSv1.3"), "yes", "no"),
+       strong_cipher=if(match(cipher, "^(TLS_AES_|TLS_CHACHA20_|ECDHE-.*-GCM|ECDHE-.*-CHACHA20)"), "yes", "no")
+| stats count by cipher, protocol, reason, modern_tls, strong_cipher
+| where modern_tls!="yes" OR strong_cipher!="yes" OR reason="failed"
 | table cipher protocol reason count
 ```
 - **Implementation:** Enable TLS logging on MQTT broker or proxy. Ingest handshake success/failure and negotiated cipher/protocol. Alert on handshake failure or use of non-approved ciphers (e.g. block TLS 1.0/1.1 and weak ciphers).
@@ -5365,7 +5395,7 @@ index=nozomi sourcetype="nozomi:alert" type_id="ASSET-NEW"
 ```
 - **Implementation:** **Cyber Vision:** Forward syslog to Splunk (CEF format via TCP/TLS); alert on `component_new` events. **Nozomi:** Enable `alert` data input; filter on `type_id="ASSET-NEW"`. Both platforms detect new devices automatically. Enrich with sensor/zone location to identify physical site. Cross-reference against approved asset list. Investigate unauthorized devices within SLA.
 - **Visualization:** New device alert timeline; device location map by sensor; unauthorized device table.
-- **CIM Models:** Network Traffic, Change
+- **CIM Models:** Network_Traffic, Change
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -5479,7 +5509,7 @@ index=nozomi sourcetype="nozomi:alert" type_id="ANOMALY*"
 ```
 - **Implementation:** **Cyber Vision:** Create baselines for critical production zones; enable monitoring mode. **Nozomi:** Guardian automatically builds AI-powered behavioral baselines; anomaly alerts fire when deviations occur. Alert on any Critical or High severity deviations. Investigate and either acknowledge (legitimate change) or escalate (potential threat). Track unresolved deviations.
 - **Visualization:** Deviation event timeline; baseline status dashboard; unresolved deviation count; severity distribution.
-- **CIM Models:** Change, Intrusion Detection
+- **CIM Models:** Change, Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
@@ -5518,7 +5548,7 @@ index=nozomi sourcetype="nozomi:alert" type_id="SIGN*"
 ```
 - **Implementation:** **Cyber Vision:** Enable Snort IDS on sensors (4GB RAM required); configure Talos subscription for weekly rule updates. **Nozomi:** Guardian includes built-in threat intelligence with Nozomi Threat Intelligence updates. Both platforms provide signature-based IDS for OT. Forward events to Splunk. Correlate with IT security events in Splunk ES for unified threat detection. Alert SOC on Critical/High severity IDS hits targeting OT assets.
 - **Visualization:** IDS alert timeline; top source IPs table; signature hit frequency chart; OT target heatmap.
-- **CIM Models:** Intrusion Detection
+- **CIM Models:** Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t dc(IDS_Attacks.dest) as agg_value from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.src | sort - agg_value
@@ -5556,7 +5586,7 @@ index=nozomi sourcetype="nozomi:alert" type_id IN ("PROTOCOL-ENGINEERING-WRITE",
 ```
 - **Implementation:** Both platforms detect PLC program changes across industrial protocols. Alert on all program download/upload events. Cross-reference with change management system to validate authorized changes. Flag events outside approved maintenance windows. Require investigation and sign-off for every program change.
 - **Visualization:** Program change timeline; authorized vs unauthorized change chart; target PLC table; change window compliance gauge.
-- **CIM Models:** Change, Intrusion Detection
+- **CIM Models:** Change, Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
@@ -5623,7 +5653,7 @@ index=nozomi sourcetype="nozomi:variable" status="forced"
 ```
 - **Implementation:** **Cyber Vision:** Detects `flow_forced_variable` events via syslog. **Nozomi:** Guardian tracks all process variables via the `nozomi:variable` sourcetype, including forced status. Alert on all forced variable events. Verify against active maintenance work orders. Track duration — any that remain active longer than the maintenance window must be investigated.
 - **Visualization:** Forced variable event log; active forces table; force duration tracker; variable name word cloud.
-- **CIM Models:** Change, Intrusion Detection
+- **CIM Models:** Change, Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
@@ -5703,7 +5733,7 @@ index=nozomi sourcetype="nozomi:alert" type_id IN ("PROTOCOL-ENGINEERING-MODE*",
 ```
 - **Implementation:** Both platforms detect controller mode changes across industrial protocols. Alert immediately — CPU Stop and Offline events are highest priority as they halt physical processes. Cross-reference with scheduled maintenance. Track frequency of mode changes per controller. Investigate any mode change from unexpected source IPs.
 - **Visualization:** Mode change timeline with color-coded severity; controller status dashboard; unauthorized source detection.
-- **CIM Models:** Change, Intrusion Detection
+- **CIM Models:** Change, Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
@@ -5740,7 +5770,7 @@ index=nozomi sourcetype="nozomi:link_events" status="new"
 ```
 - **Implementation:** Both platforms detect new communication flows after an initial learning period. Alert on new flows. Prioritize IT protocols appearing in OT zones (FTP, SSH, HTTP, RDP, SMB). Correlate with baseline deviations. Investigate source and destination to determine if the flow is legitimate.
 - **Visualization:** New flow event timeline; protocol distribution chart; source-destination network graph.
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1d | sort - count
@@ -5777,7 +5807,7 @@ index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL*"
 ```
 - **Implementation:** Both platforms detect protocol-level exceptions via DPI. Baseline normal exception rates per flow. Alert on sudden spikes (>5 exceptions from single source in short window). Differentiate between known interoperability issues and new attack patterns. Feed into SOC correlation rules.
 - **Visualization:** Exception volume timeline; top exception source table; exception type distribution; attack pattern detection dashboard.
-- **CIM Models:** Intrusion Detection
+- **CIM Models:** Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
@@ -5854,7 +5884,7 @@ index=nozomi sourcetype="nozomi:session" session_type="engineering"
 ```
 - **Implementation:** Both platforms detect engineering/admin connections to industrial assets. Baseline approved engineering workstation IPs. Alert on connections from unapproved sources or outside business hours. Track connection frequency per engineer. Correlate with change management tickets.
 - **Visualization:** Admin connection timeline; source-destination network map; after-hours connection alerts; approved vs unapproved source comparison.
-- **CIM Models:** Authentication, Network Traffic
+- **CIM Models:** Authentication, Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
@@ -5887,7 +5917,7 @@ index=nozomi sourcetype="nozomi:alert" type_id="SCAN*"
 ```
 - **Implementation:** Both platforms detect port scanning in OT networks. Alert immediately on any port scan event. Identify scanner source — is it an authorized vulnerability scanner or unknown? Correlate with network baseline. Block scanning source at network boundary if unauthorized. Escalate to SOC and OT security team.
 - **Visualization:** Port scan alert log; scanner source identification; target analysis; network map overlay.
-- **CIM Models:** Intrusion Detection, Network Traffic
+- **CIM Models:** Intrusion_Detection, Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest | sort - count
@@ -5922,7 +5952,7 @@ index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-CIPHER*"
 ```
 - **Implementation:** Both platforms detect weak encryption in OT communications. Inventory all findings. Prioritize remediation by criticality of affected assets. Track progress toward encryption upgrade milestones. Report on IEC 62443 encryption compliance per zone.
 - **Visualization:** Weak encryption finding table; affected asset count; compliance progress gauge; protocol breakdown.
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -5957,7 +5987,7 @@ index=nozomi sourcetype="nozomi:session" protocols="smb"
 ```
 - **Implementation:** Both platforms detect SMB traffic via DPI. Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with IDS for known SMB exploit signatures. High priority for SOC investigation.
 - **Visualization:** SMB activity timeline; source-target map; alert correlation with IDS; legitimate vs suspicious classification.
-- **CIM Models:** Network Traffic, Intrusion Detection
+- **CIM Models:** Network_Traffic, Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -5994,7 +6024,7 @@ index=nozomi sourcetype="nozomi:link_events" status IN ("up", "down", "flapping"
 ```
 - **Implementation:** Both platforms detect network redundancy and HA state changes. Baseline normal failover frequency (should be near zero in stable networks). Alert on any failover event. Multiple failovers in short succession (flapping) indicates a serious issue. Correlate with physical infrastructure monitoring.
 - **Visualization:** Failover event timeline; network stability score; flapping device detection; HA state dashboard.
-- **CIM Models:** Network Traffic, Change
+- **CIM Models:** Network_Traffic, Change
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1h | sort - count
@@ -6104,7 +6134,7 @@ index=nozomi sourcetype="nozomi:link"
 ```
 - **Implementation:** Both platforms support zone-based monitoring aligned with IEC 62443. Export zone definitions to a lookup table. Define approved conduits with allowed protocols. Match actual cross-zone flows against policy. Alert on any unapproved cross-zone communication. Generate compliance reports for audits.
 - **Visualization:** Zone topology map; conduit compliance matrix; violation count per zone pair; compliance trend over time.
-- **CIM Models:** Network Traffic, Change
+- **CIM Models:** Network_Traffic, Change
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
@@ -6175,7 +6205,7 @@ index=nozomi sourcetype="nozomi:link"
 ```
 - **Implementation:** Both platforms identify all industrial protocols in use via DPI. Analyze data to build protocol inventory per site/zone. Identify unexpected protocols (e.g., BACnet in a power substation, or Modbus in an enterprise zone). Compare protocol usage across sites for standardization. Feed into protocol-specific security policy development.
 - **Visualization:** Protocol distribution pie chart per site; protocol comparison across sites; unexpected protocol alert table; protocol trend over time.
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value
@@ -6213,7 +6243,7 @@ index=nozomi sourcetype="nozomi:alert" type_id="PROTOCOL-DECODE*"
 ```
 - **Implementation:** Both platforms generate events when DPI encounters unparseable packets. Baseline normal decode failure rates per sensor/zone. Alert on sudden spikes exceeding 3x baseline, which may indicate a fuzzing or exploitation attempt. Correlate with IDS alerts from the same time window.
 - **Visualization:** Decode failure timeline per sensor; spike detection; correlation with IDS events; sensor health overlay.
-- **CIM Models:** Intrusion Detection
+- **CIM Models:** Intrusion_Detection
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.action, IDS_Attacks.signature, IDS_Attacks.src, IDS_Attacks.dest span=1h | sort - count

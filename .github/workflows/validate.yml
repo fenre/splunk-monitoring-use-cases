@@ -44,6 +44,7 @@ on:
       - "tools/**"
       - "package.json"
       - "package-lock.json"
+      - "mcp/**"
   workflow_dispatch:
 
 permissions:
@@ -92,6 +93,43 @@ jobs:
 
       - name: UC structure validation (full scan)
         run: python3 scripts/audit_uc_structure.py --full
+
+      - name: SPL grammar linter
+        # Flags invalid SPL patterns that the hallucination audit can't
+        # catch (stats ... span=, leading pipe on non-generating commands,
+        # post-timechart field references, case() with literal wildcards,
+        # unbounded join subsearches, etc.). Hardens against regressions
+        # surfaced in reports/quality-review/2026-04-18.md.
+        run: python3 scripts/audit_spl_grammar.py --check
+
+      - name: Placeholder and scaffolding detector
+        # Rejects TODO/FIXME/TBD markers, literal "..." inside SPL,
+        # generic "control theme N" titles, editorial section headers,
+        # blank known-FP stubs, and other scaffolding artefacts.
+        run: python3 scripts/audit_placeholders.py --check
+
+      - name: MITRE ATT&CK taxonomy
+        # Enforces that MITRE ATT&CK fields contain only Txxxx/TAxxxx
+        # tokens. Rejects CVE IDs, URLs, parenthetical prose, and free
+        # text that leaked in from mirrored ESCU content.
+        run: python3 scripts/audit_mitre_taxonomy.py --check
+
+      - name: Monitoring-type policy
+        # Flags unknown monitoring-type tokens and security UCs with
+        # MITRE ATT&CK mappings that are missing the Security tag.
+        run: python3 scripts/audit_monitoring_type.py --check
+
+      - name: CIM ↔ SPL alignment
+        # Validates that CIM Models declarations use canonical spellings
+        # and that any datamodel= references in CIM SPL blocks match the
+        # declared models.
+        run: python3 scripts/audit_cim_spl_alignment.py --check
+
+      - name: Known false positives hygiene
+        # Rejects `|` pipe stubs and empty/placeholder values in the
+        # Known false positives field — artefacts from bulk imports that
+        # leave noise-review guidance missing.
+        run: python3 scripts/audit_known_fp.py --check
 
       - name: Non-technical view sync
         run: python3 scripts/audit_non_technical_sync.py
@@ -252,6 +290,43 @@ jobs:
         # --check regenerates the tree into a tempdir and diffs it against
         # the committed tree, so a forgotten regeneration fails CI.
         run: python3 scripts/generate_api_surface.py --check
+
+      - name: Install MCP server (splunk-uc-mcp) for drift guard + tests
+        # Phase 6 deliverable. The MCP server (mcp/) exposes the
+        # api/v1 catalogue to LLM agents over JSON-RPC stdio. The
+        # drift guard and unit tests both require the package
+        # installed in editable mode so `import splunk_uc_mcp`
+        # resolves from the sources.
+        run: pip install --disable-pip-version-check -e 'mcp/[test]'
+
+      - name: MCP server unit tests
+        # Phase 6 deliverable. The 291-test suite exercises every
+        # tool (search_use_cases, get_use_case, list_categories,
+        # list_regulations, get_regulation, list_equipment,
+        # get_equipment, find_compliance_gap), every URI resource
+        # (uc://, reg://, equipment://, ledger://), catalog
+        # loading (local-first, HTTPS fallback, path traversal,
+        # SSRF protection, payload caps), and the JSON-RPC
+        # server handshake itself. Must be green before the drift
+        # guard runs — a failing test almost certainly indicates
+        # a real drift between the MCP surface and the api/v1
+        # JSON files.
+        run: python3 -m pytest mcp/tests -q
+
+      - name: MCP tool schema drift guard
+        # Phase 6 deliverable. scripts/audit_mcp_tool_schemas.py
+        # exercises every MCP tool against the committed
+        # api/v1/*.json tree and validates each response against
+        # the tool's declared outputSchema. If someone renames a
+        # field in api/v1 without updating the tool schema (or
+        # vice versa) the MCP server would silently start
+        # returning "Output validation error" to every client —
+        # this drift guard catches that in CI. The guard also
+        # asserts the tool list is complete (8 tools), every
+        # tool has descriptions + schemas, the slug regex set is
+        # frozen, and api/v1/manifest.json still exposes the
+        # endpoint URLs the remote-fallback catalogue depends on.
+        run: python3 scripts/audit_mcp_tool_schemas.py
 
       - name: Splunk app generator (splunk-apps/) regeneration check
         # Phase 1.8 deliverable. scripts/generate_splunk_app.py is the

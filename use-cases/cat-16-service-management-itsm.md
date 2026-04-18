@@ -232,7 +232,7 @@ index=itsm sourcetype="snow:sc_request"
 ### UC-16.1.11 · Problem Ticket Reopening Rate
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Tickets closed then reopened indicate poor resolution quality, incomplete fixes, or inadequate testing. Tracking reopening rate drives resolution discipline and reduces repeat work.
 - **App/TA:** Custom (ITSM API — ServiceNow, Jira Service Management)
 - **Data Sources:** ITSM ticket state change history
@@ -259,7 +259,7 @@ index=itsm sourcetype="snow:incident:audit" field_name="state"
 ### UC-16.1.12 · Incident Priority Distribution Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Are P1/P2 incidents increasing? Trend analysis for management reporting reveals workload shifts, infrastructure degradation, or seasonal patterns. Supports staffing and capacity planning.
 - **App/TA:** Custom (ITSM API)
 - **Data Sources:** ITSM incident records (priority, created_date)
@@ -282,7 +282,7 @@ index=itsm sourcetype="snow:incident"
 ### UC-16.1.13 · On-Call Escalation Frequency
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Rising escalation rate indicates team capacity or knowledge gaps. Unacknowledged or escalated incidents signal burnout risk and process bottlenecks. Supports on-call rotation tuning and training.
 - **App/TA:** Custom (PagerDuty API, Opsgenie API, ITSM)
 - **Data Sources:** On-call platform API (incidents, escalations, acknowledgment times)
@@ -331,7 +331,7 @@ index=itsm sourcetype="snow:task_sla"
 ### UC-16.1.15 · Incident Reassignment Frequency
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Trending reassignment frequency (per period and per group) exposes routing quality, skills gaps, and noisy categories — complementing per-ticket reassignment counts.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Incident audit / history (`sourcetype=snow:incident:audit` or `sys_audit` mapped)
@@ -402,7 +402,7 @@ index=itsm sourcetype="snow:incident" state="closed" earliest=-30d
 ### UC-16.1.18 · Recurring Incident Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Clusters of similar incidents within a short window signal candidates for problem records, known-error articles, or permanent fixes.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** Incidents (`sourcetype=snow:incident`)
@@ -474,7 +474,7 @@ index=itsm sourcetype="snow:incident" u_major_incident=true state="closed" earli
 ### UC-16.1.21 · War Room Activation Tracking
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Tracks when bridge/war-room workflows activate (chat, conference bridges, tags) for major incidents — supporting governance and after-action metrics.
 - **App/TA:** Custom (ServiceNow tags/tasks, Slack/Teams webhooks, Zoom API)
 - **Data Sources:** Incident updates with war-room flag, collaboration events (`sourcetype=snow:incident:activity` or chat)
@@ -918,7 +918,7 @@ index=sam sourcetype="sam:install" product_name="Microsoft*Visio*"
 ### UC-16.2.13 · Hardware Warranty Expiry
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Tracks warranty end dates for hardware CIs to avoid unsupported break-fix gaps and budget surprises.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** `sourcetype=snow:cmdb_ci` (`warranty_expires`, `u_warranty_end`)
@@ -1280,7 +1280,7 @@ index=itsm sourcetype="request"
 ### UC-16.3.8 · Knowledge Article Usage vs. Ticket Volume
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Self-service effectiveness measurement; are KB articles deflecting tickets? Correlating article views with ticket creation reveals deflection ROI and content gaps.
 - **App/TA:** Custom (ITSM API, KB platform analytics)
 - **Data Sources:** KB article view counts, ticket creation rates
@@ -1306,7 +1306,7 @@ index=itsm (sourcetype="kb:views" OR sourcetype="snow:incident")
 ### UC-16.3.9 · Mean Time Between Failures (MTBF) per CI
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Operational, Capacity
+- **Monitoring type:** Operations, Capacity
 - **Value:** Reliability trending per configuration item for replacement planning. CIs with declining MTBF indicate aging hardware or recurring issues; supports proactive replacement and warranty decisions.
 - **App/TA:** Custom (ITSM API, CMDB)
 - **Data Sources:** Incident records linked to CIs, CI lifecycle data
@@ -1365,7 +1365,7 @@ index=monitoring sourcetype IN (server_health, app_health, db_health) earliest=-
 ### UC-16.3.11 · Batch Job Schedule Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Operational
+- **Monitoring type:** Operations
 - **Value:** Verifies scheduled batch jobs (ETL, billing, backups) started and finished within expected windows — catching silent scheduler failures before downstream SLAs break.
 - **App/TA:** Control-M, Autosys, cron/syslog, mainframe SMF (custom)
 - **Data Sources:** `sourcetype=controlm:job`, `sourcetype=autosys:job`, or `sourcetype=syslog` with scheduler tags
@@ -1623,7 +1623,7 @@ index=itsm sourcetype="snow:change_request" (category="Release" OR type="Release
 ### UC-16.4.5 · Emergency Change Frequency Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Operational, Risk
+- **Monitoring type:** Operations, Risk
 - **Value:** Chronic reliance on emergency changes indicates planning gaps or unstable platforms; trending frequency guides process improvement and capacity investments.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** `sourcetype=snow:change_request`
@@ -1815,7 +1815,7 @@ index=itsm sourcetype="snow:change_request" earliest=-14d
 ### UC-16.4.12 · Standard Change Volume and Mix Guardrail
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance, Operational
+- **Monitoring type:** Compliance, Operations
 - **Value:** A sudden spike in standard changes may indicate bypassing normal scrutiny; monitoring volume and mix supports ITIL delegated authority models without eroding risk controls.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** `index=itsm` `sourcetype="snow:change_request"` (`type`, `category`, `assignment_group`, `opened_at`)
@@ -2014,7 +2014,7 @@ index=itsm sourcetype="snow:incident" earliest=-180d@d
 ### UC-16.5.7 · Incident Channel Mix Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Capacity, Operational
+- **Monitoring type:** Capacity, Operations
 - **Value:** Channel mix (portal, phone, chat, email) influences staffing models and self-service ROI; trending aligns workforce management with ITIL service desk strategy and digital adoption goals.
 - **App/TA:** `Splunk_TA_snow`
 - **Data Sources:** `index=itsm` `sourcetype="snow:incident"` (`contact_type`, `channel`, `u_channel`, `opened_at`)

@@ -73,7 +73,7 @@ index=aws sourcetype="aws:cloudtrail" userIdentity.type="Root"
 ### UC-4.1.3 · Security Group Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1562.007, T1578
 - **Value:** Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.
 - **App/TA:** `Splunk_TA_aws`
@@ -134,7 +134,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="CreatePolicy" OR eventName="At
 ### UC-4.1.5 · Console Login Without MFA
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078.004
 - **Value:** Console access without MFA is a security risk — compromised passwords alone can grant full account access. Most compliance frameworks require MFA.
 - **App/TA:** `Splunk_TA_aws`
@@ -167,7 +167,7 @@ index=aws sourcetype="aws:cloudtrail" eventName="ConsoleLogin" responseElements.
 ### UC-4.1.6 · EC2 Instance State Changes
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1578.002, T1578.003
 - **Value:** Tracks instance lifecycle for audit and change management. Unexpected terminations indicate accidents, auto-scaling issues, or attacks.
 - **App/TA:** `Splunk_TA_aws`
@@ -252,7 +252,7 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 ### UC-4.1.9 · VPC Flow Log Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1580, T1526
 - **Value:** VPC Flow Logs provide network-level visibility into all traffic. Detects rejected traffic, data exfiltration, lateral movement, and network anomalies.
 - **App/TA:** `Splunk_TA_aws`
@@ -378,7 +378,7 @@ index=aws sourcetype="aws:billing"
 ### UC-4.1.15 · Config Compliance Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578
 - **Value:** AWS Config rules continuously evaluate resource compliance against security best practices. Non-compliant resources are attack surface.
 - **App/TA:** `Splunk_TA_aws`
@@ -400,7 +400,7 @@ index=aws sourcetype="aws:config:notification" configRuleList{}.complianceType="
 ### UC-4.1.16 · KMS Key Usage Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078.004, T1530
 - **Value:** Encryption key usage audit ensures data protection compliance. Unusual key access patterns may indicate unauthorized data decryption.
 - **App/TA:** `Splunk_TA_aws`
@@ -459,7 +459,7 @@ index=aws sourcetype="aws:cloudtrail" (eventName="AllocateAddress" OR eventName=
 ### UC-4.1.18 · CloudFormation Stack Drift
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1578
 - **Value:** Drift means infrastructure no longer matches its declared template — manual changes have been made. This breaks IaC and causes inconsistencies.
 - **App/TA:** `Splunk_TA_aws`
@@ -602,8 +602,11 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/CloudFront" (metric_name="4
 - **SPL:**
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/SQS" (metric_name="ApproximateNumberOfMessagesVisible" OR metric_name="ApproximateAgeOfOldestMessage")
-| timechart span=5m avg(Average) by metric_name, QueueName
-| where ApproximateNumberOfMessagesVisible > 1000 OR ApproximateAgeOfOldestMessage > 300
+| bin _time span=5m
+| eval depth=if(metric_name="ApproximateNumberOfMessagesVisible", Average, null()),
+       age_s=if(metric_name="ApproximateAgeOfOldestMessage", Average, null())
+| stats avg(depth) as depth, avg(age_s) as age_s by _time, QueueName
+| where depth > 1000 OR age_s > 300
 ```
 - **Implementation:** Collect SQS metrics. Alert when queue depth exceeds threshold (e.g. 1000) or age of oldest message > 5 minutes. Monitor dead-letter queue (ApproximateNumberOfMessagesDelayed) separately.
 - **Visualization:** Line chart (depth, age by queue), Single value (oldest message age), Table (queue, depth).
@@ -873,8 +876,11 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/S3" metric_name="Replicatio
 - **SPL:**
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/ElastiCache" (metric_name="CPUUtilization" OR metric_name="CacheEvictions")
-| timechart span=5m avg(Average) by metric_name, CacheClusterId
-| where CPUUtilization > 80 OR CacheEvictions > 100
+| bin _time span=5m
+| eval cpu=if(metric_name="CPUUtilization", Average, null()),
+       evictions=if(metric_name="CacheEvictions", Average, null())
+| stats avg(cpu) as cpu, sum(evictions) as evictions by _time, CacheClusterId
+| where cpu > 80 OR evictions > 100
 ```
 - **Implementation:** Collect ElastiCache metrics per node/cluster. Alert on CPUUtilization > 80% sustained. Monitor CacheHitRate; low hit rate and high evictions suggest need for more memory or key design review.
 - **Visualization:** Line chart (CPU, evictions, hit rate), Table (cluster, metrics), Gauge (hit rate).
@@ -978,8 +984,9 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/Route53" metric_name="Healt
 - **SPL:**
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/Redshift" metric_name="DatabaseConnections"
-| timechart span=5m avg(Average) by ClusterIdentifier
-| where DatabaseConnections > 80
+| bin _time span=5m
+| stats avg(Average) as connections by _time, ClusterIdentifier
+| where connections > 80
 ```
 - **Implementation:** Collect Redshift metrics. Alert when DatabaseConnections approaches max (e.g. 90% of limit) or CPUUtilization/PercentageDiskSpaceUsed is high. Correlate with query queue length.
 - **Visualization:** Line chart (connections, CPU, disk by cluster), Table (cluster, metrics), Gauge (connection %).
@@ -1440,7 +1447,7 @@ index=aws sourcetype="aws:cloudwatch:events" detail-type="Security Hub Findings 
 ### UC-4.1.61 · Network ACL Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1562.007
 - **Value:** NACL changes can open subnets to the internet or break least-privilege segmentation; they are less common than security groups and warrant explicit audit.
 - **App/TA:** `Splunk_TA_aws`
@@ -1513,7 +1520,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/ECS" (metric_name="CPUUtili
 ### UC-4.1.64 · EKS Control Plane Audit
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1613, T1609
 - **Value:** Kubernetes audit logs capture who changed roles, secrets, and workloads; essential for forensics and SOC2 evidence on EKS.
 - **App/TA:** `Splunk_TA_aws`
@@ -1566,7 +1573,7 @@ index=aws sourcetype="aws:cloudwatch:guardduty"
 ### UC-4.1.66 · AWS Config Rule Compliance Drift
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578
 - **Value:** Resources oscillating between COMPLIANT and NON_COMPLIANT indicate automation fights or manual changes—drift trends surface systemic issues.
 - **App/TA:** `Splunk_TA_aws`
@@ -1853,7 +1860,7 @@ index=cloud sourcetype="aws:cloudwatch:metric" Namespace="AWS/ECS" MetricName="C
 ### UC-4.2.1 · Azure Activity Log Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1580, T1526
 - **Value:** Activity Log captures all control plane operations across Azure subscriptions. Essential audit trail for resource management and compliance.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
@@ -1934,7 +1941,7 @@ index=azure sourcetype="mscs:azure:auditlog" activityDisplayName="Add member to 
 ### UC-4.2.4 · NSG Flow Log Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1580, T1526
 - **Value:** NSG Flow Logs provide Azure network-level visibility. Detects blocked traffic, anomalous patterns, and lateral movement within VNets.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
@@ -2064,7 +2071,7 @@ index=azure sourcetype="mscs:azure:defender" severity="High" OR severity="Critic
 ### UC-4.2.10 · Storage Account Access Anomalies
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1530, T1619
 - **Value:** Unusual storage access patterns may indicate data exfiltration or compromised service principals accessing sensitive data.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
@@ -2221,8 +2228,9 @@ index=azure sourcetype="mscs:azure:diagnostics" ResourceType="MICROSOFT.LOGIC/WO
 - **SPL:**
 ```spl
 index=azure sourcetype="mscs:azure:metrics" namespace="Microsoft.ServiceBus/namespaces" metricName="ActiveMessageCount"
-| timechart span=5m avg(average) by EntityName
-| where ActiveMessageCount > 1000
+| bin _time span=5m
+| stats avg(average) as active_messages by _time, EntityName
+| where active_messages > 1000
 ```
 - **Implementation:** Collect Service Bus metrics per queue/topic. Alert when ActiveMessageCount exceeds threshold or DeadletterMessageCount > 0. Monitor message age via custom metric or run history if available.
 - **Visualization:** Line chart (message count, dead letter by queue), Table (queue, active, dead letter), Single value.
@@ -2351,8 +2359,9 @@ index=azure sourcetype="mscs:azure:diagnostics" Category="AzureFirewallThreatInt
 - **SPL:**
 ```spl
 index=azure sourcetype="mscs:azure:metrics" namespace="Microsoft.DBforMySQL/servers" metricName="percentage_cpu"
-| timechart span=5m avg(average) by resourceId
-| where percentage_cpu > 80
+| bin _time span=5m
+| stats avg(average) as cpu_pct by _time, resourceId
+| where cpu_pct > 80
 ```
 - **Implementation:** Collect Azure DB for MySQL/PostgreSQL metrics. Alert on CPU >80%, storage_percent >85%, or active_connections nearing max. Enable slow query log and ingest for query-level analysis.
 - **Visualization:** Line chart (CPU, storage, connections by server), Table (server, metrics), Gauge (storage %).
@@ -2429,7 +2438,7 @@ index=azure sourcetype="mscs:azure:audit" category.value="ServiceHealth"
 ### UC-4.2.27 · Azure Policy Compliance and Non-Compliant Resources
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578
 - **Value:** Azure Policy enforces governance. Non-compliant resources increase risk and compliance gaps. Tracking compliance supports remediation.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
@@ -2597,7 +2606,7 @@ index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Web/sites" (
 ### UC-4.2.34 · AKS Diagnostics and Errors
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Fault
+- **Monitoring type:** Security, Fault
 - **MITRE ATT&CK:** T1613, T1609
 - **Value:** Control plane and node problems surface as API errors, failed mounts, and ImagePullBackOff; centralized errors shorten MTTR.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
@@ -2808,7 +2817,7 @@ index=azure sourcetype="mscs:azure:audit" (operationName.value="*scheduledQueryR
 ### UC-4.2.43 · Defender for Cloud Recommendations
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1538
 - **Value:** Secure score and recommendations drive hardening backlog; trending open recommendations shows risk posture over time.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Defender export API
@@ -2834,7 +2843,7 @@ index=azure sourcetype="mscs:azure:defender" recommendationState="Active"
 ### UC-4.2.44 · Azure Resource Lock Changes
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1098.003
 - **Value:** Locks prevent accidental deletes; removing a lock before maintenance is high risk and must be audited.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`
@@ -2888,7 +2897,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.container
 ### UC-4.2.46 · Azure Application Gateway and WAF Health
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability, Fault
+- **Monitoring type:** Security, Availability, Fault
 - **MITRE ATT&CK:** T1580, T1562.007
 - **Value:** Application Gateway is the primary L7 load balancer for most Azure web workloads. Backend health probe failures cause 502 errors for users; WAF blocks need tuning to avoid false positives.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics)
@@ -2903,7 +2912,7 @@ index=cloud sourcetype="azure:diagnostics" Category="ApplicationGatewayAccessLog
 ```
 - **Implementation:** Enable diagnostics on Application Gateway to send access logs and WAF logs via Event Hub or Storage Account to Splunk. Monitor backend pool health probe status from metrics (`UnhealthyHostCount`). Alert on rising 502/504 rates, unhealthy backends, and WAF blocks that correlate with user-reported issues. Track WAF rule hit distribution to tune rule exclusions.
 - **Visualization:** Line chart (request rate and error rate), Table (unhealthy backends), Bar chart (WAF blocks by rule ID).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest span=5m | sort - agg_value
@@ -2928,7 +2937,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/v
 ```
 - **Implementation:** Collect Azure Monitor metrics for VPN Gateway resources. Monitor `TunnelAverageBandwidth` (drops to zero when tunnel is down), `TunnelEgressBytes`, `TunnelIngressBytes`, and `BGPPeerStatus`. Alert when tunnel bandwidth drops to zero or BGP peer status changes. Correlate with Azure Service Health events for planned maintenance.
 - **Visualization:** Line chart (tunnel bandwidth over time), Single value (tunnel status up/down), Table (tunnels with status).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value
@@ -2954,7 +2963,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/e
 ```
 - **Implementation:** Collect metrics for ExpressRoute circuits: `BgpAvailability` and `ArpAvailability` (should be 100%), `BitsInPerSecond`/`BitsOutPerSecond` for throughput trending. Alert when BGP availability drops below 100% or throughput drops to zero. Track circuit utilization against provisioned bandwidth to plan capacity upgrades.
 - **Visualization:** Line chart (BGP/ARP availability %), Line chart (throughput), Single value (circuit status).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value
@@ -3089,7 +3098,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/t
 ### UC-4.2.54 · Azure Bastion Session Audit
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1078.004, T1580
 - **Value:** Bastion provides secure, auditable VM access without public IPs. Monitoring session activity ensures compliance with access policies and detects unauthorized connection attempts.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)
@@ -3128,7 +3137,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.network/n
 ```
 - **Implementation:** Configure Connection Monitor tests for critical network paths (VM-to-VM, VM-to-PaaS, on-prem-to-Azure). Collect `ChecksFailedPercent`, `RoundTripTimeMs`, and `TestResult` metrics. Alert when failed check percentage exceeds threshold or round-trip time degrades significantly. Use NSG flow logs enriched with Traffic Analytics for deeper investigation.
 - **Visualization:** Line chart (check failure % by monitor), Table (failing paths), Single value (overall connectivity health).
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=5m | sort - agg_value
@@ -3193,7 +3202,7 @@ index=cloud sourcetype="azure:monitor:metric" resource_type="microsoft.compute/d
 ### UC-4.3.1 · Audit Log Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1580, T1526
 - **Value:** GCP audit logs capture all admin activity and data access. Foundational for security monitoring and compliance in GCP environments.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -3255,7 +3264,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.methodName="SetIam
 ### UC-4.3.3 · VPC Flow Log Analysis
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1580, T1526
 - **Value:** GCP VPC Flow Logs provide network traffic visibility. Same use case as AWS/Azure — detect rejected traffic, anomalies, exfiltration.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -3327,7 +3336,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="scc_finding"
 ### UC-4.3.6 · GCE Instance Monitoring
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1578.002
 - **Value:** Compute Engine VM performance monitoring for capacity planning and baseline trending without guest-level agents.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -3348,7 +3357,7 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="compute.googleapis.com
 ### UC-4.3.7 · BigQuery Audit and Cost
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1530, T1619
 - **Value:** BigQuery can generate massive costs from poorly optimized queries. Audit and cost tracking prevents bill shock and identifies optimization opportunities.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -3437,7 +3446,7 @@ index=gcp sourcetype="google:gcp:monitoring" metric.type="pubsub.googleapis.com/
 ### UC-4.3.11 · Cloud Storage (GCS) Request Metrics and Cost
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1619, T1530
 - **Value:** GCS request count and latency support performance tuning. Cost tracking by bucket/class prevents bill shock.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -3530,7 +3539,8 @@ index=gcp sourcetype="google:gcp:pubsub:message" resource.type="k8s_cluster" tex
 - **SPL:**
 ```spl
 index=gcp sourcetype="google:gcp:monitoring" metric.type="cdn.googleapis.com/cache/hit_ratio"
-| timechart span=1h avg(value) by resource.labels.origin_name
+| bin _time span=1h
+| stats avg(value) as hit_ratio by _time, resource.labels.origin_name
 | where hit_ratio < 0.7
 ```
 - **Implementation:** Collect CDN metrics. Calculate hit ratio from cache hits and misses. Alert when hit ratio < 70% or egress spike. Optimize cache TTL and key design based on metrics.
@@ -3567,7 +3577,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="artif
 ### UC-4.3.17 · Cloud Logging Export Sink and Exclusion Filter
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1562.008
 - **Value:** Log sink and exclusion changes affect what is exported to Splunk or other destinations. Unauthorized changes create visibility gaps.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -3632,9 +3642,10 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="iam.g
 - **SPL:**
 ```spl
 index=gcp sourcetype="gcp:billing"
-| timechart span=1d sum(cost) by service
-| eventstats avg(cost) as avg_cost stdev(cost) as stdev_cost by service
-| where cost > avg_cost + 2*stdev_cost
+| bin _time span=1d
+| stats sum(cost) as daily_cost by _time, service
+| eventstats avg(daily_cost) as avg_cost, stdev(daily_cost) as stdev_cost by service
+| where daily_cost > avg_cost + 2*stdev_cost
 ```
 - **Implementation:** Enable billing export. Ingest daily/monthly cost data. Create budget alerts and forward to Splunk. Calculate baseline and alert on 2-sigma anomaly by service or project.
 - **Visualization:** Line chart (cost with threshold), Table (service, cost, anomaly), Stacked area (cost by service).
@@ -3906,7 +3917,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" sourceProperties.ResourceName=*
 ### UC-4.3.31 · Cloud KMS Key Rotation Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1098.001
 - **Value:** Crypto policy often mandates rotation; tracking next rotation time avoids audit findings and forced emergency rotations.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -3929,7 +3940,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.serviceName="cloud
 ### UC-4.3.32 · Cloud Logging Sink Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1562.008
 - **Value:** Broken sinks drop audit and security logs silently; monitoring export errors preserves compliance and detection coverage.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -4062,7 +4073,7 @@ index=gcp sourcetype="google:gcp:pubsub:message" httpRequest.latency!=""
 ### UC-4.3.38 · GCS Bucket Policy Changes
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1530, T1619
 - **Value:** Public buckets and IAM relaxations are common breach paths; real-time detection limits exposure window.
 - **App/TA:** `Splunk_TA_google-cloudplatform`
@@ -4141,7 +4152,7 @@ index=cloud sourcetype="gcp:monitoring:timeseries"
 ### UC-4.4.1 · Terraform Drift Detection
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1578
 - **Value:** Infrastructure drift from declared IaC state means manual changes broke the single source of truth. Causes unpredictable behavior and deployment failures.
 - **App/TA:** Custom input (Terraform CLI output, CI/CD integration)
@@ -4212,7 +4223,7 @@ index=aws sourcetype="aws:billing" OR index=azure sourcetype="azure:costmanageme
 ### UC-4.4.4 · Cloud Resource Tagging Compliance
 - **Criticality:** 🟢 Low
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578
 - **Value:** Untagged resources can't be tracked for cost allocation, compliance, or ownership. Tagging compliance is foundational for cloud governance.
 - **App/TA:** Cloud provider TAs, Config rules
@@ -4237,7 +4248,7 @@ index=aws sourcetype="aws:config:notification" resourceType="AWS::EC2::Instance"
 ### UC-4.4.5 · Cloud Resource Inventory and Drift Summary
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Configuration
+- **Monitoring type:** Security, Configuration
 - **MITRE ATT&CK:** T1580, T1526
 - **Value:** Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC.
 - **App/TA:** Combined cloud TAs, Config/Policy exports, or third-party CSPM
@@ -4269,10 +4280,10 @@ index=aws OR index=azure OR index=gcp
 - **SPL:**
 ```spl
 index=security (sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)
-| eval cloud=case(sourcetype="aws*","AWS", sourcetype="azure*","Azure", sourcetype="gcp*","GCP")
-| eval severity=coalesce(severity, Severity, finding.severity)
+| eval cloud=case(like(sourcetype, "aws%"), "AWS", like(sourcetype, "azure%"), "Azure", like(sourcetype, "gcp%"), "GCP", true(), "Other")
+| eval severity=coalesce(severity, Severity, 'finding.severity')
 | where severity="CRITICAL" OR severity="HIGH"
-| stats count by cloud severity finding_type
+| stats count by cloud, severity, finding_type
 | sort -count
 ```
 - **Implementation:** Ingest Security Hub, Defender for Cloud, and SCC findings into a common index. Normalize severity and finding type. Alert on new critical/high. Dashboard open findings by cloud, severity, and category (e.g. encryption, networking).
@@ -4286,7 +4297,7 @@ index=security (sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourc
 ### UC-4.4.7 · Cross-Cloud Log Ingestion Pipeline Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Fault
+- **Monitoring type:** Security, Fault
 - **MITRE ATT&CK:** T1562.008
 - **Value:** Log pipelines (CloudTrail → S3 → Splunk, Event Hub → Splunk, Pub/Sub → Splunk) can break. Monitoring pipeline health ensures no audit or observability gaps.
 - **App/TA:** Splunk _internal, ingest metrics, or custom heartbeat
@@ -4356,7 +4367,7 @@ index=aws sourcetype="aws:billing" lineItem_LineItemType=*Reserved* OR lineItem_
 ### UC-4.4.10 · Cloud API Rate Limit and Throttling (429) Trends
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1526, T1580
 - **Value:** 429 (Too Many Requests) from cloud APIs indicate client or provider throttling. Tracking trends supports quota increase and architecture changes.
 - **App/TA:** Splunk TAs for each cloud (CloudTrail, Activity Log, GCP audit)
@@ -4378,7 +4389,7 @@ index=aws sourcetype="aws:cloudtrail" errorCode="ThrottlingException"
 ### UC-4.4.11 · Cloud Encryption and Key Rotation Compliance
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1098.001, T1530
 - **Value:** Unencrypted resources or keys past rotation date violate compliance. Central view across clouds supports audit and remediation.
 - **App/TA:** Config/Security Hub, Defender, SCC, or CSPM
@@ -4468,7 +4479,7 @@ index=aws sourcetype="aws:config:notification" resourceType="AWS::CloudTrail::Tr
 ### UC-4.4.15 · Cloud Resource Tag Compliance and Drift
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578
 - **Value:** Missing or inconsistent tags (Owner, CostCenter, Environment) block cost allocation, automation, and governance. Detecting untagged or non-compliant resources supports tag policy enforcement.
 - **App/TA:** `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory
@@ -4491,7 +4502,7 @@ index=aws sourcetype="aws:config:resource" tag_compliance="non_compliant"
 ### UC-4.4.16 · Cross-Region Replication and Backup Verification
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1578.001, T1537
 - **Value:** Replication lag or failed backup copies leave RPO/RTO at risk. Monitoring ensures DR readiness and supports audit of backup and replication jobs.
 - **App/TA:** `Splunk_TA_aws`, Azure Monitor, GCP operations
@@ -4537,7 +4548,7 @@ index=aws sourcetype="aws:service_quotas"
 ### UC-4.4.18 · Cloud Endpoint and DNS Resolution Health
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1580
 - **Value:** PrivateLink, VPC endpoints, and private DNS zones enable secure access to AWS/Azure/GCP services. Endpoint or DNS failures cause application outages that are hard to diagnose.
 - **App/TA:** Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health
@@ -4560,7 +4571,7 @@ index=cloud sourcetype="endpoint:health"
 ### UC-4.4.19 · Multi-Cloud Cost Anomaly and Spike Detection
 - **Criticality:** 🟠 High
 - **Difficulty:** 🟠 Advanced
-- **Monitoring type:** Cost
+- **Monitoring type:** Security, Cost
 - **MITRE ATT&CK:** T1580
 - **Value:** Sudden cost spikes across AWS, Azure, or GCP indicate misconfiguration, abuse, or runaway resources. Early detection limits financial impact and supports FinOps review.
 - **App/TA:** `Splunk_TA_aws`, Azure Cost Management export, GCP Billing export
@@ -4609,7 +4620,7 @@ index=cloud sourcetype="dns:resolution"
 ### UC-4.4.21 · Cloud Resource Tag Coverage Trending
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578
 - **Value:** Untagged or improperly tagged resources impact cost allocation, governance, and security. Compliance gaps block chargeback and policy enforcement.
 - **App/TA:** `Splunk_TA_aws`, Azure inputs, GCP inputs
@@ -4643,7 +4654,8 @@ index=aws sourcetype="aws:config:notification" configRuleName="*required-tags*" 
  OR (index=azure sourcetype="mscs:azure:audit" identity.claims.http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier=)
  OR (index=gcp sourcetype="google:gcp:pubsub:message" protoPayload.methodName="google.iam.admin.v1.IAM.SignBlob")
 | eval cloud=case(isnotnull(index) AND index="aws","aws", index="azure","azure", index="gcp","gcp",1=1,"unknown")
-| stats count by cloud, user, _time span=1h
+| bin _time span=1h
+| stats count by cloud, user, _time
 | sort -count
 ```
 - **Implementation:** Normalize federated principal fields into a common `user` or `subject` via `eval`/`lookup`. Ingest IdP logs (Okta, Entra ID) via HEC if available and join on session ID. Alert on unusual federation volume, new IdP thumbprint, or cross-cloud sessions within minutes for the same user.
@@ -4661,7 +4673,7 @@ index=aws sourcetype="aws:config:notification" configRuleName="*required-tags*" 
 ### UC-4.4.23 · Multi-Cloud DNS Resolution Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1580
 - **Value:** DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.
 - **App/TA:** Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs)
@@ -4709,7 +4721,7 @@ index=cloud (sourcetype="dns:health" OR sourcetype="synthetic:dns")
 ### UC-4.4.25 · Multi-Cloud Secret Management Audit
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1098.001, T1552.005
 - **Value:** Secrets touched across AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager must be auditable for least-privilege reviews and breach investigations.
 - **App/TA:** `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`
@@ -4738,7 +4750,7 @@ index=cloud (sourcetype="dns:health" OR sourcetype="synthetic:dns")
 ### UC-4.4.26 · Cross-Cloud Resource Tagging Compliance
 - **Criticality:** 🟡 Medium
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578
 - **Value:** A single tagging schema across clouds enables chargeback and policy automation; drift in one provider breaks consolidated FinOps views.
 - **App/TA:** `Splunk_TA_aws`, Azure Policy exports, GCP Asset Inventory
@@ -4789,7 +4801,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 ### UC-4.4.28 · Hybrid Identity Synchronization Health
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1078.004, T1098
 - **Value:** AD Connect, Cloud Identity, and similar sync failures leave cloud groups stale, breaking access and compliance.
 - **App/TA:** `Splunk_TA_microsoft-cloudservices`, Windows/Entra diagnostics, GCP Identity logs
@@ -4812,7 +4824,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 ### UC-4.4.29 · Multi-Cloud Backup Recovery Testing
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1578.001, T1578.004
 - **Value:** Untested restores fail when needed; tracking drill outcomes across AWS Backup, Azure Backup, and GCP proves RPO/RTO.
 - **App/TA:** `Splunk_TA_aws`, Azure Backup logs, GCP Backup for GKE / Database exports
@@ -4839,7 +4851,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 ### UC-4.4.30 · Cloud Provider API Rate Limit Monitoring
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Performance
+- **Monitoring type:** Security, Performance
 - **MITRE ATT&CK:** T1526, T1580
 - **Value:** Automation hitting AWS throttling, Azure 429s, or GCP RESOURCE_EXHAUSTED breaks pipelines; trending limits prevents silent job loss.
 - **App/TA:** Cloud TAs + application logs with HTTP status
@@ -4863,7 +4875,7 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 ### UC-4.4.31 · Multi-Cloud Certificate Expiry Tracking
 - **Criticality:** 🔴 Critical
 - **Difficulty:** 🟢 Beginner
-- **Monitoring type:** Compliance
+- **Monitoring type:** Security, Compliance
 - **MITRE ATT&CK:** T1580
 - **Value:** Expired certs break TLS for APIs and VPNs across regions; a unified expiry calendar prevents outages.
 - **App/TA:** ACM/Key Vault/Certificate Manager exports, optional certstream
@@ -5098,7 +5110,7 @@ index=aws sourcetype="aws:billing" OR index=azure sourcetype="azure:costmanageme
 ### UC-4.5.10 · Lambda Dead Letter Queue Depth and Message Rate
 - **Criticality:** 🟠 High
 - **Difficulty:** 🔵 Intermediate
-- **Monitoring type:** Availability
+- **Monitoring type:** Security, Availability
 - **MITRE ATT&CK:** T1610
 - **Value:** Messages landing in DLQs mean unprocessed events—often billing, inventory, or security actions—until replayed or dropped.
 - **App/TA:** `Splunk_TA_aws`
@@ -5375,7 +5387,7 @@ index=cloud sourcetype="aws:cloudwatch:vpcflow"
 ```
 - **Implementation:** Parse VPC Flow or NSG flow fields so bytes is numeric. Filter internal-only noise if needed via RFC1918 CIDR lists. Use weekly buckets for medium-term trending; index volume growth also correlates with ingest cost. For Azure, map to the appropriate custom sourcetype for raw flows. Alert on sudden jumps exceeding 2x the 4-week moving average.
 - **Visualization:** Column chart (weekly total GB), line overlay (4-week SMA), dual axis with flow record count.
-- **CIM Models:** Network Traffic
+- **CIM Models:** Network_Traffic
 - **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1w | sort - agg_value

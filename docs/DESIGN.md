@@ -74,7 +74,7 @@ The product serves three audiences, each addressed by a different surface:
 |---|---|---|
 | Splunk Sales Engineer (SE) | Dashboard + `.spl` exports | Find the 10 most relevant UCs for a customer conversation; drop the content pack into a live instance |
 | Splunk practitioner (detection engineer, platform admin) | Markdown source + CI | Author new UCs, enforce quality, rebase vendor-specific searches |
-| Integrator or tooling author | `catalog.json`, `api/cat-*.json`, `llms*.txt`, OpenAPI | Pull the catalog into another system (CMDB tagging, MCP tool, chatbot, documentation portal) |
+| Integrator or tooling author | `catalog.json`, `api/cat-*.json`, `api/v1/*.json`, `llms*.txt`, OpenAPI, MCP server | Pull the catalog into another system (CMDB tagging, chatbot, documentation portal, Cursor/Claude Desktop agent, compliance automation) |
 
 Replicators who want to stand up the same system for a different vendor are served by [§14 Replication guide](#14-replication-guide) and `templates/replication-starter/`.
 
@@ -260,6 +260,8 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 | `llms-full.txt` | AI agents | every UC title, one per line |
 | `sitemap.xml` | search engines | canonical URLs per UC |
 | `index.html` | web browsers | release notes section only — HTML body is hand-authored, release notes are regenerated from `CHANGELOG.md` |
+| `api/v1/*.json` (v5.1+) | HTTP consumers + MCP server | Phase 1.7 static API: compliance, recommender, equipment, manifest, JSON-LD context |
+| `mcp/` (v6.1 Unreleased) | MCP-capable AI agents (Cursor, Claude Desktop, Claude Code) | Phase 6 Model Context Protocol server wrapping `api/v1/*.json`; see [§9.4](#94-mcp-server-phase-6) |
 
 ### 6.3 Stages
 
@@ -308,14 +310,19 @@ flowchart LR
     browser["Browser"]
     bot["LLM / bot"]
     integrator["Integrator<br/>script"]
+    mcp["splunk-uc-mcp<br/>(Phase 6, local stdio)"]
+    agent["MCP-capable agent<br/>(Cursor / Claude)"]
 
     repo -- "on push (pages.yml)" --> pages
     pages -- "index.html + data.js" --> browser
     pages -- "llms.txt / llms-full.txt" --> bot
-    pages -- "catalog.json / api/*.json" --> integrator
+    pages -- "catalog.json / api/v1/*.json" --> integrator
+    pages -- "api/v1/*.json (HTTPS fallback)" --> mcp
+    repo -- "local clone (preferred)" --> mcp
+    mcp -- "JSON-RPC stdio" --> agent
 ```
 
-The production site is **GitHub Pages** fronting the `main` branch root; the deployed content is byte-identical to what is committed. There is no CDN cache layer beyond GitHub's default. There is no back-end.
+The production site is **GitHub Pages** fronting the `main` branch root; the deployed content is byte-identical to what is committed. There is no CDN cache layer beyond GitHub's default. There is no back-end. The MCP server runs **client-side**, alongside the agent, and reads `api/v1/*.json` either from a local clone (preferred) or the Pages mirror (HTTPS fallback).
 
 ### 7.2 Dashboard architecture
 
@@ -426,6 +433,53 @@ All four are generated from `catalog.json` by scripts under [`scripts/`](../scri
 - **HTTP GET `catalog.json`** — full catalog (~40 MB). Suitable for bulk offline processing; cache aggressively.
 - **`git clone` + `python3 build.py`** — for integrators who need to modify the pipeline (add a field, change auto-tagging).
 - **`git clone` + `pip install openapi-generator-cli` + codegen** — the OpenAPI 3.1 spec at `openapi.yaml` (rendered at [`/api-docs.html`](../api-docs.html)) means typed client code is a single `openapi-generator-cli generate -i openapi.yaml -g <lang>` away.
+- **`pip install -e mcp/` + MCP-capable client** — the Phase 6 Model Context Protocol server at [`mcp/`](../mcp/) wraps `api/v1/*.json` in an LLM-addressable surface (eight tools + four URI schemes) for Cursor, Claude Desktop, Claude Code, and any other MCP-compatible agent.
+
+### 9.4 MCP server (Phase 6)
+
+The project ships a **Model Context Protocol** server, `splunk-uc-mcp`, that
+exposes the `api/v1/*.json` catalogue to LLM agents. It is a separately
+installable Python package at [`mcp/`](../mcp/) built on the official
+[`mcp`](https://pypi.org/project/mcp/) Python SDK.
+
+**Transport.** Stdio (JSON-RPC over stdin/stdout). No HTTP listener,
+no authentication surface, no DNS-rebinding risk. Stdio is the
+recommended MCP transport per the CoSAI MCP Security guidance; HTTP
+streaming is on the v6.x backlog for opt-in remote single-tenant
+deployments.
+
+**Data source.** The server resolves catalogue paths with a
+**local-clone-first** strategy and falls back to the GitHub Pages
+mirror only when a local clone is absent. The fallback base URL is
+allow-listed at process start (default
+`https://fenre.github.io/splunk-monitoring-use-cases`); path
+traversal sequences (`..`, `/`, absolute paths) are rejected before
+any read.
+
+**Surface.** Eight read-only tools (`search_use_cases`,
+`get_use_case`, `list_categories`, `list_regulations`,
+`get_regulation`, `list_equipment`, `get_equipment`,
+`find_compliance_gap`) and four URI schemes (`uc://`, `reg://`,
+`equipment://`, `ledger://`). Each tool has a JSON `inputSchema` and
+`outputSchema` that the MCP SDK validates on both sides of the wire.
+Errors return a canonical `{"error", "message"}` envelope wrapped in
+a `CallToolResult(isError=True)` so agents have an unambiguous
+`isError` signal without having to introspect the JSON payload.
+
+**Audit gates.** `scripts/audit_mcp_tool_schemas.py` exercises every
+tool against the committed `api/v1/*.json` tree and validates each
+response against its declared `outputSchema`. The guard also freezes
+the slug regex set, asserts the 8 tools are declared with non-empty
+descriptions, and verifies `api/v1/manifest.json` still exposes the
+endpoints the remote-fallback catalogue depends on. Wired into
+`.github/workflows/validate.yml` so schema drift between `api/v1`
+and the MCP tool surface fails a PR before it ships.
+
+**Security posture.** Read-only by construction, input-validated at
+every boundary (regex-validated slugs, 200-char query cap,
+1..100-bounded `limit`, 10 MB payload cap on local reads and
+HTTPS streams), SHA-256-hashed argument logging. See
+[`docs/mcp-server.md`](mcp-server.md) §7 for the full model.
 
 ---
 
@@ -651,5 +705,7 @@ The product is designed to be extended without forking the parser. These are the
 | Add a new generated output | `build.py:main()` + generator function | New `write_*()` call at the end of `main()`; add the output path to the CI freshness gate |
 | Replace the query language | `build.py` fence detection | Change ` ```spl ` to ` ```<lang> `; add `audit_<lang>_hallucinations.py`; keep everything else |
 | Replace the runtime UI | `index.html` + `data.js` | `data.js` is a stable contract; any UI that consumes those globals works |
+| Add an MCP tool | [`mcp/src/splunk_uc_mcp/tools/`](../mcp/src/splunk_uc_mcp/tools/) | Declare `TOOL_DEF`, `INPUT_SCHEMA`, `OUTPUT_SCHEMA`, and a handler; register in `server.py`; add unit tests in `mcp/tests/`; the drift guard then auto-validates the output against live `api/v1/*.json` |
+| Add an MCP URI scheme | [`mcp/src/splunk_uc_mcp/resources/`](../mcp/src/splunk_uc_mcp/resources/) | Add slug regex + resolver; register in `server.py`; add tests. Keep read-only and path-traversal-safe. |
 
 This list is exhaustive for the purpose of adding content, automations, or exports. Anything beyond it needs an ADR.
