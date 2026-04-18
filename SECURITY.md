@@ -11,9 +11,17 @@ seriously:
   attacks)
 - The static dashboard (`index.html` + vendored Swagger UI) — DOM XSS, data
   leakage, or prototype pollution
-- The three packaged Splunk apps (`TA-splunk-use-cases`, `DA-ITSI-…`,
-  `DA-ESS-…`) — configuration that could cause denial-of-service on a Splunk
-  search head or leak data across tenants
+- The packaged Splunk content shipped under `ta/` (`TA-splunk-use-cases`,
+  `DA-ITSI-monitoring-use-cases`, `DA-ESS-monitoring-use-cases`) and the 10
+  regulation packs + recommender app + recommender TA shipped under
+  `splunk-apps/` — configuration that could cause denial-of-service on a
+  Splunk search head, leak data across tenants, or (for the recommender TA)
+  expose the modular-input REST surface
+- The Model Context Protocol server (`mcp/`, package `splunk-uc-mcp`) —
+  read-only by construction, stdio-only transport (no network listener), but
+  any input-handling defect that allows path traversal off the catalogue
+  root, or any tool that returns more data than its schema advertises, is in
+  scope
 
 ## Reporting a vulnerability
 
@@ -50,13 +58,18 @@ We will:
 **In scope:**
 
 - All SPL saved searches, macros, eventtypes, and correlation searches shipped
-  in `ta/`, `use-cases/`, and `catalog.json`
+  in `ta/`, `splunk-apps/`, `use-cases/`, and `catalog.json`
 - Python scripts under `scripts/` and `build.py`
+- The MCP server source under `mcp/src/splunk_uc_mcp/` (the JSON-RPC
+  request/response handlers, the schema-validated tool surface, and the
+  resource URI parsers)
 - The static dashboard (`index.html`, `data.js`, `custom-text.js`,
-  `non-technical-view.js`)
+  `non-technical-view.js`, `regulatory-primer.html`, `scorecard.html`)
+- The Data Sizing Assessment tool (`tools/data-sizing/index.html` + JS)
 - Swagger UI assets in `vendor/swagger-ui/` (we pin checksums; tampered
   versions are an in-scope concern)
-- GitHub Actions workflows under `.github/workflows/`
+- GitHub Actions workflows under `.github/workflows/` and the Dependabot
+  config at `.github/dependabot.yml`
 
 **Out of scope:**
 
@@ -74,9 +87,9 @@ fixes. Older versions continue to function but do not receive patches.
 
 | Version | Supported |
 |---------|-----------|
-| 5.2.x   | ✅ |
-| 5.1.x   | ✅ |
-| < 5.1   | ❌ |
+| 6.1.x   | ✅ |
+| 6.0.x   | ✅ |
+| < 6.0   | ❌ |
 
 ## Safe defaults
 
@@ -89,8 +102,20 @@ reviewers should be aware of:
 - Index macros (`uc_index_*`) default to `index=*` but are intended to be
   overridden before use. A misconfigured install cannot exfiltrate beyond the
   Splunk user's existing role scope.
-- No custom scripts, modular inputs, or REST endpoints — all packs are
-  **configuration-only** and can be reviewed deterministically.
+- The 13 packs under `ta/` and `splunk-apps/` (excluding the recommender
+  TA) are **configuration-only** — no scripts, no modular inputs, no REST
+  endpoints — and can be reviewed deterministically.  The
+  `splunk-uc-recommender-ta` is the lone exception: it ships one custom
+  modular input (`uc_recommender_modular`) whose source lives under
+  `splunk-apps/splunk-uc-recommender-ta/bin/` and is reviewed during every
+  release.
+- The MCP server (`mcp/`) is read-only by construction (no `write`, no
+  `delete`, no shell-out) and uses stdio-only transport (no network
+  listener), eliminating the entire class of remote-network attack
+  surfaces.  Tool inputs and outputs are JSON-Schema-validated against
+  the schemas in `mcp/src/splunk_uc_mcp/schemas/`, with a CI guard
+  (`scripts/audit_mcp_tool_schemas.py`) that fails the build if the
+  shipped schemas drift from the runtime ones.
 - Swagger UI assets are self-hosted under `vendor/swagger-ui/` with
   SHA-256 checksums in `vendor/swagger-ui/checksums.txt` to guard against CDN
   compromise.

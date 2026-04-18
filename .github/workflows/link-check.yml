@@ -26,10 +26,19 @@ jobs:
 
       - name: Run link audit
         id: audit
+        # `set +e` lets the workflow keep running so we can upload logs and
+        # file a tracking issue on failure.  The crux is `${PIPESTATUS[0]}`
+        # — without it, `code=$?` would capture `tee`'s exit (always 0)
+        # and the auditor's broken-link findings would be silently masked.
+        # The final `exit 0` is intentional: the next step's `if:` gate
+        # (`steps.audit.outputs.exit_code != '0'`) is the real failure
+        # signal, not the step exit, so reviewers always get an issue
+        # with the broken-reference list rather than a red CI run with
+        # no actionable artefact.
         run: |
           set +e
           python3 scripts/audit_links.py 2>audit.err | tee audit.out
-          code=$?
+          code=${PIPESTATUS[0]}
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           exit 0
 

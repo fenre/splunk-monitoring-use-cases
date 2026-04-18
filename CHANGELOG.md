@@ -12,6 +12,106 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### CI hygiene + documentation alignment for v6.1
+
+- **`.github/workflows/link-check.yml` — broken-link findings now surface
+  as tracking issues again.**  The workflow piped `audit_links.py` through
+  `tee` without `set -o pipefail` and ended with an unconditional
+  `exit 0`, which masked a non-zero auditor exit (`code=$?` captured
+  `tee`'s 0 instead of the auditor's actual code).  The fix uses
+  `${PIPESTATUS[0]}` to capture the real exit code of
+  `audit_links.py`, writes it to `steps.audit.outputs.exit_code`, and
+  preserves the `exit 0` so the next job (which gates on
+  `steps.audit.outputs.exit_code != '0'`) can still run and open a
+  tracking issue.  Reviewers now see the broken-reference list in a
+  fresh issue rather than a green CI run with no actionable artefact.
+- **`.github/workflows/uc-manifest.yml` — Python pinned to 3.12 (was
+  3.11).**  Every other workflow in `.github/workflows/` already uses
+  3.12 (`validate.yml`, `uc-tests.yml`, `link-check.yml`,
+  `regulatory-watch.yml`); the version split risked "works on
+  validate, fails on manifest" surprises when scripts use a 3.12-only
+  feature.
+- **`.github/dependabot.yml` — added the missing-but-promised
+  Dependabot configuration.**  `uc-tests.yml` (lines 102-103) said the
+  pinned Splunk Docker digest was updated by Dependabot via this file,
+  but the file itself was never created.  The new config opens weekly
+  PRs (Mondays 06:00 UTC, max one open PR per ecosystem) for both
+  `github-actions` (every workflow pins actions by major-version tag)
+  and `docker` (the `splunk/splunk:9.4.1` reference in `uc-tests.yml`).
+  `pip` is intentionally excluded — the catalogue's Python deps come
+  from system packages installed in the workflow itself, and the MCP
+  server's runtime deps are pinned manually as part of MCP releases.
+
+### Documentation alignment with the v6.1 reality
+
+- **`ROADMAP.md` — current/next release pointers refreshed.**  Was still
+  claiming "Current release: v6.0" with v6.1 listed under "Next up,
+  target 2026-Q3"; v6.1 has shipped and the v6.2 backlog is now the
+  forward-looking section.  The two previously-unreleased workstreams
+  (Phase 5.5 structured equipment tagging, Phase 6 MCP server) are now
+  documented as part of v6.1 instead of as pre-release work.
+- **`CITATION.cff` — version bumped 6.0 → 6.1, UC count 6,300+ → 6,400+,
+  preferred-citation version 5.2 → 6.1.**  Brings the citation metadata
+  into line with `VERSION`, `CHANGELOG.md`, and the actual catalogue
+  size (6,447 UCs).
+- **`SECURITY.md` — supported versions, packaged-app inventory, and
+  modular-input claim corrected.**  The supported-versions table now
+  reads 6.1.x ✅ / 6.0.x ✅ / < 6.0 ❌ (was 5.2.x / 5.1.x / < 5.1).
+  The "three packaged Splunk apps" claim was rewritten to enumerate
+  all 13 packs (3 under `ta/` + 10 regulation packs + recommender +
+  recommender-TA under `splunk-apps/`) plus the `mcp/` server.  The
+  blanket "no custom scripts, modular inputs, or REST endpoints" claim
+  was revised to call out the `splunk-uc-recommender-ta` modular input
+  and the MCP server's stdio-only attack surface, both of which are
+  now explicitly in scope.
+- **`docs/regulatory-primer.md` — three broken
+  `api/v1/compliance/regulations/` and OSCAL catalogue links fixed.**
+  The §4.1 (GDPR), §4.3 (PCI DSS), and §4.9 (NIST 800-53) "Where to
+  look" footers pointed at filenames that did not exist
+  (`gdpr@2016/679.json` with a `%2F`-encoded slash, `pci-dss@4.0.json`
+  missing the `v` prefix, `nist-800-53-rev5.json` instead of the
+  actual `nist-sp-800-53-r5.normalised.json`).  Replaced with the
+  exact file paths so the in-page link resolves on
+  `regulatory-primer.html` and on raw GitHub.
+- **`docs/PITCH.md` — `mcp-server/` references retargeted to `mcp/`.**
+  Two links (the "Roadmap" bullet and the "AI / LLM tooling author"
+  audience row) referenced a `mcp-server/` directory that does not
+  exist; the actual package lives under `mcp/`.  Both now link to
+  `mcp/` and to the new
+  [`docs/mcp-server.md`](docs/mcp-server.md) integration guide.
+- **`docs/mcp-server.md` — broken `.mdc` rule reference replaced with
+  the upstream CoSAI publication.**  The "Security model" section
+  linked to `../.cursor/rules/codeguard-0-mcp-security.mdc`, which is
+  not present in the repository (workspace-level Cursor rules are
+  delivered via the editor configuration, not committed alongside the
+  source).  The link now points at the public CoSAI MCP Security
+  publication that the rule is derived from, plus a note clarifying
+  that the same guidance is encoded into the editor's workspace rule.
+- **`mcp/src/splunk_uc_mcp/server.py` — forward reference to a
+  non-existent `get_provenance` tool removed.**  The `_summarise_ledger`
+  docstring told agents to "re-query with `get_provenance` once that
+  tool ships", but no such tool is on the roadmap; the existing
+  `ledger://full` resource already exposes the complete ledger payload.
+  Docstring updated to point at the resource directly.  The
+  `SERVER_INSTRUCTIONS` UC count was also refreshed from
+  "6,424 UCs" to "6,400+ UCs across 23 categories" so the agent
+  instructions don't drift again on every release.
+- **`mcp/tests/test_server.py` — typo'd "todo" comment cleaned up.**  The
+  comment beside `test_slug_regexes_are_frozen` read
+  "(scripts/audit_mcp_tool_schemas.py, todo)" implying the drift guard
+  hadn't been written; it has been written and is wired into
+  `validate.yml`.  Comment now states the relationship correctly.
+- **Root `openapi.yaml` — corrected the misleading "regenerated as
+  part of `build.py`" claim.**  This root-level spec is hand-maintained
+  as developer documentation for the legacy `/api/cat-{n}.json` and
+  `/catalog.json` surfaces; the auto-generated companion lives at
+  `/api/v1/openapi.yaml` and is regenerated by
+  `scripts/generate_api_surface.py`.  The new wording calls out the
+  split, marks the `/api/v1/` spec as canonical for new clients, and
+  documents that this root spec stays in sync via PR review.  The "
+  6,300+ curated Splunk use cases" line in the spec summary was
+  updated to "6,400+" to match `CITATION.cff`.
+
 ### Branding — subtitle updated for accuracy
 
 - **Header subtitle on every user-facing page no longer reads "Cisco Network

@@ -6,6 +6,54 @@
 
 ## Current release
 
+**v6.1 — Verifiable Compliance Coverage** *(shipped 2026-04-16)*
+
+Theme: **"every priority-weight clause traceable to a verified UC, every
+malformed clause rejected at the CI gate."**  v6.1 closes the long-standing
+gaps in `docs/compliance-coverage.md` and lifts the Phase 5.5 structured
+equipment tagging + Phase 6 MCP server out of "merged but unreleased" into
+the shipped release.
+
+- Six-phase regulation-coverage gap closure (Phases A-F) — 670 malformed
+  `compliance[].clause` strings rewritten, 8 tier-2 regulations populated
+  with authoritative `commonClauses[]`, 23 new UCs (`UC-22.50.1` ..
+  `UC-22.50.23`) authored for the remaining uncovered tier-2 clauses, 11
+  meta-multi UCs re-tagged to concrete frameworks, 250 UCs elevated to
+  `status: verified` via dual-SME signoff, and `clause-grammar` removed
+  from `BASELINEABLE_CODES` so malformed clauses are now a hard CI fail
+- Phase 5.5 Compliance structured equipment tagging — `equipment[]` /
+  `equipmentModels[]` first-class on every cat-22 UC, plus
+  `api/v1/equipment/index.json` and `api/v1/equipment/{id}.json` for the
+  equipment→UC→regulation graph
+- Phase 6 Model Context Protocol (MCP) server — `mcp/` package
+  (`splunk-uc-mcp`) exposes the catalogue to AI agents over JSON-RPC stdio
+  with eight read-only tools, four URI resources, schema drift guard, and
+  full documentation at [`docs/mcp-server.md`](docs/mcp-server.md)
+- Regulatory primer reader (`regulatory-primer.html`) — standalone reading
+  experience for `docs/regulatory-primer.md` with sticky TOC, search, and
+  auto-decorated tier / assurance / priority badges
+- Branding accuracy — header subtitle changed from "Cisco Network
+  Intelligence" to "Community Reference" on `index.html` and
+  `tools/data-sizing/index.html` (see [`CHANGELOG.md`](CHANGELOG.md) for
+  the full rationale)
+- Catalogue grew 6,424 → 6,447 UCs across 23 categories
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v6.1 release notes.
+
+### Shipped outcomes
+
+- Every priority-weight clause across tier-1 + tier-2 frameworks now maps
+  to at least one UC (100% clause coverage and 100% priority-weighted
+  coverage on both tiers)
+- Auditors can verify the compliance graph end-to-end via the signed
+  provenance ledger and the per-clause gap report
+- Compliance officers, detection engineers, and AI agents share the same
+  read-only API surface (`api/v1/`, MCP tools)
+
+---
+
+## Previous releases
+
 **v6.0 — Verifiable Quality** *(shipped 2026-04-16)*
 
 Theme: **"trust but verify"** — every shipped SPL should be demonstrably
@@ -27,19 +75,6 @@ correct and every quality signal transparently measured.
   six quality dimensions (see [`docs/scorecard.md`](docs/scorecard.md))
 - Two new API endpoints: `GET /provenance.json`, `GET /scorecard.json`
 - OpenAPI spec bumped to 6.0.0
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v6.0 release notes.
-
-### Shipped outcomes
-
-- Every Quick-Start UC with a fixture passes automated SPL execution tests
-- No regressions introduced by SPL refactors go undetected
-- Users can quickly judge the quality / maturity of any given category
-- Splunk Cloud customers know in advance what works and what needs tuning
-
----
-
-## Previous releases
 
 **v5.2 — Enterprise Packaging** *(shipped 2026-04-16)*
 
@@ -63,37 +98,14 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 
 ---
 
-## Next up: v6.1 — Expand & Refine *(target: 2026-Q3)*
+## Next up: v6.2 — Expand & Refine *(no fixed date)*
 
-Building on the v6.0 foundation, the v6.1 focus is **raising the scorecard
-grades** — most categories currently sit in "Needs work" because KFP, MITRE
-mappings, reviewed-dates and sample fixtures haven't been authored for
-non-security UCs — **and shipping the two currently-unreleased workstreams
-that already sit on the `main` tip** (Phase 5.5 structured equipment tagging
-and Phase 6 MCP server).
+With the v6.1 compliance-coverage gap closed, the v6.2 focus shifts back
+to **raising the scorecard grades** — most categories currently sit in
+"Needs work" because KFP, MITRE mappings, reviewed-dates and sample
+fixtures haven't been authored for non-security UCs.
 
-### Already merged, awaiting release
-
-- **Phase 5.5 — Compliance structured equipment tagging.** Equipment is now
-  a first-class, schema-validated field on every cat-22 UC
-  (`equipment: string[]`, `equipmentModels: string[]`). Two new API
-  endpoints (`api/v1/equipment/index.json`, `api/v1/equipment/{id}.json`)
-  expose the equipment→UC→regulation graph for auditor workflows. Raised
-  cat-22 equipment coverage from 65.3 % to **73.1 %** and whole-catalogue
-  coverage to **81.8 %**. See the `[Unreleased]` section of
-  [`CHANGELOG.md`](CHANGELOG.md) for the detailed release notes.
-- **Phase 6 — Model Context Protocol (MCP) server.** A new `mcp/` package
-  (`splunk-uc-mcp`, Python 3.11+) exposes the catalogue to AI agents over
-  JSON-RPC stdio. Eight read-only tools (`search_use_cases`,
-  `get_use_case`, `list_categories`, `list_regulations`, `get_regulation`,
-  `list_equipment`, `get_equipment`, `find_compliance_gap`), four URI
-  resources (`uc://`, `reg://`, `equipment://`, `ledger://`), 291 unit
-  tests, a drift guard, and full documentation at
-  [`docs/mcp-server.md`](docs/mcp-server.md). Read-only by construction,
-  stdio-only transport (no auth surface), compliant with CoSAI MCP
-  security guidance.
-
-### Content + tooling work targeted for v6.1 itself
+### Content + tooling work targeted for v6.2
 
 - **Top-200 sample-event coverage** — Expand the `samples/` tree from 15
   fixtures to 200, targeting the most-used UCs identified by dashboard
@@ -107,10 +119,15 @@ and Phase 6 MCP server).
 - **Provenance refinement** — Drive the 2.4 % "unclassified" bucket below
   1 % by extending the host-rule allow-list and adding a heuristic
   fallback that inspects URL path/title.
+- **Phase E SME-uplift continuation** — Walk the remaining tier-1 +
+  tier-2 clause coverage entries from `assurance: contributing` to
+  `partial` / `full` via SME judgment.  Phase E v6.1 lifted global
+  assurance-adjusted coverage to 59.89 %; the realistic v6.2 target is
+  ≥75 % tier-1 / ≥55 % tier-2 without artificial uplift.
 
 ---
 
-## v6.2 – v6.x backlog *(no fixed date)*
+## v6.3 – v6.x backlog *(no fixed date)*
 
 The following ideas are under consideration but not yet scheduled. Pull
 requests or issues advocating for any of them are welcome.

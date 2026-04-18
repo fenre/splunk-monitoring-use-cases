@@ -455,8 +455,9 @@ server's static JSON reads.
 
 ## Security model
 
-Aligned with the CoSAI MCP guidance
-(see [`codeguard-0-mcp-security`](../.cursor/rules/codeguard-0-mcp-security.mdc)):
+Aligned with the [CoSAI MCP security guidance](https://www.coalitionforsecureai.org/wp-content/uploads/2025/10/CoSAI_MCP_Security_AISC1.pdf) (the same guidance encoded into the workspace-level
+`codeguard-0-mcp-security` rule that ships with this project's Cursor
+configuration):
 
 | Control | Implementation |
 | --- | --- |

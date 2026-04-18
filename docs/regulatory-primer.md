@@ -632,7 +632,7 @@ plus 15 cross-cutting families (22.35 – 22.49) that each tag GDPR where
 applicable.
 
 **Where to look:** §22.1 (GDPR) · `api/v1/compliance/regulations/gdpr.json`
-· [`api/v1/compliance/regulations/gdpr@2016/679.json`](../api/v1/compliance/regulations/gdpr@2016%2F679.json).
+· [`api/v1/compliance/regulations/gdpr@2016-679.json`](../api/v1/compliance/regulations/gdpr@2016-679.json).
 
 ### 4.2 UK GDPR — UK General Data Protection Regulation (UK) · `T2` · derivative
 
@@ -694,7 +694,7 @@ prevention, PAN-in-email detection, key-custody attestation, and PCI
 DSS 4.0 customised-approach-alternative evidence packaging.
 
 **Where to look:** §22.11 · `api/v1/compliance/regulations/pci-dss.json` ·
-[`api/v1/compliance/regulations/pci-dss@4.0.json`](../api/v1/compliance/regulations/pci-dss%404.0.json).
+[`api/v1/compliance/regulations/pci-dss@v4.0.json`](../api/v1/compliance/regulations/pci-dss@v4.0.json).
 
 ### 4.4 HIPAA Security — Health Insurance Portability and Accountability Act Security Rule (US) · `T1`
 
@@ -892,7 +892,7 @@ that align with the OSCAL component-definition facade at
 `api/v1/oscal/component-definitions/*`.
 
 **Where to look:** §22.14 · `api/v1/compliance/regulations/nist-800-53.json`
-· [`api/v1/oscal/catalogs/nist-800-53-rev5.json`](../api/v1/oscal/catalogs/nist-800-53-rev5.json).
+· [`api/v1/oscal/catalogs/nist-sp-800-53-r5.normalised.json`](../api/v1/oscal/catalogs/nist-sp-800-53-r5.normalised.json).
 
 ### 4.10 NIS2 — Network and Information Security Directive 2 (EU) · `T1`
 

@@ -80,16 +80,16 @@ SERVER_NAME = "splunk-uc"
 
 
 SERVER_INSTRUCTIONS = (
-    "Splunk Monitoring Use Cases catalogue (6,424 UCs, 60 regulations, "
-    "105 equipment slugs, signed provenance ledger). Read-only. Use "
-    "`search_use_cases` for discovery, `get_use_case` for the full SPL + "
-    "compliance detail on a single UC, `list_regulations` / "
-    "`get_regulation` for framework context, `list_equipment` / "
-    "`get_equipment` for deployment stacks, and `find_compliance_gap` "
-    "when an auditor asks which clauses are still uncovered. The URI "
-    "families `uc://`, `reg://`, `equipment://`, and `ledger://` expose "
-    "the same data as resources for agents that prefer a pull-based "
-    "model."
+    "Splunk Monitoring Use Cases catalogue (6,400+ UCs across 23 "
+    "categories, 60 regulations, 105 equipment slugs, signed provenance "
+    "ledger). Read-only. Use `search_use_cases` for discovery, "
+    "`get_use_case` for the full SPL + compliance detail on a single UC, "
+    "`list_regulations` / `get_regulation` for framework context, "
+    "`list_equipment` / `get_equipment` for deployment stacks, and "
+    "`find_compliance_gap` when an auditor asks which clauses are still "
+    "uncovered. The URI families `uc://`, `reg://`, `equipment://`, and "
+    "`ledger://` expose the same data as resources for agents that "
+    "prefer a pull-based model."
 )
 
 
@@ -375,8 +375,10 @@ def _summarise_ledger(ledger: dict[str, Any]) -> dict[str, Any]:
 
     The full ledger is 1.4 MB (1,889 entries) — too much to stream back
     on every read. We return the header metadata plus the first 25
-    entries so the agent can see the shape and then re-query with
-    ``get_provenance`` once that tool ships.
+    entries so the agent can see the shape; if the agent needs the
+    complete ledger it can fetch ``ledger://full`` directly via
+    ``read_resource``, which streams the whole ``mapping-ledger.json``
+    payload without per-tool truncation.
     """
 
     entries = ledger.get("entries", [])

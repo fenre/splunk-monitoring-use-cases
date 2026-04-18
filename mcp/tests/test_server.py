@@ -54,9 +54,10 @@ class TestToolDefinitions:
             assert tool.description and len(tool.description) >= 20
 
     def test_slug_regexes_are_frozen(self) -> None:
-        # The drift guard (scripts/audit_mcp_tool_schemas.py, todo) will
-        # also assert this list; we check the tuple is non-empty so future
-        # contributors can't silently remove a regex.
+        # The drift guard (scripts/audit_mcp_tool_schemas.py) also asserts
+        # this list end-to-end against the runtime tool surface; the local
+        # length check here just stops a future contributor from silently
+        # removing a regex without bumping the audit script in lock-step.
         assert len(_EXPECTED_SLUG_REGEXES) == 3
 
 

@@ -190,7 +190,8 @@ findings, **five** SPL warnings (all legitimate `dbxquery` callouts).
 - **Datagen POC** — Cribl Stream / HEC playbook for 10 representative
   use cases, with sample logs.
 - **MCP server** — expose the catalog as tools for AI agents (see
-  [`mcp-server/`](../mcp-server/)).
+  [`mcp/`](../mcp/) for the Python `splunk-uc-mcp` package and
+  [`docs/mcp-server.md`](mcp-server.md) for the integration guide).
 - **Replication starter** — ~30-line `build.py` fork template for porting
   the architecture to any query language (KQL, DQL, SignalFlow, YARA-L).
 
@@ -207,7 +208,7 @@ findings, **five** SPL warnings (all legitimate `dbxquery` callouts).
 | **Splunk admin on a new job** | "What should we monitor?" — solved in one click. |
 | **Splunk consultant** | A shared vocabulary with the client. A shared artefact. A measurable deliverable. |
 | **Integrator / tool-builder** | Machine-readable feeds, stable IDs, OpenAPI spec, semver. Build on us. |
-| **AI / LLM tooling author** | `llms.txt`, `llms-full.txt`, and a `mcp-server` that turns the catalog into agent tools. |
+| **AI / LLM tooling author** | `llms.txt`, `llms-full.txt`, and the `mcp/` Python server (`splunk-uc-mcp`) that turns the catalog into agent tools over JSON-RPC stdio. |
 | **Researcher / academic** | `CITATION.cff` for proper attribution. Reproducible, open, auditable. |
 
 ---
