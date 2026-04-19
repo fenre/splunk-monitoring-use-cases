@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.28",
+  "title": "GDPR Sub-Processor Change Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Change"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.28(2)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.28(4)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Network_Traffic data model, `index=proxy`, `gdpr_processor_subprocessor_allowlist.csv`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as src_count\n  from datamodel=Network_Traffic.All_Traffic\n  where earliest=-7d All_Traffic.action=\"allowed\"\n  by All_Traffic.dest\n| rename All_Traffic.* as *\n| eval dest_domain=replace(dest,\"^\\d+\\.\\d+\\.\\d+\\.\\d+$\",\"\")\n| lookup gdpr_processor_subprocessor_allowlist.csv dest_domain OUTPUT primary_processor, approval_status\n| where isnotnull(primary_processor) AND (approval_status!=\"approved\" OR isnull(approval_status))\n| sort - bytes_out\n| table dest, dest_domain, primary_processor, approval_status, bytes_out, src_count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Processors must not engage another processor without prior specific or general written authorisation of the controller. This use case detects new destination domains, SaaS tenants, or infrastructure regions receiving personal data from approved processors — flagging unapproved sub-processing paths inferred from network and SaaS audit telemetry.",
+  "value": "Processors must not engage another processor without prior specific or general written authorisation of the controller. This use case detects new destination domains, SaaS tenants, or infrastructure regions receiving personal data from approved processors — flagging unapproved sub-processing paths inferred from network and SaaS audit telemetry.",
+  "implementation": "(1) Build allowlist of approved processor and sub-processor domains from DPAs; (2) classify egress traffic by processor parent using DNS and TLS SNI metadata; (3) alert on high-volume flows to unlisted destinations; (4) require procurement approval workflow to update allowlist; (5) document investigations for Art. 28 accountability.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).\n• Ensure the following data sources are available: CIM Network_Traffic data model, `index=proxy`, `gdpr_processor_subprocessor_allowlist.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Build allowlist of approved processor and sub-processor domains from DPAs; (2) classify egress traffic by processor parent using DNS and TLS SNI metadata; (3) alert on high-volume flows to unlisted destinations; (4) require procurement approval workflow to update allowlist; (5) document investigations for Art. 28 accountability.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as src_count\n  from datamodel=Network_Traffic.All_Traffic\n  where earliest=-7d All_Traffic.action=\"allowed\"\n  by All_Traffic.dest\n| rename All_Traffic.* as *\n| eval dest_domain=replace(dest,\"^\\d+\\.\\d+\\.\\d+\\.\\d+$\",\"\")\n| lookup gdpr_processor_subprocessor_allowlist.csv dest_domain OUTPUT primary_processor, approval_status\n| where isnotnull(primary_processor) AND (approval_status!=\"approved\" OR isnull(approval_status))\n| sort - bytes_out\n| table dest, dest_domain, primary_processor, approval_status, bytes_out, src_count\n```\n\nUnderstanding this SPL\n\n**GDPR Sub-Processor Change Monitoring (Art. 28(2), Art. 28(4))** — Processors must not engage another processor without prior specific or general written authorisation of the controller. This use case detects new destination domains, SaaS tenants, or infrastructure regions receiving personal data from approved processors — flagging unapproved sub-processing paths inferred from network and SaaS audit telemetry.\n\nDocumented **Data sources**: CIM Network_Traffic data model, `index=proxy`, `gdpr_processor_subprocessor_allowlist.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• `eval` defines or adjusts **dest_domain** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(primary_processor) AND (approval_status!=\"approved\" OR isnull(approval_status))` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **GDPR Sub-Processor Change Monitoring (Art. 28(2), Art. 28(4))**): table dest, dest_domain, primary_processor, approval_status, bytes_out, src_count\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**GDPR Sub-Processor Change Monitoring (Art. 28(2), Art. 28(4))** — Processors must not engage another processor without prior specific or general written authorisation of the controller. This use case detects new destination domains, SaaS tenants, or infrastructure regions receiving personal data from approved processors — flagging unapproved sub-processing paths inferred from network and SaaS audit telemetry.\n\nDocumented **Data sources**: CIM Network_Traffic data model, `index=proxy`, `gdpr_processor_subprocessor_allowlist.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unapproved destinations), Sankey (flow from segment to destination), Single value (new destinations this week), Bar chart (bytes by processor).",
+  "visualization": "Table (unapproved destinations), Sankey (flow from segment to destination), Single value (new destinations this week), Bar chart (bytes by processor).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

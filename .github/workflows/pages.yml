@@ -1,4 +1,19 @@
-# Deploy the use case dashboard to GitHub Pages.
+# Build and deploy the Splunk monitoring use case catalog to GitHub Pages.
+#
+# v7.0 contract (see docs/architecture.md):
+#   1. tools/build/build.py is the only entrypoint that produces dist/.
+#   2. CI runs the build twice with --reproducible and asserts byte
+#      identity, so every published bundle is reproducible from the
+#      same source SHA.
+#   3. dist/integrity.json + dist/BUILD-INFO.json are signed by the
+#      GitHub OIDC identity via actions/attest-build-provenance@v1
+#      (Sigstore keyless), so consumers can verify a download with:
+#          gh attestation verify dist/integrity.json --owner <owner>
+#   4. Quality gates (Lighthouse, axe, budgets, schema-meta, schema-diff,
+#      url-freeze) live in ci.yml and block merge to main; pages.yml
+#      only runs on main, so by the time a build reaches here every gate
+#      has already passed.
+
 name: Deploy to GitHub Pages
 
 on:
@@ -10,49 +25,103 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  attestations: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      uc-count: ${{ steps.summary.outputs.uc_count }}
+      build-sha: ${{ steps.summary.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history for git log -1 --format=%cI HEAD
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Pre-build audits — schema metadata
+        run: python3 tools/audits/schema_meta.py
+
+      - name: Pre-build audits — asset drift (src/ ↔ legacy index.html)
+        run: python3 tools/audits/asset_drift.py --verbose
+
+      - name: Build dist/ (reproducible)
+        run: |
+          python3 tools/build/build.py --out dist --reproducible
+          echo "---"
+          echo "Top-level files in dist/:"
+          ls -la dist/ | head -40
+          echo "---"
+          echo "dist size:"
+          du -sh dist/
+
+      - name: Reproducibility check (build twice → diff)
+        run: |
+          python3 tools/build/build.py --out dist-rebuild --reproducible
+          if ! diff -r dist dist-rebuild > /tmp/diff.out; then
+            echo "::error::Build is not reproducible. See diff:" >&2
+            head -200 /tmp/diff.out >&2
+            exit 1
+          fi
+          echo "OK: two consecutive --reproducible builds are byte-identical"
+          rm -rf dist-rebuild
+
+      # Budgets, Lighthouse, axe, schema-diff and url-freeze run pre-merge
+      # in ci.yml (not yet wired). pages.yml only runs on main, after merge,
+      # so the gates have already passed.
+      - name: Summary
+        id: summary
+        run: |
+          uc_count=$(jq -r '.counts.useCases' dist/BUILD-INFO.json)
+          sha=$(jq -r '.git.shortSha' dist/BUILD-INFO.json)
+          echo "uc_count=$uc_count" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha"           >> "$GITHUB_OUTPUT"
+          echo "## Build summary"            >> "$GITHUB_STEP_SUMMARY"
+          echo "- UC count: $uc_count"        >> "$GITHUB_STEP_SUMMARY"
+          echo "- git SHA:  $sha"             >> "$GITHUB_STEP_SUMMARY"
+          echo "- size:     $(du -sh dist/ | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload integrity manifest as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrity-manifest
+          path: |
+            dist/integrity.json
+            dist/BUILD-INFO.json
+          retention-days: 90
+
+      # Sigstore keyless attestation of the integrity manifest. Verifiable with
+      #   gh attestation verify dist/integrity.json --owner <owner>
+      - name: Sign integrity manifest (Sigstore via OIDC)
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: dist/integrity.json
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      # Regenerate every artefact that is advertised by `openapi.yaml` but
-      # NOT tracked in git (primarily `api/cat-N.json` + `api/index.json`,
-      # which are in `.gitignore` because they bloat the history).
-      #
-      # `build.py` uses stdlib only and internally chains
-      # `scripts/build_provenance.py` + `scripts/generate_scorecard.py`, so
-      # `catalog.json`, `provenance.json`, `scorecard.json`, `data.js`,
-      # `llms.txt`, `llms-full.txt`, `sitemap.xml` and `api/*.json` are all
-      # regenerated deterministically here, shadowing the tracked copies.
-      - name: Build catalog + static API slices
-        run: |
-          python3 build.py
-          echo "---"
-          echo "Generated api/ endpoints:"
-          ls -lh api/ | head -30
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

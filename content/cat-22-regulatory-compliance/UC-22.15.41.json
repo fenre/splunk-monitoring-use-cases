@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.41",
+  "title": "Duplicate IP or MAC on OT Switch — Segmentation Violation",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "CR 5.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'IEC 62443-4-2 / CR 5.1' → 'CR 5.1'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`cisco:ios` ARP, `claroty:alert`",
+  "app": "Switch syslog, Claroty",
+  "spl": "index=net sourcetype=\"cisco:ios\" \"%Duplicate address%\" OR \"%ARP collision%\" earliest=-7d\n| append [ search index=ot_sec sourcetype=\"claroty:alert\" signature=\"*ARP*\" earliest=-7d ]\n| stats count by host, vlan, signature, src_ip\n| sort - count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest, All_Traffic.src | sort - count",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Surfaces ARP/ND anomalies that indicate bridging or misconfiguration undermining component-level network segmentation.",
+  "value": "Surfaces ARP/ND anomalies that indicate bridging or misconfiguration undermining component-level network segmentation.",
+  "implementation": "(1) Enable DHCP snooping; (2) BPDU guard on access ports; (3) correlate with change tickets; (4) physical inspection for rogue bridges.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Switch syslog, Claroty.\n• Ensure the following data sources are available: `cisco:ios` ARP, `claroty:alert`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enable DHCP snooping; (2) BPDU guard on access ports; (3) correlate with change tickets; (4) physical inspection for rogue bridges.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=net sourcetype=\"cisco:ios\" \"%Duplicate address%\" OR \"%ARP collision%\" earliest=-7d\n| append [ search index=ot_sec sourcetype=\"claroty:alert\" signature=\"*ARP*\" earliest=-7d ]\n| stats count by host, vlan, signature, src_ip\n| sort - count\n```\n\nUnderstanding this SPL\n\n**Duplicate IP or MAC on OT Switch — Segmentation Violation (IEC 62443-4-2 / CR 5.1)** — Surfaces ARP/ND anomalies that indicate bridging or misconfiguration undermining component-level network segmentation.\n\nDocumented **Data sources**: `cisco:ios` ARP, `claroty:alert`. **App/TA** (typical add-on context): Switch syslog, Claroty. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: net; **sourcetype**: cisco:ios. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=net, sourcetype=\"cisco:ios\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Appends rows from a subsearch with `append`.\n• `stats` rolls up events into metrics; results are split **by host, vlan, signature, src_ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest, All_Traffic.src | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Duplicate IP or MAC on OT Switch — Segmentation Violation (IEC 62443-4-2 / CR 5.1)** — Surfaces ARP/ND anomalies that indicate bridging or misconfiguration undermining component-level network segmentation.\n\nDocumented **Data sources**: `cisco:ios` ARP, `claroty:alert`. **App/TA** (typical add-on context): Switch syslog, Claroty. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Topology panel (if ITSI), Time chart.",
+  "visualization": "Table, Topology panel (if ITSI), Time chart.",
+  "references": [
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ios"
+  ]
+}

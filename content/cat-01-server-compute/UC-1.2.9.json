@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "1.2.9",
+  "title": "Windows Update Compliance",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "ASD E8",
+      "version": "Nov 2023",
+      "clause": "E8.06",
+      "clauseUrl": "https://www.cyber.gov.au/resources-business-and-government/essential-cyber-security/essential-eight/essential-eight-maturity-model",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ASD Essential Eight E8.06 Patch operating systems — Windows update compliance tracking is the definitive OS-patching evidence for E8 maturity assessment."
+    },
+    {
+      "regulation": "APRA CPS 234",
+      "version": "current",
+      "clause": "15",
+      "clauseUrl": "https://www.apra.gov.au/information-security",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "APRA CPS 234 15 Policy framework — patch-compliance reporting supports the information-security policy evidence expected under APRA paragraph 15."
+    },
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-010-4 R1",
+      "clauseUrl": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NERC CIP-010-4 R1 Configuration change management — Windows update compliance evidences the security-patch portion of configuration change management for BES Cyber Systems."
+    }
+  ],
+  "dataSources": "`sourcetype=WinEventLog:System` (Event ID 19/20/43), WSUS logs, or scripted input",
+  "app": "`Splunk_TA_windows`, custom scripted input",
+  "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" EventCode=19\n| rex \"(?<kb_article>KB\\d+)\"\n| stats latest(_time) as last_update, count as updates_installed by host\n| eval days_since_update = round((now() - last_update) / 86400, 0)\n| where days_since_update > 30\n| sort -days_since_update",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unpatched systems are primary attack vectors. Tracking patch compliance across the fleet supports vulnerability management and regulatory requirements.",
+  "value": "Unpatched systems are primary attack vectors. Tracking patch compliance across the fleet supports vulnerability management and regulatory requirements.",
+  "implementation": "Forward System event logs. EventCode 19 = successful update install. Create scripted input running `Get-HotFix` for comprehensive view. Dashboard showing days since last patch per host, flagging >30 days.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, custom scripted input.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:System` (Event ID 19/20/43), WSUS logs, or scripted input.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward System event logs. EventCode 19 = successful update install. Create scripted input running `Get-HotFix` for comprehensive view. Dashboard showing days since last patch per host, flagging >30 days.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:System\" EventCode=19\n| rex \"(?<kb_article>KB\\d+)\"\n| stats latest(_time) as last_update, count as updates_installed by host\n| eval days_since_update = round((now() - last_update) / 86400, 0)\n| where days_since_update > 30\n| sort -days_since_update\n```\n\nUnderstanding this SPL\n\n**Windows Update Compliance** — Unpatched systems are primary attack vectors. Tracking patch compliance across the fleet supports vulnerability management and regulatory requirements.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:System` (Event ID 19/20/43), WSUS logs, or scripted input. **App/TA** (typical add-on context): `Splunk_TA_windows`, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:System. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:System\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **days_since_update** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_since_update > 30` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (host, last update, days since), Bar chart (compliance %), Heatmap by team/location.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (host, last update, days since), Bar chart (compliance %), Heatmap by team/location.",
+  "references": [
+    {
+      "title": "Splunk_TA_windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "status": "verified"
+}

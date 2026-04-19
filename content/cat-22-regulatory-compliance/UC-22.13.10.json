@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.10",
+  "title": "Personnel Risk Assessment Due-Date Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-004-6 R2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=hr` `sourcetype=hr:pra`, `index=wineventlog` privileged logons",
+  "app": "Splunk Enterprise Security (263)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=hr sourcetype=hr:pra earliest=-730d\n| eval next_epoch=strptime(next_due,\"%Y-%m-%d\")\n| rename employee_id as user\n| join type=left user [\n    search index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4624 earliest=-30d\n    | lookup bes_privileged_users.csv Account_Name AS user OUTPUT employee_id\n    | stats dc(ComputerName) as systems by user\n  ]\n| where next_epoch < now() OR isnull(next_due)\n| table user, assessment_date, next_due, systems",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "We highlight access holders whose personnel risk assessment is overdue while they still touch BES systems, reducing stale risk decisions.",
+  "value": "We highlight access holders whose personnel risk assessment is overdue while they still touch BES systems, reducing stale risk decisions.",
+  "implementation": "(1) Ingest PRA due dates from HR or GRC. (2) Correlate with active privileged users only. (3) Auto-ticket overdue users with recent BES logons. (4) Quarterly leadership rollup.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263).\n• Ensure the following data sources are available: `index=hr` `sourcetype=hr:pra`, `index=wineventlog` privileged logons.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest PRA due dates from HR or GRC. (2) Correlate with active privileged users only. (3) Auto-ticket overdue users with recent BES logons. (4) Quarterly leadership rollup.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hr sourcetype=hr:pra earliest=-730d\n| eval next_epoch=strptime(next_due,\"%Y-%m-%d\")\n| rename employee_id as user\n| join type=left user [\n    search index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4624 earliest=-30d\n    | lookup bes_privileged_users.csv Account_Name AS user OUTPUT employee_id\n    | stats dc(ComputerName) as systems by user\n  ]\n| where next_epoch < now() OR isnull(next_due)\n| table user, assessment_date, next_due, systems\n```\n\nUnderstanding this SPL\n\n**Personnel Risk Assessment Due-Date Monitoring (CIP-004-6 R2)** — We highlight access holders whose personnel risk assessment is overdue while they still touch BES systems, reducing stale risk decisions.\n\nDocumented **Data sources**: `index=hr` `sourcetype=hr:pra`, `index=wineventlog` privileged logons. **App/TA** (typical add-on context): Splunk Enterprise Security (263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hr; **sourcetype**: hr:pra. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hr, sourcetype=hr:pra, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **next_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Renames fields with `rename` for clarity or joins.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where next_epoch < now() OR isnull(next_due)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Personnel Risk Assessment Due-Date Monitoring (CIP-004-6 R2)**): table user, assessment_date, next_due, systems\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue), Timeline (assessment dates), Single value (overdue count)",
+  "visualization": "Table (overdue), Timeline (assessment dates), Single value (overdue count)",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

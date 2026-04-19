@@ -1,0 +1,129 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.35.4",
+  "subcategory": "22.35#1",
+  "title": "Log signing chain integrity — cryptographic signature drift on evidence archive",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "CISO",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does NOT validate the authenticity of the originating source system; only the unbroken signature chain once evidence reaches the archive.",
+  "evidence": "Saved search 'log_signature_chain_verification' (hourly) outputs signature-chain breaks with block-number and expected-vs-actual hash to the compliance summary index.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.32(1)(b)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Detects breaks in the integrity component of the trail; confidentiality and availability components need other controls."
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.312(c)(1)",
+      "clauseUrl": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Integrity controls for ePHI are directly implemented by an unbroken hash-chain on the evidence archive."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.3.4",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI 10.3.4 'file integrity monitoring or change-detection mechanisms on audit logs' is satisfied by a cryptographic-signature chain that emits failures."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Logging.Integrity",
+      "mode": "detects-violation-of",
+      "assurance": "contributing",
+      "assurance_rationale": "A broken signature chain is a textbook ITGC deficiency but the control also needs management attestation."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.32(1)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.32(1)(b) (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.32(1)(b)",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A deliberate rewrite of an archive block (test fixture) causes a hash mismatch versus the parent block's digest, and the UC fires within the next hourly interval naming the specific block and hash pair.",
+    "negativeScenario": "Normal append-only archive writes with correctly linked hashes do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.35.4-fixture.json",
+    "attackTechnique": "T1070"
+  },
+  "dataSources": "Evidence archive signature-verification events (e.g., sourcetype=archive:signer emitted by the signer service), WORM repository state REST API, KMS signing audit logs.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=compliance sourcetype=archive:signer earliest=-1h\n| eval block_parent_hash=coalesce(parent_hash,\"GENESIS\")\n| stats values(block_hash) as block_hashes latest(expected_parent_hash) as expected_parent by block_id archive_id\n| where expected_parent!=block_parent_hash AND block_parent_hash!=\"GENESIS\"\n| table archive_id block_id block_parent_hash expected_parent block_hashes",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Continuously verifies that every new block in the write-once evidence archive references the immediately-preceding block by cryptographic hash. A mismatch is definitive evidence of either a faulty archive writer or a deliberate rewrite — either way a finding that regulators treat as a break in the chain of custody.",
+  "value": "Replaces the quarterly 'we sampled 10 logs and checked hashes' audit procedure with a continuous control whose output is either 'zero breaks for the period' or a named remediation record. This is the evidence regulators actually ask for.",
+  "implementation": "(1) Ensure the archive signer emits a per-block event with block_id, block_hash, parent_hash, and expected_parent_hash; (2) schedule the UC hourly; (3) route hits to compliance_summary; (4) SOAR auto-opens a P1 with the relevant archive owner; (5) run an automated rebuild drill monthly to ensure verification code itself is not silently broken.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Evidence archive signature-verification events (e.g., sourcetype=archive:signer emitted by the signer service), WORM repository state REST API, KMS signing audit logs..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure the archive signer emits a per-block event with block_id, block_hash, parent_hash, and expected_parent_hash; (2) schedule the UC hourly; (3) route hits to compliance_summary; (4) SOAR auto-opens a P1 with the relevant archive owner; (5) run an automated rebuild drill monthly to ensure verification code itself is not silently broken.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=compliance sourcetype=archive:signer earliest=-1h\n| eval block_parent_hash=coalesce(parent_hash,\"GENESIS\")\n| stats values(block_hash) as block_hashes latest(expected_parent_hash) as expected_parent by block_id archive_id\n| where expected_parent!=block_parent_hash AND block_parent_hash!=\"GENESIS\"\n| table archive_id block_id block_parent_hash expected_parent block_hashes\n```\n\nUnderstanding this SPL\n\n**Log signing chain integrity — cryptographic signature drift on evidence archive** — Replaces the quarterly 'we sampled 10 logs and checked hashes' audit procedure with a continuous control whose output is either 'zero breaks for the period' or a named remediation record. This is the evidence regulators actually ask for.\n\nDocumented **Data sources**: Evidence archive signature-verification events (e.g., sourcetype=archive:signer emitted by the signer service), WORM repository state REST API, KMS signing audit logs. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: compliance; **sourcetype**: archive:signer. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=compliance, sourcetype=archive:signer, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **block_parent_hash** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by block_id archive_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where expected_parent!=block_parent_hash AND block_parent_hash!=\"GENESIS\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Log signing chain integrity — cryptographic signature drift on evidence archive**): table archive_id block_id block_parent_hash expected_parent block_hashes\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline of verified vs broken blocks, scatter of block_id × hash-mismatch severity, single-value '% of archive blocks verified (30d)'.",
+  "visualization": "Timeline of verified vs broken blocks, scatter of block_id × hash-mismatch severity, single-value '% of archive blocks verified (30d)'.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1070/",
+      "title": "MITRE ATT&CK — T1070 Indicator Removal",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Archive signer upgrades that rotate the hash function produce a one-off legitimate 'parent-missing' at the rotation boundary — record the rotation in archive_rotations.csv and allow-list by timestamp.",
+  "mitreAttack": [
+    "T1070"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "block_id",
+    "block_hash",
+    "parent_hash",
+    "expected_parent_hash",
+    "_time"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

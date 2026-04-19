@@ -1,0 +1,124 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.49.5",
+  "subcategory": "22.49#1",
+  "title": "Cryptographic erasure attestation — per-asset destruction evidence",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "DPO",
+  "controlFamily": "retention-end-enforcement",
+  "exclusions": "Does NOT evaluate media-destruction workflows; focuses on cryptographic-key destruction as the disposal method.",
+  "evidence": "Saved search 'crypto_erasure_attestation' (daily) intersects asset-disposal events against KMS key-destruction events.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.17 erasure fulfilled through provable key destruction."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "MP-6",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "MP-6 media sanitisation with cryptographic erasure."
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.310(d)(2)(i)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "HIPAA device/media disposal."
+    },
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.105",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.17 (parent assurance='full'). Clause mapped per data/regulations.json derivesFrom graph; inherited assurance degraded one step. Divergence recorded — SME review should confirm scope fit.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.17",
+        "parentAssurance": "full",
+        "inheritanceMode": "mapped",
+        "divergenceNote": "Right to delete includes service-provider obligations explicit in CCPA §1798.105."
+      }
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.17",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.17 (parent assurance='full'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.17",
+        "parentAssurance": "full",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An asset destruction event for host host-01 has no matching KMS key-destruction event within 24h; the UC fires.",
+    "negativeScenario": "Matching KMS key-destruction event within 24h; no alert.",
+    "fixtureRef": "sample-data/uc-22.49.5-fixture.json"
+  },
+  "dataSources": "Asset disposal workflow events, KMS key destruction events.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=assets sourcetype=asset:disposal earliest=-7d method=cryptographic_erasure\n| join asset_id [search index=kms action=DeleteKey earliest=-8d | fields asset_id key_id _time | rename _time as key_deleted_at]\n| eval delta=abs(_time-key_deleted_at)\n| where isnull(key_deleted_at) OR delta>86400\n| table asset_id key_id _time key_deleted_at delta",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Correlates asset disposal events with the matching KMS key-destruction events to provide verifiable erasure evidence.",
+  "value": "Solves the 'how do I prove we actually erased that data?' question that every DPO faces.",
+  "implementation": "(1) Tag asset-disposal events with asset_id and key_id; (2) ingest KMS DeleteKey; (3) run daily.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Asset disposal workflow events, KMS key destruction events..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag asset-disposal events with asset_id and key_id; (2) ingest KMS DeleteKey; (3) run daily.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=assets sourcetype=asset:disposal earliest=-7d method=cryptographic_erasure\n| join asset_id [search index=kms action=DeleteKey earliest=-8d | fields asset_id key_id _time | rename _time as key_deleted_at]\n| eval delta=abs(_time-key_deleted_at)\n| where isnull(key_deleted_at) OR delta>86400\n| table asset_id key_id _time key_deleted_at delta\n```\n\nUnderstanding this SPL\n\n**Cryptographic erasure attestation — per-asset destruction evidence** — Solves the 'how do I prove we actually erased that data?' question that every DPO faces.\n\nDocumented **Data sources**: Asset disposal workflow events, KMS key destruction events. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: assets; **sourcetype**: asset:disposal. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=assets, sourcetype=asset:disposal, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **delta** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(key_deleted_at) OR delta>86400` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Cryptographic erasure attestation — per-asset destruction evidence**): table asset_id key_id _time key_deleted_at delta\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of orphan disposal events, single-value '% of disposals with matched key destruction'.",
+  "visualization": "Table of orphan disposal events, single-value '% of disposals with matched key destruction'.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Shared-key assets require manual validation; exclude via shared_key_assets.csv.",
+  "detectionType": "Correlation",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "asset_id",
+    "key_id",
+    "_time"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

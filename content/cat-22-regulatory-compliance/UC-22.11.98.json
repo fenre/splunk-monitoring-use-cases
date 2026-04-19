@@ -1,0 +1,105 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.98",
+  "subcategory": "22.11#1",
+  "title": "PCI-DSS 8.6 — Application and system accounts: interactive use of a service account",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "exclusions": "Does NOT restrict the account; detects interactive (console/RDP/SSH) use of an account flagged service-only in the identity registry.",
+  "evidence": "Saved search 'pci_8_6_svc_account_interactive' (every 10m) emits per event: user, src, dest, LogonType, account_type, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "8.6",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 8.6 Application and system accounts not used interactively — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.16",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.16 Identity management — directly evidenced."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IA-2",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIST 800-53 IA-2 Identification and Authentication — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Logging into a service-only account via RDP fires the UC within 10m.",
+    "negativeScenario": "A service-account login via LogonType 3 (network, non-interactive) is absent.",
+    "fixtureRef": "sample-data/uc-22.11.98-fixture.json",
+    "attackTechnique": "T1078.002"
+  },
+  "dataSources": "`index=windows` EventCode 4624; `index=linux` auditd; service-account lookup `service_accounts.csv`.",
+  "app": "Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=windows sourcetype=WinEventLog:Security EventCode=4624 LogonType IN (2,10,11) earliest=-10m\n| rename TargetUserName AS user\n| lookup service_accounts.csv user OUTPUT account_type\n| where account_type=\"service-only\"\n| table user src dest LogonType account_type",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Detects an interactive session on a service-only account — direct PCI-DSS 8.6 violation, which requires application/system accounts not be used interactively.",
+  "value": "Removes the common post-audit-finding 'we didn't know that account was used interactively' narrative by making the misuse visible in 10 minutes.",
+  "implementation": "(1) Maintain service_accounts.csv with account_type tag; (2) schedule UC every 10m; (3) hit opens a P1 and disables the account; (4) weekly IAM review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742).\n• Ensure the following data sources are available: `index=windows` EventCode 4624; `index=linux` auditd; service-account lookup `service_accounts.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain service_accounts.csv with account_type tag; (2) schedule UC every 10m; (3) hit opens a P1 and disables the account; (4) weekly IAM review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=windows sourcetype=WinEventLog:Security EventCode=4624 LogonType IN (2,10,11) earliest=-10m\n| rename TargetUserName AS user\n| lookup service_accounts.csv user OUTPUT account_type\n| where account_type=\"service-only\"\n| table user src dest LogonType account_type\n```\n\nUnderstanding this SPL\n\n**PCI-DSS 8.6 — Application and system accounts: interactive use of a service account** — Removes the common post-audit-finding 'we didn't know that account was used interactively' narrative by making the misuse visible in 10 minutes.\n\nDocumented **Data sources**: `index=windows` EventCode 4624; `index=linux` auditd; service-account lookup `service_accounts.csv`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: windows; **sourcetype**: WinEventLog:Security. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=windows, sourcetype=WinEventLog:Security, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where account_type=\"service-only\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **PCI-DSS 8.6 — Application and system accounts: interactive use of a service account**): table user src dest LogonType account_type\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of interactive service-account logins, time chart, single value 'events in last hour'.",
+  "visualization": "Table of interactive service-account logins, time chart, single value 'events in last hour'.",
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1078/",
+      "title": "MITRE ATT&CK — T1078.002",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Admin password rotations performed by a service-account-using tool may be reported as interactive — exclude via tool's user-as-tool mapping.",
+  "mitreAttack": [
+    "T1078.002"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "TargetUserName",
+    "LogonType",
+    "src",
+    "dest",
+    "_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

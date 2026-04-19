@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.42.1",
+  "title": "Unauthorized production change — no approved CR matches the observed change",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT evaluate the contents of an approved change; focuses on authorisation only.",
+  "evidence": "Hourly search 'unauthorized_prod_change' writes findings to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CC8.1 requires that changes are authorised, designed, documented, and tested; the UC enforces the authorisation gate technically."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CM-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CM-3 configuration-change control — the UC is a direct implementation."
+    },
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.ChangeMgmt.Authorization",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX ITGC change authorisation — the UC is a textbook control test."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a production-system change event arrives without a matching approved CR within the 60-minute correlation window, the UC fires.",
+    "negativeScenario": "Changes with a CR in approved_state at the time of execution do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.42.1-fixture.json",
+    "attackTechnique": "T1562.001"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=change sourcetype=prod:change earliest=-1h\n| join type=outer change_id [search index=itsm sourcetype=servicenow:change earliest=-1h state=approved | fields change_id approved_at]\n| where isnull(approved_at)\n| table _time change_id system applied_by system_owner",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Validates every production change event against the CR database in real time. Any change without an approved CR is an immediate ITGC deficiency — and a potential security event.",
+  "value": "Replaces the standard quarterly-sample audit with continuous evidence of the authorisation gate.",
+  "implementation": "(1) Force CI/CD tools to emit change events tagged with change_id; (2) ingest CR state from the ITSM platform; (3) run hourly; (4) on finding, escalate via SOAR.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Force CI/CD tools to emit change events tagged with change_id; (2) ingest CR state from the ITSM platform; (3) run hourly; (4) on finding, escalate via SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=change sourcetype=prod:change earliest=-1h\n| join type=outer change_id [search index=itsm sourcetype=servicenow:change earliest=-1h state=approved | fields change_id approved_at]\n| where isnull(approved_at)\n| table _time change_id system applied_by system_owner\n```\n\nUnderstanding this SPL\n\n**Unauthorized production change — no approved CR matches the observed change** — Replaces the standard quarterly-sample audit with continuous evidence of the authorisation gate.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: change; **sourcetype**: prod:change. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=change, sourcetype=prod:change, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(approved_at)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Unauthorized production change — no approved CR matches the observed change**): table _time change_id system applied_by system_owner\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar approved vs unauthorised by system, table of findings, single-value '% authorised changes'.",
+  "visualization": "Stacked bar approved vs unauthorised by system, table of findings, single-value '% authorised changes'.",
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022",
+      "title": "AICPA Trust Services Criteria",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/001/",
+      "title": "MITRE ATT&CK — T1562.001 Impair Defenses: Disable Tools",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Emergency changes executed under break-glass must reference a retro-CR id; without one they look unauthorised.",
+  "mitreAttack": [
+    "T1562.001"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

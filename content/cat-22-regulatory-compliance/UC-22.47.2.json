@@ -1,0 +1,74 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.47.2",
+  "title": "Repeat audit findings — same control deficiency across consecutive audit cycles",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT evaluate root cause; surfaces the pattern for management attention.",
+  "evidence": "Quarterly 'repeat_findings_report' writes repeat deficiencies to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOX ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Logging.Review",
+      "mode": "detects-violation-of",
+      "assurance": "contributing",
+      "assurance_rationale": "Repeat findings are an indicator of material weakness; this UC surfaces the early pattern."
+    },
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "CC3.1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "CC3.1 risk assessment — repeat findings indicate unresolved risk."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When the same control (control_id) has an open deficiency in two consecutive audit cycles, the UC fires.",
+    "negativeScenario": "Controls whose deficiencies were closed between cycles do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.47.2-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=grc sourcetype=audit:finding earliest=-2y\n| stats dc(cycle_id) as cycles, values(cycle_id) as cycle_ids by control_id\n| where cycles>=2\n| table control_id cycles cycle_ids",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Surfaces controls whose deficiencies persist across audit cycles — the canonical trigger for escalation to the audit committee.",
+  "value": "Converts the 'prior year issue' anecdote into a quantitative signal.",
+  "implementation": "(1) Ingest audit findings per cycle; (2) schedule quarterly; (3) escalate to audit committee.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest audit findings per cycle; (2) schedule quarterly; (3) escalate to audit committee.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=grc sourcetype=audit:finding earliest=-2y\n| stats dc(cycle_id) as cycles, values(cycle_id) as cycle_ids by control_id\n| where cycles>=2\n| table control_id cycles cycle_ids\n```\n\nUnderstanding this SPL\n\n**Repeat audit findings — same control deficiency across consecutive audit cycles** — Converts the 'prior year issue' anecdote into a quantitative signal.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: grc; **sourcetype**: audit:finding. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=grc, sourcetype=audit:finding, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by control_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where cycles>=2` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Repeat audit findings — same control deficiency across consecutive audit cycles**): table control_id cycles cycle_ids\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart of repeat controls, heatmap of control × cycle, single-value 'repeat findings count'.",
+  "visualization": "Bar chart of repeat controls, heatmap of control × cycle, single-value 'repeat findings count'.",
+  "references": [
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022",
+      "title": "AICPA Trust Services Criteria",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Findings closed with carry-over remediation plans can legitimately appear repeat; validate remediation_status.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

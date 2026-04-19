@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.21.4",
+  "title": "Model Performance Degradation Detection (Art. 12)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "EU AI Act",
+      "version": "Regulation (EU) 2024/1689",
+      "clause": "Art.15",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'EU AI Act' → 'Art.15'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ai_metrics` `sourcetype=ai:model:kpi` — model_id, metric_name, metric_value, window",
+  "app": "Splunk Machine Learning Toolkit (2890), Splunk ITSI (1841)",
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "spl": "index=ai_metrics sourcetype=\"ai:model:kpi\" metric_name=\"accuracy\" earliest=-7d\n| timechart span=1h perc95(metric_value) as p95_acc by model_id\n| untable _time model_id p95_acc\n| eventstats median(p95_acc) as baseline by model_id\n| eval delta=p95_acc-baseline\n| where delta < -0.02\n| table _time, model_id, p95_acc, baseline, delta",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Detects sudden drops in accuracy/auroc vs baseline to support operational logging and risk management for high-risk AI performance stability.",
+  "value": "Detects sudden drops in accuracy/auroc vs baseline to support operational logging and risk management for high-risk AI performance stability.",
+  "implementation": "(1) Ingest batch evaluation KPIs hourly; (2) tune -0.02 threshold per model risk file; (3) create ITSI KPI thresholding; (4) document rollback criteria in QMS.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Machine Learning Toolkit (2890), Splunk ITSI (1841).\n• Ensure the following data sources are available: `index=ai_metrics` `sourcetype=ai:model:kpi` — model_id, metric_name, metric_value, window.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest batch evaluation KPIs hourly; (2) tune -0.02 threshold per model risk file; (3) create ITSI KPI thresholding; (4) document rollback criteria in QMS.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_metrics sourcetype=\"ai:model:kpi\" metric_name=\"accuracy\" earliest=-7d\n| timechart span=1h perc95(metric_value) as p95_acc by model_id\n| untable _time model_id p95_acc\n| eventstats median(p95_acc) as baseline by model_id\n| eval delta=p95_acc-baseline\n| where delta < -0.02\n| table _time, model_id, p95_acc, baseline, delta\n```\n\nUnderstanding this SPL\n\n**Model Performance Degradation Detection (Art. 12) (EU AI Act)** — Detects sudden drops in accuracy/auroc vs baseline to support operational logging and risk management for high-risk AI performance stability.\n\nDocumented **Data sources**: `index=ai_metrics` `sourcetype=ai:model:kpi` — model_id, metric_name, metric_value, window. **App/TA** (typical add-on context): Splunk Machine Learning Toolkit (2890), Splunk ITSI (1841). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_metrics; **sourcetype**: ai:model:kpi. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_metrics, sourcetype=\"ai:model:kpi\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by model_id** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Model Performance Degradation Detection (Art. 12) (EU AI Act)**): untable _time model_id p95_acc\n• `eventstats` rolls up events into metrics; results are split **by model_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **delta** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where delta < -0.02` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Model Performance Degradation Detection (Art. 12) (EU AI Act)**): table _time, model_id, p95_acc, baseline, delta\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (p95_acc vs baseline), Table (negative deltas), Single value (models in alert)",
+  "visualization": "Time chart (p95_acc vs baseline), Table (negative deltas), Single value (models in alert)",
+  "references": [
+    {
+      "title": "Splunk Machine Learning Toolkit",
+      "url": "https://splunkbase.splunk.com/app/2890"
+    },
+    {
+      "title": "Splunk ITSI",
+      "url": "https://splunkbase.splunk.com/app/1841"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "itsi"
+  ],
+  "status": "verified"
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.21.2",
+  "title": "Model Input/Output Logging Integrity (Art. 12)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "EU AI Act",
+      "version": "Regulation (EU) 2024/1689",
+      "clause": "Art.19",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'EU AI Act' → 'Art.19'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ai_serving` HEC JSON — input_feature_hash, output_label, output_prob, model_version",
+  "app": "Splunk Machine Learning Toolkit (2890), Splunk Common Information Model Add-on (1621)",
+  "spl": "index=ai_serving sourcetype=\"ai:inference:json\" earliest=-4h\n| eval has_in=if(isnotnull(input_feature_hash) AND len(input_feature_hash)>=16,1,0)\n| eval has_out=if(isnotnull(output_label) OR isnotnull(output_prob),1,0)\n| eval pair_ok=if(has_in=1 AND has_out=1,1,0)\n| stats count as n, sum(pair_ok) as paired by model_version, deployment\n| eval pair_rate=round(100*paired/n,2)\n| where pair_rate < 100 OR n>0\n| sort + pair_rate",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Verifies that each inference event carries paired input feature hash and output label/probability for Art. 12 traceability and post-incident reconstruction.",
+  "value": "Verifies that each inference event carries paired input feature hash and output label/probability for Art. 12 traceability and post-incident reconstruction.",
+  "implementation": "(1) Require inference middleware to emit paired fields; (2) add props.conf FIELDALIAS if vendor names differ; (3) alert on pair_rate drops > 0.1% in 15m; (4) retain raw JSON in restricted index.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Machine Learning Toolkit (2890), Splunk Common Information Model Add-on (1621).\n• Ensure the following data sources are available: `index=ai_serving` HEC JSON — input_feature_hash, output_label, output_prob, model_version.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Require inference middleware to emit paired fields; (2) add props.conf FIELDALIAS if vendor names differ; (3) alert on pair_rate drops > 0.1% in 15m; (4) retain raw JSON in restricted index.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_serving sourcetype=\"ai:inference:json\" earliest=-4h\n| eval has_in=if(isnotnull(input_feature_hash) AND len(input_feature_hash)>=16,1,0)\n| eval has_out=if(isnotnull(output_label) OR isnotnull(output_prob),1,0)\n| eval pair_ok=if(has_in=1 AND has_out=1,1,0)\n| stats count as n, sum(pair_ok) as paired by model_version, deployment\n| eval pair_rate=round(100*paired/n,2)\n| where pair_rate < 100 OR n>0\n| sort + pair_rate\n```\n\nUnderstanding this SPL\n\n**Model Input/Output Logging Integrity (Art. 12) (EU AI Act)** — Verifies that each inference event carries paired input feature hash and output label/probability for Art. 12 traceability and post-incident reconstruction.\n\nDocumented **Data sources**: `index=ai_serving` HEC JSON — input_feature_hash, output_label, output_prob, model_version. **App/TA** (typical add-on context): Splunk Machine Learning Toolkit (2890), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_serving; **sourcetype**: ai:inference:json. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_serving, sourcetype=\"ai:inference:json\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **has_in** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **has_out** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **pair_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by model_version, deployment** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **pair_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where pair_rate < 100 OR n>0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (pair_rate over time), Table (worst deployments), Single value (global pair_rate)",
+  "visualization": "Line chart (pair_rate over time), Table (worst deployments), Single value (global pair_rate)",
+  "references": [
+    {
+      "title": "Splunk Machine Learning Toolkit",
+      "url": "https://splunkbase.splunk.com/app/2890"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

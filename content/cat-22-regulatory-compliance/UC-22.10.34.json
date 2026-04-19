@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.34",
+  "title": "Break-Glass — Emergency Access Reason Codes & Post-Review",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.502(a)(2)(ii)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=epic` `sourcetype=epic:breakglass` (`USER_ID`, `PAT_ID`, `reason_code`, `session_id`), `index=itsm` ServiceNow tasks (`short_description`, `parent_incident`)",
+  "app": "Splunk Enterprise Security (263), Splunk DB Connect (2686)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=epic sourcetype=\"epic:breakglass\" earliest=-30d\n| eval has_reason=if(isnotnull(reason_code) AND reason_code!=\"\",\"OK\",\"MISSING\")\n| join type=left session_id [\n    search index=itsm sourcetype=\"snow:incident\" earliest=-30d short_description=\"*break*glass*\"\n    | rename number as attestation_ticket, sys_id as session_id ]\n| eval reviewed=if(isnotnull(attestation_ticket),\"Yes\",\"No\")\n| where has_reason!=\"OK\" OR reviewed=\"No\"\n| table _time, USER_ID, PAT_ID, reason_code, has_reason, reviewed",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Ensures every break-glass chart override includes a reason code and is followed by supervisor attestation within policy timelines.",
+  "value": "Ensures every break-glass chart override includes a reason code and is followed by supervisor attestation within policy timelines.",
+  "implementation": "(1) Map `session_id` join keys to your ticketing design; (2) 24h alert on missing reason; (3) 72h alert on missing attestation; (4) quarterly privacy committee rollup.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk DB Connect (2686).\n• Ensure the following data sources are available: `index=epic` `sourcetype=epic:breakglass` (`USER_ID`, `PAT_ID`, `reason_code`, `session_id`), `index=itsm` ServiceNow tasks (`short_description`, `parent_incident`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Map `session_id` join keys to your ticketing design; (2) 24h alert on missing reason; (3) 72h alert on missing attestation; (4) quarterly privacy committee rollup.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=epic sourcetype=\"epic:breakglass\" earliest=-30d\n| eval has_reason=if(isnotnull(reason_code) AND reason_code!=\"\",\"OK\",\"MISSING\")\n| join type=left session_id [\n    search index=itsm sourcetype=\"snow:incident\" earliest=-30d short_description=\"*break*glass*\"\n    | rename number as attestation_ticket, sys_id as session_id ]\n| eval reviewed=if(isnotnull(attestation_ticket),\"Yes\",\"No\")\n| where has_reason!=\"OK\" OR reviewed=\"No\"\n| table _time, USER_ID, PAT_ID, reason_code, has_reason, reviewed\n```\n\nUnderstanding this SPL\n\n**Break-Glass — Emergency Access Reason Codes & Post-Review (§164.502(a)(2)(ii) / policy)** — Ensures every break-glass chart override includes a reason code and is followed by supervisor attestation within policy timelines.\n\nDocumented **Data sources**: `index=epic` `sourcetype=epic:breakglass` (`USER_ID`, `PAT_ID`, `reason_code`, `session_id`), `index=itsm` ServiceNow tasks (`short_description`, `parent_incident`). **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk DB Connect (2686). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: epic; **sourcetype**: epic:breakglass. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=epic, sourcetype=\"epic:breakglass\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **has_reason** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **reviewed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where has_reason!=\"OK\" OR reviewed=\"No\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Break-Glass — Emergency Access Reason Codes & Post-Review (§164.502(a)(2)(ii) / policy)**): table _time, USER_ID, PAT_ID, reason_code, has_reason, reviewed\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (open attestations), Table (violations), Single value (% reviewed).",
+  "visualization": "Timeline (open attestations), Table (violations), Single value (% reviewed).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect",
+    "servicenow"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.4.8",
+  "title": "CCPA Authorized Agent Request Verification and Fulfillment",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.140",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause '§1798.140(ah)' → '§1798.140'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.145",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=itsm` `sourcetype=\"snow:sc_req_item\"` (number, short_description, u_agent_verified, u_power_of_attorney_on_file, state, opened_at)",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "spl": "index=itsm sourcetype=\"snow:sc_req_item\" earliest=-90d\n    (short_description=\"*authorized agent*\" OR short_description=\"*power of attorney*\")\n| eval verified=coalesce(u_agent_verified, \"unknown\")\n| eval fulfilled=if(match(state,\"(?i)closed|resolved|complete\"),1,0)\n| stats count as tickets,\n        sum(eval(verified=\"false\" OR verified=\"unknown\")) as not_verified,\n        sum(fulfilled) as closed\n    by verified\n| eval risk_pct=round(100*not_verified/tickets,1)\n| sort - tickets",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Businesses may require authorized agents to submit proof of signing authority. Tracking agent-submitted tickets with verification outcomes reduces fraud risk and demonstrates consistent authentication before disclosing or deleting consumer data.",
+  "value": "Businesses may require authorized agents to submit proof of signing authority. Tracking agent-submitted tickets with verification outcomes reduces fraud risk and demonstrates consistent authentication before disclosing or deleting consumer data.",
+  "implementation": "(1) Add custom fields on the privacy request form for agent verification and PoA storage references; (2) block fulfillment workflows until `u_agent_verified=true` except where statute allows; (3) schedule weekly review of `not_verified`; (4) integrate DocuSign webhook optional second sourcetype; (5) redact attachments from Splunk—index metadata only.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `index=itsm` `sourcetype=\"snow:sc_req_item\"` (number, short_description, u_agent_verified, u_power_of_attorney_on_file, state, opened_at).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Add custom fields on the privacy request form for agent verification and PoA storage references; (2) block fulfillment workflows until `u_agent_verified=true` except where statute allows; (3) schedule weekly review of `not_verified`; (4) integrate DocuSign webhook optional second sourcetype; (5) redact attachments from Splunk—index metadata only.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:sc_req_item\" earliest=-90d\n    (short_description=\"*authorized agent*\" OR short_description=\"*power of attorney*\")\n| eval verified=coalesce(u_agent_verified, \"unknown\")\n| eval fulfilled=if(match(state,\"(?i)closed|resolved|complete\"),1,0)\n| stats count as tickets,\n        sum(eval(verified=\"false\" OR verified=\"unknown\")) as not_verified,\n        sum(fulfilled) as closed\n    by verified\n| eval risk_pct=round(100*not_verified/tickets,1)\n| sort - tickets\n```\n\nUnderstanding this SPL\n\n**CCPA Authorized Agent Request Verification and Fulfillment (§1798.140(ah), §1798.145)** — Businesses may require authorized agents to submit proof of signing authority. Tracking agent-submitted tickets with verification outcomes reduces fraud risk and demonstrates consistent authentication before disclosing or deleting consumer data.\n\nDocumented **Data sources**: `index=itsm` `sourcetype=\"snow:sc_req_item\"` (number, short_description, u_agent_verified, u_power_of_attorney_on_file, state, opened_at). **App/TA** (typical add-on context): Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:sc_req_item. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:sc_req_item\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **verified** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **fulfilled** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by verified** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **risk_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (verification state x counts), Donut chart (verified vs not), Timeline (median days to close by verified).",
+  "visualization": "Table (verification state x counts), Donut chart (verified vs not), Timeline (median days to close by verified).",
+  "references": [
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1110"
+  ],
+  "equipment": [
+    "hardware_bmc",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
+  ]
+}

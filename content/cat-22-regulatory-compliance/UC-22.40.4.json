@@ -1,0 +1,111 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.40.4",
+  "subcategory": "22.40#1",
+  "title": "Standing-privilege credential vaulting drift — admin accounts outside PAM",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "exclusions": "Does NOT evaluate usage of credentials (covered by 22.40.1); focuses on credentials sitting outside the vault entirely.",
+  "evidence": "Saved search 'pam_vaulting_drift' (daily) cross-references IdP privileged groups against PAM vault inventory and reports accounts not present in the vault.",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "AC-5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "AC-5 separation of duties and privileged-account vaulting are directly enforced."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "7.2.5.1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI 7.2.5.1 requires tight controls on privileged account lifecycle; unvaulted admins fail this control."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.Privileged",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Unvaulted privileged credentials are a textbook SOX-ITGC material weakness."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A domain-admin account exists in AzureAD but has no matching record in the CyberArk vault; the UC fires the next day.",
+    "negativeScenario": "All IdP admin accounts are present in the vault; no alert.",
+    "fixtureRef": "sample-data/uc-22.40.4-fixture.json",
+    "attackTechnique": "T1078.003"
+  },
+  "dataSources": "IdP privileged-group membership (Azure AD, Okta, LDAP), PAM vault inventory (CyberArk, BeyondTrust, Delinea).",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| rest /services/identity/privileged-groups splunk_server=*\n| fields user group\n| join type=outer user [| rest /services/pam/vault-inventory splunk_server=* | fields user vault_id]\n| where isnull(vault_id)\n| stats values(group) as groups by user\n| table user groups",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "description": "Treats the PAM vault as the authoritative register of privileged credentials and alerts on any IdP-level admin that is not present in the vault. The asymmetry between 'privileged' and 'managed' is the most common drift pattern.",
+  "value": "Replaces the quarterly 'access-review export + spreadsheet join' with a daily evidence feed.",
+  "implementation": "(1) Expose IdP privileged groups and PAM vault inventory via REST; (2) run daily; (3) on miss, auto-open a PAM onboarding ticket with the CISO.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: IdP privileged-group membership (Azure AD, Okta, LDAP), PAM vault inventory (CyberArk, BeyondTrust, Delinea)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Expose IdP privileged groups and PAM vault inventory via REST; (2) run daily; (3) on miss, auto-open a PAM onboarding ticket with the CISO.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| rest /services/identity/privileged-groups splunk_server=*\n| fields user group\n| join type=outer user [| rest /services/pam/vault-inventory splunk_server=* | fields user vault_id]\n| where isnull(vault_id)\n| stats values(group) as groups by user\n| table user groups\n```\n\nUnderstanding this SPL\n\n**Standing-privilege credential vaulting drift — admin accounts outside PAM** — Replaces the quarterly 'access-review export + spreadsheet join' with a daily evidence feed.\n\nDocumented **Data sources**: IdP privileged-group membership (Azure AD, Okta, LDAP), PAM vault inventory (CyberArk, BeyondTrust, Delinea). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Calls Splunk `rest` to read configuration or REST-exposed entities.\n• Keeps or drops fields with `fields` to shape columns and size.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(vault_id)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Pipeline stage (see **Standing-privilege credential vaulting drift — admin accounts outside PAM**): table user groups\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of drift accounts by group, bar chart of drift count by tenant, single-value '% of admins vaulted'.",
+  "visualization": "Table of drift accounts by group, bar chart of drift count by tenant, single-value '% of admins vaulted'.",
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1078/003/",
+      "title": "MITRE ATT&CK — T1078.003 Valid Accounts: Local Accounts",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Break-glass accounts are intentionally outside the vault; maintain breakglass_accounts.csv to allow-list.",
+  "mitreAttack": [
+    "T1078.003"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "user",
+    "group",
+    "vault_id"
+  ],
+  "equipment": [
+    "azure",
+    "beyondtrust",
+    "cyberark",
+    "hashicorp",
+    "okta"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.4.3",
+  "title": "CCPA Sensitive Personal Information Processing Audit",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "CCPA/CPRA",
+      "version": "CPRA (as amended)",
+      "clause": "§1798.121",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=o365` `sourcetype=\"ms:o365:management\"` (Workload, Operation, PolicyName, UserPrincipalName, SensitiveInfoType, Severity)",
+  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
+  "spl": "index=o365 sourcetype=\"ms:o365:management\" Workload=\"Dlp\"\n| stats count by PolicyName, UserPrincipalName, SensitiveInfoType, Severity, Operation\n| sort - count\n| table PolicyName, UserPrincipalName, SensitiveInfoType, Severity, count, Operation",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Surfaces DLP policy hits from Microsoft 365 to demonstrate monitoring and limitation controls around sensitive personal information processing.",
+  "value": "Surfaces DLP policy hits from Microsoft 365 to demonstrate monitoring and limitation controls around sensitive personal information processing.",
+  "implementation": "(1) Enable Office 365 Management Activity inputs in TA 4055 and confirm `Workload=\"Dlp\"` events are ingested; (2) map `SensitiveInfoType` values to your CCPA SPI categories via lookup; (3) alert on high-severity exfil patterns; (4) retain per legal hold requirements.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Office 365 (Splunkbase 4055).\n• Ensure the following data sources are available: `index=o365` `sourcetype=\"ms:o365:management\"` (Workload, Operation, PolicyName, UserPrincipalName, SensitiveInfoType, Severity).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enable Office 365 Management Activity inputs in TA 4055 and confirm `Workload=\"Dlp\"` events are ingested; (2) map `SensitiveInfoType` values to your CCPA SPI categories via lookup; (3) alert on high-severity exfil patterns; (4) retain per legal hold requirements.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=o365 sourcetype=\"ms:o365:management\" Workload=\"Dlp\"\n| stats count by PolicyName, UserPrincipalName, SensitiveInfoType, Severity, Operation\n| sort - count\n| table PolicyName, UserPrincipalName, SensitiveInfoType, Severity, count, Operation\n```\n\nUnderstanding this SPL\n\n**CCPA Sensitive Personal Information Processing Audit (§1798.121)** — Surfaces DLP policy hits from Microsoft 365 to demonstrate monitoring and limitation controls around sensitive personal information processing.\n\nDocumented **Data sources**: `index=o365` `sourcetype=\"ms:o365:management\"` (Workload, Operation, PolicyName, UserPrincipalName, SensitiveInfoType, Severity). **App/TA** (typical add-on context): Splunk Add-on for Microsoft Office 365 (Splunkbase 4055). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: o365; **sourcetype**: ms:o365:management. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=o365, sourcetype=\"ms:o365:management\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by PolicyName, UserPrincipalName, SensitiveInfoType, Severity, Operation** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **CCPA Sensitive Personal Information Processing Audit (§1798.121)**): table PolicyName, UserPrincipalName, SensitiveInfoType, Severity, count, Operation\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (events by PolicyName), Heatmap (user x SensitiveInfoType), Line chart (daily volume by Severity).",
+  "visualization": "Bar chart (events by PolicyName), Heatmap (user x SensitiveInfoType), Line chart (daily volume by Severity).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1005",
+    "T1530"
+  ],
+  "equipment": [
+    "m365"
+  ]
+}

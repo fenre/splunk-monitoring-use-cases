@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.3.24",
+  "title": "DORA ICT Concentration — Substitutability and Secondary Sourcing Readiness Index",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'unspecified' → 'Art.5'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`dora_substitutability.csv` (provider_id, contract_portable, last_export_test_date, runbook_score, _time)",
+  "app": "KV Store or `inputlookup dora_substitutability.csv`",
+  "spl": "| inputlookup dora_substitutability.csv\n| eval last_test=strptime(last_export_test_date,\"%Y-%m-%d\")\n| eval test_age_days=round((now()-last_test)/86400,0)\n| eval readiness=contract_portable*0.4 + if(test_age_days<180,0.3,0) + runbook_score*0.3\n| where readiness<0.6\n| table provider_id, readiness, contract_portable, test_age_days, runbook_score\n| sort readiness",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Concentration risk mitigates when substitutable alternatives exist. Scoring each critical provider on contract portability, data export tested, and runbook completeness gives a defensible substitutability index for the register of information.",
+  "value": "Concentration risk mitigates when substitutable alternatives exist. Scoring each critical provider on contract portability, data export tested, and runbook completeness gives a defensible substitutability index for the register of information.",
+  "implementation": "(1) Calibrate weights with risk team; (2) refresh after DR tests; (3) link `provider_id` to RoI; (4) annual reassessment workflow; (5) do not embed legal advice—store lawyer sign-off reference externally.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: KV Store or `inputlookup dora_substitutability.csv`.\n• Ensure the following data sources are available: `dora_substitutability.csv` (provider_id, contract_portable, last_export_test_date, runbook_score, _time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Calibrate weights with risk team; (2) refresh after DR tests; (3) link `provider_id` to RoI; (4) annual reassessment workflow; (5) do not embed legal advice—store lawyer sign-off reference externally.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup dora_substitutability.csv\n| eval last_test=strptime(last_export_test_date,\"%Y-%m-%d\")\n| eval test_age_days=round((now()-last_test)/86400,0)\n| eval readiness=contract_portable*0.4 + if(test_age_days<180,0.3,0) + runbook_score*0.3\n| where readiness<0.6\n| table provider_id, readiness, contract_portable, test_age_days, runbook_score\n| sort readiness\n```\n\nUnderstanding this SPL\n\n**DORA ICT Concentration — Substitutability and Secondary Sourcing Readiness Index** — Concentration risk mitigates when substitutable alternatives exist. Scoring each critical provider on contract portability, data export tested, and runbook completeness gives a defensible substitutability index for the register of information.\n\nDocumented **Data sources**: `dora_substitutability.csv` (provider_id, contract_portable, last_export_test_date, runbook_score, _time). **App/TA** (typical add-on context): KV Store or `inputlookup dora_substitutability.csv`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **last_test** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **test_age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **readiness** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where readiness<0.6` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DORA ICT Concentration — Substitutability and Secondary Sourcing Readiness Index**): table provider_id, readiness, contract_portable, test_age_days, runbook_score\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (readiness), Table (low scores), Single value (providers below bar).",
+  "visualization": "Bar chart (readiness), Table (low scores), Single value (providers below bar).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

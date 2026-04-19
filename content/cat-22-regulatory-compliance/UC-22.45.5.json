@@ -1,0 +1,89 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.45.5",
+  "subcategory": "22.45#1",
+  "title": "Business-continuity rehearsal evidence — BCP/DR exercise execution logged",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Head of IT Operations",
+  "controlFamily": "backup-restore-evidence",
+  "exclusions": "Does NOT evaluate technical restore SLAs (covered by 22.45.1); focuses on human-orchestrated rehearsal.",
+  "evidence": "Saved search 'bcp_rehearsal_evidence' (quarterly) emits BUs whose rehearsal is older than the policy cadence.",
+  "compliance": [
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.24",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DORA Art.24 testing of digital operational resilience, explicitly including rehearsals."
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(c)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIS2 business continuity and crisis management."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CP-4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CP-4 contingency plan testing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A BU has not logged a rehearsal in 13 months (policy cadence: 12 months); the UC fires quarterly.",
+    "negativeScenario": "BU has logged a rehearsal within 12 months; no alert.",
+    "fixtureRef": "sample-data/uc-22.45.5-fixture.json"
+  },
+  "dataSources": "BCP rehearsal ticketing system, signed rehearsal attestations.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| inputlookup business_units.csv\n| lookup bcp_rehearsals.csv bu_id OUTPUT last_rehearsal_at signed_by\n| eval days_since=round((now()-strptime(last_rehearsal_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(last_rehearsal_at) OR days_since>cadence_days\n| table bu_id owner last_rehearsal_at days_since cadence_days",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Moves BCP/DR rehearsal from a 'we did it' statement into a per-business-unit attestation log, mapped to DORA Art.24 and NIS2 Art.21(2)(c).",
+  "value": "Converts a calendar item into evidence with a signed attestation per rehearsal.",
+  "implementation": "(1) Maintain business_units.csv with owner + cadence; (2) emit bcp_rehearsals.csv after each exercise with a signed_by; (3) run quarterly.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: BCP rehearsal ticketing system, signed rehearsal attestations..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain business_units.csv with owner + cadence; (2) emit bcp_rehearsals.csv after each exercise with a signed_by; (3) run quarterly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup business_units.csv\n| lookup bcp_rehearsals.csv bu_id OUTPUT last_rehearsal_at signed_by\n| eval days_since=round((now()-strptime(last_rehearsal_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(last_rehearsal_at) OR days_since>cadence_days\n| table bu_id owner last_rehearsal_at days_since cadence_days\n```\n\nUnderstanding this SPL\n\n**Business-continuity rehearsal evidence — BCP/DR exercise execution logged** — Converts a calendar item into evidence with a signed attestation per rehearsal.\n\nDocumented **Data sources**: BCP rehearsal ticketing system, signed rehearsal attestations. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **days_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(last_rehearsal_at) OR days_since>cadence_days` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Business-continuity rehearsal evidence — BCP/DR exercise execution logged**): table bu_id owner last_rehearsal_at days_since cadence_days\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap of BU × days-since-rehearsal, table of at-risk BUs, single-value 'BUs within cadence'.",
+  "visualization": "Heatmap of BU × days-since-rehearsal, table of at-risk BUs, single-value 'BUs within cadence'.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "Regulation (EU) 2022/2554 — DORA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "title": "Directive (EU) 2022/2555 — NIS2",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "New BUs need an onboarding_date carve-out until the first scheduled rehearsal.",
+  "detectionType": "Anomaly",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "bu_id",
+    "last_rehearsal_at"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

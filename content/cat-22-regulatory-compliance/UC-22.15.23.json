@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.15.23",
+  "title": "Audit Index Growth vs Licensed Retention (Capacity Risk)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "SR 2.9",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`/services/data/indexes` for `ot_audit`",
+  "app": "Splunk Enterprise / Cloud REST",
+  "spl": "| rest /services/data/indexes splunk_server=local count=0 title=ot_audit\n| eval gb=currentDBSizeMB/1024, days=round(frozenTimePeriodInSecs/86400,1)\n| eval daily_gb=gb/30\n| eval days_to_full=if(daily_gb>0, round((maxTotalDataSizeMB/1024)/daily_gb,1), null())\n| table title, gb, days, daily_gb, days_to_full",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Forecasts `ot_audit` disk usage to avoid silent loss of security audit records before policy retention is met.",
+  "value": "Forecasts `ot_audit` disk usage to avoid silent loss of security audit records before policy retention is met.",
+  "implementation": "(1) Set `maxTotalDataSizeMB` with headroom; (2) route verbose protocols to warm/cold tier; (3) expand frozen path; (4) alert if `days_to_full`<90.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Cloud REST.\n• Ensure the following data sources are available: `/services/data/indexes` for `ot_audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Set `maxTotalDataSizeMB` with headroom; (2) route verbose protocols to warm/cold tier; (3) expand frozen path; (4) alert if `days_to_full`<90.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| rest /services/data/indexes splunk_server=local count=0 title=ot_audit\n| eval gb=currentDBSizeMB/1024, days=round(frozenTimePeriodInSecs/86400,1)\n| eval daily_gb=gb/30\n| eval days_to_full=if(daily_gb>0, round((maxTotalDataSizeMB/1024)/daily_gb,1), null())\n| table title, gb, days, daily_gb, days_to_full\n```\n\nUnderstanding this SPL\n\n**Audit Index Growth vs Licensed Retention (Capacity Risk) (IEC 62443-3-3 / SR 2.9)** — Forecasts `ot_audit` disk usage to avoid silent loss of security audit records before policy retention is met.\n\nDocumented **Data sources**: `/services/data/indexes` for `ot_audit`. **App/TA** (typical add-on context): Splunk Enterprise / Cloud REST. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Calls Splunk `rest` to read configuration or REST-exposed entities.\n• `eval` defines or adjusts **gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **daily_gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **days_to_full** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Audit Index Growth vs Licensed Retention (Capacity Risk) (IEC 62443-3-3 / SR 2.9)**): table title, gb, days, daily_gb, days_to_full\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value, Gauge, Table.",
+  "visualization": "Single value, Gauge, Table.",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "status": "verified"
+}

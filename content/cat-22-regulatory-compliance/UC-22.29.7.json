@@ -1,0 +1,83 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.29.7",
+  "title": "Breach discovery and severity classification",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "AU Privacy Act",
+      "version": "current",
+      "clause": "§26WK",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-D retagged from meta-multi placeholder to a concrete AU Privacy Act clause. §26WK Notifiable Data Breaches — breach discovery and severity classification are explicit prerequisites to the NDB timeline. Assurance level set to 'contributing' pending SME review per Phase E of the plan.",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "PIPL",
+      "version": "2021",
+      "clause": "Art.15",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-D retagged from meta-multi placeholder to a concrete PIPL clause. PIPL Art.15 — notification obligations presuppose accurate discovery and classification. Assurance level set to 'contributing' pending SME review per Phase E of the plan.",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "SG PDPA",
+      "version": "2020 amended",
+      "clause": "§26A",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-D retagged from meta-multi placeholder to a concrete SG PDPA clause. SG PDPA §26A Data breach assessment — the statute requires a timely severity assessment. Assurance level set to 'contributing' pending SME review per Phase E of the plan.",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "APPI",
+      "version": "2022 amendments",
+      "clause": "Art.26",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-D retagged from meta-multi placeholder to a concrete APPI clause. APPI Art.26 — leakage reporting depends on accurate discovery and classification. Assurance level set to 'contributing' pending SME review per Phase E of the plan.",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "Windows Security Event Logs, cloud audit trails, DLP system outputs, consent management platforms, data classification tools, cross-border transfer logs, privacy impact assessments, breach notification records",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Microsoft Office 365 (4055), Splunk Add-on for AWS (1876), Splunk Common Information Model Add-on (1621)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=privacy sourcetype=\"breach:event\" jurisdiction IN (\"SG\",\"TH\",\"JP\",\"KR\",\"CN\") earliest=-180d\n| eval detected=strptime(detected_at,\"%Y-%m-%d %H:%M:%S\")\n| eval authority=strptime(notified_authority_at,\"%Y-%m-%d %H:%M:%S\")\n| eval individuals=strptime(notified_individuals_at,\"%Y-%m-%d %H:%M:%S\")\n| eval sla_h=case(jurisdiction=\"SG\",72,jurisdiction=\"TH\",72,jurisdiction=\"JP\",120,1=1,24+7)\n| eval breach=if(isnull(authority) AND (now()-detected)>sla_h*3600,1,0)\n| eval register_line=\"7\"\n| table breach_id, jurisdiction, breach, register_line",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Provides APAC privacy supervisory evidence for breach discovery and severity classification aligned with APAC breach laws.",
+  "value": "Provides APAC privacy supervisory evidence for breach discovery and severity classification aligned with APAC breach laws.",
+  "implementation": "(1) Maintain `apac_transfer_register.csv` and consent or DPIA lookups referenced in runbooks. (2) Map technical identifiers to records of processing activities with legal review. (3) Restrict indexes to regional privacy roles with least privilege. (4) Quarterly DPIA and consent linkage review with local counsel.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Microsoft Office 365 (4055), Splunk Add-on for AWS (1876), Splunk Common Information Model Add-on (1621).\n• Ensure the following data sources are available: Windows Security Event Logs, cloud audit trails, DLP system outputs, consent management platforms, data classification tools, cross-border transfer logs, privacy impact assessments, breach notification records.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain `apac_transfer_register.csv` and consent or DPIA lookups referenced in runbooks. (2) Map technical identifiers to records of processing activities with legal review. (3) Restrict indexes to regional privacy roles with least privilege. (4) Quarterly DPIA and consent linkage review with local counsel.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=privacy sourcetype=\"breach:event\" jurisdiction IN (\"SG\",\"TH\",\"JP\",\"KR\",\"CN\") earliest=-180d\n| eval detected=strptime(detected_at,\"%Y-%m-%d %H:%M:%S\")\n| eval authority=strptime(notified_authority_at,\"%Y-%m-%d %H:%M:%S\")\n| eval individuals=strptime(notified_individuals_at,\"%Y-%m-%d %H:%M:%S\")\n| eval sla_h=case(jurisdiction=\"SG\",72,jurisdiction=\"TH\",72,jurisdiction=\"JP\",120,1=1,24+7)\n| eval breach=if(isnull(authority) AND (now()-detected)>sla_h*3600,1,0)\n| eval register_line=\"7\"\n| table breach_id, jurisdiction, breach, register_line\n```\n\nUnderstanding this SPL\n\n**Breach discovery and severity classification (APAC breach laws)** — Provides APAC privacy supervisory evidence for breach discovery and severity classification aligned with APAC breach laws.\n\nDocumented **Data sources**: Windows Security Event Logs, cloud audit trails, DLP system outputs, consent management platforms, data classification tools, cross-border transfer logs, privacy impact assessments, breach notification records. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Microsoft Office 365 (4055), Splunk Add-on for AWS (1876), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: privacy; **sourcetype**: breach:event. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=privacy, sourcetype=\"breach:event\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **detected** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **authority** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **individuals** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **sla_h** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **breach** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **register_line** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Breach discovery and severity classification (APAC breach laws)**): table breach_id, jurisdiction, breach, register_line\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar (jurisdiction x action), Table (open reviews), Single value (exports without mechanism).",
+  "visualization": "Stacked bar (jurisdiction x action), Table (open reviews), Single value (exports without mechanism).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws",
+    "m365"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.38",
+  "title": "Logging — Forwarder Stopped or CrashLoop on Security-Relevant Hosts",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.15",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2013",
+      "clause": "A.12.4.2",
+      "clauseUrl": "https://www.iso.org/standard/54534.html",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2013 Annex A.12.4.2 Protection of log information — UC detects forwarder-stopped/crash-loop conditions that would allow log gaps or tampering, a direct protection-of-log-information signal."
+    }
+  ],
+  "dataSources": "`splunkd` logs",
+  "app": "Splunk `_internal`",
+  "spl": "index=_internal source=*splunkd.log* earliest=-24h\n| rex field=_raw \"(?i)Stopping all processes|crashed\"\n| stats count by host\n| lookup security_tier_hosts.csv host OUTPUT tier\n| where tier IN (\"tier0\",\"tier1\")",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Detects universal forwarder or agent stopped states on in-scope systems so logging obligations stay met.",
+  "value": "Detects universal forwarder or agent stopped states on in-scope systems so logging obligations stay met.",
+  "implementation": "(1) Maintain tier lookup; (2) auto-restart playbook; (3) ISO evidence for logging availability.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk `_internal`.\n• Ensure the following data sources are available: `splunkd` logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain tier lookup; (2) auto-restart playbook; (3) ISO evidence for logging availability.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal source=*splunkd.log* earliest=-24h\n| rex field=_raw \"(?i)Stopping all processes|crashed\"\n| stats count by host\n| lookup security_tier_hosts.csv host OUTPUT tier\n| where tier IN (\"tier0\",\"tier1\")\n```\n\nUnderstanding this SPL\n\n**Logging — Forwarder Stopped or CrashLoop on Security-Relevant Hosts (A.8.15)** — Detects universal forwarder or agent stopped states on in-scope systems so logging obligations stay met.\n\nDocumented **Data sources**: `splunkd` logs. **App/TA** (typical add-on context): Splunk `_internal`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where tier IN (\"tier0\",\"tier1\")` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Single value",
+  "visualization": "Table, Single value",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "status": "verified"
+}

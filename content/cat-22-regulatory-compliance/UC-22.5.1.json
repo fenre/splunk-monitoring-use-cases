@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.5.1",
+  "title": "MiFID II Trade and Transaction Reporting Completeness",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "MiFID II",
+      "version": "Directive 2014/65/EU",
+      "clause": "Art.26",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=trading` `sourcetype=\"_json\"` `source=\"http:trx_reporting\"` (transaction_report_id, trade_date, venue, report_status, reject_code)",
+  "app": "Splunk HTTP Event Collector (core platform) with JSON parsing, Financial Information eXchange (FIX) Log Parsing (Splunkbase 431) (optional)",
+  "spl": "index=trading sourcetype=\"_json\" source=\"http:trx_reporting\" earliest=-30d@d\n| eval rejected=if(isnotnull(reject_code) AND reject_code!=\"\", 1, 0)\n| eval accepted=if(report_status IN (\"ACCEPTED\",\"ACKED\",\"CONFIRMED\") AND rejected=0, 1, 0)\n| bin _time span=1d\n| stats count as sent, sum(accepted) as accepted, sum(rejected) as rejects, dc(transaction_report_id) as distinct_reports by _time, venue\n| eventstats avg(sent) as baseline by venue\n| eval volume_gap=if(sent<baseline*0.75, 1, 0)\n| where volume_gap=1 OR rejects>0\n| table _time, venue, sent, accepted, rejects, volume_gap\n| sort _time, venue",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Detects reporting gaps (missing submissions vs expected trading-day volume) and ARM/APA rejection spikes to support completeness and accuracy controls for transaction reporting oversight.",
+  "value": "Detects reporting gaps (missing submissions vs expected trading-day volume) and ARM/APA rejection spikes to support completeness and accuracy controls for transaction reporting oversight.",
+  "implementation": "(1) Send ARM/APA acknowledgements and gateway rejects to HEC with a dedicated token; (2) standardize JSON keys (`reject_code`, `report_status`); (3) baseline \"expected volume\" can be replaced with a lookup of expected daily counts by `venue` and instrument class; (4) schedule daily for compliance desk review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk HTTP Event Collector (core platform) with JSON parsing, Financial Information eXchange (FIX) Log Parsing (Splunkbase 431) (optional).\n• Ensure the following data sources are available: `index=trading` `sourcetype=\"_json\"` `source=\"http:trx_reporting\"` (transaction_report_id, trade_date, venue, report_status, reject_code).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Send ARM/APA acknowledgements and gateway rejects to HEC with a dedicated token; (2) standardize JSON keys (`reject_code`, `report_status`); (3) baseline \"expected volume\" can be replaced with a lookup of expected daily counts by `venue` and instrument class; (4) schedule daily for compliance desk review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=trading sourcetype=\"_json\" source=\"http:trx_reporting\" earliest=-30d@d\n| eval rejected=if(isnotnull(reject_code) AND reject_code!=\"\", 1, 0)\n| eval accepted=if(report_status IN (\"ACCEPTED\",\"ACKED\",\"CONFIRMED\") AND rejected=0, 1, 0)\n| bin _time span=1d\n| stats count as sent, sum(accepted) as accepted, sum(rejected) as rejects, dc(transaction_report_id) as distinct_reports by _time, venue\n| eventstats avg(sent) as baseline by venue\n| eval volume_gap=if(sent<baseline*0.75, 1, 0)\n| where volume_gap=1 OR rejects>0\n| table _time, venue, sent, accepted, rejects, volume_gap\n| sort _time, venue\n```\n\nUnderstanding this SPL\n\n**MiFID II Trade and Transaction Reporting Completeness (Art. 26)** — Detects reporting gaps (missing submissions vs expected trading-day volume) and ARM/APA rejection spikes to support completeness and accuracy controls for transaction reporting oversight.\n\nDocumented **Data sources**: `index=trading` `sourcetype=\"_json\"` `source=\"http:trx_reporting\"` (transaction_report_id, trade_date, venue, report_status, reject_code). **App/TA** (typical add-on context): Splunk HTTP Event Collector (core platform) with JSON parsing, Financial Information eXchange (FIX) Log Parsing (Splunkbase 431) (optional). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: trading; **sourcetype**: _json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=trading, sourcetype=\"_json\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **rejected** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **accepted** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, venue** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by venue** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **volume_gap** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where volume_gap=1 OR rejects>0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **MiFID II Trade and Transaction Reporting Completeness (Art. 26)**): table _time, venue, sent, accepted, rejects, volume_gap\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (accepted vs rejects), Single value (gap days counter), Table (worst venues by reject rate).",
+  "visualization": "Timechart (accepted vs rejects), Single value (gap days counter), Table (worst venues by reject rate).",
+  "references": [
+    {
+      "title": "Log Parsing",
+      "url": "https://splunkbase.splunk.com/app/431"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.",
+  "equipment": [
+    "exchange"
+  ]
+}

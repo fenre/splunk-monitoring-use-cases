@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.46.5",
+  "subcategory": "22.46#1",
+  "title": "Developer data-handling training — prod-access engineers lacking training",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "DPO",
+  "controlFamily": "training-effectiveness",
+  "exclusions": "Does NOT cover all engineering staff — focuses on those with production access to regulated data.",
+  "evidence": "Saved search 'dev_data_handling_training' (weekly) intersects IdP prod-access groups against LMS DPO-approved course completions.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.32(4)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.32(4) requires awareness of personnel processing personal data."
+    },
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.308(a)(5)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "HIPAA workforce training applies to workforce with ePHI access."
+    },
+    {
+      "regulation": "ISO-27001",
+      "version": "2022",
+      "clause": "A.6.3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "A.6.3 information-security awareness, education, and training."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.32(4)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.32(4) (parent assurance='partial'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.32(4)",
+        "parentAssurance": "partial",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Engineer bob is in the prod-access group for customer-database but has no current DPO course record; the UC fires the next week.",
+    "negativeScenario": "All prod-access engineers have current training; no alert.",
+    "fixtureRef": "sample-data/uc-22.46.5-fixture.json"
+  },
+  "dataSources": "IdP prod-access group membership, LMS completion records for DPO-approved course ids.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| rest /services/identity/prod-access-groups splunk_server=*\n| fields user group scope\n| where scope=\"regulated\"\n| join user [search index=lms sourcetype=completion course_id=data_handling_v* earliest=-365d | stats max(_time) as last_completion by user]\n| where (now()-last_completion)>31536000 OR isnull(last_completion)\n| table user group scope last_completion",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Prevents the 'developers with production access but stale training' anti-pattern that surfaces in GDPR Art.32 enforcement cases.",
+  "value": "Links IdP posture to training posture — the evidence auditors actually ask for.",
+  "implementation": "(1) Tag IdP groups for prod access with regulated scope; (2) publish DPO-approved course IDs; (3) run weekly; (4) auto-revoke access after configured overdue window.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: IdP prod-access group membership, LMS completion records for DPO-approved course ids..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag IdP groups for prod access with regulated scope; (2) publish DPO-approved course IDs; (3) run weekly; (4) auto-revoke access after configured overdue window.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| rest /services/identity/prod-access-groups splunk_server=*\n| fields user group scope\n| where scope=\"regulated\"\n| join user [search index=lms sourcetype=completion course_id=data_handling_v* earliest=-365d | stats max(_time) as last_completion by user]\n| where (now()-last_completion)>31536000 OR isnull(last_completion)\n| table user group scope last_completion\n```\n\nUnderstanding this SPL\n\n**Developer data-handling training — prod-access engineers lacking training** — Links IdP posture to training posture — the evidence auditors actually ask for.\n\nDocumented **Data sources**: IdP prod-access group membership, LMS completion records for DPO-approved course ids. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Calls Splunk `rest` to read configuration or REST-exposed entities.\n• Keeps or drops fields with `fields` to shape columns and size.\n• Filters the current rows with `where scope=\"regulated\"` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where (now()-last_completion)>31536000 OR isnull(last_completion)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Developer data-handling training — prod-access engineers lacking training**): table user group scope last_completion\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of engineers without training, bar chart by team, single-value 'prod-access engineers with current training'.",
+  "visualization": "Table of engineers without training, bar chart by team, single-value 'prod-access engineers with current training'.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/82875.html",
+      "title": "ISO/IEC 27001:2022",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Freshly-onboarded engineers in the 30-day grace window should be allow-listed by onboarding_date.",
+  "detectionType": "Anomaly",
+  "securityDomain": "access",
+  "requiredFields": [
+    "user",
+    "group",
+    "scope",
+    "last_completion"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

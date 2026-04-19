@@ -1,0 +1,122 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.52",
+  "subcategory": "22.6#1",
+  "title": "ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does NOT judge whether the classification was correct; asserts that every high-severity SIEM alert has a documented classification decision within the configured SLA.",
+  "evidence": "Saved search 'iso_27001_a_5_25_event_classification' (every 10m) emits: alert_id, severity, classified_at, decision, decision_sla_met, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.25",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "A.5.25 Assessment and decision on information security events — directly measured by this UC."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.3",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOC 2 CC7.3 Evaluated events and incidents — aligns."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.17",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.17 — contributes to the classification step of the incident lifecycle."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "IR-4",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NIST 800-53 IR-4 Incident Handling — contributes."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A high-severity notable with no phantom:incident record within 1h returns decision_sla_met=0.",
+    "negativeScenario": "A critical alert followed by a classification decision within 30 minutes is absent.",
+    "fixtureRef": "sample-data/uc-22.6.52-fixture.json",
+    "attackTechnique": "T1070"
+  },
+  "dataSources": "`index=notable` (ES notable events); `index=soar` sourcetype=phantom:incident (classification decisions).",
+  "app": "Splunk Enterprise Security, Splunk SOAR",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "search `notable` severity IN (\"high\",\"critical\") earliest=-7d\n| rename event_id AS alert_id\n| join type=outer alert_id\n  [search index=soar sourcetype=phantom:incident earliest=-7d\n   | stats latest(_time) AS classified_at latest(decision) AS decision BY alert_id]\n| eval decision_sla_met=if(classified_at<=_time+3600,1,0)\n| where isnull(decision) OR decision_sla_met=0\n| table alert_id severity _time classified_at decision decision_sla_met",
+  "cimModels": [
+    "Alerts",
+    "Ticket_Management"
+  ],
+  "description": "Measures whether every high/critical SIEM alert received a classification decision (incident / false-positive / suppressed) within the 1h SLA implied by A.5.25.",
+  "value": "Gives the Audit Committee a single number: 'classification SLA adherence %'. Analysts know their backlog, auditors see the proof.",
+  "implementation": "(1) Ensure SOAR writes classification decisions with alert_id tag; (2) schedule UC every 10m; (3) SLA miss escalates to shift lead; (4) daily SOC report of adherence %; (5) monthly to Audit Committee.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security, Splunk SOAR.\n• Ensure the following data sources are available: `index=notable` (ES notable events); `index=soar` sourcetype=phantom:incident (classification decisions)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure SOAR writes classification decisions with alert_id tag; (2) schedule UC every 10m; (3) SLA miss escalates to shift lead; (4) daily SOC report of adherence %; (5) monthly to Audit Committee.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch `notable` severity IN (\"high\",\"critical\") earliest=-7d\n| rename event_id AS alert_id\n| join type=outer alert_id\n  [search index=soar sourcetype=phantom:incident earliest=-7d\n   | stats latest(_time) AS classified_at latest(decision) AS decision BY alert_id]\n| eval decision_sla_met=if(classified_at<=_time+3600,1,0)\n| where isnull(decision) OR decision_sla_met=0\n| table alert_id severity _time classified_at decision decision_sla_met\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability** — Gives the Audit Committee a single number: 'classification SLA adherence %'. Analysts know their backlog, auditors see the proof.\n\nDocumented **Data sources**: `index=notable` (ES notable events); `index=soar` sourcetype=phantom:incident (classification decisions). **App/TA** (typical add-on context): Splunk Enterprise Security, Splunk SOAR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• Renames fields with `rename` for clarity or joins.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **decision_sla_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(decision) OR decision_sla_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability**): table alert_id severity _time classified_at decision decision_sla_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Funnel from total alerts → classified → on-time, line chart of adherence %, single value 'open unclassified alerts'.",
+  "visualization": "Funnel from total alerts → classified → on-time, line chart of adherence %, single value 'open unclassified alerts'.",
+  "references": [
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1070/",
+      "title": "MITRE ATT&CK — T1070",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Alerts suppressed by tuning rules do not need classification decisions — filter out suppression_reason IS NOT NULL.",
+  "mitreAttack": [
+    "T1070"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "alert_id",
+    "severity",
+    "_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.5.6",
+  "title": "MiFID II Order and Decision Data Record Integrity",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial Services",
+  "compliance": [
+    {
+      "regulation": "MiFID II",
+      "version": "Directive 2014/65/EU",
+      "clause": "Art.25",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=trading` `sourcetype=\"_json\"` `source=\"http:order_lifecycle\"` (order_id, cl_ord_id, event_type, venue, decision_time_ms, _time)",
+  "app": "Financial Information eXchange (FIX) Log Parsing (Splunkbase 431), Splunk HTTP Event Collector (core platform)",
+  "spl": "index=trading sourcetype=\"_json\" source=\"http:order_lifecycle\" earliest=-1d\n| where event_type IN (\"NewOrderSingle\",\"OrderCancelReplaceRequest\",\"ExecutionReport\",\"OrderCancelRequest\")\n| stats min(_time) as first_seen, max(_time) as last_seen, dc(event_type) as event_types, count as events by order_id\n| eval span_sec=last_seen-first_seen\n| eventstats dc(order_id) as total_orders\n| eventstats sum(events) as sum_events\n| eval dup_ratio=round(events/sum_events, 6)\n| where events<2 OR span_sec<0.001\n| sort order_id",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Investment firms must keep orderly records of services and transactions. Detecting gaps or duplicate order IDs in OMS/EMS journals supports defensible reconstruction of the decision chain during regulatory reconstruction exercises.",
+  "value": "Investment firms must keep orderly records of services and transactions. Detecting gaps or duplicate order IDs in OMS/EMS journals supports defensible reconstruction of the decision chain during regulatory reconstruction exercises.",
+  "implementation": "(1) Ensure every order emits at least creation and terminal state events; (2) hash sensitive client fields before indexing; (3) alert on `events<2` for statuses that should be terminal within T day; (4) tune `span_sec` threshold for high-frequency desks; (5) export samples for internal audit replay tools.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Financial Information eXchange (FIX) Log Parsing (Splunkbase 431), Splunk HTTP Event Collector (core platform).\n• Ensure the following data sources are available: `index=trading` `sourcetype=\"_json\"` `source=\"http:order_lifecycle\"` (order_id, cl_ord_id, event_type, venue, decision_time_ms, _time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure every order emits at least creation and terminal state events; (2) hash sensitive client fields before indexing; (3) alert on `events<2` for statuses that should be terminal within T day; (4) tune `span_sec` threshold for high-frequency desks; (5) export samples for internal audit replay tools.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=trading sourcetype=\"_json\" source=\"http:order_lifecycle\" earliest=-1d\n| where event_type IN (\"NewOrderSingle\",\"OrderCancelReplaceRequest\",\"ExecutionReport\",\"OrderCancelRequest\")\n| stats min(_time) as first_seen, max(_time) as last_seen, dc(event_type) as event_types, count as events by order_id\n| eval span_sec=last_seen-first_seen\n| eventstats dc(order_id) as total_orders\n| eventstats sum(events) as sum_events\n| eval dup_ratio=round(events/sum_events, 6)\n| where events<2 OR span_sec<0.001\n| sort order_id\n```\n\nUnderstanding this SPL\n\n**MiFID II Order and Decision Data Record Integrity (Art. 25)** — Investment firms must keep orderly records of services and transactions. Detecting gaps or duplicate order IDs in OMS/EMS journals supports defensible reconstruction of the decision chain during regulatory reconstruction exercises.\n\nDocumented **Data sources**: `index=trading` `sourcetype=\"_json\"` `source=\"http:order_lifecycle\"` (order_id, cl_ord_id, event_type, venue, decision_time_ms, _time). **App/TA** (typical add-on context): Financial Information eXchange (FIX) Log Parsing (Splunkbase 431), Splunk HTTP Event Collector (core platform). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: trading; **sourcetype**: _json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=trading, sourcetype=\"_json\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where event_type IN (\"NewOrderSingle\",\"OrderCancelReplaceRequest\",\"ExecutionReport\",\"OrderCancelRequest\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by order_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **span_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **dup_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where events<2 OR span_sec<0.001` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (suspect orders), Column chart (events per order_id distribution via `bin events`), Single value (count of orders with events<2).",
+  "visualization": "Table (suspect orders), Column chart (events per order_id distribution via `bin events`), Single value (count of orders with events<2).",
+  "references": [
+    {
+      "title": "Log Parsing",
+      "url": "https://splunkbase.splunk.com/app/431"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1565",
+    "T1005"
+  ],
+  "equipment": [
+    "exchange"
+  ]
+}

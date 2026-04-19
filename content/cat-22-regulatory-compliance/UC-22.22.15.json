@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.22.15",
+  "title": "Consent Record Alignment to Accessed Account Scopes",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PSD2",
+      "version": "Directive (EU) 2015/2366",
+      "clause": "Art.95",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'PSD2' → 'Art.95'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=openbanking` — tpp_id, consent_id, consent_scope, accessed_scope, http_status, environment, bytes_out",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for AWS (1876)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=openbanking sourcetype=\"ob:consent:event\" earliest=-24h\n| eval api_tag=\"consent\"\n| eval is_prod=if(match(environment,\"(?i)prod\"),1,0)\n| eval scope_mismatch=if(isnotnull(consent_scope) AND isnotnull(accessed_scope) AND consent_scope!=accessed_scope,1,0)\n| stats count as calls, sum(eval(http_status>=400)) as err, sum(scope_mismatch) as sm, dc(tpp_id) as tpp by aspsp_id, api_tag, is_prod\n| eval uc_id=\"22.22.15\"\n| eval err_rate=round(100*err/calls,2)\n| where err_rate>2 OR sm>0 OR (api_tag=\"env\" AND is_prod=0 AND tpp>50)\n| sort - err_rate",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count",
+  "cimModels": [
+    "Web"
+  ],
+  "description": "Monitors third-party provider access patterns, consent alignment, and API security controls required for PSD2 open banking operational resilience.",
+  "value": "Monitors third-party provider access patterns, consent alignment, and API security controls required for PSD2 open banking operational resilience.",
+  "implementation": "(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Add-on for AWS (1876).\n• Ensure the following data sources are available: `index=openbanking` — tpp_id, consent_id, consent_scope, accessed_scope, http_status, environment, bytes_out.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=openbanking sourcetype=\"ob:consent:event\" earliest=-24h\n| eval api_tag=\"consent\"\n| eval is_prod=if(match(environment,\"(?i)prod\"),1,0)\n| eval scope_mismatch=if(isnotnull(consent_scope) AND isnotnull(accessed_scope) AND consent_scope!=accessed_scope,1,0)\n| stats count as calls, sum(eval(http_status>=400)) as err, sum(scope_mismatch) as sm, dc(tpp_id) as tpp by aspsp_id, api_tag, is_prod\n| eval uc_id=\"22.22.15\"\n| eval err_rate=round(100*err/calls,2)\n| where err_rate>2 OR sm>0 OR (api_tag=\"env\" AND is_prod=0 AND tpp>50)\n| sort - err_rate\n```\n\nUnderstanding this SPL\n\n**Consent Record Alignment to Accessed Account Scopes (PSD2)** — Monitors third-party provider access patterns, consent alignment, and API security controls required for PSD2 open banking operational resilience.\n\nDocumented **Data sources**: `index=openbanking` — tpp_id, consent_id, consent_scope, accessed_scope, http_status, environment, bytes_out. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for AWS (1876). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: openbanking; **sourcetype**: ob:consent:event. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=openbanking, sourcetype=\"ob:consent:event\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **api_tag** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **is_prod** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **scope_mismatch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by aspsp_id, api_tag, is_prod** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **uc_id** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **err_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where err_rate>2 OR sm>0 OR (api_tag=\"env\" AND is_prod=0 AND tpp>50)` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Web.Web by Web.status, Web.http_method, Web.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Consent Record Alignment to Accessed Account Scopes (PSD2)** — Monitors third-party provider access patterns, consent alignment, and API security controls required for PSD2 open banking operational resilience.\n\nDocumented **Data sources**: `index=openbanking` — tpp_id, consent_id, consent_scope, accessed_scope, http_status, environment, bytes_out. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for AWS (1876). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Web.Web` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (err_rate), Bar chart (calls by tpp_id), Table (scope_mismatch samples)",
+  "visualization": "Time chart (err_rate), Bar chart (calls by tpp_id), Table (scope_mismatch samples)",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws"
+  ]
+}

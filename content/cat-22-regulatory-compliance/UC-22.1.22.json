@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.22",
+  "title": "GDPR Access Control Review and Privileged Access Evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.32(1)(b)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Authentication data model, `OktaIM2:log`, `ms:aad:signin`, `cyberark:session`, `gdpr_system_access_matrix.csv`",
+  "app": "Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for CyberArk (Splunkbase 2891)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| tstats `summariesonly` latest(Authentication.user) as user latest(Authentication.app) as app\n  from datamodel=Authentication.Authentication\n  where Authentication.action=\"success\" AND earliest=-30d\n  by Authentication.dest\n| rename Authentication.* as *\n| lookup gdpr_system_access_matrix.csv system_hostname AS dest OUTPUT data_classification, approved_roles\n| where data_classification IN (\"personal_data\",\"special_category\")\n| join type=left user [\n    search index=okta sourcetype=\"OktaIM2:log\" eventType=\"group.privilege.grant\" earliest=-30d\n    | stats latest(_time) as last_grant by target_user_id\n    | rename target_user_id as user\n]\n| where isnotnull(last_grant)\n| table dest, user, app, data_classification, approved_roles, last_grant",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Article 32(1)(b) requires measures to ensure ongoing confidentiality, including controlling access to personal data. This use case reviews who can access GDPR-scoped systems — flagging excessive admin grants, dormant privileged accounts, and role changes that expand access beyond ROPA-documented purposes — giving auditors repeatable evidence of access governance.",
+  "value": "Article 32(1)(b) requires measures to ensure ongoing confidentiality, including controlling access to personal data. This use case reviews who can access GDPR-scoped systems — flagging excessive admin grants, dormant privileged accounts, and role changes that expand access beyond ROPA-documented purposes — giving auditors repeatable evidence of access governance.",
+  "implementation": "(1) Map hosts and SaaS apps in `gdpr_system_access_matrix.csv` with approved IAM roles; (2) ingest IdP group and role assignment events; (3) correlate successful authentications to personal-data systems; (4) alert when users access GDPR systems without an approved role or after a recent privilege grant; (5) export monthly access review packets for data owners.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for CyberArk (Splunkbase 2891).\n• Ensure the following data sources are available: CIM Authentication data model, `OktaIM2:log`, `ms:aad:signin`, `cyberark:session`, `gdpr_system_access_matrix.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Map hosts and SaaS apps in `gdpr_system_access_matrix.csv` with approved IAM roles; (2) ingest IdP group and role assignment events; (3) correlate successful authentications to personal-data systems; (4) alert when users access GDPR systems without an approved role or after a recent privilege grant; (5) export monthly access review packets for data owners.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` latest(Authentication.user) as user latest(Authentication.app) as app\n  from datamodel=Authentication.Authentication\n  where Authentication.action=\"success\" AND earliest=-30d\n  by Authentication.dest\n| rename Authentication.* as *\n| lookup gdpr_system_access_matrix.csv system_hostname AS dest OUTPUT data_classification, approved_roles\n| where data_classification IN (\"personal_data\",\"special_category\")\n| join type=left user [\n    search index=okta sourcetype=\"OktaIM2:log\" eventType=\"group.privilege.grant\" earliest=-30d\n    | stats latest(_time) as last_grant by target_user_id\n    | rename target_user_id as user\n]\n| where isnotnull(last_grant)\n| table dest, user, app, data_classification, approved_roles, last_grant\n```\n\nUnderstanding this SPL\n\n**GDPR Access Control Review and Privileged Access Evidence (Art. 32(1)(b))** — Article 32(1)(b) requires measures to ensure ongoing confidentiality, including controlling access to personal data. This use case reviews who can access GDPR-scoped systems — flagging excessive admin grants, dormant privileged accounts, and role changes that expand access beyond ROPA-documented purposes — giving auditors repeatable evidence of access governance.\n\nDocumented **Data sources**: CIM Authentication data model, `OktaIM2:log`, `ms:aad:signin`, `cyberark:session`, `gdpr_system_access_matrix.csv`. **App/TA** (typical add-on context): Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for CyberArk (Splunkbase 2891). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where data_classification IN (\"personal_data\",\"special_category\")` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnotnull(last_grant)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **GDPR Access Control Review and Privileged Access Evidence (Art. 32(1)(b))**): table dest, user, app, data_classification, approved_roles, last_grant\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**GDPR Access Control Review and Privileged Access Evidence (Art. 32(1)(b))** — Article 32(1)(b) requires measures to ensure ongoing confidentiality, including controlling access to personal data. This use case reviews who can access GDPR-scoped systems — flagging excessive admin grants, dormant privileged accounts, and role changes that expand access beyond ROPA-documented purposes — giving auditors repeatable evidence of access governance.\n\nDocumented **Data sources**: CIM Authentication data model, `OktaIM2:log`, `ms:aad:signin`, `cyberark:session`, `gdpr_system_access_matrix.csv`. **App/TA** (typical add-on context): Splunk Add-on for Okta Identity Cloud (Splunkbase 6553), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for CyberArk (Splunkbase 2891). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (privileged access drift), Bar chart (access by system), Single value (users outside approved roles), Heatmap (logon density to PII systems).",
+  "visualization": "Table (privileged access drift), Bar chart (access by system), Single value (users outside approved roles), Heatmap (logon density to PII systems).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Okta Identity Cloud",
+      "url": "https://splunkbase.splunk.com/app/6553"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "equipment": [
+    "cyberark",
+    "okta"
+  ]
+}

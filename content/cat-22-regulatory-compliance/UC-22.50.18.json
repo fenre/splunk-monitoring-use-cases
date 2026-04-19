@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.18",
+  "title": "Personopplysningsloven §14 — automated-decision inventory and human-review evidence",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "owner": "DPO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=NO Personopplysningsloven, clause=§14, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "NO Personopplysningsloven",
+      "version": "2018",
+      "clause": "§14",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting NO Personopplysningsloven §14 (Automated individual decision-making restrictions). Uses continuous, production-grade Splunk telemetry to provide auditor-facing evidence; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "ML/AI model inventory, production decision logs, DPO review records.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=ai_models earliest=-30d\n| search scope=\"automated_decision\" AND subject_impact=\"significant\"\n| stats count AS decisions count(eval(human_review=\"yes\")) AS reviewed earliest(_time) AS first_seen BY model_id, purpose\n| eval review_rate=round(100*reviewed/decisions,1)\n| where review_rate < 5",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Surfaces models producing automated decisions with significant subject impact and low human-review coverage.",
+  "value": "§14 (mirroring GDPR Art.22) requires safeguards for automated individual decisions; a low review rate triggers an immediate DPO review.",
+  "implementation": "(1) Tag models with scope/subject_impact at registration; (2) emit decision logs with human_review flag; (3) schedule weekly.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: ML/AI model inventory, production decision logs, DPO review records..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag models with scope/subject_impact at registration; (2) emit decision logs with human_review flag; (3) schedule weekly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_models earliest=-30d\n| search scope=\"automated_decision\" AND subject_impact=\"significant\"\n| stats count AS decisions count(eval(human_review=\"yes\")) AS reviewed earliest(_time) AS first_seen BY model_id, purpose\n| eval review_rate=round(100*reviewed/decisions,1)\n| where review_rate < 5\n```\n\nUnderstanding this SPL\n\n**Personopplysningsloven §14 — automated-decision inventory and human-review evidence** — §14 (mirroring GDPR Art.22) requires safeguards for automated individual decisions; a low review rate triggers an immediate DPO review.\n\nDocumented **Data sources**: ML/AI model inventory, production decision logs, DPO review records. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_models.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_models, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by model_id, purpose** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **review_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where review_rate < 5` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "references": [
+    {
+      "title": "Personopplysningsloven (2018)",
+      "url": "https://lovdata.no/dokument/NL/lov/2018-06-15-38",
+      "retrieved": "2026-04-18"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-18",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

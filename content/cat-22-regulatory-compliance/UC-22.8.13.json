@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.13",
+  "title": "SOC 2 CC4 — Enterprise Risk Register Ingestion and Coverage Gaps",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "CC7.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'unspecified' → 'CC7.2'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=risk` `sourcetype=\"grc:risk_register\"` (risk_id, system_id, owner, inherent_score, residual_score, last_review_date, status)",
+  "app": "Splunk DB Connect (Splunkbase 2686), HTTP Event Collector",
+  "spl": "index=risk sourcetype=\"grc:risk_register\" earliest=-1d\n| eval last_rev=strptime(last_review_date,\"%Y-%m-%d\")\n| eval days_since_review=round((now()-last_rev)/86400,0)\n| eval gap=case(\n    isnull(system_id) OR system_id=\"\", \"NO_SYSTEM_MAPPING\",\n    days_since_review>365, \"STALE_REVIEW\",\n    status!=\"active\" AND residual_score>12, \"INACTIVE_HIGH_RESIDUAL\",\n    1=1, \"OK\")\n| where gap!=\"OK\"\n| stats count by gap, owner\n| sort - count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "CC4 requires consideration of risks to objectives. Monitoring the risk register for stale reviews, missing owners, or systems without mapped risks shows the assessment process is operational—not a static spreadsheet export.",
+  "value": "CC4 requires consideration of risks to objectives. Monitoring the risk register for stale reviews, missing owners, or systems without mapped risks shows the assessment process is operational—not a static spreadsheet export.",
+  "implementation": "(1) Normalize `system_id` to CMDB keys; (2) integrate GRC export nightly; (3) alert on `NO_SYSTEM_MAPPING` for production systems from `cmdb:production_systems.csv`; (4) tie residual_score scale to your GRC methodology; (5) quarterly attestation that zero high risks lack owners.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk DB Connect (Splunkbase 2686), HTTP Event Collector.\n• Ensure the following data sources are available: `index=risk` `sourcetype=\"grc:risk_register\"` (risk_id, system_id, owner, inherent_score, residual_score, last_review_date, status).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Normalize `system_id` to CMDB keys; (2) integrate GRC export nightly; (3) alert on `NO_SYSTEM_MAPPING` for production systems from `cmdb:production_systems.csv`; (4) tie residual_score scale to your GRC methodology; (5) quarterly attestation that zero high risks lack owners.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=risk sourcetype=\"grc:risk_register\" earliest=-1d\n| eval last_rev=strptime(last_review_date,\"%Y-%m-%d\")\n| eval days_since_review=round((now()-last_rev)/86400,0)\n| eval gap=case(\n    isnull(system_id) OR system_id=\"\", \"NO_SYSTEM_MAPPING\",\n    days_since_review>365, \"STALE_REVIEW\",\n    status!=\"active\" AND residual_score>12, \"INACTIVE_HIGH_RESIDUAL\",\n    1=1, \"OK\")\n| where gap!=\"OK\"\n| stats count by gap, owner\n| sort - count\n```\n\nUnderstanding this SPL\n\n**SOC 2 CC4 — Enterprise Risk Register Ingestion and Coverage Gaps** — CC4 requires consideration of risks to objectives. Monitoring the risk register for stale reviews, missing owners, or systems without mapped risks shows the assessment process is operational—not a static spreadsheet export.\n\nDocumented **Data sources**: `index=risk` `sourcetype=\"grc:risk_register\"` (risk_id, system_id, owner, inherent_score, residual_score, last_review_date, status). **App/TA** (typical add-on context): Splunk DB Connect (Splunkbase 2686), HTTP Event Collector. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: risk; **sourcetype**: grc:risk_register. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=risk, sourcetype=\"grc:risk_register\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **last_rev** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **days_since_review** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **gap** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where gap!=\"OK\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by gap, owner** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (gaps), Pie chart (gap types), Single value (stale reviews).",
+  "visualization": "Table (gaps), Pie chart (gap types), Single value (stale reviews).",
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect"
+  ]
+}

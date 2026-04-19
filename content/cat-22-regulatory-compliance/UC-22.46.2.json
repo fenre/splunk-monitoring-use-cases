@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.46.2",
+  "title": "Phishing simulation efficacy — click-rate trend and repeat-clicker detection",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "training-effectiveness",
+  "exclusions": "Does NOT deliver remediation content directly; feeds HR / L&D for follow-up.",
+  "evidence": "Monthly 'phishing_sim_efficacy' writes click-rate trend and repeat-clicker lists to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(g)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.21(2)(g) — beyond completion, regulators want to see the program is effective."
+    },
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "12.6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI 12.6 effectiveness via knowledge retention — simulation click rate is an accepted metric."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When the 90-day rolling click-rate rises above the programme baseline by +3 percentage points, or when an employee clicks on 3+ simulations in 180 days, the UC fires.",
+    "negativeScenario": "Click-rates within baseline and employees with ≤2 clicks do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.46.2-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=phishing sourcetype=knowbe4:campaign OR sourcetype=proofpoint:psa earliest=-180d\n| bin _time span=30d\n| stats count(eval(action=\"clicked\")) as clicks count as total by _time\n| eval click_rate=round(clicks/total*100,2)\n| stats last(click_rate) as current avg(click_rate) as baseline\n| eval drift=current-baseline\n| where drift>3\n| appendpipe [search index=phishing action=clicked earliest=-180d | stats dc(campaign_id) as clicks by employee | where clicks>=3]",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Tracks efficacy: the programme is green only if click-rate stays within baseline and repeat-clickers are followed up. Drift above threshold is a programme-level finding.",
+  "value": "Turns the awareness programme into a measurable control, not an annual training badge.",
+  "implementation": "(1) Ingest campaign events from the phishing-sim platform; (2) compute baselines per quarter; (3) run monthly; (4) deliver repeat-clicker lists to HR for targeted training.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest campaign events from the phishing-sim platform; (2) compute baselines per quarter; (3) run monthly; (4) deliver repeat-clicker lists to HR for targeted training.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=phishing sourcetype=knowbe4:campaign OR sourcetype=proofpoint:psa earliest=-180d\n| bin _time span=30d\n| stats count(eval(action=\"clicked\")) as clicks count as total by _time\n| eval click_rate=round(clicks/total*100,2)\n| stats last(click_rate) as current avg(click_rate) as baseline\n| eval drift=current-baseline\n| where drift>3\n| appendpipe [search index=phishing action=clicked earliest=-180d | stats dc(campaign_id) as clicks by employee | where clicks>=3]\n```\n\nUnderstanding this SPL\n\n**Phishing simulation efficacy — click-rate trend and repeat-clicker detection** — Turns the awareness programme into a measurable control, not an annual training badge.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: phishing; **sourcetype**: knowbe4:campaign, proofpoint:psa. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=phishing, sourcetype=knowbe4:campaign, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **click_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **drift** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where drift>3` — typically the threshold or rule expression for this monitoring goal.\n• Appends rows from a subsearch with `append`.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart of click rate over time with baseline band, table of repeat clickers, single-value 'current click rate vs baseline'.",
+  "visualization": "Line chart of click rate over time with baseline band, table of repeat clickers, single-value 'current click rate vs baseline'.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "title": "Directive (EU) 2022/2555 — NIS2",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Newly-onboarded employees inflate click-rate; compute baseline excluding the first 30 days post-start.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "proofpoint"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

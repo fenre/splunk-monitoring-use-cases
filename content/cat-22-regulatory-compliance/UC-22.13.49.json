@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.49",
+  "title": "Baseline Configuration Deviation — Key OS and Application Settings",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-010-4 R1 Part 1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=config` `sourcetype=config:snapshot`, `bes_config_baseline.csv`",
+  "app": "Splunk Add-on for Unix and Linux (833), Splunk Add-on for Microsoft Windows (742)",
+  "spl": "index=config sourcetype=config:snapshot earliest=-24h\n| lookup bes_cyber_asset_inventory.csv host OUTPUT bes_system\n| where isnotnull(bes_system)\n| lookup bes_config_baseline.csv host, setting_name OUTPUT expected_value\n| where expected_value!=current_value\n| table host, setting_name, expected_value, current_value, bes_system",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "We compare configuration snapshots from servers and appliances to approved baselines so unauthorized drift on BES Cyber Assets is visible.",
+  "value": "We compare configuration snapshots from servers and appliances to approved baselines so unauthorized drift on BES Cyber Assets is visible.",
+  "implementation": "(1) Collect snapshots via scripted input or Chef/Ansible exports. (2) Version baselines with change tickets. (3) Alert on critical settings only first. (4) Feed drift into change review board.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Unix and Linux (833), Splunk Add-on for Microsoft Windows (742).\n• Ensure the following data sources are available: `index=config` `sourcetype=config:snapshot`, `bes_config_baseline.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Collect snapshots via scripted input or Chef/Ansible exports. (2) Version baselines with change tickets. (3) Alert on critical settings only first. (4) Feed drift into change review board.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=config sourcetype=config:snapshot earliest=-24h\n| lookup bes_cyber_asset_inventory.csv host OUTPUT bes_system\n| where isnotnull(bes_system)\n| lookup bes_config_baseline.csv host, setting_name OUTPUT expected_value\n| where expected_value!=current_value\n| table host, setting_name, expected_value, current_value, bes_system\n```\n\nUnderstanding this SPL\n\n**Baseline Configuration Deviation — Key OS and Application Settings (CIP-010-4 R1 Part 1.1)** — We compare configuration snapshots from servers and appliances to approved baselines so unauthorized drift on BES Cyber Assets is visible.\n\nDocumented **Data sources**: `index=config` `sourcetype=config:snapshot`, `bes_config_baseline.csv`. **App/TA** (typical add-on context): Splunk Add-on for Unix and Linux (833), Splunk Add-on for Microsoft Windows (742). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: config; **sourcetype**: config:snapshot. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=config, sourcetype=config:snapshot, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(bes_system)` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where expected_value!=current_value` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Baseline Configuration Deviation — Key OS and Application Settings (CIP-010-4 R1 Part 1.1)**): table host, setting_name, expected_value, current_value, bes_system\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (drift rows), Bar chart (by setting), Single value (host count)\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "visualization": "Table (drift rows), Bar chart (by setting), Single value (host count)",
+  "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "ansible"
+  ]
+}

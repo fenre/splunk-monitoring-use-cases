@@ -1,0 +1,101 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.35.5",
+  "subcategory": "22.35#1",
+  "title": "Search-head audit-trail completeness — deleted or rewritten search jobs",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "Head of Platform",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does NOT detect modifications to events at the indexer layer (covered by 22.35.2); only tampering with the search-head audit trail describing who ran what.",
+  "evidence": "Saved search 'search_audit_tamper' (every 15 min) outputs any _audit events whose artifact_id has subsequently disappeared from dispatch/, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "HIPAA",
+      "version": "2013-final",
+      "clause": "§164.312(b)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Audit controls must capture search activity on ePHI; detecting deletion of the activity trail is one of several required aspects."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.3.2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI 10.3.2 'protect audit log files from modification' is directly supported by this UC."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "CC7.2 requires anomaly detection over system components; tampering with the activity trail is a specific instance."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An operator with the correct capability deletes a dispatch job folder; the _audit event survives but the artifact is gone — the UC fires within the next 15-minute interval.",
+    "negativeScenario": "Normal dispatch TTL expiry (configured window) cleans dispatch folders without producing a finding because the _audit event is beyond the retention window.",
+    "fixtureRef": "sample-data/uc-22.35.5-fixture.json",
+    "attackTechnique": "T1070.006"
+  },
+  "dataSources": "_audit (action=search), /services/search/jobs REST for current artifacts, dispatch directory state via Splunk REST.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=_audit action=search info=completed earliest=-24h\n| stats values(artifact_id) as artifact_ids earliest(_time) as first_seen latest(_time) as last_seen by search_id user\n| mvexpand artifact_ids\n| join type=outer artifact_ids [| rest /services/search/jobs splunk_server=* | fields sid dispatchState | rename sid as artifact_ids]\n| where isnull(dispatchState) AND (now()-last_seen)<86400\n| table user search_id artifact_ids first_seen last_seen",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Reconciles search-head _audit events against the current dispatch artifact state to detect search jobs that were recorded as completed but whose artifacts have since been removed outside the normal dispatch TTL. Mass deletion of dispatch artefacts is a classic post-incident tampering pattern.",
+  "value": "Gives the Splunk admin team a defensible 'every search run is accounted for' control rather than the weaker 'we have search logging enabled'.",
+  "implementation": "(1) Ensure _audit is retained for ≥90 days on the evidence cluster; (2) adjust dispatch_ttl per risk tier; (3) schedule every 15 min; (4) on hit, SOAR opens a P2 for the Splunk admin team.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: _audit (action=search), /services/search/jobs REST for current artifacts, dispatch directory state via Splunk REST..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure _audit is retained for ≥90 days on the evidence cluster; (2) adjust dispatch_ttl per risk tier; (3) schedule every 15 min; (4) on hit, SOAR opens a P2 for the Splunk admin team.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_audit action=search info=completed earliest=-24h\n| stats values(artifact_id) as artifact_ids earliest(_time) as first_seen latest(_time) as last_seen by search_id user\n| mvexpand artifact_ids\n| join type=outer artifact_ids [| rest /services/search/jobs splunk_server=* | fields sid dispatchState | rename sid as artifact_ids]\n| where isnull(dispatchState) AND (now()-last_seen)<86400\n| table user search_id artifact_ids first_seen last_seen\n```\n\nUnderstanding this SPL\n\n**Search-head audit-trail completeness — deleted or rewritten search jobs** — Gives the Splunk admin team a defensible 'every search run is accounted for' control rather than the weaker 'we have search logging enabled'.\n\nDocumented **Data sources**: _audit (action=search), /services/search/jobs REST for current artifacts, dispatch directory state via Splunk REST. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _audit.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_audit, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by search_id user** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(dispatchState) AND (now()-last_seen)<86400` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Search-head audit-trail completeness — deleted or rewritten search jobs**): table user search_id artifact_ids first_seen last_seen\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart of job-vs-artifact reconciliation, table of missing artifacts by user, single-value 'search jobs with artifact present (7d)'.",
+  "visualization": "Time chart of job-vs-artifact reconciliation, table of missing artifacts by user, single-value 'search jobs with artifact present (7d)'.",
+  "references": [
+    {
+      "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
+      "title": "45 CFR Part 164 — HIPAA",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022",
+      "title": "AICPA Trust Services Criteria",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1070/006/",
+      "title": "MITRE ATT&CK — T1070.006 Indicator Removal: Timestomp",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Cluster re-balancing or search-head restart can transiently remove dispatch artifacts before the next sync; tolerate with a 30-minute post-restart grace via maintenance_windows.csv.",
+  "mitreAttack": [
+    "T1070.006"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "search_id",
+    "artifact_id",
+    "user",
+    "_time"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

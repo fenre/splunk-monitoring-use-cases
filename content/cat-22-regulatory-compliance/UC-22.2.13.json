@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.13",
+  "title": "NIS2 Asset Management and Configuration Baseline",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(i)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans)",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, sum(All_Traffic.bytes) as total_bytes\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src\n| rename All_Traffic.src as src\n| lookup asset_lookup_by_str key AS src OUTPUT category, priority, owner, nt_host\n| where isnull(category) OR category=\"unknown\"\n| sort - total_bytes\n| head 100\n| table src, nt_host, category, owner, ports, total_bytes",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.",
+  "value": "Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.",
+  "implementation": "(1) Populate ES asset framework from CMDB, vulnerability scanners, and network discovery tools; (2) schedule this search daily to find active IPs not in the asset inventory; (3) classify discovered assets by NIS2 criticality (essential service vs supporting); (4) alert on high-traffic unknown assets; (5) track asset inventory completeness as a NIS2 KPI in UC-22.2.9 effectiveness dashboard.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964).\n• Ensure the following data sources are available: ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Populate ES asset framework from CMDB, vulnerability scanners, and network discovery tools; (2) schedule this search daily to find active IPs not in the asset inventory; (3) classify discovered assets by NIS2 criticality (essential service vs supporting); (4) alert on high-traffic unknown assets; (5) track asset inventory completeness as a NIS2 KPI in UC-22.2.9 effectiveness dashboard.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` dc(All_Traffic.dest_port) as ports, sum(All_Traffic.bytes) as total_bytes\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.src\n| rename All_Traffic.src as src\n| lookup asset_lookup_by_str key AS src OUTPUT category, priority, owner, nt_host\n| where isnull(category) OR category=\"unknown\"\n| sort - total_bytes\n| head 100\n| table src, nt_host, category, owner, ports, total_bytes\n```\n\nUnderstanding this SPL\n\n**NIS2 Asset Management and Configuration Baseline (Art. 21(2)(i))** — Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.\n\nDocumented **Data sources**: ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(category) OR category=\"unknown\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n• Pipeline stage (see **NIS2 Asset Management and Configuration Baseline (Art. 21(2)(i))**): table src, nt_host, category, owner, ports, total_bytes\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**NIS2 Asset Management and Configuration Baseline (Art. 21(2)(i))** — Article 21(2)(i) includes asset management alongside access control and HR security. This use case validates that the ES asset framework is populated and current for NIS2-scoped systems, detects unknown or unmanaged assets communicating on critical networks, and tracks configuration baseline drift — ensuring the asset inventory that underpins all other NIS2 controls is reliable.\n\nDocumented **Data sources**: ES Asset Framework (`asset_lookup_by_str`, `asset_lookup_by_cidr`), CIM Network_Traffic data model, `index=vulnerability` (asset discovery scans). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Qualys (Splunkbase 2964). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unknown active assets), Single value (% assets classified), Bar chart (assets by category), Map (asset locations if geo data available).",
+  "visualization": "Table (unknown active assets), Single value (% assets classified), Bar chart (assets by category), Map (asset locations if geo data available).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Qualys",
+      "url": "https://splunkbase.splunk.com/app/2964"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "qualys"
+  ],
+  "status": "verified"
+}

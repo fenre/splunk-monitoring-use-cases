@@ -1,0 +1,78 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.43.2",
+  "title": "Vulnerability rediscovery after patch — regressed exposures",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT root-cause the regression; hands off to remediation with evidence.",
+  "evidence": "Daily 'vuln_regression' captures reappearing CVEs and writes them to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "RA-5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Part of RA-5 is verifying remediation effectiveness — the UC catches patch regressions that would otherwise be silent."
+    },
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.3",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI 6.3 requires proactive verification; regressed vulns defeat the remediation."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a CVE previously marked remediated on a host reappears in a subsequent scan, the UC fires with host, cve, remediated_at, rediscovered_at.",
+    "negativeScenario": "Remediated CVEs that remain undetected in subsequent scans do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.43.2-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=vuln earliest=-90d | sort 0 host cve _time | streamstats latest(action) as last_action by host cve\n| where last_action=\"remediated\"\n| join host cve [search index=vuln action=detected earliest=-7d]\n| table host cve remediated_at _time as rediscovered_at",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "description": "Catches situations where a patched vulnerability resurfaces — typically due to image rollback, snapshot restore, or patch-management regression. Every reappearance erodes prior compliance evidence.",
+  "value": "Prevents the compliance report from overstating the remediation rate by double-counting recurring findings.",
+  "implementation": "(1) Maintain history of vulnerability state per host/CVE; (2) run daily; (3) on finding, re-open original remediation ticket.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain history of vulnerability state per host/CVE; (2) run daily; (3) on finding, re-open original remediation ticket.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vuln earliest=-90d | sort 0 host cve _time | streamstats latest(action) as last_action by host cve\n| where last_action=\"remediated\"\n| join host cve [search index=vuln action=detected earliest=-7d]\n| table host cve remediated_at _time as rediscovered_at\n```\n\nUnderstanding this SPL\n\n**Vulnerability rediscovery after patch — regressed exposures** — Prevents the compliance report from overstating the remediation rate by double-counting recurring findings.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vuln.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vuln, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• `streamstats` rolls up events into metrics; results are split **by host cve** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where last_action=\"remediated\"` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Pipeline stage (see **Vulnerability rediscovery after patch — regressed exposures**): table host cve remediated_at _time as rediscovered_at\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of regressions, trend of regressions per scan cycle, single-value 'patches holding (30d)'.",
+  "visualization": "Table of regressions, trend of regressions per scan cycle, single-value 'patches holding (30d)'.",
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Scanner credential changes can cause false positives that look like regressions; correlate with scanner health.",
+  "detectionType": "Correlation",
+  "securityDomain": "threat",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "redis"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

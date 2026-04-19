@@ -1,52 +1,88 @@
 # API Versioning Policy
 
-This document governs the public, read-only HTTP/JSON API exposed under
-[`/api/v1/`](../api/v1/). The goal is simple: let downstream tools (dashboards,
-Splunk apps, MCP servers, audit consumers, the project's own scorecard
-page) depend on the API without their pipelines breaking every time we
-improve the catalogue.
+> **Status:** Locked at v7.0.0. This is the permanent contract for the public,
+> read-only HTTP/JSON API exposed under `/api/v{N}/` and the unversioned helper
+> endpoints under `/api/`. Schema and content URL stability are governed separately
+> by [`schema-versioning.md`](schema-versioning.md) and [`url-scheme.md`](url-scheme.md).
 
-> Scope: this document applies only to the API surface under `api/v{N}/`.
-> The **authoring schema** (`schemas/uc.schema.json`) and the
-> **regulation catalogue** (`data/regulations.json`) have their own
-> `schemaVersion` fields with a separate lifecycle — they may change more
-> frequently and are documented in [`docs/coverage-methodology.md`](coverage-methodology.md)
-> and the schema itself.
+## Mission
+
+Let every downstream tool — dashboards, Splunk apps, MCP servers, audit pipelines,
+SIEM vendors, AI agents, the project's own `/browse/` SPA — depend on the API for
+years without their builds breaking when we improve the catalogue.
 
 ## Guiding principles
 
-1. **Stable URLs.** Once a path under `/api/vN/` is published, its URL does
-   not change for the lifetime of version N.
-2. **Additive-only within a major version.** Inside `/api/v1/` we may add
-   new fields, new endpoints, or new enum values. We never remove,
-   rename, restrict the type of, or otherwise narrow the meaning of an
-   existing field.
-3. **Deterministic output.** `scripts/generate_api_surface.py` emits
-   byte-identical output for the same inputs. CI enforces this via
-   `python3 scripts/generate_api_surface.py --check`, so every response
-   body is reviewable in `git diff`.
-4. **No surprises.** Breaking changes ship at a new major version. We
-   announce them at least one minor release in advance and keep the old
-   version live for a documented deprecation window.
+1. **Stable URLs.** Once a path under `/api/v{N}/` is published, its URL never
+   changes for the lifetime of major version `N`. Enforced by
+   `tools/audits/url_freeze.py`.
+2. **Additive-only within a major version.** New fields, endpoints, and enum values
+   are allowed at any time. Removals, renames, type narrowings, and enum shrinkages
+   are forbidden. Enforced by `tools/audits/schema_diff.py`.
+3. **Reproducible.** `tools/build/render_api.py` emits byte-identical output for the
+   same source SHA. CI re-builds and diffs.
+4. **No surprises.** Breaking changes ship at a new major version with a 12-month
+   parallel-support window. The next major (`/api/v2/`) is announced via an RFC at
+   least 90 days before its first ship.
+5. **Authenticated provenance.** Every release publishes `dist/integrity.json` and a
+   Sigstore attestation so consumers can verify the bytes they fetched match the
+   bytes the maintainers produced.
 
-## Versioning scheme
+## Surface
 
-### API version (this document)
+### Versioned endpoints (the contract)
 
-The API uses **major-only** versioning in the URL: `/api/v1/`, `/api/v2/`,
-etc. No `v1.1` in the URL. Within a major version the implementation may
-improve continuously — existing fields stay, new fields can appear — and
-those changes are communicated via the `generatedAt` timestamp and the
-`apiVersion` field in every response.
+```
+/api/v1/                              Current major. Active.
+/api/v1/manifest.json                 Self-describing manifest with counts, deprecations, successor pointer
+/api/v1/openapi.yaml                  OpenAPI 3.1 description of every endpoint below
+/api/v1/context.jsonld                JSON-LD @context for the entire surface
 
-### Catalogue version (shipped alongside the API)
+/api/v1/compliance/index.json
+/api/v1/compliance/coverage.json
+/api/v1/compliance/gaps.json
+/api/v1/compliance/regulations/index.json
+/api/v1/compliance/regulations/<slug>.json
+/api/v1/compliance/ucs/index.json
+/api/v1/compliance/ucs/UC-X.Y.Z.json
 
-The `catalogueVersion` field in
-[`/api/v1/manifest.json`](../api/v1/manifest.json) mirrors the repository's
-`VERSION` file (`MAJOR.MINOR.PATCH`), so consumers can detect content
-changes without hitting every endpoint. The catalogue version bumps
-independently from the API version — e.g. `catalogueVersion: 6.0` running
-over `apiVersion: v1`.
+/api/v1/equipment/index.json
+/api/v1/equipment/<slug>.json
+
+/api/v1/mitre/index.json
+/api/v1/mitre/coverage.json
+/api/v1/mitre/d3fend.json
+/api/v1/mitre/techniques.json
+
+/api/v1/oscal/index.json
+/api/v1/oscal/catalogs/<slug>.json
+/api/v1/oscal/component-definitions/index.json
+/api/v1/oscal/component-definitions/<slug>.json
+
+/api/v1/recommender/app-index.json
+/api/v1/recommender/cim-index.json
+/api/v1/recommender/sourcetype-index.json
+/api/v1/recommender/uc-thin.json
+
+/api/v1/evidence-packs/index.json
+/api/v1/evidence-packs/<regulation>.json
+
+/api/v2/                              Reserved for the next major version.
+```
+
+### Unversioned helper endpoints
+
+These exist outside the `/api/v{N}/` namespace because they exist solely to make the
+single-page browser cheap to load. They follow the same backwards-compatibility rules
+as `/api/v1/` (additive-only within a major) but are **not** intended for downstream
+products. Build products on top of `/api/v1/`.
+
+```
+/api/catalog-index.json               UC stubs for /browse/ bootstrap (≤1 MB gzip target)
+/api/cat-N.json                       Per-category full UC payload, lazy-loaded by /browse/
+/api/manifest.json                    Global path index for machine consumers (sitemap-like)
+/api/shortlinks.json                  /v/{shortid}/ → /uc/UC-X.Y.Z/ map
+```
 
 ## What is a breaking change?
 
@@ -60,148 +96,249 @@ response:
 | Narrow a field type | `tier: int` → `tier: "high" \| "low"` | Yes |
 | Shrink an enum | drop `"contributing"` from `assurance` | Yes |
 | Change a URL path | `/ucs/{id}.json` → `/use-cases/{id}.json` | Yes |
-| Change sort order of a deterministic list | flip alpha → freq sort | Yes (observational break) |
+| Change deterministic sort order | flip alpha → freq sort | Yes (observational break) |
+| Tighten validation (reject previously valid input) | reject UC IDs without leading zeros | Yes |
 | Add a new field | add `lastVerifiedAt` to UC detail | No |
 | Add a new endpoint | `/api/v1/compliance/roadmaps.json` | No |
-| Add a new enum value | add `"mobile"` to a MITRE domain | No, but see below |
-| Add a new optional request parameter | (n/a: API is static JSON) | No |
+| Add a new enum value | add `"mobile"` to a MITRE domain | No (see "tolerant consumer" rule) |
 
-### Additive enum values: the "tolerant consumer" rule
+### Tolerant-consumer rule
 
-A new enum value is technically a breaking change for consumers that
-exhaust-match on the current set. We add new values freely, but:
+Adding an enum value is technically a break for consumers that exhaust-match. We
+allow additions because:
 
-* We document each new value in the [release notes](../CHANGELOG.md) and
-  the `index.html` release-notes popup.
-* We never add values that invalidate a documented invariant (for example,
-  we never add a new `assurance` value between `full` and `partial`
-  without also updating `docs/coverage-methodology.md`).
-* Consumers are expected to parse enum values with a default branch.
-  Implementations that throw on unknown enum values are considered
-  incorrect under this policy.
+* Each new value is documented in `CHANGELOG.md` and the release-notes popup.
+* New values never invalidate documented invariants (e.g. we never insert a value
+  between `full` and `partial` in the `assurance` ordering without updating
+  `docs/coverage-methodology.md`).
+* Consumers must parse enum values with a default branch. Throwing on unknown enum
+  values is considered incorrect under this policy.
+
+If a category-level invariant change is needed (e.g. reorder an ordered enum), it
+ships in a new major version.
+
+## Versioning
+
+### API version (this document)
+
+Major-only versioning in the URL: `/api/v1/`, `/api/v2/`. No `v1.1` in the URL.
+Within a major, the implementation improves continuously. The `apiVersion` field is
+present in every response envelope and in `manifest.json`.
+
+### Catalogue version (shipped alongside the API)
+
+The `catalogueVersion` field in `/api/v{N}/manifest.json` mirrors the repository's
+`VERSION` file (`MAJOR.MINOR.PATCH`). Consumers can detect content changes without
+hitting every endpoint. Catalogue version bumps independently from API version, e.g.
+`catalogueVersion: 7.3.1` running over `apiVersion: v1`.
+
+### Release cadence
+
+| Release type | Cadence | Bumps | Example |
+|---|---|---|---|
+| Content patch | Weekly | `catalogueVersion` patch | 7.0.0 → 7.0.1 |
+| Content minor | Monthly | `catalogueVersion` minor | 7.0.1 → 7.1.0 |
+| Content major (URL break only) | Annual at most, RFC required | `catalogueVersion` major | 7.x → 8.0.0 |
+| API major | Aligned with content major when needed; otherwise standalone via RFC | `apiVersion` and URL prefix | `/api/v1/` → `/api/v2/` |
 
 ## Deprecation policy
 
-When a field or endpoint is slated for removal in the next major version
-we do four things in parallel:
+When a field or endpoint is slated for removal in the next major version we do five
+things in parallel:
 
-1. **Mark it** in the response body with a sibling `deprecated` key
-   (boolean or object with `{"sinceCatalogueVersion", "removeAt"}`):
+1. **Mark it** in the response body with a sibling `deprecated` key:
    ```jsonc
    {
      "status": "draft",
      "status_deprecated": {
-       "sinceCatalogueVersion": "6.4",
+       "sinceCatalogueVersion": "7.4.0",
        "removeAt": "v2",
-       "replacement": "lifecycleStatus"
+       "replacement": "lifecycleStatus",
+       "rfc": "https://github.com/<owner>/<repo>/discussions/123"
      }
    }
    ```
-2. **Document it** in `CHANGELOG.md` under a "Deprecations" heading.
-3. **Surface it** in the release-notes popup on the project site.
-4. **Expose it** via the `deprecations` array in
-   `/api/v1/manifest.json` so automated consumers can audit their
-   own usage:
+2. **Announce it** via a `Deprecation` and `Sunset` HTTP-equivalent header surfaced
+   in the JSON envelope (since GitHub Pages doesn't allow custom headers, the same
+   data ships as `_meta.deprecations[]` in the response body and in
+   `manifest.json`):
+   ```jsonc
+   {
+     "_meta": {
+       "deprecations": [
+         { "field": "status", "removeAt": "v2", "sunsetDate": "2027-04-30" }
+       ]
+     }
+   }
+   ```
+3. **Document it** in `CHANGELOG.md` under "Deprecations" and link the originating
+   RFC.
+4. **Surface it** in the release-notes popup on the project site.
+5. **Expose it** via the `deprecations` array in `/api/v{N}/manifest.json` so
+   automated consumers can audit their own usage:
    ```jsonc
    {
      "deprecations": [
        {
          "field": "status",
-         "endpoint": "/api/v1/compliance/ucs/{id}.json",
-         "sinceCatalogueVersion": "6.4",
+         "endpoint": "/api/v1/compliance/ucs/UC-X.Y.Z.json",
+         "sinceCatalogueVersion": "7.4.0",
          "removeAt": "v2",
-         "replacement": "lifecycleStatus"
+         "sunsetDate": "2027-04-30",
+         "replacement": "lifecycleStatus",
+         "rfc": "https://github.com/<owner>/<repo>/discussions/123"
        }
      ]
    }
    ```
 
-Deprecation windows:
+### Deprecation windows
 
-* **Minor deprecation** (field replaced, old still works): one minor
-  release.
-* **Major deprecation** (field removed or type changed): minimum **two
-  minor releases** or 90 days from the first release that marks it
-  deprecated, whichever is later.
+| Severity | Behaviour | Minimum window |
+|---|---|---|
+| Field replacement (old still works) | Warn in `_meta.deprecations[]`. Old field continues. | One minor release. |
+| Field removal | Removed only at the next major. Marker required throughout. | **12 months** between deprecation marker and removal. |
+| Endpoint removal | Removed only at the next major. Marker required throughout. | **12 months** between deprecation marker and removal. |
+
+The 12-month window is **identical** to the parallel-support window for major
+versions, so a consumer running against v1 always sees deprecation markers at least
+12 months before any breaking change lands in v2.
 
 ## Lifecycle of a major version
 
 | Stage | Meaning | Support |
 |---|---|---|
-| Active | The version most consumers depend on. Fully maintained. | Full |
-| Deprecated | Successor has shipped. Still receives fixes. | Bug-fix only |
-| Sunset | Frozen. No further updates. | Read-only archive |
-| Retired | URL returns 410 Gone (or, for static hosting, a sunset manifest). | None |
+| **Active** | The version most consumers depend on. Fully maintained. | Full content + bug fixes |
+| **Deprecated** | Successor has shipped. Still receives content updates. | Content updates + bug fixes |
+| **Sunset** | Frozen. No further updates. | Read-only archive (URLs still resolve, content snapshot at sunset) |
+| **Retired** | URL returns a sunset manifest at the same path. | None |
 
-A major version stays **Active** for at least 180 days after the next
-major version ships. It then enters **Deprecated** for a minimum of 180
-more days before sunset.
+A major version stays **Active** for at least 12 months after its successor ships.
+It then enters **Deprecated** for a minimum of 12 more months before sunset.
+**Total minimum support window from successor ship to sunset: 24 months.**
 
-## v1 → v2 transition plan
+After sunset, the URLs continue to resolve and serve a frozen snapshot of the last
+content release for that major; only the active major receives new content.
 
-When v2 ships we will:
+## Major-version transition plan (the recipe)
 
-1. Publish `/api/v2/` alongside `/api/v1/`. Both are generated by the
-   same script from the same sources; `v1` is shimmed to preserve its
-   field set.
-2. Add a `successor` pointer to `/api/v1/manifest.json`:
+When `vN+1` ships:
+
+1. **Publish `/api/v{N+1}/`** alongside `/api/v{N}/`. Both are generated by the same
+   `tools/build/render_api.py` from the same sources. `v{N}` is shimmed to preserve
+   its field set.
+2. **Add a `successor` pointer** to `/api/v{N}/manifest.json`:
    ```json
    { "successor": "/api/v2/manifest.json" }
    ```
-3. Keep `v1` at the **Active → Deprecated → Sunset** cadence above.
-4. Provide a migration guide (`docs/api-v1-to-v2.md`) listing every
-   field and endpoint change, with copy-paste consumer migrations.
+3. **Keep `v{N}`** on the **Active → Deprecated → Sunset** cadence above.
+4. **Provide a migration guide** at `docs/api-v{N}-to-v{N+1}.md` listing every
+   field and endpoint change with copy-paste consumer migrations.
+5. **Surface the migration** in `manifest.json`:
+   ```json
+   { "migrationGuide": "/docs/api-v1-to-v2.md" }
+   ```
+6. **Run both surfaces side-by-side in CI**, with the same Lighthouse / schema-diff
+   / URL-freeze gates applied independently to each.
 
 ## How the API is generated
 
-The entire tree under `api/v1/` is generated by
-[`scripts/generate_api_surface.py`](../scripts/generate_api_surface.py)
-from:
+The entire tree under `dist/api/` is emitted by `tools/build/render_api.py` from:
 
-* `schemas/uc.schema.json`
-* `data/regulations.json`
-* `use-cases/cat-*/uc-*.json` (1 200+ sidecars)
+* `schemas/uc.schema.json` and the rest of `schemas/`
+* `data/regulations.json` and `data/per-regulation/*.json`
+* `content/cat-NN-slug/UC-X.Y.Z.json` (per-UC sidecars)
 * `data/crosswalks/oscal/*.json`
 * `data/crosswalks/attack/*.json`
 * `data/crosswalks/d3fend/*.json`
+* `data/crosswalks/olir/*.json`
 * `reports/compliance-coverage.json`
 
-The script is **offline**: it makes no network calls. Running it on the
-same commit yields byte-identical output, which lets CI block merges
-that forget to regenerate the tree:
+The renderer is **offline** (no network calls), **stdlib-only**, and
+**reproducible**. Running it twice on the same commit yields byte-identical output:
 
 ```bash
-python3 scripts/generate_api_surface.py            # regenerate
-python3 scripts/generate_api_surface.py --check    # fail if out of date
+python3 tools/build/build.py --out dist --reproducible
+python3 tools/build/build.py --out dist2 --reproducible
+diff -r dist/api dist2/api    # silent
 ```
+
+CI runs both passes and asserts the diff is empty.
 
 ## How to use a specific version
 
-### From the browser / `curl` / `fetch`
+### Browser / curl / fetch
 
 ```bash
-curl https://fenre.github.io/splunk-monitoring-use-cases/api/v1/manifest.json
+curl https://splunk-monitoring.io/api/v1/manifest.json
 ```
 
-### From Splunk (fetching the artefact package)
+### Pinning to a release (CDN, no GitHub API rate limits)
 
-```splunk
+```bash
+# pinned tag, served from jsDelivr
+curl https://cdn.jsdelivr.net/gh/<owner>/<repo>@v7.0.0/api/v1/manifest.json
+
+# floating major (Active version automatically)
+curl https://cdn.jsdelivr.net/gh/<owner>/<repo>@v7/api/v1/manifest.json
+```
+
+### Splunk
+
+Use the existing `splunk-uc-recommender` app (or its TA), or for ad-hoc queries:
+
+```spl
 | rest /services/apps/local/splunk_monitoring_use_cases count=0
 | eval api_version="v1"
 ```
 
-### From an MCP server
+### Python (typed client)
 
-Point your MCP server's `resources` array at
-`/api/v1/manifest.json` and fetch endpoints lazily. The manifest
-includes a `deprecations` list so your tool can warn users on unsafe
-usage.
+```python
+from splunk_uc_client import Client
+
+client = Client(base_url="https://splunk-monitoring.io/api/v1/")
+manifest = client.manifest()           # typed against /api/v1/manifest.json
+ucs = client.compliance.ucs.list()     # typed against /api/v1/compliance/ucs/
+```
+
+`splunk-uc-client` ships from CI on every tag, pinned to the matching catalogue
+version.
+
+### MCP server
+
+Point your MCP server's `resources` array at `/api/v1/manifest.json` and fetch
+endpoints lazily. The manifest includes a `deprecations` list so your tool can warn
+users on unsafe usage.
+
+```python
+# mcp/src/splunk_uc_mcp/server.py
+BASE_URL = os.environ.get("SPLUNK_UC_API", "https://splunk-monitoring.io/api/v1/")
+```
+
+### Verifying provenance
+
+```bash
+gh attestation verify dist/integrity.json --owner <owner>
+```
+
+`integrity.json` lists the SHA-256 of every artefact in `dist/`, including every
+`/api/v1/` endpoint. If a CDN returns a body whose SHA-256 doesn't match, treat the
+result as untrusted.
+
+## What is **not** versioned by this document
+
+| Surface | Versioning lives in |
+|---|---|
+| Authoring schemas (`schemas/*.json`) | [`schema-versioning.md`](schema-versioning.md) — per-schema `version` + `x-stability` |
+| Public content URLs (`/uc/`, `/category/`, `/regulation/`) | [`url-scheme.md`](url-scheme.md) — locked, never break |
+| HTML page structure | Lighthouse + axe in CI; no formal version |
+| Search-index shard format | Internal to `/browse/`; not a public API |
+| Embeddable widgets (`/embed/`) | [`docs/embedding.md`](embedding.md) — semver via the embed bundle |
+| Distribution channels (jsDelivr, npm, PyPI, Splunkbase) | [`docs/distribution.md`](distribution.md) |
 
 ## Versioning this document
 
-When this policy changes, bump its own top-level heading with the
-catalogue version where the change took effect, and note the diff in
-`CHANGELOG.md`.
-
-Current policy effective from `VERSION = 6.0` (catalogue) and
-`apiVersion = v1`.
+When this policy changes, note the diff in `CHANGELOG.md` under "Policy" and link
+the originating RFC under [`docs/governance.md`](governance.md). The current policy
+is effective from **catalogue 7.0.0** and **API v1**.

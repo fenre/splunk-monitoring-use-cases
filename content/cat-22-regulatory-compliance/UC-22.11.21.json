@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.21",
+  "title": "Cryptographic Key Rotation and Custodian Acknowledgement Trail",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "3.6.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=aws` `sourcetype=\"aws:cloudtrail\"` KMS `RotateKey`; `index=sec` `sourcetype=\"vault:audit\"`; `index=itsm` CAB tasks",
+  "app": "Splunk Add-on for AWS (1876), Splunk Add-on for Unix and Linux (833)",
+  "spl": "(index=aws sourcetype=\"aws:cloudtrail\" eventName=\"RotateKey\" earliest=-365d)\n OR (index=sec sourcetype=\"vault:audit\" operation=\"rotate\" earliest=-365d)\n| eval key_id=coalesce(requestParameters.keyId, key_id)\n| bin _time span=90d\n| stats count as rotations by _time, key_id\n| lookup pci_key_rotation_policy.csv key_id OUTPUT expected_days\n| eval expected_rotations=365/expected_days\n| where rotations<1\n| table _time, key_id, rotations, expected_rotations",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Tracks scheduled key rotation events and custodian acknowledgements so the organization can demonstrate keys are replaced on policy cadence and custodianship is documented.",
+  "value": "Tracks scheduled key rotation events and custodian acknowledgements so the organization can demonstrate keys are replaced on policy cadence and custodianship is documented.",
+  "implementation": "(1) Populate `expected_days` per key from the cryptographic procedures. (2) Align `span` to rotation policy (annual vs quarterly). (3) Append manual HSM rotation logs via HEC with same `key_id`. (4) Archive quarterly attestation PDFs externally.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for AWS (1876), Splunk Add-on for Unix and Linux (833).\n• Ensure the following data sources are available: `index=aws` `sourcetype=\"aws:cloudtrail\"` KMS `RotateKey`; `index=sec` `sourcetype=\"vault:audit\"`; `index=itsm` CAB tasks.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Populate `expected_days` per key from the cryptographic procedures. (2) Align `span` to rotation policy (annual vs quarterly). (3) Append manual HSM rotation logs via HEC with same `key_id`. (4) Archive quarterly attestation PDFs externally.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=aws sourcetype=\"aws:cloudtrail\" eventName=\"RotateKey\" earliest=-365d)\n OR (index=sec sourcetype=\"vault:audit\" operation=\"rotate\" earliest=-365d)\n| eval key_id=coalesce(requestParameters.keyId, key_id)\n| bin _time span=90d\n| stats count as rotations by _time, key_id\n| lookup pci_key_rotation_policy.csv key_id OUTPUT expected_days\n| eval expected_rotations=365/expected_days\n| where rotations<1\n| table _time, key_id, rotations, expected_rotations\n```\n\nUnderstanding this SPL\n\n**Cryptographic Key Rotation and Custodian Acknowledgement Trail (PCI DSS Req 3.6.1, 3.6.4)** — Tracks scheduled key rotation events and custodian acknowledgements so the organization can demonstrate keys are replaced on policy cadence and custodianship is documented.\n\nDocumented **Data sources**: `index=aws` `sourcetype=\"aws:cloudtrail\"` KMS `RotateKey`; `index=sec` `sourcetype=\"vault:audit\"`; `index=itsm` CAB tasks. **App/TA** (typical add-on context): Splunk Add-on for AWS (1876), Splunk Add-on for Unix and Linux (833). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, sec; **sourcetype**: aws:cloudtrail, vault:audit. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=sec, sourcetype=\"aws:cloudtrail\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **key_id** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, key_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **expected_rotations** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where rotations<1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Cryptographic Key Rotation and Custodian Acknowledgement Trail (PCI DSS Req 3.6.1, 3.6.4)**): table _time, key_id, rotations, expected_rotations\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (rotations per bucket), table (keys under-rotated), single value (count of keys needing action).",
+  "visualization": "Line chart (rotations per bucket), table (keys under-rotated), single value (count of keys needing action).",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws",
+    "hashicorp"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ]
+}

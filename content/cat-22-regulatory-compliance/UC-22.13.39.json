@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.13.39",
+  "title": "Reportable Incident Classification — BES Reliability Impact Signals",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-008-6 R2 Part 2.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ot_hist` `sourcetype=scada:point`, `index=ot_security` security events",
+  "app": "Splunk Industrial Asset Intelligence, Splunk OT Security Add-on (5151)",
+  "premiumApps": [
+    "Splunk OT Security Add-on"
+  ],
+  "spl": "index=ot_hist sourcetype=scada:point earliest=-24h (quality=\"BAD\" OR quality=\"UNCERTAIN\")\n| bin _time span=15m\n| stats count by substation, point_name, _time\n| join type=left substation [\n    search index=ot_security sourcetype=\"ot:alert\" earliest=-24h\n    | stats latest(description) as cyber_alert by substation\n  ]\n| where isnotnull(cyber_alert)\n| table _time, substation, point_name, count, cyber_alert",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "We correlate OT historian or EMS quality flags with cyber alerts to help classify incidents that may affect BES reliability or operations.",
+  "value": "We correlate OT historian or EMS quality flags with cyber alerts to help classify incidents that may affect BES reliability or operations.",
+  "implementation": "(1) Normalize substation keys between historians and security tools. (2) Train analysts on EOP impact criteria. (3) Document classification decisions in ITSM. (4) Retain historian extracts per legal hold guidance.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Industrial Asset Intelligence, Splunk OT Security Add-on (5151).\n• Ensure the following data sources are available: `index=ot_hist` `sourcetype=scada:point`, `index=ot_security` security events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Normalize substation keys between historians and security tools. (2) Train analysts on EOP impact criteria. (3) Document classification decisions in ITSM. (4) Retain historian extracts per legal hold guidance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot_hist sourcetype=scada:point earliest=-24h (quality=\"BAD\" OR quality=\"UNCERTAIN\")\n| bin _time span=15m\n| stats count by substation, point_name, _time\n| join type=left substation [\n    search index=ot_security sourcetype=\"ot:alert\" earliest=-24h\n    | stats latest(description) as cyber_alert by substation\n  ]\n| where isnotnull(cyber_alert)\n| table _time, substation, point_name, count, cyber_alert\n```\n\nUnderstanding this SPL\n\n**Reportable Incident Classification — BES Reliability Impact Signals (CIP-008-6 R2 Part 2.1)** — We correlate OT historian or EMS quality flags with cyber alerts to help classify incidents that may affect BES reliability or operations.\n\nDocumented **Data sources**: `index=ot_hist` `sourcetype=scada:point`, `index=ot_security` security events. **App/TA** (typical add-on context): Splunk Industrial Asset Intelligence, Splunk OT Security Add-on (5151). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot_hist; **sourcetype**: scada:point. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot_hist, sourcetype=scada:point, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by substation, point_name, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnotnull(cyber_alert)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Reportable Incident Classification — BES Reliability Impact Signals (CIP-008-6 R2 Part 2.1)**): table _time, substation, point_name, count, cyber_alert\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (quality vs alerts), Table (joined events), Single value (windows)",
+  "visualization": "Timeline (quality vs alerts), Table (joined events), Single value (windows)",
+  "references": [
+    {
+      "title": "Splunk OT Security Add-on",
+      "url": "https://splunkbase.splunk.com/app/5151"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

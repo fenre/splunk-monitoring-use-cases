@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.26.17",
+  "title": "Altinn-based data handling compliance",
+  "criticality": "high",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NO Personopplysningsloven",
+      "version": "2018",
+      "clause": "§8",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'Altinn' → '§8'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "Windows Security Event Logs, network infrastructure logs, OT/ICS system logs, power grid SCADA, petroleum control systems, government system audit trails, identity management systems, security incident reports",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621)",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    },
+    "Splunk OT Security Add-on"
+  ],
+  "spl": "index=integration sourcetype=\"http:json\" uri=\"*/altinn/*\" earliest=-7d\n| spath input=_raw path=body.fields{} output=fields_mv\n| eval field_count=mvcount(fields_mv)\n| stats max(field_count) as max_fields by correlation_id, service\n| lookup altinn_schema_allowlist.csv service OUTPUT max_fields as allowed_max\n| where max_fields > allowed_max",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Monitors API usage to national digital channels for purpose limitation and logging of national identifier references.",
+  "value": "Monitors API usage to national digital channels for purpose limitation and logging of national identifier references.",
+  "implementation": "(1) Maintain supporting lookups (classified hosts, sectors, transfers) aligned to Norwegian regulatory language. (2) Schedule searches with Europe/Oslo time semantics for reporting cutoffs. (3) Route ES notables to the correct national security, OT, or privacy queues. (4) Quarterly false-positive tuning with HR, operations, and legal stakeholders.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621).\n• Ensure the following data sources are available: Windows Security Event Logs, network infrastructure logs, OT/ICS system logs, power grid SCADA, petroleum control systems, government system audit trails, identity management systems, security incident reports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain supporting lookups (classified hosts, sectors, transfers) aligned to Norwegian regulatory language. (2) Schedule searches with Europe/Oslo time semantics for reporting cutoffs. (3) Route ES notables to the correct national security, OT, or privacy queues. (4) Quarterly false-positive tuning with HR, operations, and legal stakeholders.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=integration sourcetype=\"http:json\" uri=\"*/altinn/*\" earliest=-7d\n| spath input=_raw path=body.fields{} output=fields_mv\n| eval field_count=mvcount(fields_mv)\n| stats max(field_count) as max_fields by correlation_id, service\n| lookup altinn_schema_allowlist.csv service OUTPUT max_fields as allowed_max\n| where max_fields > allowed_max\n```\n\nUnderstanding this SPL\n\n**Altinn-based data handling compliance (Altinn)** — Monitors API usage to national digital channels for purpose limitation and logging of national identifier references.\n\nDocumented **Data sources**: Windows Security Event Logs, network infrastructure logs, OT/ICS system logs, power grid SCADA, petroleum control systems, government system audit trails, identity management systems, security incident reports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: integration; **sourcetype**: http:json. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=integration, sourcetype=\"http:json\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• `eval` defines or adjusts **field_count** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by correlation_id, service** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where max_fields > allowed_max` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Altinn-based data handling compliance (Altinn)** — Monitors API usage to national digital channels for purpose limitation and logging of national identifier references.\n\nDocumented **Data sources**: Windows Security Event Logs, network infrastructure logs, OT/ICS system logs, power grid SCADA, petroleum control systems, government system audit trails, identity management systems, security incident reports. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (events by host), Table (top users), Single value (policy violations).",
+  "visualization": "Bar chart (events by host), Table (top users), Single value (policy violations).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "itsi"
+  ]
+}

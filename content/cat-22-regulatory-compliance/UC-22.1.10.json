@@ -1,0 +1,78 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.10",
+  "title": "GDPR Privileged Access to Personal Data Stores",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.5(1)(f)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.32",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "Database audit logs (`sourcetype=\"mssql:audit\"`, `sourcetype=\"oracle:audit\"`, `sourcetype=\"postgres:csv\"`), `index=dbaudit`",
+  "app": "Splunk Add-on for Microsoft SQL Server (Splunkbase 2648), Splunk Add-on for Oracle Database (Splunkbase 1910), Splunk DB Connect (Splunkbase 2686)",
+  "spl": "index=dbaudit sourcetype IN (\"mssql:audit\",\"oracle:audit\",\"postgres:csv\",\"mysql:audit\") earliest=-24h\n| eval user=coalesce(server_principal_name, os_username, user_name, db_user)\n| eval action=lower(coalesce(action_id, action_name, statement_type, command_tag))\n| eval is_bulk=if(match(action,\"(?i)select.*into|bulk|export|dump|copy|backup\") OR match(_raw,\"(?i)rows_affected.*[5-9]\\d{3}|rows_affected.*\\d{5,}\"), 1, 0)\n| eval after_hours=if(tonumber(strftime(_time,\"%H\"))<7 OR tonumber(strftime(_time,\"%H\"))>19, 1, 0)\n| lookup gdpr_personal_data_systems.csv dest AS database_name OUTPUT data_category, contains_pii\n| where contains_pii=\"true\" AND (is_bulk=1 OR after_hours=1 OR match(action,\"(?i)grant|alter|drop|truncate|delete\"))\n| table _time, user, database_name, data_category, action, is_bulk, after_hours\n| sort - _time",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "cimModels": [
+    "Change",
+    "Authentication"
+  ],
+  "description": "Articles 5(1)(f) and 32 require integrity and confidentiality of personal data. Privileged access to databases and file stores containing personal data is the highest-risk vector for both accidental exposure and malicious exfiltration. This use case monitors DBA/admin access to personal data stores, detects bulk data exports, and identifies access outside approved change windows — providing the accountability evidence regulators expect.",
+  "value": "Articles 5(1)(f) and 32 require integrity and confidentiality of personal data. Privileged access to databases and file stores containing personal data is the highest-risk vector for both accidental exposure and malicious exfiltration. This use case monitors DBA/admin access to personal data stores, detects bulk data exports, and identifies access outside approved change windows — providing the accountability evidence regulators expect.",
+  "implementation": "(1) Enable database audit logging on all systems in the ROPA that contain personal data; (2) forward audit logs via Splunk DB Connect or syslog; (3) create `gdpr_personal_data_systems.csv` with database names, data categories, and PII flags; (4) alert on bulk exports, DDL changes, and after-hours access to personal data stores; (5) require change tickets for planned administrative operations and correlate against change window lookups.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft SQL Server (Splunkbase 2648), Splunk Add-on for Oracle Database (Splunkbase 1910), Splunk DB Connect (Splunkbase 2686).\n• Ensure the following data sources are available: Database audit logs (`sourcetype=\"mssql:audit\"`, `sourcetype=\"oracle:audit\"`, `sourcetype=\"postgres:csv\"`), `index=dbaudit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enable database audit logging on all systems in the ROPA that contain personal data; (2) forward audit logs via Splunk DB Connect or syslog; (3) create `gdpr_personal_data_systems.csv` with database names, data categories, and PII flags; (4) alert on bulk exports, DDL changes, and after-hours access to personal data stores; (5) require change tickets for planned administrative operations and correlate against change window lookups.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=dbaudit sourcetype IN (\"mssql:audit\",\"oracle:audit\",\"postgres:csv\",\"mysql:audit\") earliest=-24h\n| eval user=coalesce(server_principal_name, os_username, user_name, db_user)\n| eval action=lower(coalesce(action_id, action_name, statement_type, command_tag))\n| eval is_bulk=if(match(action,\"(?i)select.*into|bulk|export|dump|copy|backup\") OR match(_raw,\"(?i)rows_affected.*[5-9]\\d{3}|rows_affected.*\\d{5,}\"), 1, 0)\n| eval after_hours=if(tonumber(strftime(_time,\"%H\"))<7 OR tonumber(strftime(_time,\"%H\"))>19, 1, 0)\n| lookup gdpr_personal_data_systems.csv dest AS database_name OUTPUT data_category, contains_pii\n| where contains_pii=\"true\" AND (is_bulk=1 OR after_hours=1 OR match(action,\"(?i)grant|alter|drop|truncate|delete\"))\n| table _time, user, database_name, data_category, action, is_bulk, after_hours\n| sort - _time\n```\n\nUnderstanding this SPL\n\n**GDPR Privileged Access to Personal Data Stores (Art. 5(1)(f) / Art. 32)** — Articles 5(1)(f) and 32 require integrity and confidentiality of personal data. Privileged access to databases and file stores containing personal data is the highest-risk vector for both accidental exposure and malicious exfiltration. This use case monitors DBA/admin access to personal data stores, detects bulk data exports, and identifies access outside approved change windows — providing the accountability evidence regulators expect.\n\nDocumented **Data sources**: Database audit logs (`sourcetype=\"mssql:audit\"`, `sourcetype=\"oracle:audit\"`, `sourcetype=\"postgres:csv\"`), `index=dbaudit`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft SQL Server (Splunkbase 2648), Splunk Add-on for Oracle Database (Splunkbase 1910), Splunk DB Connect (Splunkbase 2686). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: dbaudit.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=dbaudit, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **user** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **is_bulk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **after_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where contains_pii=\"true\" AND (is_bulk=1 OR after_hours=1 OR match(action,\"(?i)grant|alter|drop|truncate|delete\"))` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **GDPR Privileged Access to Personal Data Stores (Art. 5(1)(f) / Art. 32)**): table _time, user, database_name, data_category, action, is_bulk, after_hours\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**GDPR Privileged Access to Personal Data Stores (Art. 5(1)(f) / Art. 32)** — Articles 5(1)(f) and 32 require integrity and confidentiality of personal data. Privileged access to databases and file stores containing personal data is the highest-risk vector for both accidental exposure and malicious exfiltration. This use case monitors DBA/admin access to personal data stores, detects bulk data exports, and identifies access outside approved change windows — providing the accountability evidence regulators expect.\n\nDocumented **Data sources**: Database audit logs (`sourcetype=\"mssql:audit\"`, `sourcetype=\"oracle:audit\"`, `sourcetype=\"postgres:csv\"`), `index=dbaudit`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft SQL Server (Splunkbase 2648), Splunk Add-on for Oracle Database (Splunkbase 1910), Splunk DB Connect (Splunkbase 2686). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (privileged access events), Timeline (access patterns), Bar chart (actions by user), Single value (after-hours access count), Heatmap (user × hour).",
+  "visualization": "Table (privileged access events), Timeline (access patterns), Bar chart (actions by user), Single value (after-hours access count), Heatmap (user × hour).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft SQL Server",
+      "url": "https://splunkbase.splunk.com/app/2648"
+    },
+    {
+      "title": "Splunk Add-on for Oracle Database",
+      "url": "https://splunkbase.splunk.com/app/1910"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1098"
+  ],
+  "equipment": [
+    "db_connect",
+    "mssql",
+    "mysql",
+    "oracle",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "oracle_oracle_db"
+  ]
+}

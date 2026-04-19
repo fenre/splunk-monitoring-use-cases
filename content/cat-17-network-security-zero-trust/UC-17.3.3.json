@@ -1,0 +1,69 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.3",
+  "title": "Micro-Segmentation Audit",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-005-7 R1",
+      "clauseUrl": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NERC CIP-005-7 R1 Electronic security perimeter — micro-segmentation audits validate the Electronic Security Perimeter is continuously enforced for BES Cyber Systems."
+    },
+    {
+      "regulation": "Cyber Essentials",
+      "version": "Montpellier (2025)",
+      "clause": "CE.BF.1",
+      "clauseUrl": "https://www.ncsc.gov.uk/cyberessentials/overview",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "UK Cyber Essentials Montpellier CE.BF.1 Boundary firewalls — micro-segmentation is an extension of the boundary-firewall requirement updated in Montpellier."
+    },
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "FR 6.2",
+      "clauseUrl": "https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "IEC 62443 FR 6.2 Continuous monitoring — micro-segmentation audits feed the continuous-monitoring Foundational Requirement for control-system zones."
+    }
+  ],
+  "dataSources": "Micro-segmentation policy logs (allow/deny events)",
+  "app": "VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
+  "spl": "index=zt sourcetype=\"microseg:policy\"\n| where action=\"deny\"\n| stats count by src_workload, dest_workload, dest_port, policy_name\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5",
+  "cimModels": [
+    "Authentication",
+    "Network_Traffic"
+  ],
+  "description": "Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.",
+  "value": "Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.",
+  "implementation": "Ingest micro-segmentation policy enforcement logs. Track allowed and denied traffic between workloads. Alert on unexpected denials (may indicate misconfiguration) and unexpected allows (policy gaps). Report on segmentation coverage.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426).\n• Ensure the following data sources are available: Micro-segmentation policy logs (allow/deny events).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest micro-segmentation policy enforcement logs. Track allowed and denied traffic between workloads. Alert on unexpected denials (may indicate misconfiguration) and unexpected allows (policy gaps). Report on segmentation coverage.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=zt sourcetype=\"microseg:policy\"\n| where action=\"deny\"\n| stats count by src_workload, dest_workload, dest_port, policy_name\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Micro-Segmentation Audit** — Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.\n\nDocumented **Data sources**: Micro-segmentation policy logs (allow/deny events). **App/TA** (typical add-on context): VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: zt; **sourcetype**: microseg:policy. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=zt, sourcetype=\"microseg:policy\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where action=\"deny\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src_workload, dest_workload, dest_port, policy_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count > 5\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Micro-Segmentation Audit** — Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.\n\nDocumented **Data sources**: Micro-segmentation policy logs (allow/deny events). **App/TA** (typical add-on context): VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (workload × workload traffic), Table (policy violations), Sankey diagram (traffic flows).",
+  "visualization": "Heatmap (workload × workload traffic), Table (policy violations), Sankey diagram (traffic flows).",
+  "references": [
+    {
+      "title": "Akamai Guardicore Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/7426"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1021",
+    "T1570"
+  ]
+}

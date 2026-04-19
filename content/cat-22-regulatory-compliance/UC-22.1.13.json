@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.13",
+  "title": "GDPR High-Risk Breach Communication to Data Subjects",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.34",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`` `notable` `` macro, `index=itsm` (notification workflow tickets), `gdpr_breach_notifications.csv` (KV store)",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "`notable` urgency=\"critical\" earliest=-30d\n| lookup gdpr_breach_notifications.csv notable_id AS event_id OUTPUT art33_notified, art34_required, art34_notified, art34_date, subjects_notified_count\n| eval art34_status=case(\n    art34_required=\"yes\" AND art34_notified=\"yes\", \"COMPLETE\",\n    art34_required=\"yes\" AND isnull(art34_notified), \"PENDING — notify subjects\",\n    art34_required=\"no\", \"Not required\",\n    isnull(art34_required), \"ASSESS — determine if Art.34 applies\",\n    1=1, \"Unknown\")\n| where art34_status IN (\"PENDING — notify subjects\", \"ASSESS — determine if Art.34 applies\")\n| table _time, rule_name, urgency, owner, art33_notified, art34_required, art34_status\n| sort - _time",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Article 34 requires controllers to communicate personal data breaches directly to affected data subjects \"without undue delay\" when the breach is likely to result in a high risk to their rights and freedoms. While Art. 33 covers DPA notification, Art. 34 addresses the often-overlooked obligation to notify individuals. This use case tracks whether high-risk breaches have triggered individual notification workflows and monitors their completion.",
+  "value": "Article 34 requires controllers to communicate personal data breaches directly to affected data subjects \"without undue delay\" when the breach is likely to result in a high risk to their rights and freedoms. While Art. 33 covers DPA notification, Art. 34 addresses the often-overlooked obligation to notify individuals. This use case tracks whether high-risk breaches have triggered individual notification workflows and monitors their completion.",
+  "implementation": "(1) Create `gdpr_breach_notifications.csv` KV store linking notable IDs to notification status; (2) when a breach involves special category data, financial data, or affects >1000 subjects, default `art34_required` to \"yes\"; (3) alert the DPO on pending Art. 34 notifications; (4) track notification method (email, letter, public notice) and completion dates; (5) document Art. 34(3) exceptions (encrypted data, mitigation applied, disproportionate effort requiring public communication).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `` `notable` `` macro, `index=itsm` (notification workflow tickets), `gdpr_breach_notifications.csv` (KV store).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Create `gdpr_breach_notifications.csv` KV store linking notable IDs to notification status; (2) when a breach involves special category data, financial data, or affects >1000 subjects, default `art34_required` to \"yes\"; (3) alert the DPO on pending Art. 34 notifications; (4) track notification method (email, letter, public notice) and completion dates; (5) document Art. 34(3) exceptions (encrypted data, mitigation applied, disproportionate effort requiring public communication).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable` urgency=\"critical\" earliest=-30d\n| lookup gdpr_breach_notifications.csv notable_id AS event_id OUTPUT art33_notified, art34_required, art34_notified, art34_date, subjects_notified_count\n| eval art34_status=case(\n    art34_required=\"yes\" AND art34_notified=\"yes\", \"COMPLETE\",\n    art34_required=\"yes\" AND isnull(art34_notified), \"PENDING — notify subjects\",\n    art34_required=\"no\", \"Not required\",\n    isnull(art34_required), \"ASSESS — determine if Art.34 applies\",\n    1=1, \"Unknown\")\n| where art34_status IN (\"PENDING — notify subjects\", \"ASSESS — determine if Art.34 applies\")\n| table _time, rule_name, urgency, owner, art33_notified, art34_required, art34_status\n| sort - _time\n```\n\nUnderstanding this SPL\n\n**GDPR High-Risk Breach Communication to Data Subjects (Art. 34)** — Article 34 requires controllers to communicate personal data breaches directly to affected data subjects \"without undue delay\" when the breach is likely to result in a high risk to their rights and freedoms. While Art. 33 covers DPA notification, Art. 34 addresses the often-overlooked obligation to notify individuals. This use case tracks whether high-risk breaches have triggered individual notification workflows and monitors their completion.\n\nDocumented **Data sources**: `` `notable` `` macro, `index=itsm` (notification workflow tickets), `gdpr_breach_notifications.csv` (KV store). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **art34_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where art34_status IN (\"PENDING — notify subjects\", \"ASSESS — determine if Art.34 applies\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **GDPR High-Risk Breach Communication to Data Subjects (Art. 34)**): table _time, rule_name, urgency, owner, art33_notified, art34_required, art34_status\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (pending individual notifications), Single value (breaches requiring Art. 34 notification), Bar chart (notification status distribution), Timeline (notification lifecycle).",
+  "visualization": "Table (pending individual notifications), Single value (breaches requiring Art. 34 notification), Bar chart (notification status distribution), Timeline (notification lifecycle).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1048"
+  ],
+  "equipment": [
+    "servicenow"
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.99",
+  "subcategory": "22.11#1",
+  "title": "PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "CISO",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Does NOT prevent tampering; raises on attempts to clear, delete, or modify CDE audit logs.",
+  "evidence": "Saved search 'pci_10_3_log_tamper' (every 10m) emits per event: host, action, actor, target_log, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "10.3",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 10.3 Audit logs protected from modification — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.15",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.15 Logging — directly evidenced."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.2",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC7.2 — contributing."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Logging.Integrity",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SOX-ITGC Logging.Integrity — directly evidenced."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Clearing a Windows Security log on a CDE test host (EventCode 1102) fires the UC.",
+    "negativeScenario": "Normal log rotation via scheduled task (with matching ticket) does NOT fire.",
+    "fixtureRef": "sample-data/uc-22.11.99-fixture.json",
+    "attackTechnique": "T1070.001"
+  },
+  "dataSources": "`index=windows` EventCode IN (1102,104); `index=linux` auditd log clears, syslog `rotated-by-hand`.",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833)",
+  "spl": "search (index=windows sourcetype=WinEventLog:Security EventCode=1102) OR (index=windows sourcetype=WinEventLog:System EventCode=104) OR (index=linux sourcetype=auditd type=CONFIG_CHANGE op=remove_rule) earliest=-10m\n| eval action=case(EventCode=1102,\"audit_log_cleared\",EventCode=104,\"event_log_cleared\",op=\"remove_rule\",\"auditd_rule_removed\",true(),\"unknown\")\n| rename TargetUserName AS actor host AS host\n| table host action actor target_log",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "PCI-DSS 10.3 requires audit logs be protected from modification and deletion. This UC fires on the exact telemetry those operations emit.",
+  "value": "A cleared Windows Security log on a CDE host is a near-certain indicator of attacker presence. Closing the detection gap to 10 minutes saves forensics time.",
+  "implementation": "(1) Forward Windows Security + System + Linux auditd to Splunk; (2) schedule UC every 10m; (3) hit opens a P1 to IR + isolates host; (4) quarterly IR drill validates response.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833).\n• Ensure the following data sources are available: `index=windows` EventCode IN (1102,104); `index=linux` auditd log clears, syslog `rotated-by-hand`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Forward Windows Security + System + Linux auditd to Splunk; (2) schedule UC every 10m; (3) hit opens a P1 to IR + isolates host; (4) quarterly IR drill validates response.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch (index=windows sourcetype=WinEventLog:Security EventCode=1102) OR (index=windows sourcetype=WinEventLog:System EventCode=104) OR (index=linux sourcetype=auditd type=CONFIG_CHANGE op=remove_rule) earliest=-10m\n| eval action=case(EventCode=1102,\"audit_log_cleared\",EventCode=104,\"event_log_cleared\",op=\"remove_rule\",\"auditd_rule_removed\",true(),\"unknown\")\n| rename TargetUserName AS actor host AS host\n| table host action actor target_log\n```\n\nUnderstanding this SPL\n\n**PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source** — A cleared Windows Security log on a CDE host is a near-certain indicator of attacker presence. Closing the detection gap to 10 minutes saves forensics time.\n\nDocumented **Data sources**: `index=windows` EventCode IN (1102,104); `index=linux` auditd log clears, syslog `rotated-by-hand`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: windows, linux; **sourcetype**: WinEventLog:Security, WinEventLog:System, auditd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Renames fields with `rename` for clarity or joins.\n• Pipeline stage (see **PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source**): table host action actor target_log\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of events by action, time chart, single value 'clears in last hour'.",
+  "visualization": "Table of events by action, time chart, single value 'clears in last hour'.",
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "SOX-ITGC PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1070/",
+      "title": "MITRE ATT&CK — T1070.001",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Host-retirement scripts may legitimately clear logs — exclude only with scheduled-retirement ticket linked.",
+  "mitreAttack": [
+    "T1070.001"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "host",
+    "EventCode",
+    "TargetUserName",
+    "_time"
+  ],
+  "equipment": [
+    "syslog"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

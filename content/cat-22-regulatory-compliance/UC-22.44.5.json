@@ -1,0 +1,90 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.44.5",
+  "subcategory": "22.44#1",
+  "title": "SBOM attestation completeness — critical vendors without signed SBOM",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "CISO",
+  "controlFamily": "third-party-activity",
+  "exclusions": "Does NOT evaluate the content of the SBOM (covered by 22.43.5); focuses on presence/signature.",
+  "evidence": "Saved search 'sbom_attestation_completeness' (weekly) lists critical vendors without a valid signed SBOM.",
+  "compliance": [
+    {
+      "regulation": "EU-CRA",
+      "version": "Regulation (EU) 2024/2847",
+      "clause": "Art.13",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "EU CRA mandates SBOM provisioning and signature."
+    },
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIS2 supply-chain risk management is directly supported."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SR-11(1)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SR-11(1) authenticity check of components."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A critical vendor has no SBOM in the register; the UC fires weekly until resolved.",
+    "negativeScenario": "A critical vendor has a signed SBOM within policy cadence; no alert.",
+    "fixtureRef": "sample-data/uc-22.44.5-fixture.json"
+  },
+  "dataSources": "Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| inputlookup vrm_attestations.csv\n| where criticality=\"critical\"\n| lookup vendor_sbom_attestations.csv vendor OUTPUT sbom_sha256 signed signed_by signed_at\n| eval age_days=round((now()-strptime(signed_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180\n| table vendor criticality sbom_sha256 signed signed_by age_days",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Surfaces critical vendors whose SBOM is absent, unsigned, or older than policy cadence (default 180 days).",
+  "value": "Makes the CRA/NIS2 SBOM requirement a tracked operational metric.",
+  "implementation": "(1) Onboard vendor SBOMs through procurement workflow; (2) validate signatures with sigstore or equivalent; (3) run weekly.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard vendor SBOMs through procurement workflow; (2) validate signatures with sigstore or equivalent; (3) run weekly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup vrm_attestations.csv\n| where criticality=\"critical\"\n| lookup vendor_sbom_attestations.csv vendor OUTPUT sbom_sha256 signed signed_by signed_at\n| eval age_days=round((now()-strptime(signed_at,\"%Y-%m-%d\"))/86400,0)\n| where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180\n| table vendor criticality sbom_sha256 signed signed_by age_days\n```\n\nUnderstanding this SPL\n\n**SBOM attestation completeness — critical vendors without signed SBOM** — Makes the CRA/NIS2 SBOM requirement a tracked operational metric.\n\nDocumented **Data sources**: Vendor SBOM register (vendor_sbom.csv), signature-validation tooling outputs, VRM criticality. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Filters the current rows with `where criticality=\"critical\"` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(sbom_sha256) OR signed!=\"true\" OR age_days>180` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SBOM attestation completeness — critical vendors without signed SBOM**): table vendor criticality sbom_sha256 signed signed_by age_days\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of at-risk vendors, bar chart of signature freshness, single-value 'critical vendors with signed SBOM'.",
+  "visualization": "Table of at-risk vendors, bar chart of signature freshness, single-value 'critical vendors with signed SBOM'.",
+  "references": [
+    {
+      "url": "https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act",
+      "title": "EU Cyber Resilience Act",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "title": "Directive (EU) 2022/2555 — NIS2",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Vendors mid-re-signing can appear stale; allow a 7-day grace after signed_attempted_at.",
+  "detectionType": "Anomaly",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "vendor",
+    "sbom_sha256",
+    "signed"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

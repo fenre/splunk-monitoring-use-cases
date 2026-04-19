@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.14",
+  "title": "Emergency Access Procedure — Downtime / Break-Glass Account Usage",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.312(a)(2)(ii)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`WinEventLog:Security` 4624 for `svc_epic_emergency*`, `index=epic` `sourcetype=epic:audit` `AccessContext=\"Downtime\"`",
+  "app": "Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(index=windows EventCode=\"4622\" OR EventCode=\"4624\") Account_Name=\"svc_epic_emergency*\" earliest=-30d\n| append [\n    search index=epic sourcetype=\"epic:audit\" AccessContext=\"*\" earliest=-30d\n    | rex field=AccessContext \"(?<ctx>Downtime|Emergency)\"\n    | where ctx IN (\"Downtime\",\"Emergency\") ]\n| eval principal=coalesce(Account_Name, USER_ID)\n| stats earliest(_time) as first latest(_time) as last dc(host) as systems by principal, ctx\n| eval duration_h=round((last-first)/3600,2)\n| sort - last",
+  "cimSpl": "| tstats summariesonly=t dc(Authentication.dest) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Audits emergency and downtime accounts touching production ePHI so procedural safeguards around emergency access are reviewable and time-bound.",
+  "value": "Audits emergency and downtime accounts touching production ePHI so procedural safeguards around emergency access are reviewable and time-bound.",
+  "implementation": "(1) Require post-event attestation form ID in separate ticketing sourcetype and join; (2) auto-expire passwords via IAM; (3) weekly privacy review of all uses.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263).\n• Ensure the following data sources are available: `WinEventLog:Security` 4624 for `svc_epic_emergency*`, `index=epic` `sourcetype=epic:audit` `AccessContext=\"Downtime\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Require post-event attestation form ID in separate ticketing sourcetype and join; (2) auto-expire passwords via IAM; (3) weekly privacy review of all uses.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=windows EventCode=\"4622\" OR EventCode=\"4624\") Account_Name=\"svc_epic_emergency*\" earliest=-30d\n| append [\n    search index=epic sourcetype=\"epic:audit\" AccessContext=\"*\" earliest=-30d\n    | rex field=AccessContext \"(?<ctx>Downtime|Emergency)\"\n    | where ctx IN (\"Downtime\",\"Emergency\") ]\n| eval principal=coalesce(Account_Name, USER_ID)\n| stats earliest(_time) as first latest(_time) as last dc(host) as systems by principal, ctx\n| eval duration_h=round((last-first)/3600,2)\n| sort - last\n```\n\nUnderstanding this SPL\n\n**Emergency Access Procedure — Downtime / Break-Glass Account Usage (§164.312(a)(2)(ii))** — Audits emergency and downtime accounts touching production ePHI so procedural safeguards around emergency access are reviewable and time-bound.\n\nDocumented **Data sources**: `WinEventLog:Security` 4624 for `svc_epic_emergency*`, `index=epic` `sourcetype=epic:audit` `AccessContext=\"Downtime\"`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: windows.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=windows, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Appends rows from a subsearch with `append`.\n• `eval` defines or adjusts **principal** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by principal, ctx** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **duration_h** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t dc(Authentication.dest) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Emergency Access Procedure — Downtime / Break-Glass Account Usage (§164.312(a)(2)(ii))** — Audits emergency and downtime accounts touching production ePHI so procedural safeguards around emergency access are reviewable and time-bound.\n\nDocumented **Data sources**: `WinEventLog:Security` 4624 for `svc_epic_emergency*`, `index=epic` `sourcetype=epic:audit` `AccessContext=\"Downtime\"`. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (principal, duration, systems), Single value (uses per month).",
+  "visualization": "Table (principal, duration, systems), Single value (uses per month).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

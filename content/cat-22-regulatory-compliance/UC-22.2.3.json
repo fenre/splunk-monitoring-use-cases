@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.3",
+  "title": "NIS2 Vulnerability Disclosure and Patch Management Tracking",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(e)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vulnerability` `sourcetype=\"tenable:vuln\"` (cve, severity, plugin_name, host, first_found, last_fixed, state)",
+  "app": "Tenable Add-On for Splunk (Splunkbase 4060)",
+  "spl": "index=vulnerability sourcetype=\"tenable:vuln\" state=\"Active\"\n| eval host=coalesce(host, hostname, dns_name)\n| eval first_found=coalesce(first_found, first_seen)\n| eval age_days=round((now()-first_found)/86400, 1)\n| eval sla_days=case(severity=\"Critical\",7, severity=\"High\",30, 1=1,90)\n| eval sla_breach=if(age_days>sla_days, 1, 0)\n| stats count as open_vulns, max(age_days) as max_age by host, severity\n| where sla_breach=1\n| sort - max_age\n| table host, severity, open_vulns, max_age, sla_days",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.dest, Vulnerabilities.severity | sort - count",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "description": "Tracks CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.",
+  "value": "Tracks CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.",
+  "implementation": "(1) Install Tenable Add-On (4060) and route data to `index=vulnerability`; (2) validate field names (`cve_id` vs `cve`, `first_seen` vs `first_found`) in Data Summary; (3) tune `sla_days` to your security policy; (4) integrate with change/patch tickets for exception tracking.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Tenable Add-On for Splunk (Splunkbase 4060).\n• Ensure the following data sources are available: `index=vulnerability` `sourcetype=\"tenable:vuln\"` (cve, severity, plugin_name, host, first_found, last_fixed, state).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Install Tenable Add-On (4060) and route data to `index=vulnerability`; (2) validate field names (`cve_id` vs `cve`, `first_seen` vs `first_found`) in Data Summary; (3) tune `sla_days` to your security policy; (4) integrate with change/patch tickets for exception tracking.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vulnerability sourcetype=\"tenable:vuln\" state=\"Active\"\n| eval host=coalesce(host, hostname, dns_name)\n| eval first_found=coalesce(first_found, first_seen)\n| eval age_days=round((now()-first_found)/86400, 1)\n| eval sla_days=case(severity=\"Critical\",7, severity=\"High\",30, 1=1,90)\n| eval sla_breach=if(age_days>sla_days, 1, 0)\n| stats count as open_vulns, max(age_days) as max_age by host, severity\n| where sla_breach=1\n| sort - max_age\n| table host, severity, open_vulns, max_age, sla_days\n```\n\nUnderstanding this SPL\n\n**NIS2 Vulnerability Disclosure and Patch Management Tracking (Art. 21(2)(e))** — Tracks CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.\n\nDocumented **Data sources**: `index=vulnerability` `sourcetype=\"tenable:vuln\"` (cve, severity, plugin_name, host, first_found, last_fixed, state). **App/TA** (typical add-on context): Tenable Add-On for Splunk (Splunkbase 4060). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vulnerability; **sourcetype**: tenable:vuln. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vulnerability, sourcetype=\"tenable:vuln\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **host** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **first_found** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **sla_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **sla_breach** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, severity** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where sla_breach=1` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **NIS2 Vulnerability Disclosure and Patch Management Tracking (Art. 21(2)(e))**): table host, severity, open_vulns, max_age, sla_days\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.dest, Vulnerabilities.severity | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**NIS2 Vulnerability Disclosure and Patch Management Tracking (Art. 21(2)(e))** — Tracks CVE exposure and remediation latency from first detection to fix to demonstrate systematic vulnerability handling for essential and important entities.\n\nDocumented **Data sources**: `index=vulnerability` `sourcetype=\"tenable:vuln\"` (cve, severity, plugin_name, host, first_found, last_fixed, state). **App/TA** (typical add-on context): Tenable Add-On for Splunk (Splunkbase 4060). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Vulnerabilities.Vulnerabilities` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (over-SLA assets), Bar chart (count by severity), Line chart (open critical CVE trend).",
+  "visualization": "Table (over-SLA assets), Bar chart (count by severity), Line chart (open critical CVE trend).",
+  "references": [
+    {
+      "title": "Tenable Add-On for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1562"
+  ],
+  "equipment": [
+    "tenable"
+  ]
+}

@@ -3,9 +3,13 @@
   "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/uc.schema.json",
   "title": "Splunk Monitoring Use Case",
   "description": "JSON-first authoring schema for a Splunk Monitoring Use Case (UC). Locked at Phase 1.1.",
-  "schemaVersion": "1.1.0",
+  "version": "1.3.0",
+  "x-stability": "stable",
+  "x-since": "v6.0",
+  "x-changelog": "/schemas/changelogs/uc.md",
+  "schemaVersion": "1.3.0",
   "type": "object",
-  "required": ["id", "title", "compliance"],
+  "required": ["id", "title"],
   "additionalProperties": false,
   "properties": {
     "$schema": {
@@ -17,6 +21,11 @@
       "type": "string",
       "description": "UC identifier in the form category.subcategory.index, e.g. 22.35.1. The full UC-ID is 'UC-' + id.",
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "subcategory": {
+      "type": "string",
+      "description": "Explicit subcategory bucket key. Two formats are accepted: (1) the public '<category>.<subcategory>' form (e.g. '4.5'), used when a UC is intentionally cross-listed under a subcategory whose number does not match the id prefix — UC-4.4.32 'Function Cold-Start Latency Anomalies' lives under 4.5 'Serverless & FaaS' even though its id starts with 4.4; (2) the disambiguated '<category>.<subcategory>#<n>' form (e.g. '22.3#1'), used only when a category has multiple subcategories sharing the same numerical id and the UC belongs to the n-th occurrence (1-indexed; the first occurrence is just '22.3' with no suffix). The disambiguator preserves the legacy markdown 'extended clauses' grouping (e.g. '### 22.3 DORA' vs '### 22.3 — DORA (extended clauses)') without introducing new public ids. Omit when the id prefix already matches the first occurrence of the subcategory bucket.",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(#[1-9][0-9]*)?$"
     },
     "title": {
       "type": "string",
@@ -39,25 +48,36 @@
       "items": {
         "type": "string",
         "enum": [
+          "Analytics",
+          "Anomaly",
           "Audit",
           "Availability",
+          "Business",
           "Capacity",
           "Change",
           "Compliance",
+          "Configuration",
           "Cost",
           "Data Quality",
           "DevSecOps",
+          "Fault",
+          "Fraud",
           "Governance",
+          "Inventory",
           "Operational",
           "Operations",
+          "Patient Safety",
           "Performance",
           "Physical",
           "Physical Security",
           "Quality",
+          "Reliability",
           "Resilience",
+          "Revenue Assurance",
           "Risk",
           "Safety",
           "Security",
+          "Trading",
           "Vulnerability"
         ]
       }
@@ -137,7 +157,7 @@
     "compliance": {
       "type": "array",
       "minItems": 1,
-      "description": "Clause-level regulatory mappings. Every UC must have at least one entry. Use multiple entries to claim coverage across regulations.",
+      "description": "Clause-level regulatory mappings. Optional at the schema level (operational and observability UCs typically have none); when present, must contain at least one entry. Cat-22 (regulatory compliance) UCs and any UC that claims to satisfy or detect a violation of a clause MUST populate this array. Use multiple entries to claim coverage across regulations.",
       "items": {
         "type": "object",
         "required": ["regulation", "version", "clause", "mode", "assurance", "assurance_rationale"],
@@ -282,7 +302,12 @@
               "Splunk ITSI",
               "Splunk SOAR",
               "Splunk User Behavior Analytics",
-              "Splunk App for PCI Compliance"
+              "Splunk App for PCI Compliance",
+              "Splunk Edge Hub",
+              "Splunk OT Security Add-on",
+              "Splunk OT Intelligence",
+              "Splunk App for Fraud Analytics",
+              "Splunk Airport Ground Operations App"
             ]
           },
           {
@@ -298,7 +323,12 @@
                   "Splunk ITSI",
                   "Splunk SOAR",
                   "Splunk User Behavior Analytics",
-                  "Splunk App for PCI Compliance"
+                  "Splunk App for PCI Compliance",
+                  "Splunk Edge Hub",
+                  "Splunk OT Security Add-on",
+                  "Splunk OT Intelligence",
+                  "Splunk App for Fraud Analytics",
+                  "Splunk Airport Ground Operations App"
                 ]
               },
               "displayName": {
@@ -387,11 +417,20 @@
     },
     "detectionType": {
       "type": "string",
-      "enum": ["TTP", "Anomaly", "Baseline", "Hunting", "Correlation"]
+      "description": "Detection style or primary IOC/entity type. Two taxonomies coexist in the corpus: (1) SOC detection categories — 'TTP', 'Anomaly', 'Baseline', 'Hunting', 'Correlation' — and (2) IOC/entity types inherited from Splunk Enterprise Security risk-object conventions, e.g. 'system', 'user', 'process_name', 'ip_address', 'file_hash', 'url'. Free-form to preserve curator intent. The build pipeline does not perform taxonomy normalisation."
     },
     "securityDomain": {
       "type": "string",
-      "enum": ["endpoint", "network", "threat", "identity", "access", "audit", "cloud"]
+      "enum": [
+        "endpoint",
+        "network",
+        "threat",
+        "identity",
+        "access",
+        "audit",
+        "cloud",
+        "soc_operations"
+      ]
     },
     "requiredFields": {
       "type": "array",
@@ -414,6 +453,15 @@
         "pattern": "^[a-z0-9][a-z0-9_]*_[a-z0-9][a-z0-9_]*$"
       },
       "description": "Structured equipment-model compound tags in the form '<equipmentId>_<modelId>' (e.g. 'cisco_meraki', 'paloalto_globalprotect', 'hardware_bmc_idrac'). Drives the model sub-dropdown in the UI. Populated by scripts/generate_equipment_tags.py."
+    },
+
+    "hardware": {
+      "type": "string",
+      "description": "Free-form hardware / platform note. Mirrors the legacy '- **Hardware:**' markdown line and is preserved verbatim. Used for hardware-specific UCs (BMC, sensors, edge devices) where the deployment context matters but does not fit the structured equipment[] tags."
+    },
+    "telcoUseCase": {
+      "type": "string",
+      "description": "Free-form telco-vertical descriptor. Mirrors the legacy '- **Telco Use Case:**' markdown line. Surfaces in the cat-21 industry-vertical filter and is preserved verbatim so curator wording survives the round-trip through the build pipeline."
     },
 
     "status": {

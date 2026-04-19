@@ -1,0 +1,104 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.42.4",
+  "subcategory": "22.42#1",
+  "title": "CAB approval bypass — change pushed before scheduled window",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IT Operations",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT evaluate emergency changes with a retro-CR (handled explicitly via approval_type=emergency).",
+  "evidence": "Saved search 'cab_bypass' (hourly) emits pipeline apply events outside the CR scheduled window.",
+  "compliance": [
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC8.1",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "Direct evidence of an unapproved change path."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "CM-3",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "Direct evidence of an unapproved change path."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.Change.Approval",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "SOX ITGC change-approval deficiency pattern."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A deployment pipeline applies a change 2 hours before the CR scheduled window; the UC fires within the hour.",
+    "negativeScenario": "Pipeline apply inside the scheduled window; no alert.",
+    "fixtureRef": "sample-data/uc-22.42.4-fixture.json",
+    "attackTechnique": "T1562.001"
+  },
+  "dataSources": "CI/CD pipeline apply events tagged with change_id, ServiceNow CR schedule data.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=change sourcetype=prod:apply earliest=-1h\n| join change_id [search index=itsm sourcetype=servicenow:change | fields change_id window_start window_end approval_type]\n| eval start_s=strptime(window_start,\"%Y-%m-%dT%H:%M:%SZ\"), end_s=strptime(window_end,\"%Y-%m-%dT%H:%M:%SZ\")\n| where approval_type!=\"emergency\" AND (_time<start_s OR _time>end_s)\n| table _time change_id applied_by window_start window_end",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Correlates every production apply event to its CR scheduled window and emits those that landed outside the declared window. Out-of-window changes that are not flagged as emergency are a primary ITGC deficiency.",
+  "value": "Turns CAB approval from a calendar event into an operational control with per-change evidence.",
+  "implementation": "(1) Force CI/CD pipelines to emit change_id; (2) ingest CR schedule data; (3) run hourly; (4) SOAR auto-freezes the pipeline on hit.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: CI/CD pipeline apply events tagged with change_id, ServiceNow CR schedule data..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Force CI/CD pipelines to emit change_id; (2) ingest CR schedule data; (3) run hourly; (4) SOAR auto-freezes the pipeline on hit.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=change sourcetype=prod:apply earliest=-1h\n| join change_id [search index=itsm sourcetype=servicenow:change | fields change_id window_start window_end approval_type]\n| eval start_s=strptime(window_start,\"%Y-%m-%dT%H:%M:%SZ\"), end_s=strptime(window_end,\"%Y-%m-%dT%H:%M:%SZ\")\n| where approval_type!=\"emergency\" AND (_time<start_s OR _time>end_s)\n| table _time change_id applied_by window_start window_end\n```\n\nUnderstanding this SPL\n\n**CAB approval bypass — change pushed before scheduled window** — Turns CAB approval from a calendar event into an operational control with per-change evidence.\n\nDocumented **Data sources**: CI/CD pipeline apply events tagged with change_id, ServiceNow CR schedule data. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: change; **sourcetype**: prod:apply. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=change, sourcetype=prod:apply, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **start_s** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where approval_type!=\"emergency\" AND (_time<start_s OR _time>end_s)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **CAB approval bypass — change pushed before scheduled window**): table _time change_id applied_by window_start window_end\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of out-of-window applies, bar chart of offending pipelines, single-value '% of changes applied in window'.",
+  "visualization": "Table of out-of-window applies, bar chart of offending pipelines, single-value '% of changes applied in window'.",
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022",
+      "title": "AICPA Trust Services Criteria",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "title": "PCAOB AS 2201",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/001/",
+      "title": "MITRE ATT&CK — T1562.001 Impair Defenses: Disable Tools",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Timezone-normalised window_start/window_end is critical; a TZ mismatch will falsely flag correct changes.",
+  "mitreAttack": [
+    "T1562.001"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "change_id",
+    "window_start",
+    "window_end",
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

@@ -1,0 +1,87 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.5.15",
+  "title": "Okta User Lifecycle Events (Provisioning / Deprovisioning)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "FedRAMP",
+      "version": "Rev.5 Baselines",
+      "clause": "AC-2",
+      "clauseUrl": "https://www.fedramp.gov/baselines/",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "FedRAMP Rev.5 Baselines AC-2 Account management — automated provisioning/deprovisioning lifecycle evidence is precisely what AC-2(1) Automated system account management calls for."
+    },
+    {
+      "regulation": "IT-Grundschutz",
+      "version": "2023 Edition",
+      "clause": "ORP.4",
+      "clauseUrl": "https://www.bsi.bund.de/EN/Themen/Unternehmen-und-Organisationen/Standards-und-Zertifizierung/IT-Grundschutz/it-grundschutz_node.html",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "BSI IT-Grundschutz 2023 Edition ORP.4 Identity & access — user lifecycle event logging fulfils the identity-lifecycle documentation mandate in this building block."
+    },
+    {
+      "regulation": "HITRUST",
+      "version": "v11",
+      "clause": "01.b",
+      "clauseUrl": "https://hitrustalliance.net/csf-overview/",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "HITRUST CSF v11 01.b User access management — provisioning/deprovisioning audit is one of the baseline user-access-management evidence categories."
+    },
+    {
+      "regulation": "BAIT/KAIT",
+      "version": "Aug 2021",
+      "clause": "§5",
+      "clauseUrl": "https://www.bafin.de/SharedDocs/Veroeffentlichungen/EN/Rundschreiben/2021/rs_1021_BAIT_en.html",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "BAIT/KAIT §5 Identity & access management — documented joiner/mover/leaver evidence is mandatory for the BaFin IAM module."
+    },
+    {
+      "regulation": "SOX-ITGC",
+      "version": "PCAOB AS 2201",
+      "clause": "ITGC.AccessMgmt.Provisioning",
+      "clauseUrl": "https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOX ITGC (PCAOB AS 2201) program-change and user-access ITGC — the UC evidences the user-provisioning subprocess auditors rely on when relating access controls to financial-reporting completeness."
+    }
+  ],
+  "dataSources": "`sourcetype=OktaIM2:log` (`user.lifecycle.*`, `user.account.*`)",
+  "app": "`Splunk_TA_okta`",
+  "spl": "index=okta sourcetype=\"OktaIM2:log\"\n| where like(eventType,\"user.lifecycle%\")\n| stats count by actor.alternateId, eventType, target{}.displayName\n| sort -_time",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Orphaned accounts, failed deprovisions, and unexpected creates drive audit findings and residual access after employee exit.",
+  "value": "Orphaned accounts, failed deprovisions, and unexpected creates drive audit findings and residual access after employee exit.",
+  "implementation": "Align event types with HRIS-driven lifecycle (create, activate, deactivate). Alert on deactivations that fail or retry, and on manual creates outside HR correlation. Feed summaries to access reviews.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_okta`.\n• Ensure the following data sources are available: `sourcetype=OktaIM2:log` (`user.lifecycle.*`, `user.account.*`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign event types with HRIS-driven lifecycle (create, activate, deactivate). Alert on deactivations that fail or retry, and on manual creates outside HR correlation. Feed summaries to access reviews.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=okta sourcetype=\"OktaIM2:log\"\n| where like(eventType,\"user.lifecycle%\")\n| stats count by actor.alternateId, eventType, target{}.displayName\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Okta User Lifecycle Events (Provisioning / Deprovisioning)** — Orphaned accounts, failed deprovisions, and unexpected creates drive audit findings and residual access after employee exit.\n\nDocumented **Data sources**: `sourcetype=OktaIM2:log` (`user.lifecycle.*`, `user.account.*`). **App/TA** (typical add-on context): `Splunk_TA_okta`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: okta; **sourcetype**: OktaIM2:log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=okta, sourcetype=\"OktaIM2:log\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where like(eventType,\"user.lifecycle%\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by actor.alternateId, eventType, target{}.displayName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Okta User Lifecycle Events (Provisioning / Deprovisioning)** — Orphaned accounts, failed deprovisions, and unexpected creates drive audit findings and residual access after employee exit.\n\nDocumented **Data sources**: `sourcetype=OktaIM2:log` (`user.lifecycle.*`, `user.account.*`). **App/TA** (typical add-on context): `Splunk_TA_okta`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (event, target user, actor), Line chart (lifecycle events per day), Bar chart (events by type).",
+  "visualization": "Table (event, target user, actor), Line chart (lifecycle events per day), Bar chart (events by type).",
+  "references": [
+    {
+      "title": "Splunk_TA_okta",
+      "url": "https://splunkbase.splunk.com/app/6553"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1136.003",
+    "T1531"
+  ],
+  "status": "verified"
+}

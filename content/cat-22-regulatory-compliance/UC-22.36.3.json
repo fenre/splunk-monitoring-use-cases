@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.36.3",
+  "title": "Portability export integrity — signed manifest verification",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "DPO",
+  "controlFamily": "data-subject-request-lifecycle",
+  "exclusions": "Does NOT verify whether the export format is machine-readable (Art.20 — format scoring is a content review handled outside Splunk).",
+  "evidence": "Hourly search 'portability_manifest_verify' hashes each portability export bundle and cross-checks against the signed manifest stored in compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.20",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Art.20 grants the right to receive 'in a structured, commonly used and machine-readable format'; the UC verifies export integrity so the bundle the subject receives matches what was generated."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.20",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.20 (parent assurance='full'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.20",
+        "parentAssurance": "full",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a portability export bundle's SHA-256 does not match its signed manifest at delivery time, the UC fires naming the export_id, the subject_token, and the divergent hash.",
+    "negativeScenario": "Normal re-hashing during CDN-assisted delivery (content-encoding=gzip) where the manifest carries the pre-compression hash does NOT fire.",
+    "fixtureRef": "sample-data/uc-22.36.3-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=dsar sourcetype=portability:export action=delivered earliest=-30d\n| join export_id [search index=dsar sourcetype=portability:manifest | fields export_id, manifest_hash]\n| where delivered_hash!=manifest_hash\n| table _time export_id subject_token delivered_hash manifest_hash",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Validates that the bytes delivered to a data subject match the signed manifest produced when the export was generated. Any divergence is evidence of in-transit tampering or a broken CDN path; either way the export cannot be trusted as a lawful Art.20 response.",
+  "value": "Adds cryptographic evidence to what is otherwise a 'we generated the file' audit trail.",
+  "implementation": "(1) Sign manifests at export time with an HSM key scoped to the privacy program; (2) log manifest_hash and delivered_hash at each delivery; (3) run hourly; (4) on hit, auto-open an Art.12 remediation ticket.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Sign manifests at export time with an HSM key scoped to the privacy program; (2) log manifest_hash and delivered_hash at each delivery; (3) run hourly; (4) on hit, auto-open an Art.12 remediation ticket.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=dsar sourcetype=portability:export action=delivered earliest=-30d\n| join export_id [search index=dsar sourcetype=portability:manifest | fields export_id, manifest_hash]\n| where delivered_hash!=manifest_hash\n| table _time export_id subject_token delivered_hash manifest_hash\n```\n\nUnderstanding this SPL\n\n**Portability export integrity — signed manifest verification** — Adds cryptographic evidence to what is otherwise a 'we generated the file' audit trail.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: dsar; **sourcetype**: portability:export. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=dsar, sourcetype=portability:export, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where delivered_hash!=manifest_hash` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Portability export integrity — signed manifest verification**): table _time export_id subject_token delivered_hash manifest_hash\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of failures, single-value for '% verified (30d)', time chart of failures.",
+  "visualization": "Table of failures, single-value for '% verified (30d)', time chart of failures.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Content encoding transforms can change the on-wire hash. Require manifest to record pre-compression hash and compare apples to apples.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

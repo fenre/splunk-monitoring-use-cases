@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.12",
+  "title": "Monitoring for Information Disclosure via DLP and Web Exfil Patterns",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "AU-13",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`ms:o365:management` DLP workloads, `pan:traffic` bytes_out",
+  "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Common Information Model Add-on (Splunkbase 1621)",
+  "spl": "index=o365 sourcetype=ms:o365:management Workload=\"DLP\" earliest=-24h\n| stats count by Operation, UserId, ObjectId\n| sort - count\n| head 100",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "cimModels": [
+    "N/A (O365) + Network_Traffic for firewall side"
+  ],
+  "description": "Correlates DLP policy violations and large outbound transfers to evidence AU-13 monitoring for information disclosure to unauthorized parties.",
+  "value": "Correlates DLP policy violations and large outbound transfers to evidence AU-13 monitoring for information disclosure to unauthorized parties.",
+  "implementation": "(1) Ensure unified audit ingestion includes DLP operations; (2) enrich with `UserId` to HR directory via lookup; (3) threshold alerts for rare operations; (4) cross-check with firewall `bytes_out` spikes for same user within 1h (separate correlation).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Common Information Model Add-on (Splunkbase 1621).\n• Ensure the following data sources are available: `ms:o365:management` DLP workloads, `pan:traffic` bytes_out.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure unified audit ingestion includes DLP operations; (2) enrich with `UserId` to HR directory via lookup; (3) threshold alerts for rare operations; (4) cross-check with firewall `bytes_out` spikes for same user within 1h (separate correlation).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=o365 sourcetype=ms:o365:management Workload=\"DLP\" earliest=-24h\n| stats count by Operation, UserId, ObjectId\n| sort - count\n| head 100\n```\n\nUnderstanding this SPL\n\n**Monitoring for Information Disclosure via DLP and Web Exfil Patterns (AU-13)** — Correlates DLP policy violations and large outbound transfers to evidence AU-13 monitoring for information disclosure to unauthorized parties.\n\nDocumented **Data sources**: `ms:o365:management` DLP workloads, `pan:traffic` bytes_out. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: o365; **sourcetype**: ms:o365:management. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=o365, sourcetype=ms:o365:management, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by Operation, UserId, ObjectId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Monitoring for Information Disclosure via DLP and Web Exfil Patterns (AU-13)** — Correlates DLP policy violations and large outbound transfers to evidence AU-13 monitoring for information disclosure to unauthorized parties.\n\nDocumented **Data sources**: `ms:o365:management` DLP workloads, `pan:traffic` bytes_out. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top DLP operations), Time chart (violations), Link to firewall dashboard",
+  "visualization": "Table (top DLP operations), Time chart (violations), Link to firewall dashboard",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "m365"
+  ]
+}

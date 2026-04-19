@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.32.17",
+  "title": "Controlled unclassified information access control",
+  "criticality": "critical",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "CMMC",
+      "version": "2.0",
+      "clause": "AC.L2-3.1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'CM MC' → 'AC.L2-3.1.1'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "Cloud audit trails, Windows Security Event Logs, vulnerability scan outputs, access control logs, encryption status reports, continuous monitoring feeds, incident response logs, privacy management platforms, law enforcement system logs",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Common Information Model Add-on (1621)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=share sourcetype=\"sharepoint:audit\" OR index=fs sourcetype=\"netapp:audit\" earliest=-24h\n| search tag=cui OR sensitivity=\"CUI\"\n| stats count by user, path\n| sort - count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "Supports CMMC compliance evidence for controlled unclassified information access control in Splunk dashboards and scheduled reports.",
+  "value": "Supports CMMC compliance evidence for controlled unclassified information access control in Splunk dashboards and scheduled reports.",
+  "implementation": "(1) Maintain `amer_authorization_boundary.csv` with ATO, CUI, and CJIS scope flags. (2) Integrate POA&M exports via scheduled output and lookup refresh for ISSM workflows. (3) Separate LGPD and federal datasets with index- and role-level controls. (4) Quarterly control mapping workshop with ISSM, ISO, and privacy counsel.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Common Information Model Add-on (1621).\n• Ensure the following data sources are available: Cloud audit trails, Windows Security Event Logs, vulnerability scan outputs, access control logs, encryption status reports, continuous monitoring feeds, incident response logs, privacy management platforms, law enforcement system logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain `amer_authorization_boundary.csv` with ATO, CUI, and CJIS scope flags. (2) Integrate POA&M exports via scheduled output and lookup refresh for ISSM workflows. (3) Separate LGPD and federal datasets with index- and role-level controls. (4) Quarterly control mapping workshop with ISSM, ISO, and privacy counsel.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=share sourcetype=\"sharepoint:audit\" OR index=fs sourcetype=\"netapp:audit\" earliest=-24h\n| search tag=cui OR sensitivity=\"CUI\"\n| stats count by user, path\n| sort - count\n```\n\nUnderstanding this SPL\n\n**Controlled unclassified information access control (CMMC)** — Supports CMMC compliance evidence for controlled unclassified information access control in Splunk dashboards and scheduled reports.\n\nDocumented **Data sources**: Cloud audit trails, Windows Security Event Logs, vulnerability scan outputs, access control logs, encryption status reports, continuous monitoring feeds, incident response logs, privacy management platforms, law enforcement system logs. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: share, fs; **sourcetype**: sharepoint:audit, netapp:audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=share, index=fs, sourcetype=\"sharepoint:audit\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by user, path** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Controlled unclassified information access control (CMMC)** — Supports CMMC compliance evidence for controlled unclassified information access control in Splunk dashboards and scheduled reports.\n\nDocumented **Data sources**: Cloud audit trails, Windows Security Event Logs, vulnerability scan outputs, access control logs, encryption status reports, continuous monitoring feeds, incident response logs, privacy management platforms, law enforcement system logs. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for AWS (1876), Splunk Add-on for Microsoft Cloud Services (3110), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar (control family), Table (users and events), Single value (open findings).",
+  "visualization": "Stacked bar (control family), Table (users and events), Single value (open findings).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws",
+    "netapp",
+    "sharepoint"
+  ]
+}

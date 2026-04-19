@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.1.15",
+  "title": "GDPR Third-Party Processor Compliance Monitoring",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.28",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Network_Traffic data model, proxy/firewall logs, `gdpr_processor_register.csv`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.action=\"allowed\"\n  by All_Traffic.dest\n| rename All_Traffic.* as *\n| lookup gdpr_processor_register.csv dest_domain AS dest OUTPUT processor_name, dpa_signed, last_audit_date, approved_data_categories, sub_processors\n| where isnotnull(processor_name)\n| eval days_since_audit=if(isnotnull(last_audit_date), round((now()-strptime(last_audit_date,\"%Y-%m-%d\"))/86400,0), 9999)\n| eval audit_status=case(days_since_audit > 365, \"OVERDUE\", days_since_audit > 270, \"DUE_SOON\", 1=1, \"CURRENT\")\n| eval bytes_gb=round(bytes_out/1073741824, 2)\n| sort - bytes_gb\n| table dest, processor_name, dpa_signed, bytes_gb, sources, audit_status, days_since_audit, sub_processors",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Article 28 requires controllers to use only processors providing sufficient guarantees and to monitor their compliance. This use case tracks data flows to processors, monitors their security posture indicators, detects data transfers exceeding agreed scope, and flags processors with overdue security assessments — providing continuous evidence that processor oversight is active, not just contractual.",
+  "value": "Article 28 requires controllers to use only processors providing sufficient guarantees and to monitor their compliance. This use case tracks data flows to processors, monitors their security posture indicators, detects data transfers exceeding agreed scope, and flags processors with overdue security assessments — providing continuous evidence that processor oversight is active, not just contractual.",
+  "implementation": "(1) Build `gdpr_processor_register.csv` from your Art. 28 processor inventory with destination domains/IPs, DPA status, and audit dates; (2) monitor actual data transfer volumes to each processor; (3) alert on processors with overdue audits or unsigned DPAs; (4) detect unexpected volume spikes indicating scope creep; (5) track sub-processor changes reported by primary processors.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).\n• Ensure the following data sources are available: CIM Network_Traffic data model, proxy/firewall logs, `gdpr_processor_register.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Build `gdpr_processor_register.csv` from your Art. 28 processor inventory with destination domains/IPs, DPA status, and audit dates; (2) monitor actual data transfer volumes to each processor; (3) alert on processors with overdue audits or unsigned DPAs; (4) detect unexpected volume spikes indicating scope creep; (5) track sub-processor changes reported by primary processors.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.action=\"allowed\"\n  by All_Traffic.dest\n| rename All_Traffic.* as *\n| lookup gdpr_processor_register.csv dest_domain AS dest OUTPUT processor_name, dpa_signed, last_audit_date, approved_data_categories, sub_processors\n| where isnotnull(processor_name)\n| eval days_since_audit=if(isnotnull(last_audit_date), round((now()-strptime(last_audit_date,\"%Y-%m-%d\"))/86400,0), 9999)\n| eval audit_status=case(days_since_audit > 365, \"OVERDUE\", days_since_audit > 270, \"DUE_SOON\", 1=1, \"CURRENT\")\n| eval bytes_gb=round(bytes_out/1073741824, 2)\n| sort - bytes_gb\n| table dest, processor_name, dpa_signed, bytes_gb, sources, audit_status, days_since_audit, sub_processors\n```\n\nUnderstanding this SPL\n\n**GDPR Third-Party Processor Compliance Monitoring (Art. 28)** — Article 28 requires controllers to use only processors providing sufficient guarantees and to monitor their compliance. This use case tracks data flows to processors, monitors their security posture indicators, detects data transfers exceeding agreed scope, and flags processors with overdue security assessments — providing continuous evidence that processor oversight is active, not just contractual.\n\nDocumented **Data sources**: CIM Network_Traffic data model, proxy/firewall logs, `gdpr_processor_register.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(processor_name)` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **days_since_audit** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **audit_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **bytes_gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **GDPR Third-Party Processor Compliance Monitoring (Art. 28)**): table dest, processor_name, dpa_signed, bytes_gb, sources, audit_status, days_since_audit, sub_processors\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**GDPR Third-Party Processor Compliance Monitoring (Art. 28)** — Article 28 requires controllers to use only processors providing sufficient guarantees and to monitor their compliance. This use case tracks data flows to processors, monitors their security posture indicators, detects data transfers exceeding agreed scope, and flags processors with overdue security assessments — providing continuous evidence that processor oversight is active, not just contractual.\n\nDocumented **Data sources**: CIM Network_Traffic data model, proxy/firewall logs, `gdpr_processor_register.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (processor compliance status), Bar chart (data transfer by processor), Single value (overdue audits count), Timeline (transfer volume trends).",
+  "visualization": "Table (processor compliance status), Bar chart (data transfer by processor), Single value (overdue audits count), Timeline (transfer volume trends).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

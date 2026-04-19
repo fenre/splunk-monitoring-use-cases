@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.8",
+  "title": "Sikkerhetsloven §6-1 — preventive control effectiveness across classified systems",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT substitute for the full regulatory control set; this UC provides one of several evidence streams and must be combined with policy, procedure, and supplemental UCs to demonstrate the complete clause.",
+  "evidence": "Scheduled search output persisted to the compliance summary index with regulation=NO Sikkerhetsloven, clause=§6-1, available as a saved search and exportable as a CSV evidence pack for the responsible officer.",
+  "compliance": [
+    {
+      "regulation": "NO Sikkerhetsloven",
+      "version": "2018",
+      "clause": "§6-1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Phase-C authored UC targeting NO Sikkerhetsloven §6-1 (General preventive security measures). Uses continuous, production-grade Splunk telemetry to provide auditor-facing evidence; assurance level set to 'contributing' pending SME review per Phase E of the regulation-coverage plan.",
+      "provenance": "maintainer",
+      "smeCaveat": "Phase-C draft: SME review required before uplifting assurance from 'contributing' to 'partial' or 'full'. Confirm that the SPL captures the specific regulator expectation and that the telemetry exists in the deployment."
+    }
+  ],
+  "dataSources": "Endpoint security logs, access control logs, encryption/crypto inventory for classified systems.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=security_classified earliest=-30d\n| eval control_state=coalesce(control_state, \"unknown\")\n| stats count AS events count(eval(control_state=\"active\")) AS active count(eval(control_state=\"failed\")) AS failed BY system_id, classification_level, control_type\n| eval effectiveness=round(100*active/events, 1)\n| where classification_level IN (\"HEMMELIG\", \"KONFIDENSIELT\") AND effectiveness < 99",
+  "cimModels": [
+    "Change",
+    "Authentication"
+  ],
+  "description": "Measures preventive-control effectiveness on systems processing classified information and flags any drop below 99%.",
+  "value": "§6-1 requires systematic preventive measures; effectiveness KPIs make the §6-1 duty continuously measurable.",
+  "implementation": "(1) Classify systems with classification_level at onboarding; (2) ingest preventive-control telemetry; (3) schedule daily; (4) report to NSM evidence pack.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Endpoint security logs, access control logs, encryption/crypto inventory for classified systems..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Classify systems with classification_level at onboarding; (2) ingest preventive-control telemetry; (3) schedule daily; (4) report to NSM evidence pack.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security_classified earliest=-30d\n| eval control_state=coalesce(control_state, \"unknown\")\n| stats count AS events count(eval(control_state=\"active\")) AS active count(eval(control_state=\"failed\")) AS failed BY system_id, classification_level, control_type\n| eval effectiveness=round(100*active/events, 1)\n| where classification_level IN (\"HEMMELIG\", \"KONFIDENSIELT\") AND effectiveness < 99\n```\n\nUnderstanding this SPL\n\n**Sikkerhetsloven §6-1 — preventive control effectiveness across classified systems** — §6-1 requires systematic preventive measures; effectiveness KPIs make the §6-1 duty continuously measurable.\n\nDocumented **Data sources**: Endpoint security logs, access control logs, encryption/crypto inventory for classified systems. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security_classified.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security_classified, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **control_state** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by system_id, classification_level, control_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **effectiveness** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where classification_level IN (\"HEMMELIG\", \"KONFIDENSIELT\") AND effectiveness < 99` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner.",
+  "references": [
+    {
+      "title": "Sikkerhetsloven (Security Act 2018)",
+      "url": "https://lovdata.no/dokument/NL/lov/2018-06-01-24",
+      "retrieved": "2026-04-18"
+    }
+  ],
+  "knownFalsePositives": "Tuning prerequisites: source field mappings must be in place before the UC will produce reliable metrics; early runs will commonly flag unmapped systems until onboarding is completed.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-18",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

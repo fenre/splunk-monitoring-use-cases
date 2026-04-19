@@ -1,0 +1,69 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.1",
+  "title": "Unauthorized API Calls",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "FedRAMP",
+      "version": "Rev.5 Baselines",
+      "clause": "SI-4",
+      "clauseUrl": "https://www.fedramp.gov/baselines/",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "FedRAMP Rev.5 Baselines SI-4 System monitoring — unauthorized cloud API call detection is expected CloudTrail-based evidence for SI-4."
+    },
+    {
+      "regulation": "FedRAMP",
+      "version": "Rev.5 Baselines",
+      "clause": "AU-6",
+      "clauseUrl": "https://www.fedramp.gov/baselines/",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "FedRAMP Rev.5 Baselines AU-6 Audit review, analysis and reporting — the UC implements the audit-review automation expected for cloud control-plane logs."
+    },
+    {
+      "regulation": "SAMA CSF",
+      "version": "v1.0 (2017)",
+      "clause": "3.3.5",
+      "clauseUrl": "https://www.sama.gov.sa/en-US/Laws/BankingRules/SAMA%20Cyber%20Security%20Framework.pdf",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "SAMA CSF v1.0 3.3.5 Security monitoring — cloud API abuse detection is a core Saudi FI security-monitoring input."
+    }
+  ],
+  "dataSources": "`sourcetype=aws:cloudtrail`, CloudTrail logs",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" errorCode=\"AccessDenied\" OR errorCode=\"UnauthorizedAccess\" OR errorCode=\"Client.UnauthorizedAccess\"\n| stats count by userIdentity.arn, eventName, sourceIPAddress, errorCode\n| where count > 5\n| sort -count",
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=\"failure\"\n  by Authentication.user Authentication.src Authentication.app span=1h\n| sort -count",
+  "cimModels": [
+    "Authentication"
+  ],
+  "description": "AccessDenied errors reveal reconnaissance activity, compromised credentials with insufficient permissions, or misconfigurations. Early indicator of attack or drift.",
+  "value": "AccessDenied errors reveal reconnaissance activity, compromised credentials with insufficient permissions, or misconfigurations. Early indicator of attack or drift.",
+  "implementation": "Configure CloudTrail to send logs to an S3 bucket. Set up the Splunk_TA_aws with an SQS-based S3 input for CloudTrail. Alert when a single principal gets >5 access denied errors in 10 minutes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudtrail`, CloudTrail logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure CloudTrail to send logs to an S3 bucket. Set up the Splunk_TA_aws with an SQS-based S3 input for CloudTrail. Alert when a single principal gets >5 access denied errors in 10 minutes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" errorCode=\"AccessDenied\" OR errorCode=\"UnauthorizedAccess\" OR errorCode=\"Client.UnauthorizedAccess\"\n| stats count by userIdentity.arn, eventName, sourceIPAddress, errorCode\n| where count > 5\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Unauthorized API Calls** — AccessDenied errors reveal reconnaissance activity, compromised credentials with insufficient permissions, or misconfigurations. Early indicator of attack or drift.\n\nDocumented **Data sources**: `sourcetype=aws:cloudtrail`, CloudTrail logs. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudtrail. That sourcetype matches what this use case lists under Data sources.\n\n**Detection type** for this use case: TTP — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudtrail\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by userIdentity.arn, eventName, sourceIPAddress, errorCode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=\"failure\"\n  by Authentication.user Authentication.src Authentication.app span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Unauthorized API Calls** — AccessDenied errors reveal reconnaissance activity, compromised credentials with insufficient permissions, or misconfigurations. Early indicator of attack or drift.\n\nDocumented **Data sources**: `sourcetype=aws:cloudtrail`, CloudTrail logs. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Detection type** for this use case: TTP — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (principal, API call, source IP, count), Bar chart by principal, Map (source IP GeoIP).",
+  "visualization": "Table (principal, API call, source IP, count), Bar chart by principal, Map (source IP GeoIP).",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "AWS CloudTrail",
+      "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/"
+    }
+  ],
+  "knownFalsePositives": "Legitimate access denied for least-privilege testing or new IAM policies; verify with change management.",
+  "mitreAttack": [
+    "T1078.004",
+    "T1526"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "cloud"
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.68",
+  "title": "Transmission Confidentiality and Integrity — TLS Policy Downgrades",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "SC-8",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`stream:tls` or `tenable:` plugin SSL findings",
+  "app": "Splunk Add-on for Stream (Splunkbase 1809) or certificate inventory",
+  "spl": "index=net sourcetype=stream:tls earliest=-7d version IN (\"SSLv3\",\"TLS1.0\",\"TLS1.1\")\n| stats dc(src_ip) as clients, values(cipher) as ciphers by dest_ip, dest_port\n| sort - clients",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.dest | sort - count",
+  "cimModels": [
+    "Certificates"
+  ],
+  "description": "Detects servers offering weak TLS versions or cipher suites for SC-8 transmission confidentiality and integrity.",
+  "value": "Detects servers offering weak TLS versions or cipher suites for SC-8 transmission confidentiality and integrity.",
+  "implementation": "(1) Enrich with asset owner; (2) emergency exceptions with expiry; (3) track remediation in RA-7; (4) validate after patch window.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Stream (Splunkbase 1809) or certificate inventory.\n• Ensure the following data sources are available: `stream:tls` or `tenable:` plugin SSL findings.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enrich with asset owner; (2) emergency exceptions with expiry; (3) track remediation in RA-7; (4) validate after patch window.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=net sourcetype=stream:tls earliest=-7d version IN (\"SSLv3\",\"TLS1.0\",\"TLS1.1\")\n| stats dc(src_ip) as clients, values(cipher) as ciphers by dest_ip, dest_port\n| sort - clients\n```\n\nUnderstanding this SPL\n\n**Transmission Confidentiality and Integrity — TLS Policy Downgrades (SC-8)** — Detects servers offering weak TLS versions or cipher suites for SC-8 transmission confidentiality and integrity.\n\nDocumented **Data sources**: `stream:tls` or `tenable:` plugin SSL findings. **App/TA** (typical add-on context): Splunk Add-on for Stream (Splunkbase 1809) or certificate inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: net; **sourcetype**: stream:tls. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=net, sourcetype=stream:tls, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by dest_ip, dest_port** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Transmission Confidentiality and Integrity — TLS Policy Downgrades (SC-8)** — Detects servers offering weak TLS versions or cipher suites for SC-8 transmission confidentiality and integrity.\n\nDocumented **Data sources**: `stream:tls` or `tenable:` plugin SSL findings. **App/TA** (typical add-on context): Splunk Add-on for Stream (Splunkbase 1809) or certificate inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Certificates.All_Certificates` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (weak TLS services), Bar chart (by cipher), Single value (affected IPs)",
+  "visualization": "Table (weak TLS services), Bar chart (by cipher), Single value (affected IPs)",
+  "references": [
+    {
+      "title": "Splunk Add-on for Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "CIM: Certificates",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Certificates"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "tenable"
+  ]
+}

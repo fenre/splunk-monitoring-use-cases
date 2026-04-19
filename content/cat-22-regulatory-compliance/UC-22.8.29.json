@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.29",
+  "title": "SOC 2 C1 — Confidential Information Disposal and Secure Destruction Evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "SOC 2",
+      "version": "2017 TSC",
+      "clause": "C1.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'unspecified' → 'C1.1'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=compliance` `sourcetype=\"disposal:cert\"` (asset_id, method, cert_number, destroyed_ts, witness); `index=endpoint` BitLocker or secure erase tool logs",
+  "app": "Splunk DB Connect, vendor APIs (Iron Mountain, secure erase tools) via HEC",
+  "spl": "index=compliance sourcetype=\"disposal:cert\" earliest=-365d\n| eval destroyed=strptime(destroyed_ts,\"%Y-%m-%dT%H:%M:%SZ\")\n| join type=left asset_id [\n    search index=cmdb sourcetype=\"cmdb:asset\" earliest=-400d\n    | fields asset_id, retired_date, classification\n    | eval retired=strptime(retired_date,\"%Y-%m-%d\")\n  ]\n| where retired>relative_time(destroyed,\"+30d@d\")\n| table asset_id, classification, retired, destroyed, cert_number",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "C1 addresses confidential information. Tracking destruction certificates, crypto-shredding events, and DLP “secure delete” workflows demonstrates media and logical disposal met policy when assets retired or contracts ended.",
+  "value": "C1 addresses confidential information. Tracking destruction certificates, crypto-shredding events, and DLP “secure delete” workflows demonstrates media and logical disposal met policy when assets retired or contracts ended.",
+  "implementation": "(1) Flip logic per policy: flag retirements without cert within 30 days; (2) restrict `classification=confidential` scope; (3) integrate ITAD vendor feed; (4) legal hold exceptions via `legal_hold_assets.csv`; (5) annual sample for auditors with cert PDF links (out of band).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk DB Connect, vendor APIs (Iron Mountain, secure erase tools) via HEC.\n• Ensure the following data sources are available: `index=compliance` `sourcetype=\"disposal:cert\"` (asset_id, method, cert_number, destroyed_ts, witness); `index=endpoint` BitLocker or secure erase tool logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Flip logic per policy: flag retirements without cert within 30 days; (2) restrict `classification=confidential` scope; (3) integrate ITAD vendor feed; (4) legal hold exceptions via `legal_hold_assets.csv`; (5) annual sample for auditors with cert PDF links (out of band).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=compliance sourcetype=\"disposal:cert\" earliest=-365d\n| eval destroyed=strptime(destroyed_ts,\"%Y-%m-%dT%H:%M:%SZ\")\n| join type=left asset_id [\n    search index=cmdb sourcetype=\"cmdb:asset\" earliest=-400d\n    | fields asset_id, retired_date, classification\n    | eval retired=strptime(retired_date,\"%Y-%m-%d\")\n  ]\n| where retired>relative_time(destroyed,\"+30d@d\")\n| table asset_id, classification, retired, destroyed, cert_number\n```\n\nUnderstanding this SPL\n\n**SOC 2 C1 — Confidential Information Disposal and Secure Destruction Evidence** — C1 addresses confidential information. Tracking destruction certificates, crypto-shredding events, and DLP “secure delete” workflows demonstrates media and logical disposal met policy when assets retired or contracts ended.\n\nDocumented **Data sources**: `index=compliance` `sourcetype=\"disposal:cert\"` (asset_id, method, cert_number, destroyed_ts, witness); `index=endpoint` BitLocker or secure erase tool logs. **App/TA** (typical add-on context): Splunk DB Connect, vendor APIs (Iron Mountain, secure erase tools) via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: compliance; **sourcetype**: disposal:cert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=compliance, sourcetype=\"disposal:cert\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **destroyed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where retired>relative_time(destroyed,\"+30d@d\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SOC 2 C1 — Confidential Information Disposal and Secure Destruction Evidence**): table asset_id, classification, retired, destroyed, cert_number\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (late disposal), Single value (assets past SLA), Bar by classification.",
+  "visualization": "Table (late disposal), Single value (assets past SLA), Bar by classification.",
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect"
+  ]
+}

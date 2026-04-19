@@ -110,7 +110,7 @@ def _reviewed_days_ago(reviewed: str | None) -> int | None:
             d = datetime.strptime(reviewed.strip(), "%Y-%m-%d").date()
         except Exception:
             return None
-    delta = (date.today() - d).days
+    delta = (_reproducible_today() - d).days
     if delta < 0:
         # Future-dated review (e.g. auto-generated placeholders); treat as fresh.
         return 0
@@ -340,6 +340,36 @@ def render_markdown(scores: list[CategoryScore]) -> str:
     return "\n".join(lines)
 
 
+def _reproducible_now() -> str:
+    """Return a UTC timestamp pinned to SOURCE_DATE_EPOCH when set.
+
+    Honors the reproducible-builds standard env var so that
+    ``tools/build/build.py --reproducible`` produces byte-identical
+    scorecards across consecutive builds. Falls back to the real wall
+    clock when the env var is missing (interactive runs).
+    """
+    import os
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch and epoch.isdigit():
+        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _reproducible_today() -> date:
+    """Return today's UTC date pinned to SOURCE_DATE_EPOCH when set.
+
+    Used for freshness scoring so freshness ages are stable across two
+    consecutive builds of the same source SHA.
+    """
+    import os
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch and epoch.isdigit():
+        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).date()
+    return date.today()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--strict", action="store_true",
@@ -377,7 +407,7 @@ def main() -> int:
         JSON_PATH.write_text(
             json.dumps({
                 "schema_version": 1,
-                "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "generated_at": _reproducible_now(),
                 "dimension_weights": DIMENSION_WEIGHTS,
                 "categories": [
                     {

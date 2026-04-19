@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.78",
+  "title": "Segmentation Control Validation — Scanner IP Blocked at CDE Border as Expected",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "1.3.3",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=netfw` `pan:traffic` with `src` in `pci_segmentation_scanner_ips.csv`",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=netfw sourcetype=\"pan:traffic\" earliest=-24h\n| lookup pci_segmentation_scanner_ips.csv ip AS src OUTPUT is_scanner\n| lookup pci_cde_subnets.csv subnet AS dest OUTPUT in_cde\n| where is_scanner=\"true\" AND in_cde=\"true\"\n| stats count by action, rule, src, dest\n| eval expected_deny=if(action IN (\"deny\",\"drop\",\"reset-client\"),1,0)\n| stats sum(expected_deny) as deny_hits, count as total by src\n| eval deny_ratio=if(total>0, round(100*deny_hits/total,2), null())\n| where deny_ratio<95\n| sort src",
+  "cimSpl": "| tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest | sort - agg_value",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Confirms that active segmentation tests from non-CDE scanner IPs are denied at the NSC while still logged, producing evidence that untrusted networks cannot reach CHD without passing controls.",
+  "value": "Confirms that active segmentation tests from non-CDE scanner IPs are denied at the NSC while still logged, producing evidence that untrusted networks cannot reach CHD without passing controls.",
+  "implementation": "(1) Coordinate scanner IP list with annual segmentation test vendor. (2) Alert if `deny_ratio` drops (misconfiguration). (3) Attach results to PCI evidence library. (4) Run after major firewall pushes.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Palo Alto Networks (2757).\n• Ensure the following data sources are available: `index=netfw` `pan:traffic` with `src` in `pci_segmentation_scanner_ips.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Coordinate scanner IP list with annual segmentation test vendor. (2) Alert if `deny_ratio` drops (misconfiguration). (3) Attach results to PCI evidence library. (4) Run after major firewall pushes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=netfw sourcetype=\"pan:traffic\" earliest=-24h\n| lookup pci_segmentation_scanner_ips.csv ip AS src OUTPUT is_scanner\n| lookup pci_cde_subnets.csv subnet AS dest OUTPUT in_cde\n| where is_scanner=\"true\" AND in_cde=\"true\"\n| stats count by action, rule, src, dest\n| eval expected_deny=if(action IN (\"deny\",\"drop\",\"reset-client\"),1,0)\n| stats sum(expected_deny) as deny_hits, count as total by src\n| eval deny_ratio=if(total>0, round(100*deny_hits/total,2), null())\n| where deny_ratio<95\n| sort src\n```\n\nUnderstanding this SPL\n\n**Segmentation Control Validation — Scanner IP Blocked at CDE Border as Expected (PCI DSS Req 11.4.1, 1.3.3)** — Confirms that active segmentation tests from non-CDE scanner IPs are denied at the NSC while still logged, producing evidence that untrusted networks cannot reach CHD without passing controls.\n\nDocumented **Data sources**: `index=netfw` `pan:traffic` with `src` in `pci_segmentation_scanner_ips.csv`. **App/TA** (typical add-on context): Splunk Add-on for Palo Alto Networks (2757). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: netfw; **sourcetype**: pan:traffic. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=netfw, sourcetype=\"pan:traffic\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where is_scanner=\"true\" AND in_cde=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by action, rule, src, dest** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **expected_deny** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **deny_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where deny_ratio<95` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest | sort - agg_value\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Segmentation Control Validation — Scanner IP Blocked at CDE Border as Expected (PCI DSS Req 11.4.1, 1.3.3)** — Confirms that active segmentation tests from non-CDE scanner IPs are denied at the NSC while still logged, producing evidence that untrusted networks cannot reach CHD without passing controls.\n\nDocumented **Data sources**: `index=netfw` `pan:traffic` with `src` in `pci_segmentation_scanner_ips.csv`. **App/TA** (typical add-on context): Splunk Add-on for Palo Alto Networks (2757). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (src, deny_ratio), bar (action mix), single value (unexpected allows).",
+  "visualization": "Table (src, deny_ratio), bar (action mix), single value (unexpected allows).",
+  "references": [
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ]
+}

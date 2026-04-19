@@ -1,0 +1,96 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.48",
+  "subcategory": "22.6#1",
+  "title": "ISO/IEC 27001:2022 Clause 8.2 — Operational risk-assessment: per-change risk-score recalculation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Does NOT replace the architect's design review; detects only that a material change (asset scope, data classification, exposure) occurred without a corresponding risk-score recalculation within 7 days.",
+  "evidence": "Saved search 'iso_27001_8_2_change_risk_recalc' (daily) outputs per change: change_id, asset, old_score, new_score, delta, recalc_performed, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "8.2",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 8.2 Information security risk assessment at planned intervals or on significant change — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "6.1",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Clause 6.1 Actions to address risks and opportunities — related."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "RA-3",
+      "clauseUrl": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIST 800-53 RA-3 Risk Assessment — contributes."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A closed change whose linked risk_id shows no change in score within 7d sets recalc_performed=0 and appears in the report.",
+    "negativeScenario": "A change followed by a score update within 7d is absent.",
+    "fixtureRef": "sample-data/uc-22.6.48-fixture.json"
+  },
+  "dataSources": "`index=change` sourcetype=servicenow:change; `index=grc` sourcetype=archer:risk_score; change-to-risk mapping `iso_27001_change_to_risk.csv`.",
+  "app": "Splunk Enterprise Security, Splunk Add-on for ServiceNow",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=change sourcetype=servicenow:change state=closed earliest=-14d\n| rename affected_ci AS asset\n| lookup iso_27001_change_to_risk.csv asset OUTPUT risk_id\n| join type=outer risk_id\n  [search index=grc sourcetype=archer:risk_score earliest=-14d\n   | stats latest(score) AS new_score earliest(score) AS old_score latest(_time) AS recalc_time BY risk_id]\n| eval delta=new_score-old_score\n| eval recalc_performed=if(recalc_time>=_time AND recalc_time<=_time+604800,1,0)\n| where recalc_performed=0 AND abs(delta)>0\n| table change_id asset risk_id old_score new_score delta recalc_performed",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Joins closed changes against their linked risk-register entries and asserts that a score recalculation was produced within 7 days. Clause 8.2 requires the organisation to perform information-security risk assessments 'at planned intervals or when significant changes are proposed' — this UC is the 'significant change' trigger.",
+  "value": "Gives Clause 8.2 an operational verification signal instead of an annual narrative. Audit objection 'where is the evidence the risk was reassessed after the 2024-Q3 PCI change?' becomes a one-query answer.",
+  "implementation": "(1) Link every CMDB change to affected risks in iso_27001_change_to_risk.csv; (2) normalise Archer risk_score events; (3) schedule UC daily; (4) recalc_performed=0 opens an ISMS action to the risk owner; (5) monthly report to risk committee.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security, Splunk Add-on for ServiceNow.\n• Ensure the following data sources are available: `index=change` sourcetype=servicenow:change; `index=grc` sourcetype=archer:risk_score; change-to-risk mapping `iso_27001_change_to_risk.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Link every CMDB change to affected risks in iso_27001_change_to_risk.csv; (2) normalise Archer risk_score events; (3) schedule UC daily; (4) recalc_performed=0 opens an ISMS action to the risk owner; (5) monthly report to risk committee.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=change sourcetype=servicenow:change state=closed earliest=-14d\n| rename affected_ci AS asset\n| lookup iso_27001_change_to_risk.csv asset OUTPUT risk_id\n| join type=outer risk_id\n  [search index=grc sourcetype=archer:risk_score earliest=-14d\n   | stats latest(score) AS new_score earliest(score) AS old_score latest(_time) AS recalc_time BY risk_id]\n| eval delta=new_score-old_score\n| eval recalc_performed=if(recalc_time>=_time AND recalc_time<=_time+604800,1,0)\n| where recalc_performed=0 AND abs(delta)>0\n| table change_id asset risk_id old_score new_score delta recalc_performed\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Clause 8.2 — Operational risk-assessment: per-change risk-score recalculation** — Gives Clause 8.2 an operational verification signal instead of an annual narrative. Audit objection 'where is the evidence the risk was reassessed after the 2024-Q3 PCI change?' becomes a one-query answer.\n\nDocumented **Data sources**: `index=change` sourcetype=servicenow:change; `index=grc` sourcetype=archer:risk_score; change-to-risk mapping `iso_27001_change_to_risk.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security, Splunk Add-on for ServiceNow. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: change; **sourcetype**: servicenow:change. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=change, sourcetype=servicenow:change, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **delta** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **recalc_performed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where recalc_performed=0 AND abs(delta)>0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ISO/IEC 27001:2022 Clause 8.2 — Operational risk-assessment: per-change risk-score recalculation**): table change_id asset risk_id old_score new_score delta recalc_performed\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Scatter of change impact vs recalc latency, table of changes missing recalc, single value 'changes in 14d missing recalc'.",
+  "visualization": "Scatter of change impact vs recalc latency, table of changes missing recalc, single value 'changes in 14d missing recalc'.",
+  "references": [
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://doi.org/10.6028/NIST.SP.800-53r5",
+      "title": "NIST 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Changes categorised 'standard' (no risk implication) should be excluded — filter on change_category!='standard' in the base search.",
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "change_id",
+    "affected_ci",
+    "state",
+    "_time"
+  ],
+  "equipment": [
+    "servicenow"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

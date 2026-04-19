@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.86",
+  "title": "Third-Party Service Provider Compliance Scorecard Ingest",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "12.8.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=vendor` `sourcetype=\"vendor:compliance_scorecard\"` — `vendor`, `pci_aoc_expiry`, `soc2_expiry`, `open_findings`",
+  "app": "`sourcetype=\"vendor:compliance_scorecard\"` HEC from TPRM platform",
+  "spl": "index=vendor sourcetype=\"vendor:compliance_scorecard\" earliest=-1d\n| eval pci_exp_epoch=strptime(pci_aoc_expiry,\"%Y-%m-%d\")\n| eval days_to_pci=round((pci_exp_epoch-now())/86400,1)\n| where days_to_pci<60 OR open_findings>0\n| table vendor, pci_aoc_expiry, days_to_pci, soc2_expiry, open_findings\n| sort days_to_pci",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Centralizes SOC reports and PCI AOC freshness dates for processors and cloud providers that affect account data so service-provider due diligence and monitoring obligations are continuously visible.",
+  "value": "Centralizes SOC reports and PCI AOC freshness dates for processors and cloud providers that affect account data so service-provider due diligence and monitoring obligations are continuously visible.",
+  "implementation": "(1) Automate monthly vendor portal scrape to HEC. (2) Map vendors to in-scope services in lookup. (3) Legal review when `days_to_pci<30`. (4) Attach artifacts in document store with Splunk link.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `sourcetype=\"vendor:compliance_scorecard\"` HEC from TPRM platform.\n• Ensure the following data sources are available: `index=vendor` `sourcetype=\"vendor:compliance_scorecard\"` — `vendor`, `pci_aoc_expiry`, `soc2_expiry`, `open_findings`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Automate monthly vendor portal scrape to HEC. (2) Map vendors to in-scope services in lookup. (3) Legal review when `days_to_pci<30`. (4) Attach artifacts in document store with Splunk link.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vendor sourcetype=\"vendor:compliance_scorecard\" earliest=-1d\n| eval pci_exp_epoch=strptime(pci_aoc_expiry,\"%Y-%m-%d\")\n| eval days_to_pci=round((pci_exp_epoch-now())/86400,1)\n| where days_to_pci<60 OR open_findings>0\n| table vendor, pci_aoc_expiry, days_to_pci, soc2_expiry, open_findings\n| sort days_to_pci\n```\n\nUnderstanding this SPL\n\n**Third-Party Service Provider Compliance Scorecard Ingest (PCI DSS Req 12.8.1, 12.8.2)** — Centralizes SOC reports and PCI AOC freshness dates for processors and cloud providers that affect account data so service-provider due diligence and monitoring obligations are continuously visible.\n\nDocumented **Data sources**: `index=vendor` `sourcetype=\"vendor:compliance_scorecard\"` — `vendor`, `pci_aoc_expiry`, `soc2_expiry`, `open_findings`. **App/TA** (typical add-on context): `sourcetype=\"vendor:compliance_scorecard\"` HEC from TPRM platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vendor; **sourcetype**: vendor:compliance_scorecard. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vendor, sourcetype=\"vendor:compliance_scorecard\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pci_exp_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **days_to_pci** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_to_pci<60 OR open_findings>0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Third-Party Service Provider Compliance Scorecard Ingest (PCI DSS Req 12.8.1, 12.8.2)**): table vendor, pci_aoc_expiry, days_to_pci, soc2_expiry, open_findings\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (vendors at risk), timeline (expiry dates), single value (count expiring <60d).",
+  "visualization": "Table (vendors at risk), timeline (expiry dates), single value (count expiring <60d).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

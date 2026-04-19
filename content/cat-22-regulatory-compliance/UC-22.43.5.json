@@ -1,0 +1,101 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.43.5",
+  "subcategory": "22.43#1",
+  "title": "SBOM vendor-component CVE exposure",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT evaluate first-party dependency CVEs (covered by 22.43.1); targets third-party SBOM inputs.",
+  "evidence": "Saved search 'sbom_cve_exposure' (daily) joins vendor SBOMs against the current CVE feed.",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NIS2 supply-chain risk-management clause is supported by SBOM-CVE correlation."
+    },
+    {
+      "regulation": "EU-CRA",
+      "version": "Regulation (EU) 2024/2847",
+      "clause": "Art.13",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "EU Cyber Resilience Act requires product vulnerability management backed by SBOM."
+    },
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev. 5",
+      "clause": "SR-11",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SR-11 component authenticity includes supply-chain vulnerability monitoring."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Vendor component log4j 2.14 is in the SBOM; CVE-2021-44228 is published; the UC fires on the next run.",
+    "negativeScenario": "No vendor component matches the current CVE feed; no alert.",
+    "fixtureRef": "sample-data/uc-22.43.5-fixture.json",
+    "attackTechnique": "T1195.002"
+  },
+  "dataSources": "Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories).",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "| inputlookup vendor_sbom.csv\n| lookup cve_feed.csv component version OUTPUT cve cvss_v3_base\n| where isnotnull(cve) AND cvss_v3_base>=7.0\n| stats values(cve) as cves, max(cvss_v3_base) as max_cvss by vendor component version\n| table vendor component version cves max_cvss",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "description": "Uses the vendor SBOM register to answer 'which vendor components in my estate are affected by the CVE published today?'.",
+  "value": "Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives.",
+  "implementation": "(1) Ingest vendor SBOMs from the procurement workflow; (2) subscribe to NVD feed into cve_feed.csv; (3) run daily; (4) SOAR opens a case per vendor-affected component.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest vendor SBOMs from the procurement workflow; (2) subscribe to NVD feed into cve_feed.csv; (3) run daily; (4) SOAR opens a case per vendor-affected component.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup vendor_sbom.csv\n| lookup cve_feed.csv component version OUTPUT cve cvss_v3_base\n| where isnotnull(cve) AND cvss_v3_base>=7.0\n| stats values(cve) as cves, max(cvss_v3_base) as max_cvss by vendor component version\n| table vendor component version cves max_cvss\n```\n\nUnderstanding this SPL\n\n**SBOM vendor-component CVE exposure** — Closes the gap between the day a CVE is published and the day a vendor responds — crucial for CRA and NIS2 supply-chain narratives.\n\nDocumented **Data sources**: Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories). **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(cve) AND cvss_v3_base>=7.0` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by vendor component version** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Pipeline stage (see **SBOM vendor-component CVE exposure**): table vendor component version cves max_cvss\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of exposed components, bar chart of CVE count by vendor, single-value 'SBOM-indexed components with no open CVE'.",
+  "visualization": "Table of exposed components, bar chart of CVE count by vendor, single-value 'SBOM-indexed components with no open CVE'.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "title": "Directive (EU) 2022/2555 — NIS2",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act",
+      "title": "EU Cyber Resilience Act",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1195/002/",
+      "title": "MITRE ATT&CK — T1195.002 Supply Chain Compromise: Compromise Software Supply Chain",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Version ranges expressed in SPDX are sometimes imprecise; maintain a normalisation pre-step to avoid double counting.",
+  "mitreAttack": [
+    "T1195.002"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "vendor",
+    "component",
+    "version",
+    "cve"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

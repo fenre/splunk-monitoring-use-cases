@@ -1,0 +1,94 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.41.3",
+  "title": "Key rotation attestation — KMS/HSM rotation SLA tracker",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "CISO",
+  "controlFamily": "crypto-drift",
+  "exclusions": "Does NOT evaluate key-wrap hierarchy; KEK/DEK design is out of scope.",
+  "evidence": "Daily report 'kms_rotation_sla' writes per-key rotation evidence to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "3.6",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI 3.6 requires key rotation at end-of-cryptoperiod; the UC evidences compliance per key."
+    },
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "SC-13",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SC-13 key management encompasses rotation."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.9",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Art.9 protection and prevention — crypto key lifecycle is part of the ICT framework."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a key's last rotation is older than the cryptoperiod defined in key_policy.csv, the UC fires with key_id, last_rotation, and cryptoperiod.",
+    "negativeScenario": "Keys within their cryptoperiod and keys marked key_type=archive are NOT flagged.",
+    "fixtureRef": "sample-data/uc-22.41.3-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=kms (sourcetype=aws:kms OR sourcetype=azure:keyvault OR sourcetype=gcp:kms) action=rotate\n| stats max(_time) as last_rotation by key_id tenant\n| lookup key_policy.csv key_id OUTPUT cryptoperiod_days key_type\n| where key_type!=\"archive\"\n| eval age_days=round((now()-last_rotation)/86400,0)\n| where age_days>cryptoperiod_days\n| table tenant key_id last_rotation age_days cryptoperiod_days",
+  "cimModels": [
+    "Change"
+  ],
+  "description": "Verifies every encryption key is rotated within its policy cryptoperiod. Overdue keys are highlighted and evidence is written to the compliance index for audit.",
+  "value": "Gives the cryptographic custodian the ability to defend the 'our keys are rotated' claim with per-key evidence rather than a policy document.",
+  "implementation": "(1) Ingest KMS audit logs; (2) maintain key_policy.csv; (3) run daily; (4) escalate via SOAR to the crypto custodian.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest KMS audit logs; (2) maintain key_policy.csv; (3) run daily; (4) escalate via SOAR to the crypto custodian.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=kms (sourcetype=aws:kms OR sourcetype=azure:keyvault OR sourcetype=gcp:kms) action=rotate\n| stats max(_time) as last_rotation by key_id tenant\n| lookup key_policy.csv key_id OUTPUT cryptoperiod_days key_type\n| where key_type!=\"archive\"\n| eval age_days=round((now()-last_rotation)/86400,0)\n| where age_days>cryptoperiod_days\n| table tenant key_id last_rotation age_days cryptoperiod_days\n```\n\nUnderstanding this SPL\n\n**Key rotation attestation — KMS/HSM rotation SLA tracker** — Gives the cryptographic custodian the ability to defend the 'our keys are rotated' claim with per-key evidence rather than a policy document.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: kms; **sourcetype**: aws:kms, azure:keyvault, gcp:kms. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=kms, sourcetype=aws:kms. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by key_id tenant** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where key_type!=\"archive\"` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **age_days** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where age_days>cryptoperiod_days` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Key rotation attestation — KMS/HSM rotation SLA tracker**): table tenant key_id last_rotation age_days cryptoperiod_days\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of overdue keys, scatter plot age vs cryptoperiod, single-value '% of keys within cryptoperiod'.",
+  "visualization": "Table of overdue keys, scatter plot age vs cryptoperiod, single-value '% of keys within cryptoperiod'.",
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "Regulation (EU) 2022/2554 — DORA",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Keys under a temporary freeze (key_status=frozen) for investigation should be excluded via a status filter.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "azure",
+    "hashicorp"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

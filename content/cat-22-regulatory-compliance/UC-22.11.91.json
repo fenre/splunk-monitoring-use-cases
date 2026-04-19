@@ -1,0 +1,114 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.91",
+  "subcategory": "22.11#1",
+  "title": "PCI-DSS 1.3 — CDE network boundary: unauthorised flows between CDE and untrusted networks",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of Platform",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Does NOT enforce the firewall (that is the NSC); detects allowed flows between CDE and untrusted zones that are not in the Req-1.2.1 approved list.",
+  "evidence": "Saved search 'pci_1_3_cde_boundary' (every 15m) emits: src, src_zone, dest, dest_zone, dest_port, protocol, approved, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.3",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "PCI-DSS 1.3 Network segmentation between CDE and other networks — directly evidenced."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.22",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.22 Segregation of networks — contributing."
+    },
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC6.6",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "SOC 2 CC6.6 — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A synthetic allow rule permitting UNTRUSTED→CDE on port 3306 fires within 15m.",
+    "negativeScenario": "A flow approved in pci_approved_flows.csv is absent.",
+    "fixtureRef": "sample-data/uc-22.11.91-fixture.json",
+    "attackTechnique": "T1021"
+  },
+  "dataSources": "`index=netfw` sourcetype IN (pan:traffic,cisco:asa); zone lookup `cde_zones.csv`; approved-flows lookup `pci_approved_flows.csv`.",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=netfw sourcetype IN (pan:traffic,cisco:asa) action=allow earliest=-15m\n| lookup cde_zones.csv ip=src OUTPUT zone AS src_zone\n| lookup cde_zones.csv ip=dest OUTPUT zone AS dest_zone\n| where (src_zone=\"CDE\" AND dest_zone=\"UNTRUSTED\") OR (src_zone=\"UNTRUSTED\" AND dest_zone=\"CDE\")\n| lookup pci_approved_flows.csv src_zone dest_zone dest_port protocol OUTPUT approved\n| where approved!=\"yes\" OR isnull(approved)\n| stats count BY src src_zone dest dest_zone dest_port protocol approved",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Detects any CDE-to-untrusted or untrusted-to-CDE flow that was allowed by the NSC but is not on the approved-flows list. PCI-DSS 1.3 mandates network segmentation between CDE and other networks; an allowed unapproved flow is a direct non-conformance.",
+  "value": "Provides QSAs the direct evidence that CDE boundary controls are intact and deviations are captured within 15 minutes.",
+  "implementation": "(1) Onboard Palo Alto + ASA traffic; (2) maintain cde_zones.csv (CIDR → zone) and pci_approved_flows.csv; (3) schedule UC every 15m; (4) hit opens a P1 to NSC team; (5) daily report to compliance officer.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Palo Alto Networks (2757).\n• Ensure the following data sources are available: `index=netfw` sourcetype IN (pan:traffic,cisco:asa); zone lookup `cde_zones.csv`; approved-flows lookup `pci_approved_flows.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard Palo Alto + ASA traffic; (2) maintain cde_zones.csv (CIDR → zone) and pci_approved_flows.csv; (3) schedule UC every 15m; (4) hit opens a P1 to NSC team; (5) daily report to compliance officer.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=netfw sourcetype IN (pan:traffic,cisco:asa) action=allow earliest=-15m\n| lookup cde_zones.csv ip=src OUTPUT zone AS src_zone\n| lookup cde_zones.csv ip=dest OUTPUT zone AS dest_zone\n| where (src_zone=\"CDE\" AND dest_zone=\"UNTRUSTED\") OR (src_zone=\"UNTRUSTED\" AND dest_zone=\"CDE\")\n| lookup pci_approved_flows.csv src_zone dest_zone dest_port protocol OUTPUT approved\n| where approved!=\"yes\" OR isnull(approved)\n| stats count BY src src_zone dest dest_zone dest_port protocol approved\n```\n\nUnderstanding this SPL\n\n**PCI-DSS 1.3 — CDE network boundary: unauthorised flows between CDE and untrusted networks** — Provides QSAs the direct evidence that CDE boundary controls are intact and deviations are captured within 15 minutes.\n\nDocumented **Data sources**: `index=netfw` sourcetype IN (pan:traffic,cisco:asa); zone lookup `cde_zones.csv`; approved-flows lookup `pci_approved_flows.csv`. **App/TA** (typical add-on context): Splunk Add-on for Palo Alto Networks (2757). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: netfw.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=netfw, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where (src_zone=\"CDE\" AND dest_zone=\"UNTRUSTED\") OR (src_zone=\"UNTRUSTED\" AND dest_zone=\"CDE\")` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where approved!=\"yes\" OR isnull(approved)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src src_zone dest dest_zone dest_port protocol approved** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey of src_zone→dest_zone with unapproved highlighted, table of unapproved flows, single value 'unapproved CDE flows (1h)'.",
+  "visualization": "Sankey of src_zone→dest_zone with unapproved highlighted, table of unapproved flows, single value 'unapproved CDE flows (1h)'.",
+  "references": [
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1021/",
+      "title": "MITRE ATT&CK — T1021",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Cold-failover rules activated during DR days produce ephemeral unapproved flows — add DR-day allowlist with effective-from/to timestamps.",
+  "mitreAttack": [
+    "T1021"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "network",
+  "requiredFields": [
+    "src",
+    "dest",
+    "dest_port",
+    "protocol",
+    "action",
+    "_time"
+  ],
+  "equipment": [
+    "cisco",
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "cisco_asa",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

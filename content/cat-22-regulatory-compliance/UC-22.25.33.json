@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.25.33",
+  "title": "Delivery Channel Risk — Digital Onboarding Fraud Uplift",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "EU AML",
+      "version": "6AMLD / AMLR 2024",
+      "clause": "Art.18",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'EU AMLD' → 'Art.18'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=aml` `kyc:onboarding:event` — customer_id, amount_eur, screening_result, screening_latency_ms, list_version",
+  "app": "Splunk Enterprise Security (263), Splunk UBA (2941), Splunk DB Connect (2686)",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ],
+  "spl": "index=aml sourcetype=\"kyc:onboarding:event\" earliest=-7d\n| eval aml_tag=\"deliv\"\n| eval uc_id=\"22.25.33\"\n| bin _time span=1h\n| stats count as events, sum(eval(screening_result=\"hit\")) as hits, median(screening_latency_ms) as lat by customer_id, aml_tag, _time\n| eventstats perc95(amount_eur) as p95_amt by aml_tag\n| where (aml_tag=\"struct\" AND amount_eur>9000 AND amount_eur<10000) OR hits>0 OR lat>800\n| sort - events\n| head 300",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Strengthens anti-money laundering and counter-terrorist financing monitoring, investigations, and supervisory examination readiness across transactions, customers, and list screening.",
+  "value": "Strengthens anti-money laundering and counter-terrorist financing monitoring, investigations, and supervisory examination readiness across transactions, customers, and list screening.",
+  "implementation": "(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk UBA (2941), Splunk DB Connect (2686).\n• Ensure the following data sources are available: `index=aml` `kyc:onboarding:event` — customer_id, amount_eur, screening_result, screening_latency_ms, list_version.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aml sourcetype=\"kyc:onboarding:event\" earliest=-7d\n| eval aml_tag=\"deliv\"\n| eval uc_id=\"22.25.33\"\n| bin _time span=1h\n| stats count as events, sum(eval(screening_result=\"hit\")) as hits, median(screening_latency_ms) as lat by customer_id, aml_tag, _time\n| eventstats perc95(amount_eur) as p95_amt by aml_tag\n| where (aml_tag=\"struct\" AND amount_eur>9000 AND amount_eur<10000) OR hits>0 OR lat>800\n| sort - events\n| head 300\n```\n\nUnderstanding this SPL\n\n**Delivery Channel Risk — Digital Onboarding Fraud Uplift (EU AMLD)** — Strengthens anti-money laundering and counter-terrorist financing monitoring, investigations, and supervisory examination readiness across transactions, customers, and list screening.\n\nDocumented **Data sources**: `index=aml` `kyc:onboarding:event` — customer_id, amount_eur, screening_result, screening_latency_ms, list_version. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk UBA (2941), Splunk DB Connect (2686). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aml; **sourcetype**: kyc:onboarding:event. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aml, sourcetype=\"kyc:onboarding:event\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **aml_tag** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **uc_id** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by customer_id, aml_tag, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eventstats` rolls up events into metrics; results are split **by aml_tag** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where (aml_tag=\"struct\" AND amount_eur>9000 AND amount_eur<10000) OR hits>0 OR lat>800` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time chart (hits/lat), Histogram (amount_eur), Table (customer_id)",
+  "visualization": "Time chart (hits/lat), Histogram (amount_eur), Table (customer_id)",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk UBA",
+      "url": "https://splunkbase.splunk.com/app/2941"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "db_connect"
+  ]
+}

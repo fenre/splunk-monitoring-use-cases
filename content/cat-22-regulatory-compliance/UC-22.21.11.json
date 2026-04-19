@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.21.11",
+  "title": "Human Override Action Logging Coverage (Art. 14)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "EU AI Act",
+      "version": "Regulation (EU) 2024/1689",
+      "clause": "Art.14",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'EU AI Act' → 'Art.14'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ai_hil` `sourcetype=ai:human:override` — decision_id, operator_id, reason_code",
+  "app": "Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=ai_hil sourcetype=\"ai:human:override\" earliest=-24h\n| eval reason_ok=if(match(reason_code,\"^[A-Z]{2,4}_\\d{2,4}$\"),1,0)\n| stats count as overrides, sum(reason_ok) as with_valid_reason by application\n| eval reason_pct=round(100*with_valid_reason/overrides,2)\n| where overrides>0 AND reason_pct < 100\n| sort + reason_pct",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Measures fraction of automated decisions overridden by human operators with mandatory reason codes for Art. 14 human oversight.",
+  "value": "Measures fraction of automated decisions overridden by human operators with mandatory reason codes for Art. 14 human oversight.",
+  "implementation": "(1) Enforce reason_code enum in UI; (2) map operator_id to HR directory via lookup; (3) alert on missing reason_code; (4) retain 24-month archive per policy.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621).\n• Ensure the following data sources are available: `index=ai_hil` `sourcetype=ai:human:override` — decision_id, operator_id, reason_code.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enforce reason_code enum in UI; (2) map operator_id to HR directory via lookup; (3) alert on missing reason_code; (4) retain 24-month archive per policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_hil sourcetype=\"ai:human:override\" earliest=-24h\n| eval reason_ok=if(match(reason_code,\"^[A-Z]{2,4}_\\d{2,4}$\"),1,0)\n| stats count as overrides, sum(reason_ok) as with_valid_reason by application\n| eval reason_pct=round(100*with_valid_reason/overrides,2)\n| where overrides>0 AND reason_pct < 100\n| sort + reason_pct\n```\n\nUnderstanding this SPL\n\n**Human Override Action Logging Coverage (Art. 14) (EU AI Act)** — Measures fraction of automated decisions overridden by human operators with mandatory reason codes for Art. 14 human oversight.\n\nDocumented **Data sources**: `index=ai_hil` `sourcetype=ai:human:override` — decision_id, operator_id, reason_code. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_hil; **sourcetype**: ai:human:override. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_hil, sourcetype=\"ai:human:override\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **reason_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by application** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **reason_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where overrides>0 AND reason_pct < 100` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (overrides by application), Table (invalid reason), Single value (reason_pct)",
+  "visualization": "Bar chart (overrides by application), Table (invalid reason), Single value (reason_pct)",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "status": "verified"
+}

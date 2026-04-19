@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.38",
+  "title": "DAST and SAST Finding Density Before Payment Service Releases",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "6.3.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=devsecops` `sourcetype IN (\"veracode:scan\",\"checkmarx:scan\")` — `app_name`, `build_id`, `severity`, `status`",
+  "app": "Custom `sourcetype=\"veracode:scan\"` / `checkmarx:scan\"` HEC normalizers",
+  "spl": "index=devsecops sourcetype IN (\"veracode:scan\",\"checkmarx:scan\") earliest=-30d\n| lookup pci_payment_apps.csv app_name OUTPUT pci_app\n| where pci_app=\"true\"\n| where severity IN (\"High\",\"Very High\",\"Critical\")\n| where match(status,\"(?i)open|new)\")\n| stats count by app_name, build_id, scan_type\n| where count>0\n| sort - count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - count",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "description": "Tracks high-severity static and dynamic scan findings per build of payment APIs so security testing is evidenced prior to promoting code that could affect account data.",
+  "value": "Tracks high-severity static and dynamic scan findings per build of payment APIs so security testing is evidenced prior to promoting code that could affect account data.",
+  "implementation": "(1) Map scanner project names to internal `app_name`. (2) Gate release on `count=0` for Critical if policy mandates. (3) Correlate with UC-22.11.37 for same `build_id`. (4) Quarterly trending for PCI interview.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom `sourcetype=\"veracode:scan\"` / `checkmarx:scan\"` HEC normalizers.\n• Ensure the following data sources are available: `index=devsecops` `sourcetype IN (\"veracode:scan\",\"checkmarx:scan\")` — `app_name`, `build_id`, `severity`, `status`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Map scanner project names to internal `app_name`. (2) Gate release on `count=0` for Critical if policy mandates. (3) Correlate with UC-22.11.37 for same `build_id`. (4) Quarterly trending for PCI interview.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devsecops sourcetype IN (\"veracode:scan\",\"checkmarx:scan\") earliest=-30d\n| lookup pci_payment_apps.csv app_name OUTPUT pci_app\n| where pci_app=\"true\"\n| where severity IN (\"High\",\"Very High\",\"Critical\")\n| where match(status,\"(?i)open|new)\")\n| stats count by app_name, build_id, scan_type\n| where count>0\n| sort - count\n```\n\nUnderstanding this SPL\n\n**DAST and SAST Finding Density Before Payment Service Releases (PCI DSS Req 6.3.1, 6.3.2)** — Tracks high-severity static and dynamic scan findings per build of payment APIs so security testing is evidenced prior to promoting code that could affect account data.\n\nDocumented **Data sources**: `index=devsecops` `sourcetype IN (\"veracode:scan\",\"checkmarx:scan\")` — `app_name`, `build_id`, `severity`, `status`. **App/TA** (typical add-on context): Custom `sourcetype=\"veracode:scan\"` / `checkmarx:scan\"` HEC normalizers. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devsecops.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devsecops, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where pci_app=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Filters the current rows with `where severity IN (\"High\",\"Very High\",\"Critical\")` — typically the threshold or rule expression for this monitoring goal.\n• Filters the current rows with `where match(status,\"(?i)open|new)\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by app_name, build_id, scan_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where count>0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.severity, Vulnerabilities.signature, Vulnerabilities.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**DAST and SAST Finding Density Before Payment Service Releases (PCI DSS Req 6.3.1, 6.3.2)** — Tracks high-severity static and dynamic scan findings per build of payment APIs so security testing is evidenced prior to promoting code that could affect account data.\n\nDocumented **Data sources**: `index=devsecops` `sourcetype IN (\"veracode:scan\",\"checkmarx:scan\")` — `app_name`, `build_id`, `severity`, `status`. **App/TA** (typical add-on context): Custom `sourcetype=\"veracode:scan\"` / `checkmarx:scan\"` HEC normalizers. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Vulnerabilities.Vulnerabilities` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar (open highs by app), table (build_id), line (count over time).",
+  "visualization": "Stacked bar (open highs by app), table (build_id), line (count over time).",
+  "references": [
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

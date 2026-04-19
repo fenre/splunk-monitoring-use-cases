@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.22",
+  "title": "TLS 1.2 Minimum Version Violations on Payment APIs",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "4.2.1",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=stream` `sourcetype=\"stream:tls\"`; `index=aws` `sourcetype=\"aws:elb:accesslogs\"` with `ssl_protocol`",
+  "app": "Splunk Stream (1809), Splunk Add-on for AWS (1876)",
+  "spl": "(index=stream sourcetype=\"stream:tls\" earliest=-24h)\n OR (index=aws sourcetype=\"aws:elb:accesslogs\" earliest=-24h)\n| eval tls_ver=coalesce(tls_version, ssl_protocol)\n| lookup pci_payment_endpoints.csv dest_ip OUTPUT in_scope\n| where in_scope=\"true\"\n| where tls_ver IN (\"TLSv1\",\"TLSv1.0\",\"TLSv1.1\",\"SSLv3\") OR match(tls_ver,\"(?i)^ssl\")\n| stats count by tls_ver, dest_ip, src_ip, server_name\n| sort - count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.dest | sort - count",
+  "cimModels": [
+    "Certificates"
+  ],
+  "description": "Surfaces handshakes negotiated below TLS 1.2 on in-scope listeners so weak transmission protections are remediated before external vulnerability scanning deadlines.",
+  "value": "Surfaces handshakes negotiated below TLS 1.2 on in-scope listeners so weak transmission protections are remediated before external vulnerability scanning deadlines.",
+  "implementation": "(1) Normalize TLS version strings per data source. (2) Map `dest_ip` to payment VLANs. (3) Exclude lab subnets via lookup. (4) Feed to vulnerability management for ASV correlation.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Stream (1809), Splunk Add-on for AWS (1876).\n• Ensure the following data sources are available: `index=stream` `sourcetype=\"stream:tls\"`; `index=aws` `sourcetype=\"aws:elb:accesslogs\"` with `ssl_protocol`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Normalize TLS version strings per data source. (2) Map `dest_ip` to payment VLANs. (3) Exclude lab subnets via lookup. (4) Feed to vulnerability management for ASV correlation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=stream sourcetype=\"stream:tls\" earliest=-24h)\n OR (index=aws sourcetype=\"aws:elb:accesslogs\" earliest=-24h)\n| eval tls_ver=coalesce(tls_version, ssl_protocol)\n| lookup pci_payment_endpoints.csv dest_ip OUTPUT in_scope\n| where in_scope=\"true\"\n| where tls_ver IN (\"TLSv1\",\"TLSv1.0\",\"TLSv1.1\",\"SSLv3\") OR match(tls_ver,\"(?i)^ssl\")\n| stats count by tls_ver, dest_ip, src_ip, server_name\n| sort - count\n```\n\nUnderstanding this SPL\n\n**TLS 1.2 Minimum Version Violations on Payment APIs (PCI DSS Req 4.1.1, 4.2.1)** — Surfaces handshakes negotiated below TLS 1.2 on in-scope listeners so weak transmission protections are remediated before external vulnerability scanning deadlines.\n\nDocumented **Data sources**: `index=stream` `sourcetype=\"stream:tls\"`; `index=aws` `sourcetype=\"aws:elb:accesslogs\"` with `ssl_protocol`. **App/TA** (typical add-on context): Splunk Stream (1809), Splunk Add-on for AWS (1876). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: stream, aws; **sourcetype**: stream:tls, aws:elb:accesslogs. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=stream, index=aws, sourcetype=\"stream:tls\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **tls_ver** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where in_scope=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Filters the current rows with `where tls_ver IN (\"TLSv1\",\"TLSv1.0\",\"TLSv1.1\",\"SSLv3\") OR match(tls_ver,\"(?i)^ssl\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by tls_ver, dest_ip, src_ip, server_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Certificates.All_Certificates by All_Certificates.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**TLS 1.2 Minimum Version Violations on Payment APIs (PCI DSS Req 4.1.1, 4.2.1)** — Surfaces handshakes negotiated below TLS 1.2 on in-scope listeners so weak transmission protections are remediated before external vulnerability scanning deadlines.\n\nDocumented **Data sources**: `index=stream` `sourcetype=\"stream:tls\"`; `index=aws` `sourcetype=\"aws:elb:accesslogs\"` with `ssl_protocol`. **App/TA** (typical add-on context): Splunk Stream (1809), Splunk Add-on for AWS (1876). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Certificates.All_Certificates` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (by tls_ver), table (top client IPs), geomap optional.",
+  "visualization": "Bar chart (by tls_ver), table (top client IPs), geomap optional.",
+  "references": [
+    {
+      "title": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Certificates",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Certificates"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "aws",
+    "stream"
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.16",
+  "title": "NIS2 Supply Chain Third-Party Risk Continuous Monitoring",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs)",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as internal_sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.dest_category=\"supplier\"\n  by All_Traffic.dest All_Traffic.app span=1d\n| rename All_Traffic.* as *\n| lookup supplier_risk_lookup dest OUTPUT supplier_name, risk_tier, last_assessment_date\n| eval days_since_assessment=round((now()-strptime(last_assessment_date,\"%Y-%m-%d\"))/86400, 0)\n| eval assessment_overdue=if(days_since_assessment > 365, 1, 0)\n| where bytes_out > 1073741824 OR assessment_overdue=1 OR internal_sources > 50\n| sort - bytes_out\n| table dest, supplier_name, risk_tier, bytes_out, internal_sources, days_since_assessment, assessment_overdue",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.",
+  "value": "Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.",
+  "implementation": "(1) Tag supplier destination IPs/domains in ES asset framework with `category=supplier`; (2) maintain `supplier_risk_lookup` with vendor names, risk tiers, and last assessment dates; (3) alert on large data transfers to suppliers (potential exfiltration vector); (4) flag suppliers with overdue security assessments; (5) correlate supplier domains with threat intelligence feeds; (6) report on supply chain risk posture for board-level NIS2 compliance evidence.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876).\n• Ensure the following data sources are available: CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag supplier destination IPs/domains in ES asset framework with `category=supplier`; (2) maintain `supplier_risk_lookup` with vendor names, risk tiers, and last assessment dates; (3) alert on large data transfers to suppliers (potential exfiltration vector); (4) flag suppliers with overdue security assessments; (5) correlate supplier domains with threat intelligence feeds; (6) report on supply chain risk posture for board-level NIS2 compliance evidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` sum(All_Traffic.bytes_out) as bytes_out dc(All_Traffic.src) as internal_sources\n  from datamodel=Network_Traffic.All_Traffic\n  where All_Traffic.dest_category=\"supplier\"\n  by All_Traffic.dest All_Traffic.app span=1d\n| rename All_Traffic.* as *\n| lookup supplier_risk_lookup dest OUTPUT supplier_name, risk_tier, last_assessment_date\n| eval days_since_assessment=round((now()-strptime(last_assessment_date,\"%Y-%m-%d\"))/86400, 0)\n| eval assessment_overdue=if(days_since_assessment > 365, 1, 0)\n| where bytes_out > 1073741824 OR assessment_overdue=1 OR internal_sources > 50\n| sort - bytes_out\n| table dest, supplier_name, risk_tier, bytes_out, internal_sources, days_since_assessment, assessment_overdue\n```\n\nUnderstanding this SPL\n\n**NIS2 Supply Chain Third-Party Risk Continuous Monitoring (Art. 21(2)(d))** — Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.\n\nDocumented **Data sources**: CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **days_since_assessment** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **assessment_overdue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where bytes_out > 1073741824 OR assessment_overdue=1 OR internal_sources > 50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **NIS2 Supply Chain Third-Party Risk Continuous Monitoring (Art. 21(2)(d))**): table dest, supplier_name, risk_tier, bytes_out, internal_sources, days_since_assessment, assessment_overdue\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**NIS2 Supply Chain Third-Party Risk Continuous Monitoring (Art. 21(2)(d))** — Beyond vendor session monitoring (UC-22.2.2), Article 21(2)(d) requires continuous security assessment of direct suppliers and service providers. This use case tracks third-party SaaS and API dependency health, monitors supplier security posture indicators, and detects anomalous data flows to supplier networks — providing broader supply chain risk visibility than PAM session monitoring alone.\n\nDocumented **Data sources**: CIM Network_Traffic data model, `index=proxy` (web proxy logs), DNS logs, threat intelligence lookups, `index=cloud` (SaaS audit logs). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (supplier risk overview), Bar chart (data transfer by supplier), Single value (overdue assessments), Heatmap (supplier access patterns).",
+  "visualization": "Table (supplier risk overview), Bar chart (data transfer by supplier), Single value (overdue assessments), Heatmap (supplier access patterns).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "CIM: Network_Traffic",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1078",
+    "T1048"
+  ],
+  "equipment": [
+    "aws"
+  ]
+}

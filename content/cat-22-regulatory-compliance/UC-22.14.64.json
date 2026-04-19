@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.64",
+  "title": "Penetration Test Windows and Detected Activities",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST 800-53",
+      "version": "Rev. 5",
+      "clause": "CA-8",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`notable` OR `suricata`, `snort`, `pan:threat`",
+  "app": "Splunk Enterprise Security (Splunkbase 263), IDS sourcetypes",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=sec (sourcetype=suricata OR sourcetype=pan:threat) earliest=-30d\n| lookup pentest_windows.csv src_ip OUTPUT engagement_id, tester\n| where isnotnull(engagement_id)\n| stats count by engagement_id, signature, dest\n| sort - count",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.signature, IDS_Attacks.dest | sort - count",
+  "cimModels": [
+    "Intrusion_Detection"
+  ],
+  "description": "Correlates scheduled pen-test IP ranges with IDS alerts for CA-8 penetration testing visibility.",
+  "value": "Correlates scheduled pen-test IP ranges with IDS alerts for CA-8 penetration testing visibility.",
+  "implementation": "(1) Maintain `pentest_windows.csv` with IPs and dates; (2) reduce false IR-4 by tagging engagements; (3) store ROE in GRC; (4) after-action detection gap review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), IDS sourcetypes.\n• Ensure the following data sources are available: `notable` OR `suricata`, `snort`, `pan:threat`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain `pentest_windows.csv` with IPs and dates; (2) reduce false IR-4 by tagging engagements; (3) store ROE in GRC; (4) after-action detection gap review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=sec (sourcetype=suricata OR sourcetype=pan:threat) earliest=-30d\n| lookup pentest_windows.csv src_ip OUTPUT engagement_id, tester\n| where isnotnull(engagement_id)\n| stats count by engagement_id, signature, dest\n| sort - count\n```\n\nUnderstanding this SPL\n\n**Penetration Test Windows and Detected Activities (CA-8)** — Correlates scheduled pen-test IP ranges with IDS alerts for CA-8 penetration testing visibility.\n\nDocumented **Data sources**: `notable` OR `suricata`, `snort`, `pan:threat`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), IDS sourcetypes. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: sec; **sourcetype**: suricata, pan:threat. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=sec, sourcetype=suricata, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(engagement_id)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by engagement_id, signature, dest** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Intrusion_Detection.IDS_Attacks by IDS_Attacks.signature, IDS_Attacks.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Penetration Test Windows and Detected Activities (CA-8)** — Correlates scheduled pen-test IP ranges with IDS alerts for CA-8 penetration testing visibility.\n\nDocumented **Data sources**: `notable` OR `suricata`, `snort`, `pan:threat`. **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), IDS sourcetypes. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Intrusion_Detection.IDS_Attacks` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (detections during tests), Time chart (activity), Single value (coverage)",
+  "visualization": "Table (detections during tests), Time chart (activity), Single value (coverage)",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "CIM: Intrusion_Detection",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "suricata"
+  ]
+}

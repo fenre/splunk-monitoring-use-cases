@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.34",
+  "subcategory": "22.8#1",
+  "title": "SOC 2 CC7.3 — Evaluated events: threshold breaches without documented rationale",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Does NOT auto-classify events; identifies threshold breaches that closed without an analyst rationale field populated.",
+  "evidence": "Saved search 'soc2_cc7_3_rationale_missing' (hourly) emits per alert: alert_id, severity, rationale_present, closed_at, analyst, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC7.3",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CC7.3 Evaluated events and incidents — rationale adherence is the direct signal."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.5.25",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.5.25 Event assessment — contributing."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.17",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.17 Incident management process — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Closing an ES notable via SOAR with empty rationale returns rationale_present=0 on the next hour.",
+    "negativeScenario": "A close with a populated rationale >20 characters is absent.",
+    "fixtureRef": "sample-data/uc-22.8.34-fixture.json"
+  },
+  "dataSources": "`index=notable` (ES notable); `index=soar` sourcetype=phantom:incident.",
+  "app": "Splunk Enterprise Security, Splunk SOAR",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "search `notable` severity IN (\"medium\",\"high\",\"critical\") earliest=-7d\n| rename event_id AS alert_id\n| join type=outer alert_id\n  [search index=soar sourcetype=phantom:incident state=closed earliest=-7d\n   | stats latest(closed_at) AS closed_at latest(analyst) AS analyst latest(rationale) AS rationale BY alert_id]\n| eval rationale_present=if(len(rationale)>20,1,0)\n| where isnotnull(closed_at) AND rationale_present=0\n| table alert_id severity closed_at analyst rationale_present",
+  "cimModels": [
+    "Alerts"
+  ],
+  "description": "CC7.3 requires the entity to evaluate events and incidents. Closing a threshold-breach event without a rationale field is a direct control failure.",
+  "value": "Gives leadership proof that events are not only closed but justifiably closed. Auditors consider an 'auto-closed without rationale' event a material weakness.",
+  "implementation": "(1) Enforce rationale field on SOAR close action; (2) schedule UC hourly; (3) rationale_present=0 reopens the alert for review; (4) weekly SOC report.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security, Splunk SOAR.\n• Ensure the following data sources are available: `index=notable` (ES notable); `index=soar` sourcetype=phantom:incident..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enforce rationale field on SOAR close action; (2) schedule UC hourly; (3) rationale_present=0 reopens the alert for review; (4) weekly SOC report.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch `notable` severity IN (\"medium\",\"high\",\"critical\") earliest=-7d\n| rename event_id AS alert_id\n| join type=outer alert_id\n  [search index=soar sourcetype=phantom:incident state=closed earliest=-7d\n   | stats latest(closed_at) AS closed_at latest(analyst) AS analyst latest(rationale) AS rationale BY alert_id]\n| eval rationale_present=if(len(rationale)>20,1,0)\n| where isnotnull(closed_at) AND rationale_present=0\n| table alert_id severity closed_at analyst rationale_present\n```\n\nUnderstanding this SPL\n\n**SOC 2 CC7.3 — Evaluated events: threshold breaches without documented rationale** — Gives leadership proof that events are not only closed but justifiably closed. Auditors consider an 'auto-closed without rationale' event a material weakness.\n\nDocumented **Data sources**: `index=notable` (ES notable); `index=soar` sourcetype=phantom:incident. **App/TA** (typical add-on context): Splunk Enterprise Security, Splunk SOAR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• Renames fields with `rename` for clarity or joins.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **rationale_present** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(closed_at) AND rationale_present=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SOC 2 CC7.3 — Evaluated events: threshold breaches without documented rationale**): table alert_id severity closed_at analyst rationale_present\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar of alerts by analyst × rationale_present, single value 'closed-without-rationale'.",
+  "visualization": "Stacked bar of alerts by analyst × rationale_present, single value 'closed-without-rationale'.",
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Alerts closed by automation rules must use rationale='auto-closed:<rule_id>' rather than blank — reject blank in SOAR.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "alert_id",
+    "rationale",
+    "closed_at",
+    "analyst",
+    "_time"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.21.17",
+  "title": "Technical Documentation Completeness Checklist (Art. 11/Annex IV)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "EU AI Act",
+      "version": "Regulation (EU) 2024/1689",
+      "clause": "Art.13",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'EU AI Act' → 'Art.13'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=ai_docs` HEC — model_id, section_id, present",
+  "app": "Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=ai_docs sourcetype=\"ai:tdoc:status\" earliest=-7d\n| stats values(section_id) as sections, sum(present) as present_cnt by model_id\n| eval required=12\n| eval completeness=round(100*present_cnt/required,2)\n| where completeness < 100\n| sort + completeness",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Scores required documentation sections present per model_id for Annex IV technical documentation completeness.",
+  "value": "Scores required documentation sections present per model_id for Annex IV technical documentation completeness.",
+  "implementation": "(1) Define canonical section_id list; (2) integrate CMS webhook; (3) block EU deploy if completeness < 100; (4) store PDF hashes externally.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621).\n• Ensure the following data sources are available: `index=ai_docs` HEC — model_id, section_id, present.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Define canonical section_id list; (2) integrate CMS webhook; (3) block EU deploy if completeness < 100; (4) store PDF hashes externally.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ai_docs sourcetype=\"ai:tdoc:status\" earliest=-7d\n| stats values(section_id) as sections, sum(present) as present_cnt by model_id\n| eval required=12\n| eval completeness=round(100*present_cnt/required,2)\n| where completeness < 100\n| sort + completeness\n```\n\nUnderstanding this SPL\n\n**Technical Documentation Completeness Checklist (Art. 11/Annex IV) (EU AI Act)** — Scores required documentation sections present per model_id for Annex IV technical documentation completeness.\n\nDocumented **Data sources**: `index=ai_docs` HEC — model_id, section_id, present. **App/TA** (typical add-on context): Splunk Enterprise Security (263), Splunk Common Information Model Add-on (1621). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ai_docs; **sourcetype**: ai:tdoc:status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ai_docs, sourcetype=\"ai:tdoc:status\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by model_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **required** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **completeness** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where completeness < 100` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge-style single value (avg completeness), Table (missing sections), Bar chart (by model_id)",
+  "visualization": "Gauge-style single value (avg completeness), Table (missing sections), Bar chart (by model_id)",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

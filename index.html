@@ -22,8 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-:root {
+<style>:root {
   --cisco-blue: #049FD9;
   --cisco-blue-dark: #004BAF;
   --cisco-teal: #04A4B0;
@@ -105,7 +104,6 @@ a { color: var(--text-link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button { font-family: var(--font-sans); cursor: pointer; }
 .si { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.15em; }
-
 .c-header {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   height: var(--header-h);
@@ -834,7 +832,6 @@ body.non-technical-view .c-kpi-strip { display: none !important; }
 .uc-sizing-tray-btn.primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .uc-sizing-tray-btn.ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-default); }
 .uc-sizing-tray-btn.ghost:hover { border-color: var(--text-primary); color: var(--text-primary); }
-
 @media print {
   .c-header, .c-sidebar, .c-footer, .uc-sizing-tray, .uc-select-cb, .uc-tbl-cb,
   .filter-strip, .c-mobile-search-btn, .c-mobile-search-bar,
@@ -848,7 +845,6 @@ body.non-technical-view .c-kpi-strip { display: none !important; }
 body.non-technical-view .uc-select-cb,
 body.non-technical-view .uc-tbl-cb,
 body.non-technical-view .uc-sizing-tray { display: none !important; }
-
 /* ─── Release Notes in Modal ─── */
 .rn-version { display: flex; align-items: center; gap: 10px; margin-top: 28px; }
 .rn-version:first-of-type { margin-top: 0; }
@@ -2533,6 +2529,230 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
 <script src="provenance.js"></script>
 <script src="tools/data-sizing/mapping.js"></script>
 <script>
+/* Cisco UI catalog — chunk 0: lazy-bootstrap loader.
+ *
+ * Runs FIRST in the concatenated bundle. Two modes:
+ *
+ *   1) Legacy mode — `data.js` was loaded as a separate <script> tag, so
+ *      window.DATA, window.EQUIPMENT, window.CAT_META, window.CAT_GROUPS,
+ *      window.FILTER_FACETS, window.RECENTLY_ADDED already exist.
+ *      The loader resolves immediately, calls __bootstrapCatalogState(),
+ *      and dispatches the "catalog:ready" event synchronously.
+ *
+ *   2) Lazy mode (production) — data.js is NOT loaded. window.DATA is
+ *      empty. The loader fetches /api/catalog-index.json (~5 MB JSON,
+ *      ~750 KB gzipped), reconstructs the legacy globals from the
+ *      lightweight UC stubs, then runs the bootstrap.
+ *
+ * Heavy per-UC fields (full SPL, narrative, references, screenshots)
+ * are NOT in the index. The detail panel lazy-fetches them from
+ * /api/cat-{cat}.json on first open via __ensureFullUC().
+ *
+ * Public surface:
+ *   window.__catalogReady   — Promise<void>; resolves when DATA + globals
+ *                             are populated and __bootstrapCatalogState()
+ *                             has run. initApp() must `await` this.
+ *   window.__catalogIndex   — the parsed catalog-index.json (lazy mode only).
+ *   window.__ensureFullUC(uc_id) — returns Promise<void> that resolves when
+ *                             the UC's heavy fields are merged into DATA.
+ *                             Cheap if already loaded.
+ *   window.dispatchEvent(new Event("catalog:ready"))  — fired exactly once.
+ */
+
+(function() {
+  if (typeof window === "undefined") return;
+
+  var CATALOG_INDEX_URL = "api/catalog-index.json";
+  var CATEGORY_URL = function(catId) { return "api/cat-" + catId + ".json"; };
+
+  var legacyMode =
+    Array.isArray(window.DATA) &&
+    window.DATA.length > 0 &&
+    window.DATA[0] &&
+    Array.isArray(window.DATA[0].s);
+
+  var dispatchedReady = false;
+  var fullCatPromises = {};
+  var fullUCPromises = {};
+
+  window.__catalogReady = new Promise(function(resolve, reject) {
+    if (legacyMode) {
+      // Defer to a microtask so __bootstrapCatalogState (defined later in
+      // the bundle) is available when we call it.
+      Promise.resolve().then(function() {
+        try {
+          if (typeof __bootstrapCatalogState === "function") {
+            __bootstrapCatalogState();
+          }
+          _dispatchReady();
+          resolve();
+        } catch (err) {
+          console.error("[loader] legacy bootstrap failed:", err);
+          reject(err);
+        }
+      });
+      return;
+    }
+
+    fetch(CATALOG_INDEX_URL, { credentials: "same-origin" })
+      .then(function(res) {
+        if (!res.ok) {
+          throw new Error("catalog-index HTTP " + res.status);
+        }
+        return res.json();
+      })
+      .then(function(idx) {
+        window.__catalogIndex = idx;
+        _populateGlobalsFromIndex(idx);
+        if (typeof __bootstrapCatalogState === "function") {
+          __bootstrapCatalogState();
+        }
+        _dispatchReady();
+        resolve();
+      })
+      .catch(function(err) {
+        console.error("[loader] catalog-index fetch failed:", err);
+        // Surface a minimal empty state so the SPA still renders shell UI.
+        window.DATA = window.DATA || [];
+        if (typeof __bootstrapCatalogState === "function") {
+          try { __bootstrapCatalogState(); } catch (e) {}
+        }
+        _dispatchReady();
+        resolve();
+      });
+  });
+
+  function _dispatchReady() {
+    if (dispatchedReady) return;
+    dispatchedReady = true;
+    try {
+      window.dispatchEvent(new Event("catalog:ready"));
+    } catch (e) {
+      // IE-style fallback (we don't ship to IE but be polite).
+      var ev = document.createEvent("Event");
+      ev.initEvent("catalog:ready", true, true);
+      window.dispatchEvent(ev);
+    }
+  }
+
+  function _populateGlobalsFromIndex(idx) {
+    if (!idx || typeof idx !== "object") return;
+    if (idx.site) window.SITE_CUSTOM = idx.site;
+    if (Array.isArray(idx.equipment)) window.EQUIPMENT = idx.equipment;
+    if (idx.catGroups && typeof idx.catGroups === "object") window.CAT_GROUPS = idx.catGroups;
+    if (idx.catMeta && typeof idx.catMeta === "object") window.CAT_META = idx.catMeta;
+    if (idx.filterFacets && typeof idx.filterFacets === "object") window.FILTER_FACETS = idx.filterFacets;
+    if (Array.isArray(idx.recentlyAdded)) {
+      try {
+        window.RECENTLY_ADDED = new Set(idx.recentlyAdded);
+      } catch (e) {
+        window.RECENTLY_ADDED = idx.recentlyAdded;
+      }
+    }
+    if (idx.regulations) window.REGULATIONS = idx.regulations;
+
+    var cats = (idx.categories || []).map(function(c) {
+      return { i: c.i, n: c.n, s: (c.subs || []).map(function(s) {
+        return { i: s.i, n: s.n, u: [] };
+      }) };
+    });
+    var catById = {};
+    var subKey = function(cat, subId) { return cat + "|" + subId; };
+    cats.forEach(function(c) { catById[c.i] = c; });
+
+    var subIndex = {};
+    cats.forEach(function(c) {
+      c.s.forEach(function(s) {
+        subIndex[subKey(c.i, s.i)] = s;
+      });
+    });
+
+    (idx.ucs || []).forEach(function(stub) {
+      var sub = subIndex[subKey(stub.cat, stub.sub)];
+      if (!sub) return;
+      // The stub *is* the UC for browse-time purposes; per-UC heavy fields
+      // are merged in lazily by __ensureFullUC().
+      sub.u.push(stub);
+    });
+
+    window.DATA = cats;
+  }
+
+  // --------------------------------------------------------------------
+  // Detail-panel lazy hydration
+  // --------------------------------------------------------------------
+
+  /** Fetch /api/cat-{catId}.json once and merge heavy fields into the
+   *  matching UC stubs in window.DATA. Returns a Promise<void>. */
+  window.__ensureFullCategory = function(catId) {
+    if (legacyMode) return Promise.resolve();
+    var key = String(catId);
+    if (fullCatPromises[key]) return fullCatPromises[key];
+
+    fullCatPromises[key] = fetch(CATEGORY_URL(catId), { credentials: "same-origin" })
+      .then(function(res) {
+        if (!res.ok) throw new Error("cat-" + catId + " HTTP " + res.status);
+        return res.json();
+      })
+      .then(function(catFull) {
+        _mergeCategoryFull(catId, catFull);
+      })
+      .catch(function(err) {
+        console.error("[loader] cat-" + catId + " fetch failed:", err);
+        // Allow retry on next call.
+        delete fullCatPromises[key];
+        throw err;
+      });
+    return fullCatPromises[key];
+  };
+
+  /** Convenience: ensure a single UC's heavy fields are merged. */
+  window.__ensureFullUC = function(ucId) {
+    if (!ucId) return Promise.resolve();
+    if (fullUCPromises[ucId]) return fullUCPromises[ucId];
+    var catId = parseInt(String(ucId).split(".")[0], 10);
+    if (!catId || isNaN(catId)) return Promise.resolve();
+    fullUCPromises[ucId] = window.__ensureFullCategory(catId);
+    return fullUCPromises[ucId];
+  };
+
+  function _mergeCategoryFull(catId, catFull) {
+    if (!catFull || !Array.isArray(catFull.s)) return;
+    var stubCat = (window.DATA || []).find(function(c) { return c.i === catId; });
+    if (!stubCat) return;
+
+    var stubSubMap = {};
+    stubCat.s.forEach(function(sub) {
+      stubSubMap[sub.i] = sub;
+      sub._ucMap = {};
+      sub.u.forEach(function(uc, idx) { sub._ucMap[uc.i] = idx; });
+    });
+
+    catFull.s.forEach(function(fullSub) {
+      var stubSub = stubSubMap[fullSub.i];
+      if (!stubSub) return;
+      (fullSub.u || []).forEach(function(fullUC) {
+        var stubIdx = stubSub._ucMap[fullUC.i];
+        if (typeof stubIdx === "number") {
+          // Merge heavy fields onto the existing stub *in place* so any
+          // existing references (ucIndex[].uc) keep pointing at the same
+          // object. Stub fields take precedence for shape consistency.
+          var stub = stubSub.u[stubIdx];
+          for (var key in fullUC) {
+            if (!Object.prototype.hasOwnProperty.call(fullUC, key)) continue;
+            if (key in stub) continue; // already in stub
+            stub[key] = fullUC[key];
+          }
+        } else {
+          // Stub didn't exist for this UC — append the full record.
+          stubSub.u.push(fullUC);
+          stubSub._ucMap[fullUC.i] = stubSub.u.length - 1;
+        }
+      });
+      delete stubSub._ucMap;
+    });
+  }
+})();
 /* Cisco UI catalog — chunk 1: setup, SI, state, helpers, filter core */
 if (typeof EQUIPMENT === 'undefined') window.EQUIPMENT = [];
 if (typeof CAT_META === 'undefined') window.CAT_META = {};
@@ -2610,41 +2830,49 @@ var SIDEBAR_GROUP_LABELS = { infra:'Infrastructure', security:'Security', cloud:
 
 var allUCs = [];
 var ucIndex = {};
-DATA.forEach(function(cat) {
-  cat.s.forEach(function(sc) {
-    sc.u.forEach(function(uc) {
-      var entry = { cat: cat, sc: sc, uc: uc, flatIdx: allUCs.length };
-      var blob = [uc.n, uc.i, uc.v, uc.q, uc.t, uc.d, cat.n, sc.n].join(' ');
-      if (Array.isArray(uc.a)) blob += ' ' + uc.a.join(' ');
-      if (Array.isArray(uc.mtype)) blob += ' ' + uc.mtype.join(' ');
-      if (Array.isArray(uc.regs)) blob += ' ' + uc.regs.join(' ');
-      if (uc.hw) blob += ' ' + uc.hw;
-      if (uc.escu) blob += ' escu enterprise security content detection';
-      if (uc.escu_rba) blob += ' rba risk based alerting';
-      entry._searchBlob = blob.toLowerCase();
-      allUCs.push(entry);
-      ucIndex[uc.i] = entry;
+var _cachedRegKeys = [];
+var _cachedMtypes = [];
+
+function __bootstrapCatalogState() {
+  allUCs.length = 0;
+  Object.keys(ucIndex).forEach(function(k) { delete ucIndex[k]; });
+  (window.DATA || []).forEach(function(cat) {
+    (cat.s || []).forEach(function(sc) {
+      (sc.u || []).forEach(function(uc) {
+        var entry = { cat: cat, sc: sc, uc: uc, flatIdx: allUCs.length };
+        var blob = [uc.n, uc.i, uc.v, uc.q, uc.t, uc.d, cat.n, sc.n].join(' ');
+        if (Array.isArray(uc.a)) blob += ' ' + uc.a.join(' ');
+        if (Array.isArray(uc.mtype)) blob += ' ' + uc.mtype.join(' ');
+        if (Array.isArray(uc.regs)) blob += ' ' + uc.regs.join(' ');
+        if (uc.hw) blob += ' ' + uc.hw;
+        if (uc.escu) blob += ' escu enterprise security content detection';
+        if (uc.escu_rba) blob += ' rba risk based alerting';
+        entry._searchBlob = blob.toLowerCase();
+        allUCs.push(entry);
+        ucIndex[uc.i] = entry;
+      });
     });
   });
-});
+  __recomputeCachedFacets();
+  __rebuildEqById();
+}
 
-var _cachedRegKeys = (function() {
+function __recomputeCachedFacets() {
   var regSet = {};
   allUCs.forEach(function(e) { if (Array.isArray(e.uc.regs)) e.uc.regs.forEach(function(r) { regSet[r] = 1; }); });
-  return Object.keys(regSet).sort();
-})();
-var _cachedMtypes = (function() {
+  _cachedRegKeys = Object.keys(regSet).sort();
+
   var mtypes = new Set();
   allUCs.forEach(function(e) { if (Array.isArray(e.uc.mtype)) e.uc.mtype.forEach(function(t) { mtypes.add(t); }); });
   var mtOrder = ['Availability','Performance','Security','Configuration','Capacity','Fault','Anomaly','Compliance'];
-  return Array.from(mtypes).sort(function(a, b) {
+  _cachedMtypes = Array.from(mtypes).sort(function(a, b) {
     var ia = mtOrder.indexOf(a), ib = mtOrder.indexOf(b);
     if (ia >= 0 && ib >= 0) return ia - ib;
     if (ia >= 0) return -1;
     if (ib >= 0) return 1;
     return a.localeCompare(b);
   });
-})();
+}
 
 var currentCat = null;
 var currentSubcat = null;
@@ -2691,14 +2919,17 @@ var currentSort = 'criticality';
 try { var _ss = localStorage.getItem('uc-sort-pref'); if (_ss) currentSort = _ss; } catch (e) {}
 
 var _eqById = {};
-(EQUIPMENT || []).forEach(function(eq) { _eqById[eq.id] = eq; });
+function __rebuildEqById() {
+  Object.keys(_eqById).forEach(function(k) { delete _eqById[k]; });
+  (window.EQUIPMENT || []).forEach(function(eq) { if (eq && eq.id != null) _eqById[eq.id] = eq; });
+}
+__rebuildEqById();
 
 var ucRenderBatch = 50;
 var ucRenderedCount = 0;
 var ucScrollObserver = null;
 var ucAllCardsHtml = [];
 var ucGridTargets = [];
-
 function isEquipmentModelId(compoundId) {
   var list = EQUIPMENT || [];
   for (var i = 0; i < list.length; i++) {
@@ -2812,13 +3043,52 @@ function getFilteredUCs() {
   if (currentTrendFilter) result = result.filter(function(e) { return /\btrend/i.test(e.uc.n); });
   if (currentCat != null) result = result.filter(function(e) { return e.cat.i === currentCat; });
   if (currentSearch) {
-    var q = currentSearch.toLowerCase();
-    var words = q.split(/\s+/).filter(Boolean);
+    // Two-tier search:
+    //   1) Synchronous substring scan over the in-memory _searchBlob.
+    //      Always runs, returns instantly. Matches stub-level fields
+    //      only (UC name, summary, source names, app names, etc.).
+    //   2) Asynchronous shard-based inverted index (06-search.js).
+    //      Indexes the full SPL + markdown narrative + heavy fields the
+    //      stub doesn't ship. Scheduled here, results flow in via
+    //      window.__onSearchResults -> reRender(); the union of (1) and
+    //      the latest (2) is what the user sees.
+    var qNorm = currentSearch.toLowerCase().trim();
+    var words = qNorm.split(/\s+/).filter(Boolean);
+    var inMem = new Set();
+    for (var _si = 0; _si < result.length; _si++) {
+      var _e = result[_si];
+      if (words.every(function(w) { return _e._searchBlob.indexOf(w) !== -1; })) {
+        inMem.add(_e.uc.i);
+      }
+    }
+    if (window.__searchIndex && typeof window.__searchIndex.query === 'function') {
+      // Schedule the async query (debounced inside the index). When it
+      // resolves it calls __onSearchResults which fires reRender, and on
+      // the next pass through here window.__searchAsyncResults will be
+      // fresh.
+      window.__searchIndex.query(qNorm);
+    }
+    var asyncSet = null;
+    var ar = window.__searchAsyncResults;
+    if (ar && ar.q === qNorm && ar.set) asyncSet = ar.set;
     result = result.filter(function(e) {
-      return words.every(function(w) { return e._searchBlob.indexOf(w) !== -1; });
+      return inMem.has(e.uc.i) || (asyncSet && asyncSet.has(e.uc.i));
     });
   }
   return result;
+}
+
+// Wired by 06-search.js once the async shard fetch resolves. The handler
+// just kicks reRender(); getFilteredUCs() will then read the freshly
+// published window.__searchAsyncResults on its next pass.
+if (typeof window !== 'undefined') {
+  window.__onSearchResults = function(q, set) {
+    if (typeof currentSearch === 'undefined') return;
+    if ((currentSearch || '').toLowerCase().trim() !== q) return;
+    if (typeof reRender === 'function') {
+      try { reRender(); } catch (e) { /* swallow */ }
+    }
+  };
 }
 
 function sortUCs(list, sortKey) {
@@ -3275,7 +3545,6 @@ function clearAllFilters() {
   _updateInventoryBadge();
   reRender();
 }
-
 function renderUCCard(uc) {
   var cbChecked = selectedUCIds.has(uc.i) ? ' checked' : '';
   var cb = '<label class="uc-select-cb" onclick="event.stopPropagation()" title="Select for data sizing estimate"><input type="checkbox"' + cbChecked + ' onchange="toggleUCSelection(\'' + esc(uc.i) + '\')"></label>';
@@ -3913,7 +4182,6 @@ function ntVizMockups(vizStr) {
   html += '</div>';
   return html;
 }
-
 function fillPanelBody(e) {
   var uc = e.uc;
   var html = '<div class="c-panel-meta">';
@@ -4072,6 +4340,10 @@ function openPanel(idx) {
   panelOpen = true;
   document.getElementById('panel-id').textContent = 'UC-' + e.uc.i + ' · ' + e.cat.n + ' · ' + e.sc.n;
   document.getElementById('panel-title').textContent = e.uc.n;
+
+  // Render whatever stub data we have immediately so the panel feels
+  // responsive, then lazy-fetch the per-category JSON to merge in heavy
+  // fields (full SPL, narrative, references, screenshots) and re-render.
   fillPanelBody(e);
   var pos = document.getElementById('panel-pos');
   if (pos) pos.textContent = (idx + 1) + ' / ' + panelUCList.length;
@@ -4079,6 +4351,17 @@ function openPanel(idx) {
   document.body.classList.add('panel-open');
   buildSidebar();
   history.replaceState(null, '', '#uc-' + e.uc.i);
+
+  if (typeof window.__ensureFullUC === 'function') {
+    var ucIdAtOpen = e.uc.i;
+    window.__ensureFullUC(e.uc.i).then(function() {
+      // Bail if the user navigated away before the fetch resolved.
+      if (!panelOpen || panelIdx !== idx) return;
+      var current = panelUCList[panelIdx];
+      if (!current || current.uc.i !== ucIdAtOpen) return;
+      fillPanelBody(current);
+    }).catch(function() { /* loader already logged */ });
+  }
 }
 
 function closePanel() {
@@ -4201,7 +4484,6 @@ function mapSelectTech(id) {
   reRender();
   updateHash(false);
 }
-
 var _srcBuilt = false;
 function buildSourceCatalog() {
   if (_srcBuilt) return;
@@ -5241,8 +5523,336 @@ function closeMobileSidebar() {
   document.getElementById('sidebar-backdrop').classList.remove('open');
 }
 
-initApp();
+// initApp depends on window.DATA / window.EQUIPMENT / window.CAT_META
+// being populated, which the loader handles asynchronously in production
+// (lazy mode) and synchronously in legacy mode (when data.js was loaded
+// as a separate <script> tag). Wait for the catalog:ready handshake.
+if (window.__catalogReady && typeof window.__catalogReady.then === 'function') {
+  window.__catalogReady.then(function() {
+    try { initApp(); } catch (err) { console.error('[app] initApp failed:', err); }
+  });
+} else {
+  // Defensive fallback for direct-from-disk file:// loads where the
+  // loader IIFE may not have evaluated yet (or window features differ).
+  initApp();
+}
+/* Cisco UI catalog — chunk 6: lazy-loaded sharded search index.
+ *
+ * Replaces the in-memory ``_searchBlob`` linear scan over the legacy 39 MB
+ * data.js payload with a static, sharded inverted index built at build
+ * time and served from /assets/.
+ *
+ * Wire-up
+ * -------
+ * The catalog (00-loader.js) populates window.DATA + _searchBlob first.
+ * The filter pipeline (02-filters.js) runs synchronously on every
+ * keystroke and does the *substring* match against _searchBlob — that
+ * keeps the UI feeling instant, but only matches stub-level fields
+ * (UC name, summary, source names, app names, regulation IDs).
+ *
+ * THIS module adds the heavy-field overlay: full SPL, full markdown
+ * narrative, expanded MITRE/CIM tags. On every (debounced) query it
+ * returns a Set<UCID> of additional matches found in those fields. The
+ * filter pipeline UNIONS the two sets, so a UC matches the search if
+ * EITHER scan finds it.
+ *
+ * Public API
+ * ----------
+ *   window.__searchIndex.query(q)            -> Promise<Set<UCID>>
+ *   window.__searchIndex.warmup()            -> kick off vocab prefetch
+ *   window.__searchAsyncResults              -> { q, set, when } latest
+ *   window.__onSearchResults(q, set)         -> wired by 02-filters.js,
+ *                                               called once shard fetch
+ *                                               resolves; triggers reRender.
+ *
+ * Cache strategy
+ * --------------
+ * vocab.json: stable filename, fetched fresh per session (cache normal HTTP).
+ * search-shard-NN.<hash>.json: fingerprinted, safe to cache forever.
+ * In-memory: vocab + every shard requested are kept in JS for the
+ * lifetime of the page; queryCache memoises {q -> Set<UCID>}.
+ *
+ * Failure modes
+ * -------------
+ * If vocab or any shard fetch fails (offline, 404, JSON parse error),
+ * we log to console and return an empty set. The substring scan in
+ * 02-filters.js still runs, so search continues to work over the
+ * stub-level fields — this module is a strict additive layer.
+ */
 
+(function() {
+  if (typeof window === 'undefined') return;
+
+  var VOCAB_URL = 'assets/search-vocab.json';
+  var SHARD_BASE = 'assets/';
+
+  var vocabPromise = null;
+  var vocab = null;
+  var shardCache = {};
+  var queryCache = {};
+  var debounceTimer = null;
+  var DEBOUNCE_MS = 80;
+  var MAX_PREFIX_EXPANSION = 32;
+  var MAX_QUERY_TOKENS = 8;
+
+  function _shardUrl(shardId) {
+    if (!vocab || !vocab.shardFiles) return null;
+    var name = vocab.shardFiles[shardId];
+    return name ? SHARD_BASE + name : null;
+  }
+
+  function _fetchVocab() {
+    if (vocabPromise) return vocabPromise;
+    vocabPromise = fetch(VOCAB_URL, { credentials: 'same-origin' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('vocab HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(v) {
+        if (!v || v.version !== 2 || v.hash !== 'fnv1a32' || !Array.isArray(v.tokens)) {
+          throw new Error('vocab schema mismatch');
+        }
+        vocab = v;
+        return v;
+      })
+      .catch(function(err) {
+        console.error('[search] vocab fetch failed:', err);
+        vocabPromise = null;
+        throw err;
+      });
+    return vocabPromise;
+  }
+
+  function _fetchShard(shardId) {
+    if (shardCache[shardId]) return shardCache[shardId];
+    var url = _shardUrl(shardId);
+    if (!url) return Promise.resolve({});
+    shardCache[shardId] = fetch(url, { credentials: 'same-origin' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('shard HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(s) { return s.postings || {}; })
+      .catch(function(err) {
+        console.error('[search] shard ' + shardId + ' fetch failed:', err);
+        delete shardCache[shardId];
+        return {};
+      });
+    return shardCache[shardId];
+  }
+
+  /* ------------------------------------------------------------------
+   * Query pipeline
+   * ------------------------------------------------------------------ */
+
+  function _tokenize(q) {
+    if (!q) return [];
+    return q.toLowerCase().split(/[^a-z0-9_]+/).filter(function(t) {
+      return t.length >= 3 && t.length <= 30;
+    });
+  }
+
+  function _expandPrefix(token, sortedTokens) {
+    if (!sortedTokens || !sortedTokens.length) return [];
+    // Exact match wins — no need to expand.
+    if (_binarySearch(sortedTokens, token) !== -1) return [token];
+    // Otherwise treat as a prefix: collect tokens that start with `token`.
+    var lo = _lowerBound(sortedTokens, token);
+    var out = [];
+    for (var i = lo; i < sortedTokens.length; i++) {
+      var t = sortedTokens[i];
+      if (t.indexOf(token) !== 0) break;
+      out.push(t);
+      if (out.length >= MAX_PREFIX_EXPANSION) break;
+    }
+    return out;
+  }
+
+  function _binarySearch(arr, needle) {
+    var lo = 0, hi = arr.length - 1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >>> 1;
+      var v = arr[mid];
+      if (v === needle) return mid;
+      if (v < needle) lo = mid + 1; else hi = mid - 1;
+    }
+    return -1;
+  }
+
+  function _lowerBound(arr, needle) {
+    var lo = 0, hi = arr.length;
+    while (lo < hi) {
+      var mid = (lo + hi) >>> 1;
+      if (arr[mid] < needle) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+  }
+
+  function _postingFromString(str) {
+    if (!str) return [];
+    var parts = str.split(',');
+    var out = new Array(parts.length);
+    for (var i = 0; i < parts.length; i++) out[i] = +parts[i];
+    return out;
+  }
+
+  function _intersect(a, b) {
+    var out = [];
+    var i = 0, j = 0;
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) { out.push(a[i]); i++; j++; }
+      else if (a[i] < b[j]) i++;
+      else j++;
+    }
+    return out;
+  }
+
+  function _union(arrs) {
+    if (arrs.length === 1) return arrs[0];
+    var s = new Set();
+    for (var i = 0; i < arrs.length; i++) {
+      var a = arrs[i];
+      for (var j = 0; j < a.length; j++) s.add(a[j]);
+    }
+    var out = Array.from(s);
+    out.sort(function(x, y) { return x - y; });
+    return out;
+  }
+
+  function _runQuery(q) {
+    if (queryCache[q]) return Promise.resolve(queryCache[q]);
+    return _fetchVocab().then(function() {
+      var tokens = _tokenize(q).slice(0, MAX_QUERY_TOKENS);
+      if (!tokens.length) {
+        var emptySet = new Set();
+        queryCache[q] = emptySet;
+        return emptySet;
+      }
+      var perTokenExpansion = tokens.map(function(t) {
+        return _expandPrefix(t, vocab.tokens);
+      });
+      // Any query token with zero vocab matches => no UC can satisfy AND
+      // semantics. Bail with an empty set rather than fetching shards.
+      for (var i = 0; i < perTokenExpansion.length; i++) {
+        if (perTokenExpansion[i].length === 0) {
+          var s = new Set();
+          queryCache[q] = s;
+          return s;
+        }
+      }
+      var shardIds = {};
+      perTokenExpansion.forEach(function(arr) {
+        arr.forEach(function(t) { shardIds[_shardForToken(t)] = true; });
+      });
+      var ids = Object.keys(shardIds).map(Number);
+      return Promise.all(ids.map(_fetchShard)).then(function(shardData) {
+        var byId = {};
+        for (var k = 0; k < ids.length; k++) byId[ids[k]] = shardData[k];
+        var perTokenPostings = perTokenExpansion.map(function(expanded) {
+          var lists = expanded.map(function(t) {
+            var sid = _shardForToken(t);
+            var raw = byId[sid] && byId[sid][t];
+            return raw ? _postingFromString(raw) : [];
+          });
+          return _union(lists);
+        });
+        var matched = perTokenPostings.reduce(function(a, b) {
+          return _intersect(a, b);
+        });
+        var ucIds = matched.map(function(idx) { return vocab.ucIds[idx]; });
+        var resultSet = new Set(ucIds);
+        queryCache[q] = resultSet;
+        return resultSet;
+      });
+    });
+  }
+
+  function _publish(q, set) {
+    window.__searchAsyncResults = { q: q, set: set, when: Date.now() };
+    if (typeof window.__onSearchResults === 'function') {
+      try { window.__onSearchResults(q, set); } catch (e) { /* swallow */ }
+    }
+  }
+
+  /* ------------------------------------------------------------------
+   * Public API
+   * ------------------------------------------------------------------ */
+
+  window.__searchIndex = {
+    /** Schedule a (debounced) async query and return its Promise<Set>. */
+    query: function(q) {
+      var key = String(q || '').toLowerCase().trim();
+      if (queryCache[key]) {
+        _publish(key, queryCache[key]);
+        return Promise.resolve(queryCache[key]);
+      }
+      clearTimeout(debounceTimer);
+      return new Promise(function(resolve) {
+        debounceTimer = setTimeout(function() {
+          _runQuery(key).then(function(set) {
+            // The user may have typed more chars while we were fetching.
+            // Only publish if this query is still the latest the loader saw.
+            _publish(key, set);
+            resolve(set);
+          }).catch(function() { resolve(new Set()); });
+        }, DEBOUNCE_MS);
+      });
+    },
+    /** Best-effort vocab prefetch. Called once after catalog:ready. */
+    warmup: function() {
+      var ric = window.requestIdleCallback;
+      if (typeof ric === 'function') {
+        ric(function() { _fetchVocab().catch(function() {}); }, { timeout: 2000 });
+      } else {
+        setTimeout(function() { _fetchVocab().catch(function() {}); }, 250);
+      }
+    },
+    /** True if vocab is loaded and the index is ready to answer queries. */
+    isReady: function() { return vocab !== null; }
+  };
+
+  if (window.__catalogReady && typeof window.__catalogReady.then === 'function') {
+    window.__catalogReady.then(function() { window.__searchIndex.warmup(); });
+  } else {
+    window.__searchIndex.warmup();
+  }
+
+  /* ------------------------------------------------------------------
+   * FNV-1a 32-bit token hash (for shard routing).
+   *
+   * Mirrors render_search.py::_shard_for. FNV-1a chosen over BLAKE2b
+   * because the JS implementation is 7 lines vs ~150 with no dependence
+   * on Web Crypto. Distribution is uniform to within 5% across the
+   * 12k-token vocabulary — plenty for static shard routing.
+   * ------------------------------------------------------------------ */
+
+  function _shardForToken(token) {
+    if (!vocab) return 0;
+    var hash = 0x811C9DC5;
+    for (var i = 0; i < token.length; i++) {
+      var code = token.charCodeAt(i);
+      // Encode codepoint as UTF-8 bytes — vocab is ASCII (^[a-z0-9_]+$),
+      // but we still go through the encoder for correctness.
+      if (code < 0x80) {
+        hash ^= code;
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+      } else if (code < 0x800) {
+        hash ^= 0xC0 | (code >> 6);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+        hash ^= 0x80 | (code & 0x3F);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+      } else {
+        hash ^= 0xE0 | (code >> 12);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+        hash ^= 0x80 | ((code >> 6) & 0x3F);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+        hash ^= 0x80 | (code & 0x3F);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+      }
+    }
+    return (hash >>> 0) % vocab.shardCount;
+  }
+})();
 </script>
 </body>
 </html>

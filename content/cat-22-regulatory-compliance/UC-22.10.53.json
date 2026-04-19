@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.10.53",
+  "title": "Subcontractor Access — Downstream API Keys Touching ePHI Interfaces",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "HIPAA Security",
+      "version": "2013-final",
+      "clause": "§164.502(e)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=interop` `sourcetype=apigee:proxy` or AWS API Gateway logs (`client_id`, `api_key`, `consumer`), `lookup ba_subcontractor_clients.csv`",
+  "app": "HTTP Event Collector (HEC), Splunk Enterprise Security (263)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=interop sourcetype=\"apigee:proxy\" uri_path=\"/fhir/*\" earliest=-30d\n| stats earliest(_time) as first_seen latest(_time) as last_seen dc(status) as status_codes by client_id, api_key\n| eval key_or_client=coalesce(client_id, api_key)\n| lookup ba_subcontractor_clients.csv key_or_client OUTPUT approved_vendor, subcontractor_name\n| where isnull(approved_vendor)\n| sort first_seen",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Monitors first-seen API keys or OAuth clients used by BA subcontractors against an approved key registry so the extended BAA chain does not introduce unreviewed ePHI paths.",
+  "value": "Monitors first-seen API keys or OAuth clients used by BA subcontractors against an approved key registry so the extended BAA chain does not introduce unreviewed ePHI paths.",
+  "implementation": "(1) Hash static API keys at ingest with `sha256(api_key)` for display fields; (2) require procurement to register subcontractor keys before production; (3) auto-revoke via API management integration on critical alerts.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HTTP Event Collector (HEC), Splunk Enterprise Security (263).\n• Ensure the following data sources are available: `index=interop` `sourcetype=apigee:proxy` or AWS API Gateway logs (`client_id`, `api_key`, `consumer`), `lookup ba_subcontractor_clients.csv`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Hash static API keys at ingest with `sha256(api_key)` for display fields; (2) require procurement to register subcontractor keys before production; (3) auto-revoke via API management integration on critical alerts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=interop sourcetype=\"apigee:proxy\" uri_path=\"/fhir/*\" earliest=-30d\n| stats earliest(_time) as first_seen latest(_time) as last_seen dc(status) as status_codes by client_id, api_key\n| eval key_or_client=coalesce(client_id, api_key)\n| lookup ba_subcontractor_clients.csv key_or_client OUTPUT approved_vendor, subcontractor_name\n| where isnull(approved_vendor)\n| sort first_seen\n```\n\nUnderstanding this SPL\n\n**Subcontractor Access — Downstream API Keys Touching ePHI Interfaces (§164.502(e) / BAA chain)** — Monitors first-seen API keys or OAuth clients used by BA subcontractors against an approved key registry so the extended BAA chain does not introduce unreviewed ePHI paths.\n\nDocumented **Data sources**: `index=interop` `sourcetype=apigee:proxy` or AWS API Gateway logs (`client_id`, `api_key`, `consumer`), `lookup ba_subcontractor_clients.csv`. **App/TA** (typical add-on context): HTTP Event Collector (HEC), Splunk Enterprise Security (263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: interop; **sourcetype**: apigee:proxy. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=interop, sourcetype=\"apigee:proxy\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by client_id, api_key** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **key_or_client** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(approved_vendor)` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (first_seen, key hash, path), Timeline (new clients per week).",
+  "visualization": "Table (first_seen, key hash, path), Timeline (new clients per week).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

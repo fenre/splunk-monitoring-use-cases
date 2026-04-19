@@ -1,0 +1,125 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.32",
+  "subcategory": "22.8#1",
+  "title": "SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of Platform",
+  "controlFamily": "data-flow-cross-border",
+  "exclusions": "Does NOT block traffic; detects outbound flows whose destination ASN/country is absent from the approved-egress registry for the originating service.",
+  "evidence": "Saved search 'soc2_cc6_7_egress_boundary' (every 15m) outputs src_service, dest_ip, dest_asn, dest_country, approved, to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "SOC-2",
+      "version": "2017 TSC",
+      "clause": "CC6.7",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CC6.7 Information transmission and disposal — unapproved egress is the direct failure."
+    },
+    {
+      "regulation": "ISO/IEC 27001",
+      "version": "2022",
+      "clause": "A.8.23",
+      "clauseUrl": "https://www.iso.org/standard/27001",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISO/IEC 27001:2022 A.8.23 Web filtering — contributing."
+    },
+    {
+      "regulation": "PCI-DSS",
+      "version": "v4.0",
+      "clause": "1.3.1",
+      "clauseUrl": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PCI-DSS 1.3.1 traffic to and from the CDE — contributing."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.7",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.7 — contributing."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An outbound flow from the payments service to an ASN not in approved_egress.csv is surfaced within 15m.",
+    "negativeScenario": "A flow to an approved ASN+country tuple is absent.",
+    "fixtureRef": "sample-data/uc-22.8.32-fixture.json",
+    "attackTechnique": "T1041"
+  },
+  "dataSources": "`index=netfw` sourcetype=pan:traffic; ASN/country enrichment via `asn_country.csv`; approved-egress registry `approved_egress.csv`.",
+  "app": "Splunk Add-on for Palo Alto Networks (2757)",
+  "spl": "index=netfw sourcetype=pan:traffic action=allow direction=outbound earliest=-15m\n| rename src AS src_ip dest AS dest_ip\n| lookup service_by_src.csv src_ip OUTPUT src_service\n| lookup asn_country.csv ip=dest_ip OUTPUT asn AS dest_asn country AS dest_country\n| lookup approved_egress.csv src_service dest_asn OUTPUT approved\n| where isnull(approved) OR approved!=\"yes\"\n| stats count sum(bytes_out) AS bytes BY src_service dest_ip dest_asn dest_country",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "description": "Evaluates outbound flows against the per-service approved-egress registry. A flow to an unapproved ASN or country is a direct CC6.7 boundary violation.",
+  "value": "Provides the evidence SOC 2 auditors want: proof that outbound flows are governed and deviations are captured. Supports reduction of shadow SaaS risk.",
+  "implementation": "(1) Enrich Palo Alto traffic with service/ASN/country; (2) maintain approved_egress.csv; (3) schedule UC every 15m; (4) hit opens a ticket to service owner; (5) 48h SLA; (6) weekly review by Platform team.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Palo Alto Networks (2757).\n• Ensure the following data sources are available: `index=netfw` sourcetype=pan:traffic; ASN/country enrichment via `asn_country.csv`; approved-egress registry `approved_egress.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Enrich Palo Alto traffic with service/ASN/country; (2) maintain approved_egress.csv; (3) schedule UC every 15m; (4) hit opens a ticket to service owner; (5) 48h SLA; (6) weekly review by Platform team.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=netfw sourcetype=pan:traffic action=allow direction=outbound earliest=-15m\n| rename src AS src_ip dest AS dest_ip\n| lookup service_by_src.csv src_ip OUTPUT src_service\n| lookup asn_country.csv ip=dest_ip OUTPUT asn AS dest_asn country AS dest_country\n| lookup approved_egress.csv src_service dest_asn OUTPUT approved\n| where isnull(approved) OR approved!=\"yes\"\n| stats count sum(bytes_out) AS bytes BY src_service dest_ip dest_asn dest_country\n```\n\nUnderstanding this SPL\n\n**SOC 2 CC6.7 — System boundary & data-transmission control: unapproved egress destinations** — Provides the evidence SOC 2 auditors want: proof that outbound flows are governed and deviations are captured. Supports reduction of shadow SaaS risk.\n\nDocumented **Data sources**: `index=netfw` sourcetype=pan:traffic; ASN/country enrichment via `asn_country.csv`; approved-egress registry `approved_egress.csv`. **App/TA** (typical add-on context): Splunk Add-on for Palo Alto Networks (2757). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: netfw; **sourcetype**: pan:traffic. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=netfw, sourcetype=pan:traffic, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(approved) OR approved!=\"yes\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src_service dest_ip dest_asn dest_country** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Geo map of unapproved destinations, bar chart by service, single value 'unapproved egress flows (1h)'.",
+  "visualization": "Geo map of unapproved destinations, bar chart by service, single value 'unapproved egress flows (1h)'.",
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "SOC-2 2017 TSC",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://www.iso.org/standard/27001",
+      "title": "ISO/IEC 27001 2022",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf",
+      "title": "PCI-DSS v4.0",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "DORA Regulation (EU) 2022/2554",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1041/",
+      "title": "MITRE ATT&CK — T1041",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Public CDNs and package mirrors that use anycast may produce transient country churn — allowlist by ASN in approved_egress.csv.",
+  "mitreAttack": [
+    "T1041"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "src_ip",
+    "dest_ip",
+    "dest_port",
+    "bytes_out",
+    "_time"
+  ],
+  "equipment": [
+    "paloalto"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

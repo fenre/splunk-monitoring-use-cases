@@ -1,0 +1,94 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.38.3",
+  "title": "Data localization enforcement — regulated-data must-stay-in-region",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "owner": "DPO",
+  "controlFamily": "data-flow-cross-border",
+  "exclusions": "Does NOT detect misconfigured cloud replication within an allowed region; see UC-22.42.2.",
+  "evidence": "Saved search 'data_localization_breach' runs hourly and writes localization-breach findings to compliance_summary.",
+  "compliance": [
+    {
+      "regulation": "GDPR",
+      "version": "2016/679",
+      "clause": "Art.44",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "Detects transfers that violate localization-based lawful-basis constraints expressed via SCCs or national derogations."
+    },
+    {
+      "regulation": "DORA",
+      "version": "Regulation (EU) 2022/2554",
+      "clause": "Art.28",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DORA Art.28 ICT third-party risk — localization commitments in outsourcing contracts; the UC evidences compliance with contracted hosting regions."
+    },
+    {
+      "regulation": "UK GDPR",
+      "version": "post-Brexit",
+      "clause": "Art.44",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "Derived from GDPR@2016/679 Art.44 (parent assurance='full'). UK GDPR preserves parent clause numbering; inherited assurance degraded one step.",
+      "provenance": "derived-from-parent",
+      "derivationSource": {
+        "parentRegulation": "gdpr",
+        "parentVersion": "2016/679",
+        "parentClause": "Art.44",
+        "parentAssurance": "full",
+        "inheritanceMode": "identity"
+      }
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "When a data object tagged regulated_scope=EU,CH,UK is observed in a cloud storage bucket whose region is outside the allowed_regions list for that scope, the UC fires naming the bucket, region, and classification.",
+    "negativeScenario": "Objects that match the allowed-regions list do NOT fire.",
+    "fixtureRef": "sample-data/uc-22.38.3-fixture.json"
+  },
+  "dataSources": "See subcategory preamble.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform",
+  "spl": "index=cloud_storage sourcetype=aws:s3:objectaccess OR sourcetype=azure:blob:access earliest=-1h\n| lookup data_classification.csv key=object_key OUTPUT classification regulated_scope\n| lookup localization_policy.csv regulated_scope OUTPUT allowed_regions\n| where isnotnull(regulated_scope) AND NOT match(bucket_region, allowed_regions)\n| table _time bucket bucket_region object_key classification regulated_scope allowed_regions",
+  "cimModels": [
+    "Web"
+  ],
+  "description": "Evaluates data-localization commitments at the object-access layer. A regulated object that appears in the wrong region is a hard policy breach — and the cloud storage audit log is the definitive evidence.",
+  "value": "Replaces 'we think the bucket is in eu-west-1' with 'we proved every access was in-region for the full audit period'.",
+  "implementation": "(1) Tag objects with data-classification via the cloud provider's object metadata; (2) maintain localization_policy.csv keyed by regulated_scope; (3) run hourly; (4) escalate breaches via SOAR.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise / Splunk Cloud Platform.\n• Ensure the following data sources are available: See subcategory preamble..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag objects with data-classification via the cloud provider's object metadata; (2) maintain localization_policy.csv keyed by regulated_scope; (3) run hourly; (4) escalate breaches via SOAR.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_storage sourcetype=aws:s3:objectaccess OR sourcetype=azure:blob:access earliest=-1h\n| lookup data_classification.csv key=object_key OUTPUT classification regulated_scope\n| lookup localization_policy.csv regulated_scope OUTPUT allowed_regions\n| where isnotnull(regulated_scope) AND NOT match(bucket_region, allowed_regions)\n| table _time bucket bucket_region object_key classification regulated_scope allowed_regions\n```\n\nUnderstanding this SPL\n\n**Data localization enforcement — regulated-data must-stay-in-region** — Replaces 'we think the bucket is in eu-west-1' with 'we proved every access was in-region for the full audit period'.\n\nDocumented **Data sources**: See subcategory preamble. **App/TA** (typical add-on context): Splunk Enterprise / Splunk Cloud Platform. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_storage; **sourcetype**: aws:s3:objectaccess, azure:blob:access. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_storage, sourcetype=aws:s3:objectaccess, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(regulated_scope) AND NOT match(bucket_region, allowed_regions)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Data localization enforcement — regulated-data must-stay-in-region**): table _time bucket bucket_region object_key classification regulated_scope allowed_regions\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of breaches by bucket, bar chart of breaches by scope, single-value '% of accesses in sanctioned region'.",
+  "visualization": "Table of breaches by bucket, bar chart of breaches by scope, single-value '% of accesses in sanctioned region'.",
+  "references": [
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "title": "Regulation (EU) 2016/679 — GDPR",
+      "retrieved": "2026-04-16"
+    },
+    {
+      "url": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "title": "Regulation (EU) 2022/2554 — DORA",
+      "retrieved": "2026-04-16"
+    }
+  ],
+  "knownFalsePositives": "Disaster-recovery replication to allowed DR regions appears as a breach if those regions are not in allowed_regions.csv.",
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "azure"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-04-16",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "N/A"
+}

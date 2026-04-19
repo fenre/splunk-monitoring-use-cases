@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.6.29",
+  "title": "Capacity Management — Disk Utilization Forecast Breach in 14 Days",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "ISO 27001",
+      "version": "2022",
+      "clause": "A.8.6",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`os:df` or `metrics`",
+  "app": "Splunk Infrastructure monitoring or `os:df`",
+  "spl": "index=os sourcetype=os:df (mount=\"/var\" OR mount=\"/data\") earliest=-30d\n| timechart span=1d latest(UsePercent) as pct by host\n| predict pct as future algorithm=LLP future_timespan=14",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Performance.Storage by Performance.host span=1d | sort - count",
+  "cimModels": [
+    "Performance"
+  ],
+  "description": "Projects disk full dates from growth rate for servers supporting ISMS scope to meet capacity management.",
+  "value": "Projects disk full dates from growth rate for servers supporting ISMS scope to meet capacity management.",
+  "implementation": "(1) Collect daily samples; (2) alert predicted pct>90; (3) capacity committee review.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Infrastructure monitoring or `os:df`.\n• Ensure the following data sources are available: `os:df` or `metrics`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Collect daily samples; (2) alert predicted pct>90; (3) capacity committee review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=os:df (mount=\"/var\" OR mount=\"/data\") earliest=-30d\n| timechart span=1d latest(UsePercent) as pct by host\n| predict pct as future algorithm=LLP future_timespan=14\n```\n\nUnderstanding this SPL\n\n**Capacity Management — Disk Utilization Forecast Breach in 14 Days (A.8.6)** — Projects disk full dates from growth rate for servers supporting ISMS scope to meet capacity management.\n\nDocumented **Data sources**: `os:df` or `metrics`. **App/TA** (typical add-on context): Splunk Infrastructure monitoring or `os:df`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: os:df. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=os:df, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Capacity Management — Disk Utilization Forecast Breach in 14 Days (A.8.6)**): predict pct as future algorithm=LLP future_timespan=14\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Performance.Storage by Performance.host span=1d | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Capacity Management — Disk Utilization Forecast Breach in 14 Days (A.8.6)** — Projects disk full dates from growth rate for servers supporting ISMS scope to meet capacity management.\n\nDocumented **Data sources**: `os:df` or `metrics`. **App/TA** (typical add-on context): Splunk Infrastructure monitoring or `os:df`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance.Storage` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart, Single value",
+  "visualization": "Line chart, Single value",
+  "references": [
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.5.22",
+  "title": "MiFID II Best Execution — Slippage vs Reference Price by Client Segment and Instrument Class",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "compliance": [
+    {
+      "regulation": "MiFID II",
+      "version": "Directive 2014/65/EU",
+      "clause": "Art.27",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run, then normalised in Phase A (clause 'unspecified' → 'Art.27'). Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=trading` `sourcetype=\"ems:fill\"` (client_segment, instrument_class, fill_ts, price, ref_price, symbol)",
+  "app": "OMS fills + market data snapshot service",
+  "spl": "index=trading sourcetype=\"ems:fill\" earliest=-30d\n| eval slip_bps=abs(price-ref_price)/ref_price*10000\n| stats median(slip_bps) as med_slip, perc95(slip_bps) as p95_slip by client_segment, instrument_class, symbol\n| where client_segment=\"retail\" AND p95_slip>50\n| sort - p95_slip",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Best execution is measured by outcomes. Trending slippage against a consolidated reference price by retail vs professional clients evidences differentiated quality monitoring required for policy tuning and disclosures.",
+  "value": "Best execution is measured by outcomes. Trending slippage against a consolidated reference price by retail vs professional clients evidences differentiated quality monitoring required for policy tuning and disclosures.",
+  "implementation": "(1) Define `ref_price` methodology consistently; (2) exclude auctions; (3) monthly best ex committee pack; (4) integrate with order routing analysis; (5) document outliers investigated.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OMS fills + market data snapshot service.\n• Ensure the following data sources are available: `index=trading` `sourcetype=\"ems:fill\"` (client_segment, instrument_class, fill_ts, price, ref_price, symbol).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Define `ref_price` methodology consistently; (2) exclude auctions; (3) monthly best ex committee pack; (4) integrate with order routing analysis; (5) document outliers investigated.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=trading sourcetype=\"ems:fill\" earliest=-30d\n| eval slip_bps=abs(price-ref_price)/ref_price*10000\n| stats median(slip_bps) as med_slip, perc95(slip_bps) as p95_slip by client_segment, instrument_class, symbol\n| where client_segment=\"retail\" AND p95_slip>50\n| sort - p95_slip\n```\n\nUnderstanding this SPL\n\n**MiFID II Best Execution — Slippage vs Reference Price by Client Segment and Instrument Class** — Best execution is measured by outcomes. Trending slippage against a consolidated reference price by retail vs professional clients evidences differentiated quality monitoring required for policy tuning and disclosures.\n\nDocumented **Data sources**: `index=trading` `sourcetype=\"ems:fill\"` (client_segment, instrument_class, fill_ts, price, ref_price, symbol). **App/TA** (typical add-on context): OMS fills + market data snapshot service. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: trading; **sourcetype**: ems:fill. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=trading, sourcetype=\"ems:fill\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **slip_bps** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by client_segment, instrument_class, symbol** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where client_segment=\"retail\" AND p95_slip>50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Box plot by segment, Table (worst symbols), Single value (breach count).",
+  "visualization": "Box plot by segment, Table (worst symbols), Single value (breach count).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows."
+}

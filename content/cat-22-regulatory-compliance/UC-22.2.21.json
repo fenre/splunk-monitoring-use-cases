@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.2.21",
+  "title": "NIS2 Risk Analysis Evidence for Essential Entities",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Risk",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIS2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=risk` `sourcetype=\"stash\"`, `tenable:vuln`, `nis2_entity_classification.csv` (entity_tier=essential)",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup nis2_entity_classification.csv WHERE entity_tier=\"essential\"\n| rename asset_id as risk_object\n| join risk_object [\n    search index=risk sourcetype=\"stash\" earliest=-30d\n    | stats latest(risk_score) as residual_risk max(risk_score) as peak_risk by risk_object\n]\n| join risk_object [\n    search index=tenable sourcetype=\"tenable:vuln\" severity IN (\"Critical\",\"High\") earliest=-14d\n    | stats dc(plugin_id) as open_critical_high by host\n    | rename host as risk_object\n]\n| eval analysis_stale=if(residual_risk > 80 OR open_critical_high > 5, \"ESCALATE\", \"Monitor\")\n| table risk_object, business_service, residual_risk, peak_risk, open_critical_high, analysis_stale\n| sort - residual_risk",
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.dest | sort - count",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "description": "Essential entities must implement a comprehensive set of risk-management measures proportionate to the risks posed. This use case aggregates residual risk scores, vulnerability exposure, and control maturity for assets tagged as essential — producing continuous evidence that formal risk analysis is refreshed and acted upon, not only performed annually on paper.",
+  "value": "Essential entities must implement a comprehensive set of risk-management measures proportionate to the risks posed. This use case aggregates residual risk scores, vulnerability exposure, and control maturity for assets tagged as essential — producing continuous evidence that formal risk analysis is refreshed and acted upon, not only performed annually on paper.",
+  "implementation": "(1) Tag all in-scope assets with `entity_tier` in `nis2_entity_classification.csv`; (2) ensure ES risk and vuln scans cover essential services; (3) define risk thresholds with CISO sign-off; (4) alert when residual risk or critical findings breach policy; (5) export quarterly risk analysis workbook attachments from dashboard PDFs.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060).\n• Ensure the following data sources are available: `index=risk` `sourcetype=\"stash\"`, `tenable:vuln`, `nis2_entity_classification.csv` (entity_tier=essential).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Tag all in-scope assets with `entity_tier` in `nis2_entity_classification.csv`; (2) ensure ES risk and vuln scans cover essential services; (3) define risk thresholds with CISO sign-off; (4) alert when residual risk or critical findings breach policy; (5) export quarterly risk analysis workbook attachments from dashboard PDFs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_entity_classification.csv WHERE entity_tier=\"essential\"\n| rename asset_id as risk_object\n| join risk_object [\n    search index=risk sourcetype=\"stash\" earliest=-30d\n    | stats latest(risk_score) as residual_risk max(risk_score) as peak_risk by risk_object\n]\n| join risk_object [\n    search index=tenable sourcetype=\"tenable:vuln\" severity IN (\"Critical\",\"High\") earliest=-14d\n    | stats dc(plugin_id) as open_critical_high by host\n    | rename host as risk_object\n]\n| eval analysis_stale=if(residual_risk > 80 OR open_critical_high > 5, \"ESCALATE\", \"Monitor\")\n| table risk_object, business_service, residual_risk, peak_risk, open_critical_high, analysis_stale\n| sort - residual_risk\n```\n\nUnderstanding this SPL\n\n**NIS2 Risk Analysis Evidence for Essential Entities (Art. 21(2))** — Essential entities must implement a comprehensive set of risk-management measures proportionate to the risks posed. This use case aggregates residual risk scores, vulnerability exposure, and control maturity for assets tagged as essential — producing continuous evidence that formal risk analysis is refreshed and acted upon, not only performed annually on paper.\n\nDocumented **Data sources**: `index=risk` `sourcetype=\"stash\"`, `tenable:vuln`, `nis2_entity_classification.csv` (entity_tier=essential). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Renames fields with `rename` for clarity or joins.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **analysis_stale** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **NIS2 Risk Analysis Evidence for Essential Entities (Art. 21(2))**): table risk_object, business_service, residual_risk, peak_risk, open_critical_high, analysis_stale\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Vulnerabilities.Vulnerabilities by Vulnerabilities.dest | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**NIS2 Risk Analysis Evidence for Essential Entities (Art. 21(2))** — Essential entities must implement a comprehensive set of risk-management measures proportionate to the risks posed. This use case aggregates residual risk scores, vulnerability exposure, and control maturity for assets tagged as essential — producing continuous evidence that formal risk analysis is refreshed and acted upon, not only performed annually on paper.\n\nDocumented **Data sources**: `index=risk` `sourcetype=\"stash\"`, `tenable:vuln`, `nis2_entity_classification.csv` (entity_tier=essential). **App/TA** (typical add-on context): Splunk Enterprise Security (Splunkbase 263), Tenable Add-On for Splunk (Splunkbase 4060). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Vulnerabilities.Vulnerabilities` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (risk by service), Table (essential assets breaching threshold), Single value (mean residual risk), Line chart (trend).",
+  "visualization": "Heatmap (risk by service), Table (essential assets breaching threshold), Single value (mean residual risk), Line chart (trend).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Tenable Add-On for Splunk",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "CIM: Vulnerabilities",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "mitreAttack": [
+    "T1048"
+  ],
+  "equipment": [
+    "tenable"
+  ]
+}

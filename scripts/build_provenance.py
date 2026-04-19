@@ -285,12 +285,29 @@ def build_ledger() -> dict:
 
     return {
         "schema_version": 1,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": _reproducible_now(),
         "total_ucs": len(entries),
         "origin_counts": dict(origin_counts),
         "per_category": {k: dict(v) for k, v in per_category.items()},
         "entries": entries,
     }
+
+
+def _reproducible_now() -> str:
+    """Return a UTC timestamp pinned to SOURCE_DATE_EPOCH when set.
+
+    Honors the reproducible-builds standard env var so that
+    ``tools/build/build.py --reproducible`` produces byte-identical
+    provenance ledgers across consecutive builds. Falls back to the
+    real wall clock when the env var is missing (interactive runs).
+    """
+    import os
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch and epoch.isdigit():
+        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def render_coverage_doc(ledger: dict) -> str:

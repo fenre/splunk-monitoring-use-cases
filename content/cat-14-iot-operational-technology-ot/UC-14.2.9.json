@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.2.9",
+  "title": "PLC Firmware Change Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Change"
+  ],
+  "splunkPillar": "Observability",
+  "compliance": [
+    {
+      "regulation": "NERC CIP",
+      "version": "current",
+      "clause": "CIP-010-4 R1",
+      "clauseUrl": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "NERC CIP-010-4 R1 Configuration change management — PLC firmware change detection is the direct evidence control for the firmware/configuration change-management requirement."
+    },
+    {
+      "regulation": "IEC 62443",
+      "version": "2013-ongoing",
+      "clause": "FR 6.2",
+      "clauseUrl": "https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "IEC 62443 FR 6.2 Continuous monitoring — firmware change detection feeds the continuous-monitoring Foundational Requirement for control devices."
+    },
+    {
+      "regulation": "API RP 1164",
+      "version": "3rd edition",
+      "clause": "6.2.1",
+      "clauseUrl": "https://www.api.org/products-and-services/standards/important-standards-announcements/standard-1164",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "API RP 1164 3rd edition 6.2.1 Logging and monitoring — firmware change detection is one of the listed pipeline-control-system monitoring controls."
+    }
+  ],
+  "dataSources": "`sourcetype=\"plc:inventory\"` (firmware, serial)",
+  "app": "PLC vendor export, OPC-UA device metadata",
+  "spl": "index=ot sourcetype=\"plc:inventory\"\n| streamstats current=firmware_version window=2 global=f by plc_name\n| where firmware_version!=f\n| table _time, plc_name, f, firmware_version, user",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Unexpected firmware changes on PLCs can be maintenance errors or malicious reprogramming.",
+  "value": "Unexpected firmware changes on PLCs can be maintenance errors or malicious reprogramming.",
+  "implementation": "Snapshot firmware nightly or on change event from vendor tool. Correlate with change tickets. Alert on any drift without CMDB match.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: PLC vendor export, OPC-UA device metadata.\n• Ensure the following data sources are available: `sourcetype=\"plc:inventory\"` (firmware, serial).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSnapshot firmware nightly or on change event from vendor tool. Correlate with change tickets. Alert on any drift without CMDB match.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"plc:inventory\"\n| streamstats current=firmware_version window=2 global=f by plc_name\n| where firmware_version!=f\n| table _time, plc_name, f, firmware_version, user\n```\n\nUnderstanding this SPL\n\n**PLC Firmware Change Detection** — Unexpected firmware changes on PLCs can be maintenance errors or malicious reprogramming.\n\nDocumented **Data sources**: `sourcetype=\"plc:inventory\"` (firmware, serial). **App/TA** (typical add-on context): PLC vendor export, OPC-UA device metadata. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: plc:inventory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"plc:inventory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `streamstats` rolls up events into metrics; results are split **by plc_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where firmware_version!=f` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **PLC Firmware Change Detection**): table _time, plc_name, f, firmware_version, user\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (firmware changes), Table (PLCs with unexpected version).",
+  "visualization": "Timeline (firmware changes), Table (PLCs with unexpected version).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "status": "verified"
+}

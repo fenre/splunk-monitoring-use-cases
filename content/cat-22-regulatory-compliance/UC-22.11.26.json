@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.11.26",
+  "title": "Wireless Link Encryption Downgrade for Store WLAN Carrying Payment Terminals",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "PCI DSS",
+      "version": "v4.0",
+      "clause": "2.2.4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Auto-migrated from cat-22 markdown on Phase 1.3 run. Requires SME review to confirm clause accuracy, mode (satisfies vs detects-violation-of), and assurance level (contributing/partial/full).",
+      "provenance": "maintainer"
+    }
+  ],
+  "dataSources": "`index=wireless` `sourcetype=\"wlan:controller\"` — SSID, security mode, AP name",
+  "app": "Splunk Add-on for Cisco (WLAN syslog), custom Meraki `meraki:radio` if used",
+  "spl": "index=wireless sourcetype=\"wlan:controller\" earliest=-24h\n| lookup pci_store_ssid.csv ssid OUTPUT carries_pos\n| where carries_pos=\"true\"\n| where match(_raw,\"(?i)open|OWE|WEP|WPA[^2]|TKIP\")\n| stats count by ap_name, ssid, security_mode\n| sort - count",
+  "cimModels": [
+    "N/A"
+  ],
+  "description": "Surfaces association frames or controller logs showing legacy WPA or open auth on SSIDs used by payment terminals, evidencing review of wireless encryption for account data environments.",
+  "value": "Surfaces association frames or controller logs showing legacy WPA or open auth on SSIDs used by payment terminals, evidencing review of wireless encryption for account data environments.",
+  "implementation": "(1) Classify SSIDs that can see payment devices. (2) Exclude guest SSIDs with captive portal if physically isolated. (3) Integrate with store opening checklist. (4) Weekly store ops digest.",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Cisco (WLAN syslog), custom Meraki `meraki:radio` if used.\n• Ensure the following data sources are available: `index=wireless` `sourcetype=\"wlan:controller\"` — SSID, security mode, AP name.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Classify SSIDs that can see payment devices. (2) Exclude guest SSIDs with captive portal if physically isolated. (3) Integrate with store opening checklist. (4) Weekly store ops digest.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wireless sourcetype=\"wlan:controller\" earliest=-24h\n| lookup pci_store_ssid.csv ssid OUTPUT carries_pos\n| where carries_pos=\"true\"\n| where match(_raw,\"(?i)open|OWE|WEP|WPA[^2]|TKIP\")\n| stats count by ap_name, ssid, security_mode\n| sort - count\n```\n\nUnderstanding this SPL\n\n**Wireless Link Encryption Downgrade for Store WLAN Carrying Payment Terminals (PCI DSS Req 4.1.1, 2.2.4)** — Surfaces association frames or controller logs showing legacy WPA or open auth on SSIDs used by payment terminals, evidencing review of wireless encryption for account data environments.\n\nDocumented **Data sources**: `index=wireless` `sourcetype=\"wlan:controller\"` — SSID, security mode, AP name. **App/TA** (typical add-on context): Splunk Add-on for Cisco (WLAN syslog), custom Meraki `meraki:radio` if used. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wireless; **sourcetype**: wlan:controller. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wireless, sourcetype=\"wlan:controller\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where carries_pos=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Filters the current rows with `where match(_raw,\"(?i)open|OWE|WEP|WPA[^2]|TKIP\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by ap_name, ssid, security_mode** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (SSID, security_mode), map of APs if geo available, bar chart (by store region).",
+  "visualization": "Table (SSID, security_mode), map of APs if geo available, bar chart (by store region).",
+  "references": [
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_meraki"
+  ]
+}
