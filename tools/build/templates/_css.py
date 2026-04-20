@@ -111,6 +111,24 @@ a.badge:hover { border-color: var(--accent); color: var(--accent); }
 .badge-high { background: var(--high-bg); color: light-dark(#7a4a18, #ffc890); border-color: transparent; }
 .badge-med  { background: var(--med-bg);  color: light-dark(#6a5018, #ffe690); border-color: transparent; }
 .badge-low  { background: var(--low-bg);  color: light-dark(#1a5a30, #90e6b0); border-color: transparent; }
+.badge-wave-crawl { background: light-dark(#e4f0fa, #183040); color: light-dark(#174a6a, #a8d8f0); border-color: transparent; }
+.badge-wave-walk  { background: light-dark(#efe4fa, #2a1e40); color: light-dark(#4a2a7a, #c8b0f0); border-color: transparent; }
+.badge-wave-run   { background: light-dark(#fae4e4, #401a1e); color: light-dark(#7a1a1a, #f0a8a8); border-color: transparent; }
+.uc-ordering ul.uc-chip-list { list-style: none; padding: 0; margin: 0.5rem 0 1.25rem;
+  display: flex; flex-wrap: wrap; gap: 0.375rem 0.5rem; }
+.uc-ordering ul.uc-chip-list li { margin: 0; }
+a.uc-chip { display: inline-flex; align-items: center; gap: 0.375rem;
+  padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 0.8125rem;
+  border: 1px solid var(--border); background: var(--bg-soft); color: var(--fg);
+  text-decoration: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+a.uc-chip:hover, a.uc-chip:focus-visible { border-color: var(--accent); color: var(--accent); }
+a.uc-chip .chip-id { font-weight: 600; letter-spacing: 0.01em; }
+a.uc-chip .chip-wave { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.0625rem 0.375rem; border-radius: 4px; line-height: 1.2; }
+a.uc-chip .chip-wave-crawl { background: light-dark(#cce2f2, #1a3040); color: light-dark(#0f3a5a, #bce0f8); }
+a.uc-chip .chip-wave-walk  { background: light-dark(#e0ccf2, #2a1a40); color: light-dark(#3f1a6a, #dcbcf8); }
+a.uc-chip .chip-wave-run   { background: light-dark(#f2cccc, #401a1a); color: light-dark(#6a0f0f, #f8bcbc); }
 dl.facts { display: grid; grid-template-columns: max-content 1fr;
   gap: 0.375rem 1rem; margin: 0.75rem 0 1.25rem; font-size: 0.9rem; }
 dl.facts dt { color: var(--fg-muted); font-weight: 600; }

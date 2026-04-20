@@ -5,7 +5,6 @@ Source-of-truth for every use case. Replaces the v6
 
 ```
 content/
-├── INDEX.md                      Top-level table of contents (mirrors current INDEX.md)
 └── cat-NN-slug/
     ├── _category.json            Category metadata (icon, description, quick-tip)
     ├── UC-X.Y.Z.md               Prose narrative for the use case
@@ -13,10 +12,10 @@ content/
     └── ...
 ```
 
-Populated by `tools/build/migrate_to_per_uc.py` (see the
-`migrate-to-per-uc-files` todo). Until that runs, the `parse_content`
-loader continues to read from the v6 `use-cases/` directory; this folder
-is the destination layout, not the live source.
+Populated by `tools/build/migrate_to_per_uc.py`. The v7 `parse_content`
+loader reads from `content/` when per-UC files are present; otherwise it
+falls back to the v6 `use-cases/` monolithic markdown files. The
+canonical category index is `use-cases/INDEX.md` (not duplicated here).
 
 Why per-UC files? Pull-request diffs become reviewable, per-UC history
 is preserved by `git mv`, and parallel authoring stops causing merge

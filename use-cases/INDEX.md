@@ -51,7 +51,7 @@ build.py reads this file to generate CAT_META in data.js. CAT_GROUPS is defined 
 
 ## 5. Network Infrastructure
 - **Icon:** networkDevices
-- **Description:** Routers, switches, firewalls, load balancers, wireless, SD-WAN, and Meraki — interface health, routing, and traffic.
+- **Description:** Routers, switches, firewalls, load balancers, wireless (Cisco C9800, Meraki MR, HPE Aruba), SD-WAN (Cisco, Fortinet, VeloCloud, Aruba EdgeConnect, Versa, Cato SASE), DNS/DHCP/DDI (BlueCat, Infoblox, Windows/BIND), network flow & packet analytics (NetFlow, Zeek, SPAN/TAP), network management platforms, CDN monitoring (CloudFront, Akamai, Fastly), ThousandEyes DEM, carrier signaling, gNMI streaming telemetry, and telecom CDR — MPLS/IS-IS/BFD, multicast, QoS, IPv6, NTP, topology discovery, and network assurance.
 - **Quick Tip:** Configure syslog from network devices to Splunk. Install Splunk Add-on for Cisco or vendor-specific TA.
 - **Quick Start:**
   - UC-5.1.1 · Interface Up/Down Events (critical, Routers & Switches)

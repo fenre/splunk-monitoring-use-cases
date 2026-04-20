@@ -177,7 +177,7 @@ The public docs do **not** list the 60+ procedure names. To compare **by name** 
 
 Once you have a list (e.g. CSV: procedure_id, title, use_case, data_source), you can diff it against your repo’s use case titles (e.g. from `data.js` or from `grep '^### UC-' use-cases/cat-*.md`) to find exact matches and missing items.
 
-A helper script **`use-cases/list_ite_learn_procedures.py`** can be run against an unpacked IT Essentials Learn app directory to look for procedure-like titles in the app’s views/lookups; run it with no arguments for usage and instructions.
+A helper script was previously available at `use-cases/list_ite_learn_procedures.py` for scanning an unpacked IT Essentials Learn app directory; it has since been removed.
 
 ---
 

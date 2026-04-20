@@ -417,6 +417,7 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
         ("industry", "ind"),
         ("hardware", "hw"),
         ("telcoUseCase", "tuc"),
+        ("wave", "wv"),
     )
     for canonical_key, short_key in str_passthroughs:
         v = canonical.get(canonical_key)
@@ -452,6 +453,20 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
         em = [str(e).strip() for e in canonical["equipmentModels"] if str(e).strip()]
         if em:
             uc["em"] = em
+
+    # prerequisiteUseCases → sorted, deduped list stored as "pre".
+    # Normalised to the canonical "UC-X.Y.Z" form. Validation (unknown
+    # ids, cycles) happens later in build.py::validate_prerequisites.
+    if isinstance(canonical.get("prerequisiteUseCases"), list):
+        pre = sorted(
+            {
+                str(p).strip()
+                for p in canonical["prerequisiteUseCases"]
+                if isinstance(p, str) and str(p).strip()
+            }
+        )
+        if pre:
+            uc["pre"] = pre
 
     # cimSpl
     cim_spl = canonical.get("cimSpl")

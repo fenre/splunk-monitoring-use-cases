@@ -27,6 +27,16 @@ class TestGetUseCaseSchemas:
         for key in ("id", "title", "equipment", "mitreAttack", "compliance"):
             assert key in s["properties"]
 
+    def test_output_schema_advertises_implementation_ordering(self) -> None:
+        """``wave`` + ``prerequisiteUseCases`` must be declared so agents
+        know they can rely on the fields (even if empty) for planning."""
+
+        props = GET_USE_CASE_OUTPUT_SCHEMA["properties"]
+        assert props["wave"]["type"] == "string"
+        assert (
+            props["prerequisiteUseCases"]["items"]["pattern"].startswith("^UC-")
+        )
+
     def test_input_schema_pattern_is_valid(self) -> None:
         import re
 
@@ -125,6 +135,26 @@ class TestGetUseCaseSynthetic:
     def test_unknown_uc_raises(self, synthetic_catalog: Catalog) -> None:
         with pytest.raises(CatalogNotFoundError):
             get_use_case(catalog=synthetic_catalog, uc_id="99.99.99")
+
+    def test_thin_fallback_surfaces_wave_and_prereq(
+        self, synthetic_catalog: Catalog
+    ) -> None:
+        """A crawl UC loaded via the uc-thin fallback still exposes wave
+        + prereq, even when the UC has no compliance sidecar."""
+
+        r = get_use_case(catalog=synthetic_catalog, uc_id="1.1.1")
+        assert r.get("wave") == "crawl"
+        assert r.get("prerequisiteUseCases") == []
+
+    def test_compliance_sidecar_surfaces_wave_and_prereq(
+        self, synthetic_catalog: Catalog
+    ) -> None:
+        """A walk UC loaded from the compliance sidecar carries the same
+        ordering metadata plus the upstream UC edge."""
+
+        r = get_use_case(catalog=synthetic_catalog, uc_id="22.1.1")
+        assert r.get("wave") == "walk"
+        assert r.get("prerequisiteUseCases") == ["UC-1.1.1"]
 
 
 class TestListCategoriesSchemas:

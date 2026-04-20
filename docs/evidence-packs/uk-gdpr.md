@@ -39,9 +39,9 @@ Applies to controllers and processors established in the UK and to those outside
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 20
-- **Clauses covered by at least one UC**: 15 / 20 (75.0%)
-- **Priority-weighted coverage**: 76.3%
-- **Contributing UCs**: 23
+- **Clauses covered by at least one UC**: 0 / 20 (0.0%)
+- **Priority-weighted coverage**: 0.0%
+- **Contributing UCs**: 0
 - **Derived via `derivesFrom`**: parent `gdpr` (mode `identity`). Identity-mode derivatives inherit the parent's full clause set unless explicitly diverged. This pack reports coverage against the **inherited parent clause inventory** so the auditor view is comparable to the parent. Inherited mappings carry assurance degraded one step from the parent and are marked `provenance: derived-from-parent` in the UC sidecar. Native hand-authored mappings take precedence. Known divergences are listed in `data/regulations.json derivesFrom[].divergences`.
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
@@ -52,167 +52,26 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.5`](https://www.legislation.gov.uk/eur/2016/679/article/Art.5) | Principles of processing | 1.0 | `partial` | [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
-| [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `contributing` | [UC-22.37.1](#uc-22-37-1) |
-| [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `partial` | [UC-22.37.1](#uc-22-37-1), [UC-22.37.2](#uc-22-37-2), [UC-22.8.39](#uc-22-8-39) |
-| [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/Art.15) | Right of access | 1.0 | `partial` | [UC-22.36.1](#uc-22-36-1) |
+| [`Art.5`](https://www.legislation.gov.uk/eur/2016/679/article/Art.5) | Principles of processing | 1.0 | `—` | _not yet covered_ |
+| [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `—` | _not yet covered_ |
+| [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `—` | _not yet covered_ |
+| [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/Art.15) | Right of access | 1.0 | `—` | _not yet covered_ |
 | [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/Art.16) | Right to rectification | 0.7 | `—` | _not yet covered_ |
-| [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `partial` | [UC-22.36.2](#uc-22-36-2), [UC-22.49.5](#uc-22-49-5) |
-| [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `contributing` | [UC-22.1.16](#uc-22-1-16) |
-| [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/Art.20) | Right to data portability | 0.7 | `partial` | [UC-22.36.3](#uc-22-36-3) |
-| [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/Art.21) | Right to object | 0.7 | `contributing` | [UC-22.1.46](#uc-22-1-46) |
+| [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `—` | _not yet covered_ |
+| [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `—` | _not yet covered_ |
+| [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/Art.20) | Right to data portability | 0.7 | `—` | _not yet covered_ |
+| [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/Art.21) | Right to object | 0.7 | `—` | _not yet covered_ |
 | [`Art.22`](https://www.legislation.gov.uk/eur/2016/679/article/Art.22) | Automated decision making | 0.7 | `—` | _not yet covered_ |
 | [`Art.25`](https://www.legislation.gov.uk/eur/2016/679/article/Art.25) | Data protection by design and by default | 1.0 | `—` | _not yet covered_ |
-| [`Art.28`](https://www.legislation.gov.uk/eur/2016/679/article/Art.28) | Processor obligations | 1.0 | `partial` | [UC-22.44.2](#uc-22-44-2) |
+| [`Art.28`](https://www.legislation.gov.uk/eur/2016/679/article/Art.28) | Processor obligations | 1.0 | `—` | _not yet covered_ |
 | [`Art.30`](https://www.legislation.gov.uk/eur/2016/679/article/Art.30) | Records of processing | 1.0 | `—` | _not yet covered_ |
-| [`Art.32`](https://www.legislation.gov.uk/eur/2016/679/article/Art.32) | Security of processing | 1.0 | `contributing` | [UC-22.35.2](#uc-22-35-2), [UC-22.35.3](#uc-22-35-3), [UC-22.41.1](#uc-22-41-1) |
-| [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/Art.33) | Breach notification to supervisory authority | 1.0 | `partial` | [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2) |
-| [`Art.34`](https://www.legislation.gov.uk/eur/2016/679/article/Art.34) | Breach communication to data subjects | 1.0 | `partial` | [UC-22.39.3](#uc-22-39-3) |
+| [`Art.32`](https://www.legislation.gov.uk/eur/2016/679/article/Art.32) | Security of processing | 1.0 | `—` | _not yet covered_ |
+| [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/Art.33) | Breach notification to supervisory authority | 1.0 | `—` | _not yet covered_ |
+| [`Art.34`](https://www.legislation.gov.uk/eur/2016/679/article/Art.34) | Breach communication to data subjects | 1.0 | `—` | _not yet covered_ |
 | [`Art.35`](https://www.legislation.gov.uk/eur/2016/679/article/Art.35) | DPIA | 0.7 | `—` | _not yet covered_ |
-| [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/Art.44) | International transfers — general principle | 1.0 | `partial` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.3](#uc-22-38-3), [UC-22.38.5](#uc-22-38-5) |
-| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `contributing` | [UC-22.38.2](#uc-22-38-2), [UC-22.38.5](#uc-22-38-5) |
-| [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/Art.46) | Transfers subject to safeguards | 0.7 | `full` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.2](#uc-22-38-2), [UC-22.38.4](#uc-22-38-4) |
-
-### 4.1 Contributing UC detail
-
-<a id='uc-22-1-16'></a>
-- **UC-22.1.16** — GDPR Consent Withdrawal Processing Enforcement
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.1.16.json`](../../use-cases/cat-22/uc-22.1.16.json)
-<a id='uc-22-1-46'></a>
-- **UC-22.1.46** — GDPR Consent Mechanism Audit (Lawful Basis Alignment)
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.1.46.json`](../../use-cases/cat-22/uc-22.1.46.json)
-<a id='uc-22-35-2'></a>
-- **UC-22.35.2** — Log tamper detection via write-once-read-many chain-of-custody
-  - Control family: `evidence-continuity`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.35.2.json`](../../use-cases/cat-22/uc-22.35.2.json)
-<a id='uc-22-35-3'></a>
-- **UC-22.35.3** — Indexer replication lag exposing evidence to single-point failure
-  - Control family: `evidence-continuity`
-  - Owner: `Head of Platform`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.35.3.json`](../../use-cases/cat-22/uc-22.35.3.json)
-<a id='uc-22-36-1'></a>
-- **UC-22.36.1** — DSAR fulfillment SLA tracker with verification evidence trail
-  - Control family: `data-subject-request-lifecycle`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.36.1.json`](../../use-cases/cat-22/uc-22.36.1.json)
-<a id='uc-22-36-2'></a>
-- **UC-22.36.2** — Right-to-erasure propagation completeness across downstream systems
-  - Control family: `data-subject-request-lifecycle`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.36.2.json`](../../use-cases/cat-22/uc-22.36.2.json)
-<a id='uc-22-36-3'></a>
-- **UC-22.36.3** — Portability export integrity — signed manifest verification
-  - Control family: `data-subject-request-lifecycle`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.36.3.json`](../../use-cases/cat-22/uc-22.36.3.json)
-<a id='uc-22-37-1'></a>
-- **UC-22.37.1** — Consent capture evidence freshness — stale-consent alerting
-  - Control family: `data-subject-request-lifecycle`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.37.1.json`](../../use-cases/cat-22/uc-22.37.1.json)
-<a id='uc-22-37-2'></a>
-- **UC-22.37.2** — Consent withdrawal propagation SLA — downstream stop-processing evidence
-  - Control family: `data-subject-request-lifecycle`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.37.2.json`](../../use-cases/cat-22/uc-22.37.2.json)
-<a id='uc-22-38-1'></a>
-- **UC-22.38.1** — Cross-border personal-data flow anomaly — egress to unsanctioned jurisdictions
-  - Control family: `data-flow-cross-border`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.38.1.json`](../../use-cases/cat-22/uc-22.38.1.json)
-<a id='uc-22-38-2'></a>
-- **UC-22.38.2** — SCC / adequacy decision reference freshness — stale-safeguard detector
-  - Control family: `data-flow-cross-border`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.38.2.json`](../../use-cases/cat-22/uc-22.38.2.json)
-<a id='uc-22-38-3'></a>
-- **UC-22.38.3** — Data localization enforcement — regulated-data must-stay-in-region
-  - Control family: `data-flow-cross-border`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.38.3.json`](../../use-cases/cat-22/uc-22.38.3.json)
-<a id='uc-22-38-4'></a>
-- **UC-22.38.4** — Transfer Impact Assessment currency — stale Schrems II assessments
-  - Control family: `data-flow-cross-border`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.38.4.json`](../../use-cases/cat-22/uc-22.38.4.json)
-<a id='uc-22-38-5'></a>
-- **UC-22.38.5** — Bulk regulated-data export targeting non-adequate jurisdiction
-  - Control family: `data-flow-cross-border`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.38.5.json`](../../use-cases/cat-22/uc-22.38.5.json)
-<a id='uc-22-39-1'></a>
-- **UC-22.39.1** — Multi-regulator breach-notification SLA tracker (24h NIS2 / 72h GDPR / 72h HIPAA)
-  - Control family: `ir-drill-evidence`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.39.1.json`](../../use-cases/cat-22/uc-22.39.1.json)
-<a id='uc-22-39-2'></a>
-- **UC-22.39.2** — Regulator-portal submission evidence — one-way API acknowledgement audit
-  - Control family: `ir-drill-evidence`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.39.2.json`](../../use-cases/cat-22/uc-22.39.2.json)
-<a id='uc-22-39-3'></a>
-- **UC-22.39.3** — Data-subject breach communication timeline tracker (Art.34 / §164.404)
-  - Control family: `ir-drill-evidence`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.39.3.json`](../../use-cases/cat-22/uc-22.39.3.json)
-<a id='uc-22-41-1'></a>
-- **UC-22.41.1** — Encryption-at-rest coverage gap — unencrypted storage with regulated data
-  - Control family: `crypto-drift`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.41.1.json`](../../use-cases/cat-22/uc-22.41.1.json)
-<a id='uc-22-44-2'></a>
-- **UC-22.44.2** — Subprocessor inventory change — notification SLA to data controllers
-  - Control family: `third-party-activity`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.44.2.json`](../../use-cases/cat-22/uc-22.44.2.json)
-<a id='uc-22-49-1'></a>
-- **UC-22.49.1** — Retention execution evidence — records past retention still present
-  - Control family: `retention-end-enforcement`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.49.1.json`](../../use-cases/cat-22/uc-22.49.1.json)
-<a id='uc-22-49-2'></a>
-- **UC-22.49.2** — Disposal workflow completion — failed disposals requiring manual review
-  - Control family: `retention-end-enforcement`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.49.2.json`](../../use-cases/cat-22/uc-22.49.2.json)
-<a id='uc-22-49-5'></a>
-- **UC-22.49.5** — Cryptographic erasure attestation — per-asset destruction evidence
-  - Control family: `retention-end-enforcement`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.49.5.json`](../../use-cases/cat-22/uc-22.49.5.json)
-<a id='uc-22-8-39'></a>
-- **UC-22.8.39** — SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes
-  - Control family: `data-subject-request-lifecycle`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.8.39.json`](../../use-cases/cat-22/uc-22.8.39.json)
+| [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/Art.44) | International transfers — general principle | 1.0 | `—` | _not yet covered_ |
+| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `—` | _not yet covered_ |
+| [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/Art.46) | Transfers subject to safeguards | 0.7 | `—` | _not yet covered_ |
 
 ## 5. Evidence collection
 
@@ -294,11 +153,26 @@ Clauses tracked in `data/regulations.json` that are **not yet covered** by any U
 
 | Clause | Topic | Priority |
 |---|---|---|
+| `Art.15` | Right of access | 1.0 |
+| `Art.17` | Right to erasure | 1.0 |
 | `Art.25` | Data protection by design and by default | 1.0 |
+| `Art.28` | Processor obligations | 1.0 |
 | `Art.30` | Records of processing | 1.0 |
+| `Art.32` | Security of processing | 1.0 |
+| `Art.33` | Breach notification to supervisory authority | 1.0 |
+| `Art.34` | Breach communication to data subjects | 1.0 |
+| `Art.44` | International transfers — general principle | 1.0 |
+| `Art.5` | Principles of processing | 1.0 |
+| `Art.6` | Lawful basis | 1.0 |
 | `Art.16` | Right to rectification | 0.7 |
+| `Art.18` | Right to restrict processing | 0.7 |
+| `Art.20` | Right to data portability | 0.7 |
+| `Art.21` | Right to object | 0.7 |
 | `Art.22` | Automated decision making | 0.7 |
 | `Art.35` | DPIA | 0.7 |
+| `Art.45` | Transfers via adequacy decision | 0.7 |
+| `Art.46` | Transfers subject to safeguards | 0.7 |
+| `Art.7` | Conditions for consent | 0.7 |
 
 ## 12. Questions an auditor should ask
 
@@ -316,7 +190,7 @@ These are the questions a regulator, certification body, or external auditor is 
 
 The machine-readable companion of this pack lives at [`api/v1/evidence-packs/uk-gdpr.json`](../../api/v1/evidence-packs/uk-gdpr.json). It contains the same clause-level coverage, retention guidance, role matrix, and gap list in JSON form, and is regenerated in lockstep with this markdown pack so content stays in sync. Consumers integrating the pack into GRC tools, audit-request portals, or evidence pipelines should consume the JSON document; human readers should consume this markdown.
 
-Related API surfaces (all under [`api/v1/`](../../api/v1/README.md)):
+Related API surfaces (all under [`api/v1/`](../../api/README.md)):
 
 - [`api/v1/compliance/regulations/uk-gdpr.json`](../../api/v1/compliance/regulations/uk-gdpr.json) — regulation metadata and per-version coverage metrics
 - [`api/v1/compliance/ucs/`](../../api/v1/compliance/ucs/index.json) — individual UC sidecars
@@ -340,9 +214,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 6.1
+catalogue_version: 7.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
+inputs_sha256:     87ca49d6acc66fffd2727baa9b1604042f957a52233be589707aed6e224dd4b3
 ```
 
 To re-generate:

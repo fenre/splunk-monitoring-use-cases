@@ -492,6 +492,6 @@ The current `oneOf`-based signature envelope accommodates multiple
 - `docs/coverage-methodology.md` — how clause%, priority-weighted%, and
   assurance-adjusted% are computed; the ledger's `entryCount` is the
   denominator for those metrics.
-- `api/v1/README.md` — the static API surface the ledger underpins.
+- `api/README.md` — the static API surface the ledger underpins.
 - `LEGAL.md` §5e — legal consequences of a failed attestation.
 - `CHANGELOG.md` — Phase 5.4 release notes.

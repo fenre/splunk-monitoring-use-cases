@@ -33,10 +33,8 @@ index=os sourcetype=cpu host=*
 ```
 - **References:** [Splunk Add-on for Unix and Linux](https://splunkbase.splunk.com/app/833), [inputs.conf](https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf)
 - **Known false positives:** Sustained high CPU during backups, batch jobs, or maintenance; correlate with change windows.
-- **Status:** verified
 - **Last reviewed:** 2026-04-16
 - **Splunk versions:** 9.2+, Cloud
-- **Reviewer:** @splunk-monitoring-use-cases
 
 ---
 

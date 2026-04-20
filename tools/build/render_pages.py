@@ -300,6 +300,9 @@ def _build_context(catalog: Catalog, *, reproducible: bool) -> _helpers.RenderCo
     site_url = os.environ.get("SITE_URL", SITE_URL_DEFAULT).rstrip("/")
     asset_styles = catalog.asset_hashes.get("styles_css", "") if catalog.asset_hashes else ""
     asset_app_js = catalog.asset_hashes.get("app_js", "") if catalog.asset_hashes else ""
+
+    uc_title_index, uc_reverse_prereq = _build_uc_prereq_indexes(catalog)
+
     return _helpers.RenderContext(
         site_url=site_url,
         site_name="Splunk Monitoring Use Cases",
@@ -315,6 +318,61 @@ def _build_context(catalog: Catalog, *, reproducible: bool) -> _helpers.RenderCo
             "REPO_URL",
             "https://github.com/fenre/splunk-monitoring-use-cases",
         ),
+        uc_reverse_prereq=uc_reverse_prereq,
+        uc_title_index=uc_title_index,
+    )
+
+
+def _build_uc_prereq_indexes(
+    catalog: Catalog,
+) -> tuple[dict[str, tuple[str, str]], dict[str, tuple[str, ...]]]:
+    """Precompute forward + reverse indexes for the prerequisite graph.
+
+    Returns a tuple of:
+
+    * ``uc_title_index``   — ``"UC-X.Y.Z" -> (title, wave)``. ``wave``
+      is the canonical ``crawl``/``walk``/``run`` string or ``""`` when
+      not set. Used to render tooltips + wave chips on clickable links.
+    * ``uc_reverse_prereq`` — ``"UC-X.Y.Z" -> tuple(UC-ids that depend
+      on it)``. The tuple is sorted ascending by ``(major, minor, patch)``
+      so "Enables" lists render deterministically across builds.
+
+    Unknown IDs, self-references, and cycle detection are handled by the
+    authoring validator in ``build.py``; here we merely build the lookup
+    structures for templates and silently ignore malformed IDs.
+    """
+    title_index: dict[str, tuple[str, str]] = {}
+    reverse: dict[str, list[str]] = {}
+    uc_id_pat = re.compile(r"^UC-(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$")
+    for cat in catalog.categories:
+        for sub in cat.get("s", []) or []:
+            for uc in sub.get("u", []) or []:
+                uid = str(uc.get("i") or "").strip()
+                if not uid:
+                    continue
+                full = f"UC-{uid}"
+                title = str(uc.get("n") or uc.get("t") or full)
+                wave = str(uc.get("wv") or "").strip().lower()
+                title_index[full] = (title, wave)
+
+                pre = uc.get("pre") or []
+                if not isinstance(pre, (list, tuple)):
+                    continue
+                for dep in pre:
+                    dep_s = str(dep).strip()
+                    if not uc_id_pat.match(dep_s) or dep_s == full:
+                        continue
+                    reverse.setdefault(dep_s, []).append(full)
+
+    def _sort_key(uc_full: str) -> tuple[int, int, int, str]:
+        m = re.match(r"^UC-(\d+)\.(\d+)\.(\d+)$", uc_full)
+        if not m:
+            return (10**9, 10**9, 10**9, uc_full)
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)), uc_full)
+
+    return (
+        title_index,
+        {k: tuple(sorted(set(v), key=_sort_key)) for k, v in reverse.items()},
     )
 
 

@@ -5251,7 +5251,7 @@ index=ot sourcetype IN ("edge_hub:metrics","litmus:edge")
 ```
 - **Implementation:** Normalize `device.online` to 0/1 (or heartbeat) in the metrics pipeline. Multiply `fleet_online_rate` by a fleet `inputlookup` total if `mstats` only returns devices that reported—otherwise the average is the share of devices reporting at least one healthy sample per day. Align `metric_name` with Edge Hub transforms. If metrics are not available, use daily `dc(device_id)` from `edge_hub:*` heartbeats divided by the inventory lookup. Alert when `online_pct` drops more than 5 points below the 30-day median for three consecutive days.
 - **Visualization:** Line chart (online % and trendline), Area chart (online versus offline device-days), Single value (current fleet availability).
-- **CIM Models:** Operational Telemetry (Metrics) where tagged; otherwise N/A
+- **CIM Models:** Operational_Telemetry (Metrics) where tagged; otherwise N/A
 - **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 - **References:** [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 
@@ -5276,7 +5276,7 @@ index=ot sourcetype IN ("edge_hub:metrics","modbus:readings","opcua:telemetry") 
 ```
 - **Implementation:** Map your quality field (`good`, `192` OPC status, Modbus exception flags). If quality is not present, infer staleness with `streamstats` per `device_id` and `tag` using gaps between `_time` greater than `3×` the expected poll interval from a lookup. Dedupe by `device_id`+`tag` to avoid double counting. Tune thresholds per line speed—fast PLCs need tighter windows than environmental sensors.
 - **Visualization:** Line chart (daily bad or stale % with trend), Stacked bar (bad readings by site), Table (worst devices by gap count).
-- **CIM Models:** Operational Telemetry (Quality / Metrics) where mapped; otherwise N/A
+- **CIM Models:** Operational_Telemetry (Quality / Metrics) where mapped; otherwise N/A
 - **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 - **References:** [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 
@@ -5300,7 +5300,7 @@ index=ot sourcetype IN ("edge_hub:metrics","modbus:readings","opcua:telemetry") 
 ```
 - **Implementation:** If OEE is not pre-calculated, derive it from availability × performance × quality metrics ingested separately (use `eval` in a scheduled search writing to a summary index). Align shifts and planned downtime using a `production_calendar` lookup to avoid penalizing scheduled stops. Compare assets to peers in the same technology line. Alert when 4-week rolling OEE drops more than 5 points below baseline.
 - **Visualization:** Line chart (OEE % by line over weeks), Area chart (components if split metrics), Bullet chart (actual versus target OEE).
-- **CIM Models:** Operational Telemetry (Production / OEE) where enabled; otherwise N/A
+- **CIM Models:** Operational_Telemetry (Production / OEE) where enabled; otherwise N/A
 - **Known false positives:** Planned maintenance, backups, or batch jobs can drive metrics outside normal bands — correlate with change management windows.
 - **References:** [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 
@@ -5323,7 +5323,7 @@ index=ot sourcetype IN ("edge_hub:anomaly","edge_hub:alert") earliest=-90d@d
 ```
 - **Implementation:** Tag production ML alerts distinctly from threshold rules. Deduplicate repeated scores per asset per hour if the model emits bursts. Correlate spikes with maintenance windows—expected dips after work orders. If counts go to zero suddenly, validate the scoring container and HEC path. Feed counts back to data science for precision and recall reviews quarterly.
 - **Visualization:** Line chart (weekly ML alert count with trend), Bar chart (alerts by asset), Single value (alerts versus 8-week average).
-- **CIM Models:** Operational Telemetry (Maintenance / Security) as applicable; otherwise N/A
+- **CIM Models:** Operational_Telemetry (Maintenance / Security) as applicable; otherwise N/A
 - **Known false positives:** Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.
 - **References:** [Splunkbase app 5748](https://splunkbase.splunk.com/app/5748), [Splunkbase app 6905](https://splunkbase.splunk.com/app/6905), [Splunkbase app 6796](https://splunkbase.splunk.com/app/6796), [CIM: Operational Telemetry](https://docs.splunk.com/Documentation/CIM/latest/User/Operational_Telemetry)
 

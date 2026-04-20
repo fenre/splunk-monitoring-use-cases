@@ -2,7 +2,7 @@
 
 > **Status:** Locked at v7.0.0. This document is the permanent contract for the
 > repository's build, hosting, and distribution architecture. Changes follow the
-> RFC process documented in [`governance.md`](governance.md).
+> RFC process documented in [`GOVERNANCE.md`](../GOVERNANCE.md).
 
 ## Mission
 
@@ -124,7 +124,7 @@ flowchart LR
   deploys via `actions/deploy-pages@v4`.
 * **jsDelivr** automatically mirrors the repo at
   `https://cdn.jsdelivr.net/gh/<owner>/<repo>@v<version>/api/v1/...`. No setup
-  required; documented in `docs/distribution.md`.
+  required.
 * **Cloudflare/Fastly** can front Pages without changes — fingerprinted assets carry
   `<meta http-equiv="Cache-Control" content="public, max-age=31536000, immutable">`,
   no cookies, no auth, no `Vary` beyond `Accept-Encoding`.
@@ -219,7 +219,7 @@ CI wall-clock target: ≤4 min for a full release build.
 
 ## Quality gates (CI-enforced, blocking)
 
-`.github/workflows/ci.yml` runs in parallel and blocks merge to `main`:
+`.github/workflows/validate.yml` runs in sequence and blocks merge to `main`:
 
 1. **Build & reproducibility** — two builds → byte diff.
 2. **Schema validation** — every UC validates against `schemas/uc.schema.json`; every
@@ -235,7 +235,7 @@ CI wall-clock target: ≤4 min for a full release build.
 9. **SPL syntax + CIM compliance** — `scripts/audit_*` consolidated under
    `tools/audits/`.
 
-See [`governance.md`](governance.md) for how these gates relate to release cadence and
+See [`GOVERNANCE.md`](../GOVERNANCE.md) for how these gates relate to release cadence and
 the RFC process for breaking changes.
 
 ## Non-goals

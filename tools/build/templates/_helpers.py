@@ -21,8 +21,8 @@ from __future__ import annotations
 import html
 import json as _json
 import re
-from dataclasses import dataclass
-from typing import Any, Iterable, Optional
+from dataclasses import dataclass, field
+from typing import Any, Iterable, Mapping, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +46,20 @@ class RenderContext:
     build_id: str = ""      # e.g., short git sha, set by render_pages
     generated_at: str = "1970-01-01T00:00:00Z"
     repo_url: str = "https://github.com/fenre/splunk-monitoring-use-cases"
+
+    # Reverse index for the implementation-ordering roadmap: maps a
+    # prerequisite UC id (full "UC-X.Y.Z" form) to the tuple of UC ids
+    # that declare it in their ``prerequisiteUseCases`` list. Populated
+    # once in render_pages.render() so templates can emit the "Enables"
+    # section in O(1) without re-scanning the catalogue per UC.
+    # Defaults to an empty mapping so callers that ignore this feature
+    # continue to work unchanged. Callers must never mutate the mapping
+    # after the context is constructed.
+    uc_reverse_prereq: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    # Forward lookup of every UC id -> a (title, wave) pair. Used to
+    # render clickable chips with a tooltip and wave badge in the
+    # static-site Prerequisites / Enables sections.
+    uc_title_index: Mapping[str, tuple[str, str]] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +512,12 @@ _DIFFICULTY_LABELS = {
     "expert":       ("Expert",       "exp"),
 }
 
+_WAVE_LABELS = {
+    "crawl": ("Crawl", "crawl"),
+    "walk":  ("Walk",  "walk"),
+    "run":   ("Run",   "run"),
+}
+
 
 def criticality_label(value: Any) -> tuple[str, str]:
     """Return ``(human_label, css_modifier)`` for a UC ``c`` field."""
@@ -509,6 +529,19 @@ def difficulty_label(value: Any) -> tuple[str, str]:
     """Return ``(human_label, css_modifier)`` for a UC ``f`` field."""
     key = str(value or "").lower().strip()
     return _DIFFICULTY_LABELS.get(key, (value or "—", "unk"))
+
+
+def wave_label(value: Any) -> tuple[str, str] | None:
+    """Return ``(human_label, css_modifier)`` for a UC ``wv`` field, or None.
+
+    Returns ``None`` when no wave is set or the value is not one of
+    ``crawl`` / ``walk`` / ``run`` — callers can use that to skip the
+    badge entirely rather than rendering a placeholder.
+    """
+    key = str(value or "").lower().strip()
+    if not key:
+        return None
+    return _WAVE_LABELS.get(key)
 
 
 def truncate(text: Any, n: int) -> str:

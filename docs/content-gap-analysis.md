@@ -1,7 +1,7 @@
 # Content gap analysis — Phase 0.2
 
 > **Status:** Phase 0.2 snapshot, generated 2026-04-16 from
-> `data/inventory/ucs.json` and `data/inventory/gap-analysis.json`.
+> `data/inventory/ucs.csv` and `data/inventory/gap-analysis.json`.
 > **Sources:**
 >   * Inventory — `python3 scripts/inventory_ucs.py --stats`
 >   * Gap analysis — `python3 scripts/gap_analysis.py`
@@ -236,7 +236,7 @@ describe measurement, not detection, and arguably do not belong in the
 
 ## 8. Provenance
 
-* Inventory JSON — `data/inventory/ucs.json`, produced by
+* Inventory CSV — `data/inventory/ucs.csv`, produced by
   `scripts/inventory_ucs.py`.
 * Gap-analysis JSON — `data/inventory/gap-analysis.json`, produced by
   `scripts/gap_analysis.py`.

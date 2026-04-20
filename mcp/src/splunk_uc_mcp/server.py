@@ -15,7 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -375,10 +375,7 @@ def _summarise_ledger(ledger: dict[str, Any]) -> dict[str, Any]:
 
     The full ledger is 1.4 MB (1,889 entries) — too much to stream back
     on every read. We return the header metadata plus the first 25
-    entries so the agent can see the shape; if the agent needs the
-    complete ledger it can fetch ``ledger://full`` directly via
-    ``read_resource``, which streams the whole ``mapping-ledger.json``
-    payload without per-tool truncation.
+    entries so the agent can see the shape.
     """
 
     entries = ledger.get("entries", [])
@@ -454,4 +451,3 @@ _TOOL_DEFINITIONS = _tool_definitions
 # trust. They are kept close to the server wiring so a future contributor
 # auditing input validation has a single place to look.
 _EXPECTED_SLUG_REGEXES = (UC_ID_REGEX, REGULATION_ID_REGEX, EQUIPMENT_ID_REGEX)
-_EXPECTED_LEDGER_URI = LEDGER_URI

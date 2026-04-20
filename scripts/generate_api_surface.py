@@ -238,12 +238,19 @@ def _uc_compact(
             if c.get("regulation") and c.get("version")
         }
     )
+    # ``wave`` + ``prerequisiteUseCases`` power the implementation-ordering
+    # roadmap: ``wave`` bins the UC into crawl/walk/run, the prereq list
+    # lets API consumers walk the dependency graph forward. Keys stay
+    # sorted for deterministic output regardless of source-file ordering.
+    pre_raw = uc.get("prerequisiteUseCases", []) or []
     return {
         "id": uc["id"],
         "title": uc.get("title", ""),
         "category": uc.get("_category"),
         "criticality": uc.get("criticality"),
         "difficulty": uc.get("difficulty"),
+        "wave": uc.get("wave"),
+        "prerequisiteUseCases": sorted({str(p) for p in pre_raw if p}),
         "owner": uc.get("owner"),
         "controlFamily": uc.get("controlFamily"),
         "monitoringType": sorted(uc.get("monitoringType", []) or []),
@@ -1002,12 +1009,21 @@ def _recommender_uc_thin(uc: Mapping[str, Any]) -> Dict[str, Any]:
     filter on the landing page — exposing it here means the recommender
     UI can filter on equipment without re-reading catalog.json.
     """
+    # ``wave`` + ``prerequisiteUseCases`` drive the "where do I start?"
+    # planner facets in the recommender UI. ``wave`` is a short string
+    # (crawl/walk/run) and the prereq list is sorted for reproducible
+    # output; both are omitted via empty-string / empty-list when the
+    # catalog doesn't declare them so serialization stays stable.
+    pre_raw = uc.get("pre", []) or []
+    pre = sorted({str(p) for p in pre_raw if isinstance(p, str) and p})
     return {
         "id": str(uc.get("i", "")),
         "title": str(uc.get("n", "") or ""),
         "value": str(uc.get("v", "") or ""),
         "criticality": str(uc.get("c", "") or ""),
         "difficulty": str(uc.get("f", "") or ""),
+        "wave": str(uc.get("wv", "") or ""),
+        "prerequisiteUseCases": pre,
         "monitoringType": sorted(
             [m for m in (uc.get("mtype", []) or []) if isinstance(m, str)]
         ),
@@ -1487,7 +1503,13 @@ def _context_jsonld() -> Dict[str, Any]:
             "Equipment": "smuc:Equipment",
             "EquipmentModel": "smuc:EquipmentModel",
             "equipment": {"@id": "smuc:equipment", "@container": "@set"},
-            "equipmentModels": {"@id": "smuc:equipmentModel", "@container": "@set"}
+            "equipmentModels": {"@id": "smuc:equipmentModel", "@container": "@set"},
+            "wave": "smuc:implementationWave",
+            "prerequisiteUseCases": {
+                "@id": "smuc:requiresUseCase",
+                "@type": "@id",
+                "@container": "@set"
+            }
         }
     }
 

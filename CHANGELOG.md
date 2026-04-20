@@ -2251,7 +2251,7 @@ GitHub Actions workflow, run id, and commit that produced it.
   release-tag signing and per-artefact SHA-256 digests.
 - **Cross-references added** — `docs/peer-review-guide.md`,
   `docs/legal-review-guide.md`, `docs/sme-review-guide.md`,
-  `docs/regulatory-change-watch.md`, and `api/v1/README.md`
+  `docs/regulatory-change-watch.md`, and `api/README.md`
   each gain a "See also" / "Provenance and attestation"
   pointer to `docs/signed-provenance.md`. Reviewers are told
   how to confirm their signoff PR number is snapshotted

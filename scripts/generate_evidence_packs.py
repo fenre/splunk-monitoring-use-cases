@@ -805,7 +805,7 @@ def _render_markdown_pack(
                  f"readers should consume this markdown.")
     lines.append("")
     lines.append(f"Related API surfaces (all under "
-                 f"[`api/v1/`](../../api/v1/README.md)):")
+                 f"[`api/v1/`](../../api/README.md)):")
     lines.append("")
     lines.append(f"- [`api/v1/compliance/regulations/{reg_id}.json`](../../api/v1/compliance/regulations/{reg_id}.json) — regulation metadata and per-version coverage metrics")
     lines.append(f"- [`api/v1/compliance/ucs/`](../../api/v1/compliance/ucs/index.json) — individual UC sidecars")
@@ -1073,7 +1073,7 @@ def _render_readme(
                  "global coverage summary across all regulations.")
     lines.append("- [`docs/compliance-gaps.md`](../compliance-gaps.md) — "
                  "auto-generated gap report across all tracked regulations.")
-    lines.append("- [`api/v1/README.md`](../../api/v1/README.md) — API surface "
+    lines.append("- [`api/README.md`](../../api/README.md) — API surface "
                  "quick start and endpoint catalogue.")
     lines.append("- [`CHANGELOG.md`](../../CHANGELOG.md) — release history, "
                  "including the Phase 4.2 evidence-pack roll-out.")

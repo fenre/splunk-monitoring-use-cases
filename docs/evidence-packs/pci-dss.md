@@ -76,143 +76,143 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-22-11-100'></a>
-- **UC-22.11.100** — PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts
-  - Control family: `log-source-completeness`
-  - Owner: `Head of Platform`
+- **UC-22.11.100** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.100.json`](../../use-cases/cat-22/uc-22.11.100.json)
+  - Source: [``](../../)
 <a id='uc-22-11-101'></a>
-- **UC-22.11.101** — PCI-DSS 10.6 — Log review: daily-review evidence for CDE data sources
-  - Control family: `evidence-continuity`
-  - Owner: `Head of IR`
+- **UC-22.11.101** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.101.json`](../../use-cases/cat-22/uc-22.11.101.json)
+  - Source: [``](../../)
 <a id='uc-22-11-102'></a>
-- **UC-22.11.102** — PCI-DSS 10.7 — Log retention: CDE data-source retention + immutability attestation
-  - Control family: `evidence-continuity`
-  - Owner: `Head of Platform`
+- **UC-22.11.102** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.102.json`](../../use-cases/cat-22/uc-22.11.102.json)
+  - Source: [``](../../)
 <a id='uc-22-11-103'></a>
-- **UC-22.11.103** — PCI-DSS 11.3 — Vulnerability programme: overdue scan cadence and unremediated high-severity
-  - Control family: `regulation-specific`
-  - Owner: `CISO`
+- **UC-22.11.103** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.103.json`](../../use-cases/cat-22/uc-22.11.103.json)
+  - Source: [``](../../)
 <a id='uc-22-11-104'></a>
-- **UC-22.11.104** — PCI-DSS 11.4 — Intrusion detection: IDS signature/health attestation + untuned alert monitoring
-  - Control family: `log-source-completeness`
-  - Owner: `Head of IR`
+- **UC-22.11.104** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.104.json`](../../use-cases/cat-22/uc-22.11.104.json)
+  - Source: [``](../../)
 <a id='uc-22-11-105'></a>
-- **UC-22.11.105** — PCI-DSS 12.10 — Incident response: IR readiness — playbook exercise evidence
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
+- **UC-22.11.105** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.105.json`](../../use-cases/cat-22/uc-22.11.105.json)
+  - Source: [``](../../)
 <a id='uc-22-11-106'></a>
-- **UC-22.11.106** — PCI-DSS 12.3 — Targeted risk analysis: frequency adherence for per-requirement TRAs
-  - Control family: `policy-to-control-traceability`
-  - Owner: `CISO`
+- **UC-22.11.106** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.106.json`](../../use-cases/cat-22/uc-22.11.106.json)
+  - Source: [``](../../)
 <a id='uc-22-11-91'></a>
-- **UC-22.11.91** — PCI-DSS 1.3 — CDE network boundary: unauthorised flows between CDE and untrusted networks
-  - Control family: `regulation-specific`
-  - Owner: `Head of Platform`
+- **UC-22.11.91** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.91.json`](../../use-cases/cat-22/uc-22.11.91.json)
+  - Source: [``](../../)
 <a id='uc-22-11-92'></a>
-- **UC-22.11.92** — PCI-DSS 2.2 — Secure configuration baseline: drift from approved hardening template
-  - Control family: `policy-to-control-traceability`
-  - Owner: `Head of Platform`
+- **UC-22.11.92** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.92.json`](../../use-cases/cat-22/uc-22.11.92.json)
+  - Source: [``](../../)
 <a id='uc-22-11-93'></a>
-- **UC-22.11.93** — PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs
-  - Control family: `regulation-specific`
-  - Owner: `DPO`
+- **UC-22.11.93** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.93.json`](../../use-cases/cat-22/uc-22.11.93.json)
+  - Source: [``](../../)
 <a id='uc-22-11-94'></a>
-- **UC-22.11.94** — PCI-DSS 5.2 — Anti-malware: EDR coverage + detection-queue attestation
-  - Control family: `log-source-completeness`
-  - Owner: `Head of IR`
+- **UC-22.11.94** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.94.json`](../../use-cases/cat-22/uc-22.11.94.json)
+  - Source: [``](../../)
 <a id='uc-22-11-95'></a>
-- **UC-22.11.95** — PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy
-  - Control family: `policy-to-control-traceability`
-  - Owner: `Head of Platform`
+- **UC-22.11.95** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.95.json`](../../use-cases/cat-22/uc-22.11.95.json)
+  - Source: [``](../../)
 <a id='uc-22-11-96'></a>
-- **UC-22.11.96** — PCI-DSS 8.3 — Strong authentication: password-only logins against privileged accounts
-  - Control family: `privileged-session-recording`
-  - Owner: `CISO`
+- **UC-22.11.96** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.96.json`](../../use-cases/cat-22/uc-22.11.96.json)
+  - Source: [``](../../)
 <a id='uc-22-11-97'></a>
-- **UC-22.11.97** — PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA
-  - Control family: `privileged-session-recording`
-  - Owner: `CISO`
+- **UC-22.11.97** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.97.json`](../../use-cases/cat-22/uc-22.11.97.json)
+  - Source: [``](../../)
 <a id='uc-22-11-98'></a>
-- **UC-22.11.98** — PCI-DSS 8.6 — Application and system accounts: interactive use of a service account
-  - Control family: `privileged-session-recording`
-  - Owner: `CISO`
+- **UC-22.11.98** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.98.json`](../../use-cases/cat-22/uc-22.11.98.json)
+  - Source: [``](../../)
 <a id='uc-22-11-99'></a>
-- **UC-22.11.99** — PCI-DSS 10.3 — Audit log integrity: tampering/deletion detection on CDE log source
-  - Control family: `evidence-continuity`
-  - Owner: `CISO`
+- **UC-22.11.99** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.11.99.json`](../../use-cases/cat-22/uc-22.11.99.json)
+  - Source: [``](../../)
 <a id='uc-22-40-1'></a>
-- **UC-22.40.1** — Privileged session recording — missing recordings for elevated sessions
-  - Control family: `privileged-session-recording`
-  - Owner: `CISO`
+- **UC-22.40.1** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.40.1.json`](../../use-cases/cat-22/uc-22.40.1.json)
+  - Source: [``](../../)
 <a id='uc-22-41-1'></a>
-- **UC-22.41.1** — Encryption-at-rest coverage gap — unencrypted storage with regulated data
-  - Control family: `crypto-drift`
-  - Owner: `CISO`
+- **UC-22.41.1** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.41.1.json`](../../use-cases/cat-22/uc-22.41.1.json)
+  - Source: [``](../../)
 <a id='uc-22-41-2'></a>
-- **UC-22.41.2** — Certificate / TLS posture — weak cipher and expired-cert detection
-  - Control family: `crypto-drift`
-  - Owner: `CISO`
+- **UC-22.41.2** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.41.2.json`](../../use-cases/cat-22/uc-22.41.2.json)
+  - Source: [``](../../)
 <a id='uc-22-42-2'></a>
-- **UC-22.42.2** — Configuration baseline drift — regulated hosts deviating from CIS benchmark
-  - Control family: `policy-to-control-traceability`
-  - Owner: `Head of Platform`
+- **UC-22.42.2** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.42.2.json`](../../use-cases/cat-22/uc-22.42.2.json)
+  - Source: [``](../../)
 <a id='uc-22-43-1'></a>
-- **UC-22.43.1** — Critical vulnerability SLA tracker — unpatched 30+ days with exploited-in-the-wild indicator
-  - Control family: `regulation-specific`
-  - Owner: `CISO`
+- **UC-22.43.1** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.43.1.json`](../../use-cases/cat-22/uc-22.43.1.json)
+  - Source: [``](../../)
 <a id='uc-22-43-2'></a>
-- **UC-22.43.2** — Vulnerability rediscovery after patch — regressed exposures
-  - Control family: `regulation-specific`
-  - Owner: `CISO`
+- **UC-22.43.2** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.43.2.json`](../../use-cases/cat-22/uc-22.43.2.json)
+  - Source: [``](../../)
 <a id='uc-22-48-1'></a>
-- **UC-22.48.1** — Segregation of duties — toxic role combinations in IAM
-  - Control family: `access-review-cadence`
-  - Owner: `CISO`
+- **UC-22.48.1** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.48.1.json`](../../use-cases/cat-22/uc-22.48.1.json)
+  - Source: [``](../../)
 
 ## 5. Evidence collection
 
@@ -314,7 +314,7 @@ These are the questions a regulator, certification body, or external auditor is 
 
 The machine-readable companion of this pack lives at [`api/v1/evidence-packs/pci-dss.json`](../../api/v1/evidence-packs/pci-dss.json). It contains the same clause-level coverage, retention guidance, role matrix, and gap list in JSON form, and is regenerated in lockstep with this markdown pack so content stays in sync. Consumers integrating the pack into GRC tools, audit-request portals, or evidence pipelines should consume the JSON document; human readers should consume this markdown.
 
-Related API surfaces (all under [`api/v1/`](../../api/v1/README.md)):
+Related API surfaces (all under [`api/v1/`](../../api/README.md)):
 
 - [`api/v1/compliance/regulations/pci-dss.json`](../../api/v1/compliance/regulations/pci-dss.json) — regulation metadata and per-version coverage metrics
 - [`api/v1/compliance/ucs/`](../../api/v1/compliance/ucs/index.json) — individual UC sidecars
@@ -338,9 +338,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 6.1
+catalogue_version: 7.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
+inputs_sha256:     87ca49d6acc66fffd2727baa9b1604042f957a52233be589707aed6e224dd4b3
 ```
 
 To re-generate:

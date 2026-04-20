@@ -20324,8 +20324,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-24h EventCode=4720
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count
 ```
@@ -20357,8 +20356,7 @@ index=itsm sourcetype=snow:sc_req_item earliest=-120d (short_description="*acces
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20389,8 +20387,7 @@ index=erp sourcetype=sap:audit earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20421,8 +20418,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-7d EventCode IN (467
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t dc(Authentication.dest) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value
 ```
@@ -20454,8 +20450,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-14d EventCode IN (46
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20486,8 +20481,7 @@ index=itsm sourcetype=snow:sc_req_item earliest=-180d short_description="*access
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20517,8 +20511,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode IN (46
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20549,8 +20542,7 @@ index=itsm sourcetype=snow:change_request earliest=-180d type="emergency"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20581,8 +20573,7 @@ index=os sourcetype=perfmon:cpu host="FIN-PROD-*" earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest span=1h | sort - count
 ```
@@ -20613,8 +20604,7 @@ index=itsm sourcetype=snow:change_request earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20643,8 +20633,7 @@ index=itsm sourcetype=snow:change_request earliest=-180d risk IN ("High","Critic
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20673,8 +20662,7 @@ index=itsm sourcetype=snow:change_request earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=1w | sort - count
 ```
@@ -20705,8 +20693,7 @@ index=itsm sourcetype=snow:change_request earliest=-365d state IN ("4","-1")
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20738,8 +20725,7 @@ index=itsm sourcetype=snow:change_request earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20770,8 +20756,7 @@ index=scheduler sourcetype=control-m:job job_name="*FIN_CLOSE*" earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20801,8 +20786,7 @@ index=backup sourcetype=commvault:job earliest=-14d subclient_name="*GLDB*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=1d | sort - count
 ```
@@ -20833,8 +20817,7 @@ index=scheduler sourcetype=control-m:audit action="UPDATE" object_type="JOB" ear
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20861,8 +20844,7 @@ index=itsi_summary earliest=-30d service_title="*Financial Reporting*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src span=1h | sort - count
 ```
@@ -20892,8 +20874,7 @@ index=os (sourcetype=perfmon:cpu OR sourcetype=perfmon:mem) host="FIN-CLOSE-*" e
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count
 ```
@@ -20921,8 +20902,7 @@ index=itsm sourcetype=snow:change_request earliest=-730d short_description="*DR 
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20954,8 +20934,7 @@ index=itsm sourcetype=snow:incident priority IN ("1","2") earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -20984,8 +20963,7 @@ index=erp sourcetype=sap:close_task earliest=-60d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21015,8 +20993,7 @@ index=erp sourcetype=sap:bseg earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21047,8 +21024,7 @@ index=erp sourcetype=sap:bkpf earliest=-7d bukrs="1000"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21076,8 +21052,7 @@ index=erp sourcetype=sap:bsik earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21105,8 +21080,7 @@ index=app sourcetype=obiee:usage report_path="*/Management/Financial*" earliest=
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user, Authentication.action | sort - count
 ```
@@ -21137,8 +21111,7 @@ index=erp sourcetype=sap:faglflext racct="0000110000" earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21165,8 +21138,7 @@ index=erp sourcetype=sap:agr_users agr_name="*FICO*ADMIN*" earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21193,8 +21165,7 @@ index=summary sourcetype=sox:control_evidence earliest=-365d control_id="ITGC-AC
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21224,8 +21195,7 @@ index=itsm sourcetype=snow:problem category="Control Exception" earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21254,8 +21224,7 @@ index=itsm sourcetype=snow:problem short_description="*audit finding*" earliest=
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21284,8 +21253,7 @@ index=itsm sourcetype=snow:problem u_external_audit_source="*" earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21315,8 +21283,7 @@ index=itsm sourcetype=snow:sc_req_item cat_item="*IT Control Self-Assessment*" e
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21345,8 +21312,7 @@ index=summary sourcetype=risk:register domain="IT" earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21374,8 +21340,7 @@ index=summary sourcetype=sox:kpi_monthly metric_category="ITGC" earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Bar chart
-- **CIM Models:** Authentication, Change, Ticket_Management, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Ticket_Management- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -21412,8 +21377,7 @@ index=ot sourcetype=pan:traffic earliest=-24h zone_dest="OT-L2*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.app | sort - agg_value
 ```
@@ -21444,8 +21408,7 @@ index=ot sourcetype=pan:traffic earliest=-30d dest_port IN (502,20000,44818)
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.src, All_Traffic.dest | sort - agg_value
 ```
@@ -21477,8 +21440,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-24h EventCode=4624 L
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21507,8 +21469,7 @@ index=ot sourcetype=pan:traffic earliest=-7d zone_dest="OT-PROD"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src, All_Traffic.dest, All_Traffic.app | sort - count
 ```
@@ -21538,8 +21499,7 @@ index=linux sourcetype=linux_secure host="jmp-pipeline-dmz-*" earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21569,8 +21529,7 @@ index=network sourcetype=cisco:ios facility="SEC" earliest=-24d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
 ```
@@ -21599,8 +21558,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-14d EventCode=4624 L
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count
 ```
@@ -21631,8 +21589,7 @@ index=vpn sourcetype=paloalto:globalprotect portal="pipeline-ot" earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21660,8 +21617,7 @@ index=o365 sourcetype=ms:aad:signin earliest=-24h
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21692,8 +21648,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode=4624
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21724,8 +21679,7 @@ index=pam sourcetype=cyberark:pta earliest=-7d safe="OT-Maint"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21756,8 +21710,7 @@ index=pam sourcetype=cyberark:pta earliest=-90d reason="*break*glass*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21785,8 +21738,7 @@ index=ot sourcetype=nozomi:alert earliest=-7d severity>="high"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21815,8 +21767,7 @@ index=summary sourcetype=tsa:milestone earliest=-730d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value
 ```
@@ -21844,8 +21795,7 @@ index=itsi_summary earliest=-7d service_title="*Pipeline SCADA*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21874,8 +21824,7 @@ index=itsm sourcetype=snow:sc_req_item short_description="*TSA*notification*" ea
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21904,8 +21853,7 @@ index=ot sourcetype=rockwell:audit earliest=-30d message="*Mode*Change*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21934,8 +21882,7 @@ index=itsm sourcetype=snow:problem category="OT Cyber Incident" earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21963,8 +21910,7 @@ index=docs sourcetype=tsa:cip:json earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -21995,8 +21941,7 @@ index=netflow sourcetype=flow:ipfix earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - agg_value
 ```
@@ -22024,8 +21969,7 @@ index=ot sourcetype=edge_hub:opcua metric_name="*LoopLatency*" earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22056,8 +22000,7 @@ index=ot sourcetype=nozomi:asset role="PLC" earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22086,8 +22029,7 @@ index=vuln sourcetype=tenable:ot earliest=-7d plugin_family="ICS"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22115,8 +22057,7 @@ index=summary sourcetype=risk:ot:pipeline earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22144,8 +22085,7 @@ index=scada sourcetype=ignition:audit earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
 ```
@@ -22174,8 +22114,7 @@ index=ot sourcetype=schneider:ecostruxure:audit earliest=-14d action="ProgramDow
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22205,8 +22144,7 @@ index=ot sourcetype=nozomi:alert earliest=-7d name="*configuration*change*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22233,8 +22171,7 @@ index=summary sourcetype=ot:posture:monthly earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t avg(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port span=1mon | sort - agg_value
 ```
@@ -22263,8 +22200,7 @@ index=os sourcetype=stash:file_integrity path="*OT_Patch_Repo*" earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22293,8 +22229,7 @@ index=dns sourcetype=infoblox:dns view="OT" earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Choropleth or site bar, Table, Single value
-- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Authentication, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count
 ```
@@ -22330,8 +22265,7 @@ index=scada sourcetype=factorytalk:audit earliest=-7d event="Login"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22359,8 +22293,7 @@ index=scada sourcetype=factorytalk:audit earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22389,8 +22322,7 @@ index=ot sourcetype=opcua:audit earliest=-7d event_type="MethodCall" method="Wri
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22419,8 +22351,7 @@ index=scada sourcetype=factorytalk:audit earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22450,8 +22381,7 @@ index=scada sourcetype=factorytalk:audit earliest=-24h
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22480,8 +22410,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-7d EventCode=4624
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22510,8 +22439,7 @@ index=mdm sourcetype=mobileiron:scada earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22540,8 +22468,7 @@ index=ot sourcetype=dnp3:traffic earliest=-24h func_code IN (5,6)
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src, All_Traffic.dest | sort - count
 ```
@@ -22569,8 +22496,7 @@ index=scada sourcetype=pi:af:audit earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22600,8 +22526,7 @@ index=edge sourcetype=edge_hub:modbus earliest=-24h
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
 ```
@@ -22630,8 +22555,7 @@ index=scada sourcetype=ignition:audit earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action | sort - count
 ```
@@ -22660,8 +22584,7 @@ index=scada sourcetype=factorytalk:audit earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22689,8 +22612,7 @@ index=ot sourcetype=rockwell:audit earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22719,8 +22641,7 @@ index=ot sourcetype=opcua:audit earliest=-30d event_type="MethodCall" method="Pr
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22748,8 +22669,7 @@ index=ot sourcetype=pan:traffic earliest=-24h zone_src="FIELD-*" zone_dest="SCAD
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t sum(All_Traffic.bytes_in) as agg_value from datamodel=Network_Traffic.All_Traffic by All_Traffic.src, All_Traffic.app | sort - agg_value
 ```
@@ -22777,8 +22697,7 @@ index=ot sourcetype=pan:traffic earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src, All_Traffic.dest, All_Traffic.app | sort - count
 ```
@@ -22806,8 +22725,7 @@ index=ot sourcetype=dnp3:traffic earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count
 ```
@@ -22835,8 +22753,7 @@ index=ot sourcetype=aruba:iap earliest=-14d ssid="PIPELINE-FIELD"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22864,8 +22781,7 @@ index=edge sourcetype=edge_hub:modbus earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22894,8 +22810,7 @@ index=ot sourcetype=pan:traffic earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.src | sort - count
 ```
@@ -22923,8 +22838,7 @@ index=vpn sourcetype=paloalto:globalprotect earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22955,8 +22869,7 @@ index=ot sourcetype=nozomi:asset earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -22986,8 +22899,7 @@ index=ot sourcetype=schneider:ecostruxure:audit earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23015,8 +22927,7 @@ index=edge sourcetype=edge_hub:modbus earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
 ```
@@ -23047,8 +22958,7 @@ index=scada sourcetype=wonderware:hist earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23076,8 +22986,7 @@ index=physical sourcetype=genetec:access earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23107,8 +23016,7 @@ index=ot sourcetype=dnp3:traffic earliest=-24h
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23136,8 +23044,7 @@ index=ot sourcetype=claroty:xtended earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23167,8 +23074,7 @@ index=itsm sourcetype=snow:incident category="Pipeline Cyber" earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23197,8 +23103,7 @@ index=summary sourcetype=api1164:assessment earliest=-730d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.dest | sort - count
 ```
@@ -23227,8 +23132,7 @@ index=vuln sourcetype=tenable:ot earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23257,8 +23161,7 @@ index=itsm sourcetype=snow:change_request short_description="*tabletop*SCADA*" e
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23286,8 +23189,7 @@ index=grc sourcetype=archer:risk earliest=-365d program="Pipeline SCADA"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23316,8 +23218,7 @@ index=hr sourcetype=workday:training earliest=-365d course="*Pipeline*Cyber*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23345,8 +23246,7 @@ index=summary sourcetype=api1164:reg_report earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Node-link or sankey (optional)
-- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry, or N/A
-- **CIM SPL:**
+- **CIM Models:** Network_Traffic, Endpoint, Operational Telemetry- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic by All_Traffic.action, All_Traffic.src, All_Traffic.dest, All_Traffic.dest_port | sort - count
 ```
@@ -23383,8 +23283,7 @@ index=gxp sourcetype=lims:audit earliest=-24h action IN ("INSERT","UPDATE","DELE
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user | sort - count
 ```
@@ -23413,8 +23312,7 @@ index=gxp sourcetype=lims:audit earliest=-30d object_id="BATCH-8891*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23443,8 +23341,7 @@ index=gxp sourcetype=mes:batch earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23473,8 +23370,7 @@ index=gxp sourcetype=veeva:audit earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23503,8 +23399,7 @@ index=gxp sourcetype=lims:audit earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23533,8 +23428,7 @@ index=gxp sourcetype=eln:signature earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23563,8 +23457,7 @@ index=gxp sourcetype=eln:signature earliest=-180d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23592,8 +23485,7 @@ index=gxp sourcetype=okta:auth earliest=-30d application="ELN-Prod"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user | sort - count
 ```
@@ -23621,8 +23513,7 @@ index=gxp sourcetype=eln:signature earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23651,8 +23542,7 @@ index=gxp sourcetype=eln:signature earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23680,8 +23570,7 @@ index=gxp sourcetype=cds:chrom_audit earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.user | sort - count
 ```
@@ -23710,8 +23599,7 @@ index=gxp sourcetype=lims:audit earliest=-24h
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23739,8 +23627,7 @@ index=gxp sourcetype=mes:batch earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23768,8 +23655,7 @@ index=gxp sourcetype=ntp:drift earliest=-7d host="HPLC-CLUSTER-*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.dest | sort - count
 ```
@@ -23797,8 +23683,7 @@ index=backup sourcetype=veeam:Backup.JobSession object="LIMS-DB" earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23827,8 +23712,7 @@ index=gxp sourcetype=mes:batch earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23856,8 +23740,7 @@ index=backup sourcetype=commvault:job subclient_name="MES-*" earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t latest(All_Changes.status) as agg_value from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - agg_value
 ```
@@ -23885,8 +23768,7 @@ index=gxp sourcetype=lims:audit earliest=-30d action="COPY"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23914,8 +23796,7 @@ index=gxp sourcetype=cds:chrom_audit earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23943,8 +23824,7 @@ index=gxp sourcetype=labinstrument:diag earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -23972,8 +23852,7 @@ index=gxp sourcetype=validation:iq_oq_pq earliest=-730d system_id="LIMS-PROD"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -24002,8 +23881,7 @@ index=itsm sourcetype=snow:change_request cmdb_ci="*LIMS*" earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -24032,8 +23910,7 @@ index=gxp sourcetype=periodic_review:log earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -24062,8 +23939,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode IN (47
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -24092,8 +23968,7 @@ index=hr sourcetype=workday:training earliest=-365d curriculum="*GxP*Computer*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value
-- **CIM Models:** Change, Authentication, or N/A
-- **CIM SPL:**
+- **CIM Models:** Change, Authentication- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count
 ```
@@ -24129,8 +24004,7 @@ index=aws sourcetype=aws:cloudtrail earliest=-24h readOnly=false
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t dc(Authentication.user) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value
 ```
@@ -24159,8 +24033,7 @@ index=vuln sourcetype=tenable:sc:analysis earliest=-3d plugin_family="Policy Com
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t dc(Authentication.dest) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value
 ```
@@ -24218,8 +24091,7 @@ index=os sourcetype=updates:wsus earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24247,8 +24119,7 @@ index=cmdb sourcetype=snow:cmdb_ci_server earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24276,8 +24147,7 @@ index=grc sourcetype=fedramp:ssp earliest=-365d system_name="*GovCloud*"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24306,8 +24176,7 @@ index=grc sourcetype=fedramp:poam earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24335,8 +24204,7 @@ index=grc sourcetype=fedramp:risk earliest=-730d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24365,8 +24233,7 @@ index=azure sourcetype=azure:monitor_activity earliest=-7d operationName="PutVir
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24394,8 +24261,7 @@ index=aws sourcetype=aws:cloudtrail eventName="AuthorizeSecurityGroupIngress" ea
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count
 ```
@@ -24425,8 +24291,7 @@ index=notable earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24454,8 +24319,7 @@ index=itsm sourcetype=snow:incident category="Security" earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24483,8 +24347,7 @@ index=case sourcetype=phantom:container earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24513,8 +24376,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-14d EventCode=1102
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count
 ```
@@ -24542,8 +24404,7 @@ index=summary sourcetype=ir:lessons earliest=-400d program="Federal"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24572,8 +24433,7 @@ index=o365 sourcetype=ms:aad:signin earliest=-24h
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24601,8 +24461,7 @@ index=pam sourcetype=cyberark:pta earliest=-30d safe="Fed-Admin"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t dc(Authentication.user) as agg_value from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - agg_value
 ```
@@ -24631,8 +24490,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode IN (47
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.dest | sort - count
 ```
@@ -24660,8 +24518,7 @@ index=vpn sourcetype=paloalto:globalprotect earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user | sort - count
 ```
@@ -24691,8 +24548,7 @@ index=erp sourcetype=sap:audit earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24720,8 +24576,7 @@ index=grc sourcetype=fedramp:assessment earliest=-400d assessment_year=2026
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24749,8 +24604,7 @@ index=grc sourcetype=fedramp:3pao_finding earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24778,8 +24632,7 @@ index=summary sourcetype=cdm:device earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24807,8 +24660,7 @@ index=risk sourcetype=es:risk_score_by_system earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24836,8 +24688,7 @@ index=grc sourcetype=fedramp:marketplace earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Time chart, Table, Single value, Heat map
-- **CIM Models:** Authentication, Change, Vulnerabilities, or N/A
-- **CIM SPL:**
+- **CIM Models:** Authentication, Change, Vulnerabilities- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.action, Authentication.user, Authentication.src | sort - count
 ```
@@ -24873,8 +24724,7 @@ index=cmdb sourcetype=snow:cmdb_ci_server earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -24903,8 +24753,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-7d EventCode=4624
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -24933,8 +24782,7 @@ index=endpoint sourcetype=windefender:management earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t dc(Processes.dest) as agg_value from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - agg_value
 ```
@@ -24962,8 +24810,7 @@ index=physical sourcetype=genetec:access earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -24992,8 +24839,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-24h EventCode IN (46
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25022,8 +24868,7 @@ index=endpoint sourcetype=crowdstrike:detections earliest=-7d tactic="Execution"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25051,8 +24896,7 @@ index=grc sourcetype=cmmc:spra earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25081,8 +24925,7 @@ index=awareness sourcetype=knowbe4:phish earliest=-30d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25110,8 +24953,7 @@ index=os sourcetype=chef:compliance earliest=-1d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.dest | sort - count
 ```
@@ -25140,8 +24982,7 @@ index=os sourcetype=stash:file_integrity earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.dest | sort - count
 ```
@@ -25169,8 +25010,7 @@ index=endpoint sourcetype=crowdstrike:detections earliest=-24h tactic="DefenseEv
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25198,8 +25038,7 @@ index=notable earliest=-7d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25227,8 +25066,7 @@ index=threat sourcetype=threat:hunting:job earliest=-30d scope="CUI"
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25256,8 +25094,7 @@ index=wineventlog sourcetype=WinEventLog:Security earliest=-30d EventCode=4688
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25285,8 +25122,7 @@ index=vuln sourcetype=tenable:was earliest=-14d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25314,8 +25150,7 @@ index=governance sourcetype=cmmc:self_assess earliest=-180d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25343,8 +25178,7 @@ index=governance sourcetype=cmmc:ssp earliest=-365d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.dest | sort - count
 ```
@@ -25372,8 +25206,7 @@ index=grc sourcetype=cmmc:gap earliest=-90d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25401,8 +25234,7 @@ index=itsm sourcetype=snow:problem category="CMMC Finding" earliest=-400d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -25431,8 +25263,7 @@ index=grc sourcetype=cmmc:poam earliest=-730d
 ```
 - **Implementation:** (1) Confirm field extractions and CIM tags for the sourcetypes in scope; (2) Load or maintain the referenced lookups/KVStore collections with owner attestation dates; (3) Schedule the search at an interval aligned to the control’s materiality; (4) Route positive findings to the compliance ticketing queue with required evidence fields; (5) Retain scheduled search exports per records management and legal hold procedures.
 - **Visualization:** Stacked bar, Table, Time chart, Single value
-- **CIM Models:** Endpoint, Authentication, Email, or N/A
-- **CIM SPL:**
+- **CIM Models:** Endpoint, Authentication, Email- **CIM SPL:**
 ```spl
 | tstats summariesonly=t count from datamodel=Endpoint.Processes by Processes.process_name, Processes.user, Processes.dest | sort - count
 ```
@@ -34941,7 +34772,7 @@ index=vendor sourcetype="swift:csp_score" earliest=-30d
 <!-- PHASE-1.6 BEGIN -->
 <!--
 Phase 1.6 exemplar use cases — cross-regulation mini-categories.
-This block is generated by scripts/scaffold_exemplars.py and should NOT
+This block is generated by scripts/archive/scaffold_exemplars.py and should NOT
 be edited manually between the begin/end sentinels.
 Authoritative content lives in the matching JSON sidecars under use-cases/cat-22/.
 -->
@@ -37145,7 +36976,7 @@ index=grc sourcetype IN (archer:control,servicenow:grc_control) earliest=-1d
 ```
 - **Implementation:** (1) Onboard auth data to CIM Authentication DM; (2) maintain financial_services_servers.csv from the ICT asset register nightly; (3) schedule UC hourly; (4) hit opens a ServiceNow CMDB task to register the host; (5) SLA: resolve within 72h or isolate; (6) exclude build/imaging windows with an effective-from allowlist.
 - **Visualization:** Bar chart of inventory gaps by financial service, table of hosts with count, single value 'hosts in gap'.
-- **CIM Models:** Authentication, Inventory
+- **CIM Models:** Authentication, Compute_Inventory
 - **Known false positives:** Short-lived CI/CD build runners used for payments tests may legitimately appear off-inventory — allow-list by hostname-pattern in financial_services_servers.csv with a 24h TTL.
 - **References:** [DORA Regulation (EU) 2022/2554](https://eur-lex.europa.eu/eli/reg/2022/2554/oj), [ISO/IEC 27001 2022](https://www.iso.org/standard/27001), [NIS2 Directive (EU) 2022/2555](https://eur-lex.europa.eu/eli/dir/2022/2555/oj), [MITRE ATT&CK — T1078](https://attack.mitre.org/techniques/T1078/)
 
@@ -37732,7 +37563,7 @@ index=dlp sourcetype IN (symantec:dlp,microsoft:purview:dlp) severity IN ("high"
 ```
 - **Implementation:** (1) Onboard DLP; (2) maintain approved_egress.csv; (3) schedule UC every 30m; (4) hit opens a P1 to DPO + user's manager; (5) weekly DPO report.
 - **Visualization:** Table of unapproved egress detections, bar chart by policy, single value 'new unapproved egress (1h)'.
-- **CIM Models:** Data Loss Prevention
+- **CIM Models:** DLP
 - **Known false positives:** Legitimate cross-tenant file shares with approved partners can produce detections — allowlist by partner in approved_egress.csv.
 - **References:** [SOC-2 2017 TSC](https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services), [ISO/IEC 27001 2022](https://www.iso.org/standard/27001), [HIPAA Security Rule 2013-final](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164), [PCI-DSS v4.0](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf), [MITRE ATT&CK — T1048](https://attack.mitre.org/techniques/T1048/)
 

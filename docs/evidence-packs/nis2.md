@@ -66,275 +66,275 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-22-2-1'></a>
-- **UC-22.2.1** — NIS2 Incident Detection and 24-Hour Early Warning Reporting
+- **UC-22.2.1** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.1.json`](../../use-cases/cat-22/uc-22.2.1.json)
+  - Source: [``](../../)
 <a id='uc-22-2-10'></a>
-- **UC-22.2.10** — NIS2 Cyber Hygiene and Training Compliance
+- **UC-22.2.10** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.10.json`](../../use-cases/cat-22/uc-22.2.10.json)
+  - Source: [``](../../)
 <a id='uc-22-2-11'></a>
-- **UC-22.2.11** — NIS2 Cryptography and Encryption Policy Monitoring
+- **UC-22.2.11** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.11.json`](../../use-cases/cat-22/uc-22.2.11.json)
+  - Source: [``](../../)
 <a id='uc-22-2-12'></a>
-- **UC-22.2.12** — NIS2 Multi-Factor Authentication and Secure Communications
+- **UC-22.2.12** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.12.json`](../../use-cases/cat-22/uc-22.2.12.json)
+  - Source: [``](../../)
 <a id='uc-22-2-13'></a>
-- **UC-22.2.13** — NIS2 Asset Management and Configuration Baseline
+- **UC-22.2.13** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.13.json`](../../use-cases/cat-22/uc-22.2.13.json)
+  - Source: [``](../../)
 <a id='uc-22-2-14'></a>
-- **UC-22.2.14** — NIS2 Human Resources Security — Joiner/Mover/Leaver Process
+- **UC-22.2.14** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.14.json`](../../use-cases/cat-22/uc-22.2.14.json)
+  - Source: [``](../../)
 <a id='uc-22-2-15'></a>
-- **UC-22.2.15** — NIS2 Secure System Acquisition and Development Lifecycle
+- **UC-22.2.15** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.15.json`](../../use-cases/cat-22/uc-22.2.15.json)
+  - Source: [``](../../)
 <a id='uc-22-2-16'></a>
-- **UC-22.2.16** — NIS2 Supply Chain Third-Party Risk Continuous Monitoring
+- **UC-22.2.16** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.16.json`](../../use-cases/cat-22/uc-22.2.16.json)
+  - Source: [``](../../)
 <a id='uc-22-2-17'></a>
-- **UC-22.2.17** — NIS2 Backup Management and Disaster Recovery Verification
+- **UC-22.2.17** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.17.json`](../../use-cases/cat-22/uc-22.2.17.json)
+  - Source: [``](../../)
 <a id='uc-22-2-18'></a>
-- **UC-22.2.18** — NIS2 Network Security Monitoring and Anomaly Detection
+- **UC-22.2.18** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.18.json`](../../use-cases/cat-22/uc-22.2.18.json)
+  - Source: [``](../../)
 <a id='uc-22-2-2'></a>
-- **UC-22.2.2** — NIS2 Supply Chain Security Monitoring
+- **UC-22.2.2** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.2.json`](../../use-cases/cat-22/uc-22.2.2.json)
+  - Source: [``](../../)
 <a id='uc-22-2-20'></a>
-- **UC-22.2.20** — NIS2 Management Body Accountability and Governance Evidence
+- **UC-22.2.20** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.20.json`](../../use-cases/cat-22/uc-22.2.20.json)
+  - Source: [``](../../)
 <a id='uc-22-2-23'></a>
-- **UC-22.2.23** — NIS2 Incident Handling Procedure Adherence and Playbook Execution
+- **UC-22.2.23** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.23.json`](../../use-cases/cat-22/uc-22.2.23.json)
+  - Source: [``](../../)
 <a id='uc-22-2-24'></a>
-- **UC-22.2.24** — NIS2 Business Continuity and ICT Continuity Evidence
+- **UC-22.2.24** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.24.json`](../../use-cases/cat-22/uc-22.2.24.json)
+  - Source: [``](../../)
 <a id='uc-22-2-25'></a>
-- **UC-22.2.25** — NIS2 Supply Chain Security Assessment Coverage
+- **UC-22.2.25** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.25.json`](../../use-cases/cat-22/uc-22.2.25.json)
+  - Source: [``](../../)
 <a id='uc-22-2-26'></a>
-- **UC-22.2.26** — NIS2 Network Security Monitoring Coverage by Segment
+- **UC-22.2.26** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.26.json`](../../use-cases/cat-22/uc-22.2.26.json)
+  - Source: [``](../../)
 <a id='uc-22-2-27'></a>
-- **UC-22.2.27** — NIS2 Vulnerability Disclosure Policy Operational Signals
+- **UC-22.2.27** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.27.json`](../../use-cases/cat-22/uc-22.2.27.json)
+  - Source: [``](../../)
 <a id='uc-22-2-28'></a>
-- **UC-22.2.28** — NIS2 Cyber Hygiene Practices — Baseline Control Compliance
+- **UC-22.2.28** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.28.json`](../../use-cases/cat-22/uc-22.2.28.json)
+  - Source: [``](../../)
 <a id='uc-22-2-29'></a>
-- **UC-22.2.29** — NIS2 Cryptography Policy Compliance — TLS and Certificate Posture
+- **UC-22.2.29** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.29.json`](../../use-cases/cat-22/uc-22.2.29.json)
+  - Source: [``](../../)
 <a id='uc-22-2-3'></a>
-- **UC-22.2.3** — NIS2 Vulnerability Disclosure and Patch Management Tracking
+- **UC-22.2.3** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.3.json`](../../use-cases/cat-22/uc-22.2.3.json)
+  - Source: [``](../../)
 <a id='uc-22-2-30'></a>
-- **UC-22.2.30** — NIS2 Human Resources Security Measures Evidence
+- **UC-22.2.30** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.30.json`](../../use-cases/cat-22/uc-22.2.30.json)
+  - Source: [``](../../)
 <a id='uc-22-2-33'></a>
-- **UC-22.2.33** — NIS2 Incident Reporting Timeline Compliance (24h Early Warning / 72h Notification)
+- **UC-22.2.33** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.33.json`](../../use-cases/cat-22/uc-22.2.33.json)
+  - Source: [``](../../)
 <a id='uc-22-2-36'></a>
-- **UC-22.2.36** — NIS2 OT Network Segmentation Validation
+- **UC-22.2.36** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.36.json`](../../use-cases/cat-22/uc-22.2.36.json)
+  - Source: [``](../../)
 <a id='uc-22-2-37'></a>
-- **UC-22.2.37** — NIS2 SCADA System Access Monitoring
+- **UC-22.2.37** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.37.json`](../../use-cases/cat-22/uc-22.2.37.json)
+  - Source: [``](../../)
 <a id='uc-22-2-38'></a>
-- **UC-22.2.38** — NIS2 Industrial Control System Patching and Change Evidence
+- **UC-22.2.38** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.38.json`](../../use-cases/cat-22/uc-22.2.38.json)
+  - Source: [``](../../)
 <a id='uc-22-2-39'></a>
-- **UC-22.2.39** — NIS2 OT Incident Detection — Process and Protocol Anomalies
+- **UC-22.2.39** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.39.json`](../../use-cases/cat-22/uc-22.2.39.json)
+  - Source: [``](../../)
 <a id='uc-22-2-4'></a>
-- **UC-22.2.4** — NIS2 Business Continuity and Crisis Management Monitoring
+- **UC-22.2.4** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.4.json`](../../use-cases/cat-22/uc-22.2.4.json)
+  - Source: [``](../../)
 <a id='uc-22-2-40'></a>
-- **UC-22.2.40** — NIS2 Safety System Integrity Monitoring (SIL / SIS Interlocks)
+- **UC-22.2.40** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.40.json`](../../use-cases/cat-22/uc-22.2.40.json)
+  - Source: [``](../../)
 <a id='uc-22-2-41'></a>
-- **UC-22.2.41** — NIS2 Management Body Cybersecurity Training Evidence
+- **UC-22.2.41** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.41.json`](../../use-cases/cat-22/uc-22.2.41.json)
+  - Source: [``](../../)
 <a id='uc-22-2-42'></a>
-- **UC-22.2.42** — NIS2 Board-Level Cyber Risk Reporting Distribution Audit
+- **UC-22.2.42** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.42.json`](../../use-cases/cat-22/uc-22.2.42.json)
+  - Source: [``](../../)
 <a id='uc-22-2-43'></a>
-- **UC-22.2.43** — NIS2 Annual Security Assessment Completion Tracking
+- **UC-22.2.43** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.43.json`](../../use-cases/cat-22/uc-22.2.43.json)
+  - Source: [``](../../)
 <a id='uc-22-2-45'></a>
-- **UC-22.2.45** — NIS2 CSIRT Notification Compliance and Channel Health
+- **UC-22.2.45** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.45.json`](../../use-cases/cat-22/uc-22.2.45.json)
+  - Source: [``](../../)
 <a id='uc-22-2-5'></a>
-- **UC-22.2.5** — NIS2 Network and Information Systems Access Control Audit
+- **UC-22.2.5** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.5.json`](../../use-cases/cat-22/uc-22.2.5.json)
+  - Source: [``](../../)
 <a id='uc-22-2-6'></a>
-- **UC-22.2.6** — NIS2 Risk Analysis and Information System Security Policy Evidence
+- **UC-22.2.6** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.6.json`](../../use-cases/cat-22/uc-22.2.6.json)
+  - Source: [``](../../)
 <a id='uc-22-2-9'></a>
-- **UC-22.2.9** — NIS2 Effectiveness Assessment of Cybersecurity Measures
+- **UC-22.2.9** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.2.9.json`](../../use-cases/cat-22/uc-22.2.9.json)
+  - Source: [``](../../)
 <a id='uc-22-3-42'></a>
-- **UC-22.3.42** — DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services
-  - Control family: `log-source-completeness`
-  - Owner: `Head of IT Operations`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.3.42.json`](../../use-cases/cat-22/uc-22.3.42.json)
-<a id='uc-22-3-44'></a>
-- **UC-22.3.44** — DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.3.44.json`](../../use-cases/cat-22/uc-22.3.44.json)
-<a id='uc-22-39-1'></a>
-- **UC-22.39.1** — Multi-regulator breach-notification SLA tracker (24h NIS2 / 72h GDPR / 72h HIPAA)
-  - Control family: `ir-drill-evidence`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.39.1.json`](../../use-cases/cat-22/uc-22.39.1.json)
-<a id='uc-22-39-2'></a>
-- **UC-22.39.2** — Regulator-portal submission evidence — one-way API acknowledgement audit
-  - Control family: `ir-drill-evidence`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.39.2.json`](../../use-cases/cat-22/uc-22.39.2.json)
-<a id='uc-22-41-2'></a>
-- **UC-22.41.2** — Certificate / TLS posture — weak cipher and expired-cert detection
-  - Control family: `crypto-drift`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.41.2.json`](../../use-cases/cat-22/uc-22.41.2.json)
-<a id='uc-22-43-1'></a>
-- **UC-22.43.1** — Critical vulnerability SLA tracker — unpatched 30+ days with exploited-in-the-wild indicator
-  - Control family: `regulation-specific`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.43.1.json`](../../use-cases/cat-22/uc-22.43.1.json)
-<a id='uc-22-44-1'></a>
-- **UC-22.44.1** — Supplier attestation currency — stale SOC 2 / ISO 27001 reports for critical vendors
-  - Control family: `third-party-activity`
-  - Owner: `Procurement`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.44.1.json`](../../use-cases/cat-22/uc-22.44.1.json)
-<a id='uc-22-46-1'></a>
-- **UC-22.46.1** — Mandatory security training — completion SLA by role
-  - Control family: `training-effectiveness`
-  - Owner: `HR`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.46.1.json`](../../use-cases/cat-22/uc-22.46.1.json)
-<a id='uc-22-46-2'></a>
-- **UC-22.46.2** — Phishing simulation efficacy — click-rate trend and repeat-clicker detection
-  - Control family: `training-effectiveness`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.46.2.json`](../../use-cases/cat-22/uc-22.46.2.json)
-<a id='uc-22-9-4'></a>
-- **UC-22.9.4** — Regulatory Incident Response Time Trending
+- **UC-22.3.42** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.9.4.json`](../../use-cases/cat-22/uc-22.9.4.json)
+  - Source: [``](../../)
+<a id='uc-22-3-44'></a>
+- **UC-22.3.44** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-39-1'></a>
+- **UC-22.39.1** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-39-2'></a>
+- **UC-22.39.2** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-41-2'></a>
+- **UC-22.41.2** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-43-1'></a>
+- **UC-22.43.1** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-44-1'></a>
+- **UC-22.44.1** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-46-1'></a>
+- **UC-22.46.1** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-46-2'></a>
+- **UC-22.46.2** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-9-4'></a>
+- **UC-22.9.4** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
 
 ## 5. Evidence collection
 
@@ -434,7 +434,7 @@ These are the questions a regulator, certification body, or external auditor is 
 
 The machine-readable companion of this pack lives at [`api/v1/evidence-packs/nis2.json`](../../api/v1/evidence-packs/nis2.json). It contains the same clause-level coverage, retention guidance, role matrix, and gap list in JSON form, and is regenerated in lockstep with this markdown pack so content stays in sync. Consumers integrating the pack into GRC tools, audit-request portals, or evidence pipelines should consume the JSON document; human readers should consume this markdown.
 
-Related API surfaces (all under [`api/v1/`](../../api/v1/README.md)):
+Related API surfaces (all under [`api/v1/`](../../api/README.md)):
 
 - [`api/v1/compliance/regulations/nis2.json`](../../api/v1/compliance/regulations/nis2.json) — regulation metadata and per-version coverage metrics
 - [`api/v1/compliance/ucs/`](../../api/v1/compliance/ucs/index.json) — individual UC sidecars
@@ -458,9 +458,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 6.1
+catalogue_version: 7.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
+inputs_sha256:     87ca49d6acc66fffd2727baa9b1604042f957a52233be589707aed6e224dd4b3
 ```
 
 To re-generate:

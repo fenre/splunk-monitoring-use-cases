@@ -40,6 +40,19 @@ class TestSearchUseCasesSchemas:
             pattern = SEARCH_USE_CASES_SCHEMA["properties"][key]["pattern"]
             re.compile(pattern)
 
+    def test_output_schema_advertises_implementation_ordering(self) -> None:
+        """The agent-facing output schema must surface wave + prereq edges."""
+
+        uc_props = SEARCH_USE_CASES_OUTPUT_SCHEMA["properties"]["useCases"][
+            "items"
+        ]["properties"]
+        assert uc_props["wave"]["type"] == "string"
+        assert (
+            uc_props["prerequisiteUseCases"]["items"]["pattern"].startswith(
+                "^UC-"
+            )
+        )
+
 
 class TestSearchUseCasesLive:
     """Tests that hit the real catalogue shipped in ``api/v1``."""
@@ -126,6 +139,8 @@ class TestSearchUseCasesLive:
             "value",
             "criticality",
             "difficulty",
+            "wave",
+            "prerequisiteUseCases",
             "splunkPillar",
             "monitoringType",
             "app",
@@ -251,3 +266,22 @@ class TestSearchUseCasesSynthetic:
         )
         assert r["totalMatched"] == 1
         assert r["useCases"][0]["id"] == "22.1.1"
+
+    def test_synthetic_wave_and_prereq_passthrough(
+        self, synthetic_catalog: Catalog
+    ) -> None:
+        """Wave + prereq edges must survive projection into search results.
+
+        The synthetic fixture seeds UC-1.1.1 as a crawl UC with no prereqs
+        and UC-22.1.1 as a walk UC depending on UC-1.1.1 — a minimal edge
+        that is enough to verify the field flows end-to-end.
+        """
+
+        r = search_use_cases(catalog=synthetic_catalog, limit=5)
+        by_id = {uc["id"]: uc for uc in r["useCases"]}
+
+        assert by_id["1.1.1"]["wave"] == "crawl"
+        assert by_id["1.1.1"]["prerequisiteUseCases"] == []
+
+        assert by_id["22.1.1"]["wave"] == "walk"
+        assert by_id["22.1.1"]["prerequisiteUseCases"] == ["UC-1.1.1"]

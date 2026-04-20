@@ -84,89 +84,89 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-12-1'></a>
-- **UC-22.12.1** — User provisioning evidence tied to financial application accounts
+- **UC-22.12.1** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.1.json`](../../use-cases/cat-22/uc-22.12.1.json)
+  - Source: [``](../../)
 <a id='uc-22-12-10'></a>
-- **UC-22.12.10** — Change approval workflow evidence for financially material CIs
+- **UC-22.12.10** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.10.json`](../../use-cases/cat-22/uc-22.12.10.json)
+  - Source: [``](../../)
 <a id='uc-22-12-11'></a>
-- **UC-22.12.11** — CAB evidence and high-risk change documentation gaps
+- **UC-22.12.11** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.11.json`](../../use-cases/cat-22/uc-22.12.11.json)
+  - Source: [``](../../)
 <a id='uc-22-12-12'></a>
-- **UC-22.12.12** — Production change volume during financial close windows
+- **UC-22.12.12** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.12.json`](../../use-cases/cat-22/uc-22.12.12.json)
+  - Source: [``](../../)
 <a id='uc-22-12-13'></a>
-- **UC-22.12.13** — Failed change rollback and backout evidence tracking
+- **UC-22.12.13** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.13.json`](../../use-cases/cat-22/uc-22.12.13.json)
+  - Source: [``](../../)
 <a id='uc-22-12-14'></a>
-- **UC-22.12.14** — Changes executed outside approved maintenance windows
+- **UC-22.12.14** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.14.json`](../../use-cases/cat-22/uc-22.12.14.json)
+  - Source: [``](../../)
 <a id='uc-22-12-15'></a>
-- **UC-22.12.15** — Financial close batch job failures and runtime SLA breaches
+- **UC-22.12.15** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.15.json`](../../use-cases/cat-22/uc-22.12.15.json)
+  - Source: [``](../../)
 <a id='uc-22-12-16'></a>
-- **UC-22.12.16** — General ledger database backup success within policy windows
+- **UC-22.12.16** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.16.json`](../../use-cases/cat-22/uc-22.12.16.json)
+  - Source: [``](../../)
 <a id='uc-22-12-17'></a>
-- **UC-22.12.17** — Unauthorized batch schedule or dependency modifications
+- **UC-22.12.17** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.17.json`](../../use-cases/cat-22/uc-22.12.17.json)
+  - Source: [``](../../)
 <a id='uc-22-12-18'></a>
-- **UC-22.12.18** — ITSI service health for financial reporting dependency chain
+- **UC-22.12.18** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.18.json`](../../use-cases/cat-22/uc-22.12.18.json)
+  - Source: [``](../../)
 <a id='uc-22-12-2'></a>
-- **UC-22.12.2** — Privileged access review completion and aging for financial systems
+- **UC-22.12.2** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.2.json`](../../use-cases/cat-22/uc-22.12.2.json)
+  - Source: [``](../../)
 <a id='uc-22-12-26'></a>
-- **UC-22.12.26** — Sensitive management financial report access and export
+- **UC-22.12.26** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.26.json`](../../use-cases/cat-22/uc-22.12.26.json)
+  - Source: [``](../../)
 <a id='uc-22-12-28'></a>
-- **UC-22.12.28** — Quarterly privileged ERP role population for sign-off
+- **UC-22.12.28** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.28.json`](../../use-cases/cat-22/uc-22.12.28.json)
+  - Source: [``](../../)
 <a id='uc-22-12-3'></a>
-- **UC-22.12.3** — Segregation of duties conflicts across SAP / Oracle financial roles
+- **UC-22.12.3** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.3.json`](../../use-cases/cat-22/uc-22.12.3.json)
+  - Source: [``](../../)
 <a id='uc-22-12-36'></a>
 - **UC-22.12.36** —
   - Control family: `—`
@@ -192,71 +192,71 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-12-5'></a>
-- **UC-22.12.5** — Terminated-user authentication after HR termination date
+- **UC-22.12.5** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.12.5.json`](../../use-cases/cat-22/uc-22.12.5.json)
+  - Source: [``](../../)
 <a id='uc-22-35-2'></a>
-- **UC-22.35.2** — Log tamper detection via write-once-read-many chain-of-custody
-  - Control family: `evidence-continuity`
-  - Owner: `CISO`
+- **UC-22.35.2** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.35.2.json`](../../use-cases/cat-22/uc-22.35.2.json)
+  - Source: [``](../../)
 <a id='uc-22-40-1'></a>
-- **UC-22.40.1** — Privileged session recording — missing recordings for elevated sessions
-  - Control family: `privileged-session-recording`
-  - Owner: `CISO`
+- **UC-22.40.1** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.40.1.json`](../../use-cases/cat-22/uc-22.40.1.json)
+  - Source: [``](../../)
 <a id='uc-22-40-2'></a>
-- **UC-22.40.2** — Break-glass account usage review with mandatory post-use approval
-  - Control family: `privileged-session-recording`
-  - Owner: `CISO`
+- **UC-22.40.2** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.40.2.json`](../../use-cases/cat-22/uc-22.40.2.json)
+  - Source: [``](../../)
 <a id='uc-22-40-3'></a>
-- **UC-22.40.3** — Periodic access review SLA — stale certifications by control owner
-  - Control family: `privileged-session-recording`
-  - Owner: `CISO`
+- **UC-22.40.3** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.40.3.json`](../../use-cases/cat-22/uc-22.40.3.json)
+  - Source: [``](../../)
 <a id='uc-22-42-1'></a>
-- **UC-22.42.1** — Unauthorized production change — no approved CR matches the observed change
-  - Control family: `policy-to-control-traceability`
-  - Owner: `CISO`
+- **UC-22.42.1** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.42.1.json`](../../use-cases/cat-22/uc-22.42.1.json)
+  - Source: [``](../../)
 <a id='uc-22-45-3'></a>
-- **UC-22.45.3** — Backup completeness — unprotected workloads with regulated data
-  - Control family: `backup-restore-evidence`
-  - Owner: `Head of IT Operations`
+- **UC-22.45.3** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.45.3.json`](../../use-cases/cat-22/uc-22.45.3.json)
+  - Source: [``](../../)
 <a id='uc-22-47-2'></a>
-- **UC-22.47.2** — Repeat audit findings — same control deficiency across consecutive audit cycles
-  - Control family: `policy-to-control-traceability`
-  - Owner: `Board / Audit Committee`
+- **UC-22.47.2** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.47.2.json`](../../use-cases/cat-22/uc-22.47.2.json)
+  - Source: [``](../../)
 <a id='uc-22-48-1'></a>
-- **UC-22.48.1** — Segregation of duties — toxic role combinations in IAM
-  - Control family: `access-review-cadence`
-  - Owner: `CISO`
+- **UC-22.48.1** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.48.1.json`](../../use-cases/cat-22/uc-22.48.1.json)
+  - Source: [``](../../)
 <a id='uc-22-48-2'></a>
-- **UC-22.48.2** — SoD violations via break-glass usage — emergency role abuse
-  - Control family: `access-review-cadence`
-  - Owner: `CISO`
+- **UC-22.48.2** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.48.2.json`](../../use-cases/cat-22/uc-22.48.2.json)
+  - Source: [``](../../)
 <a id='uc-22-49-3'></a>
-- **UC-22.49.3** — Litigation-hold override audit — holds applied/released without ticket
-  - Control family: `retention-end-enforcement`
-  - Owner: `Legal`
+- **UC-22.49.3** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.49.3.json`](../../use-cases/cat-22/uc-22.49.3.json)
+  - Source: [``](../../)
 <a id='uc-22-6-55'></a>
 - **UC-22.6.55** —
   - Control family: `—`
@@ -264,11 +264,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-9-8'></a>
-- **UC-22.9.8** — Compliance Trending — Auditor Evidence Pack Generation Volume and Deficiency Rate
+- **UC-22.9.8** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.9.8.json`](../../use-cases/cat-22/uc-22.9.8.json)
+  - Source: [``](../../)
 <a id='uc-7-1-13'></a>
 - **UC-7.1.13** —
   - Control family: `—`
@@ -395,7 +395,7 @@ These are the questions a regulator, certification body, or external auditor is 
 
 The machine-readable companion of this pack lives at [`api/v1/evidence-packs/sox-itgc.json`](../../api/v1/evidence-packs/sox-itgc.json). It contains the same clause-level coverage, retention guidance, role matrix, and gap list in JSON form, and is regenerated in lockstep with this markdown pack so content stays in sync. Consumers integrating the pack into GRC tools, audit-request portals, or evidence pipelines should consume the JSON document; human readers should consume this markdown.
 
-Related API surfaces (all under [`api/v1/`](../../api/v1/README.md)):
+Related API surfaces (all under [`api/v1/`](../../api/README.md)):
 
 - [`api/v1/compliance/regulations/sox-itgc.json`](../../api/v1/compliance/regulations/sox-itgc.json) — regulation metadata and per-version coverage metrics
 - [`api/v1/compliance/ucs/`](../../api/v1/compliance/ucs/index.json) — individual UC sidecars
@@ -419,9 +419,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 6.1
+catalogue_version: 7.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
+inputs_sha256:     87ca49d6acc66fffd2727baa9b1604042f957a52233be589707aed6e224dd4b3
 ```
 
 To re-generate:

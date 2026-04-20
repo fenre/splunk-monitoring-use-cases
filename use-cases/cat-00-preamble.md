@@ -14,6 +14,7 @@
 | **Data Sources** | Sourcetypes, indexes, or log paths needed |
 | **SPL** | Example Splunk search (simplified — adapt indexes/sourcetypes to your environment) |
 | **Implementation** | Key steps to get this use case running |
+| **Monitoring type** | Analytics, Anomaly, Audit, Availability, Business, Capacity, Change, Compliance, Configuration, Cost, Data Quality, DevSecOps, Fault, Fraud, Governance, Inventory, Operations, Patient Safety, Performance, Physical Security, Quality, Reliability, Resilience, Revenue Assurance, Risk, Safety, Security, Trading, Vulnerability |
 | **Visualization** | Recommended dashboard panel type(s) |
 
 ---

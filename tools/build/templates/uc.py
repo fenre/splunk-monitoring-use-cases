@@ -50,6 +50,7 @@ def render_html(
     description = _helpers.truncate(value or _helpers.first_paragraph(uc.get("md", "")), 160)
     crit_label, crit_mod = _helpers.criticality_label(uc.get("c"))
     diff_label, diff_mod = _helpers.difficulty_label(uc.get("f"))
+    wave_pair = _helpers.wave_label(uc.get("wv"))
 
     keywords = sorted(
         {
@@ -99,6 +100,7 @@ def render_html(
             _section_value(uc, value),
             _section_quick_facts(uc, cat_name, sub_name),
             _section_prerequisites(uc),
+            _section_implementation_ordering(uc, ctx=ctx),
             _section_spl(uc),
             _section_dma_spl(uc),
             _section_implementation(uc),
@@ -120,6 +122,20 @@ def render_html(
         if asset_styles else ""
     )
 
+    if wave_pair is None:
+        wave_badge_html = ""
+    else:
+        wave_lbl, wave_mod = wave_pair
+        wave_badge_html = (
+            '<span class="badge badge-wave-'
+            + _helpers.attr(wave_mod)
+            + '" title="'
+            + _helpers.attr(_wave_tooltip(wave_mod))
+            + '">Wave: '
+            + _helpers.escape(wave_lbl)
+            + "</span>"
+        )
+
     return _PAGE_TEMPLATE.format(
         title=_helpers.escape(f"UC-{uc_id} · {title} · {ctx.site_short}"),
         description=_helpers.attr(description),
@@ -140,6 +156,7 @@ def render_html(
         crit_mod=_helpers.escape(crit_mod),
         diff_label=_helpers.escape(diff_label),
         diff_mod=_helpers.escape(diff_mod),
+        wave_badge=wave_badge_html,
         cat_url=_helpers.attr(cat_url),
         cat_name=_helpers.escape(cat_name),
         sub_name=_helpers.escape(sub_name),
@@ -173,7 +190,29 @@ def render_index_json(
     """
     uc_id = str(uc.get("i", ""))
     page_url = f"{ctx.site_url}/uc/UC-{uc_id}/"
-    return {
+    self_full = f"UC-{uc_id}" if uc_id else ""
+
+    # Stable top-level surface for the implementation-roadmap payload.
+    # Keep keys omitted when empty so partners can distinguish "no
+    # ordering declared" from "empty list". ``enabledBy`` is the
+    # precomputed reverse lookup so consumers don't need to re-walk the
+    # full catalog.
+    ordering: dict[str, Any] = {}
+    wave = str(uc.get("wv") or "").strip().lower()
+    if wave in ("crawl", "walk", "run"):
+        ordering["wave"] = wave
+    pre_raw = uc.get("pre") or []
+    pre = [
+        str(p).strip() for p in pre_raw
+        if isinstance(p, str) and str(p).strip() and str(p).strip() != self_full
+    ] if isinstance(pre_raw, (list, tuple)) else []
+    if pre:
+        ordering["prerequisiteUseCases"] = pre
+    enables = tuple(ctx.uc_reverse_prereq.get(self_full, ()))
+    if enables:
+        ordering["enabledBy"] = list(enables)
+
+    payload: dict[str, Any] = {
         "$schema": "/schemas/v2/uc.schema.json",
         "version": "2.0.0",
         "id": f"UC-{uc_id}",
@@ -198,6 +237,9 @@ def render_index_json(
         },
         "generatedAt": ctx.generated_at,
     }
+    if ordering:
+        payload["implementationOrdering"] = ordering
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -272,9 +314,123 @@ def _section_prerequisites(uc: dict[str, Any]) -> str:
     if not parts:
         return ""
     return (
-        "<section><h2>Prerequisites</h2><ul>"
+        "<section><h2>Environment prerequisites</h2><ul>"
         + "".join(parts)
         + "</ul></section>"
+    )
+
+
+# Human-readable tooltip copy for each wave label. Kept consistent with
+# the SPA (see ``waveBadge`` in index.html) so curators only need to
+# update one description per wave across both renderers.
+_WAVE_TOOLTIPS = {
+    "crawl": (
+        "Foundation wave — the platform, TAs, and data sources this "
+        "use case relies on. Implement first."
+    ),
+    "walk": (
+        "Intermediate wave — extends or correlates foundation data. "
+        "Implement after at least one crawl UC from the same category."
+    ),
+    "run": (
+        "Advanced wave — advanced analytics, cross-source correlation, "
+        "or ML. Implement after walk UCs are stable."
+    ),
+}
+
+
+def _wave_tooltip(mod: str) -> str:
+    """Return the tooltip string for ``mod`` (``crawl``/``walk``/``run``)."""
+    return _WAVE_TOOLTIPS.get(str(mod).lower(), "")
+
+
+def _section_implementation_ordering(
+    uc: dict[str, Any], *, ctx: _helpers.RenderContext
+) -> str:
+    """Render the UC-to-UC prerequisite + Enables section.
+
+    Emits:
+
+    * "Implement first" — links out to every UC in ``uc["pre"]`` (forward
+      edges of the dependency graph).
+    * "Enables" — links out to every UC that depends on this one, looked
+      up in ``ctx.uc_reverse_prereq``.
+
+    Returns ``""`` when both directions are empty so the section is
+    omitted entirely. Each link carries the target's wave badge inline
+    to reinforce the roadmap story without a second round-trip.
+    """
+    uid = str(uc.get("i") or "").strip()
+    self_full = f"UC-{uid}" if uid else ""
+    pre_raw = uc.get("pre") or []
+    pre: list[str] = []
+    if isinstance(pre_raw, (list, tuple)):
+        pre = [str(p).strip() for p in pre_raw if isinstance(p, str) and str(p).strip()]
+    # Keep declared order but strip self-refs defensively; the validator
+    # already rejects these, we must not crash render if seed data is
+    # still in flight.
+    pre = [p for p in pre if p != self_full]
+
+    enables = tuple(ctx.uc_reverse_prereq.get(self_full, ()))
+
+    if not pre and not enables:
+        return ""
+
+    parts: list[str] = ['<section class="uc-ordering"><h2>Implementation ordering</h2>']
+    if pre:
+        parts.append(
+            '<h3>Implement first (prerequisites)</h3>'
+            '<ul class="uc-chip-list">'
+        )
+        for dep in pre:
+            parts.append(_render_uc_chip(dep, ctx=ctx))
+        parts.append("</ul>")
+
+    if enables:
+        parts.append(
+            '<h3>Enables</h3>'
+            '<ul class="uc-chip-list">'
+        )
+        for dep in enables:
+            parts.append(_render_uc_chip(dep, ctx=ctx))
+        parts.append("</ul>")
+
+    parts.append("</section>")
+    return "".join(parts)
+
+
+def _render_uc_chip(
+    uc_full: str, *, ctx: _helpers.RenderContext
+) -> str:
+    """Render a single clickable UC chip: link, title tooltip, wave badge."""
+    title, wave = ctx.uc_title_index.get(uc_full, ("", ""))
+    short = uc_full[3:] if uc_full.startswith("UC-") else uc_full
+    href = f"{ctx.site_url}/uc/UC-{short}/"
+    label = title or uc_full
+    inner_wave = ""
+    if wave:
+        pair = _helpers.wave_label(wave)
+        if pair is not None:
+            w_lbl, w_mod = pair
+            inner_wave = (
+                ' <span class="chip-wave chip-wave-'
+                + _helpers.attr(w_mod)
+                + '" title="'
+                + _helpers.attr(_wave_tooltip(w_mod))
+                + '">'
+                + _helpers.escape(w_lbl)
+                + "</span>"
+            )
+    return (
+        '<li><a class="uc-chip" href="'
+        + _helpers.attr(href)
+        + '" title="'
+        + _helpers.attr(label)
+        + '"><span class="chip-id">'
+        + _helpers.escape(uc_full)
+        + "</span>"
+        + inner_wave
+        + "</a></li>"
     )
 
 
@@ -550,6 +706,7 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 <div class="badges">
 <span class="badge badge-{crit_mod}">Criticality: {crit_label}</span>
 <span class="badge">Difficulty: {diff_label}</span>
+{wave_badge}
 <a class="badge" href="{cat_url}">{cat_name}</a>
 </div>
 </header>

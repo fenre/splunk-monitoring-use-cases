@@ -56,6 +56,26 @@ GET_USE_CASE_OUTPUT_SCHEMA: dict[str, Any] = {
         "value": {"type": "string"},
         "criticality": {"type": "string"},
         "difficulty": {"type": "string"},
+        "wave": {
+            "type": "string",
+            "description": (
+                "Implementation wave — ``crawl`` (foundation), ``walk`` "
+                "(intermediate), or ``run`` (advanced). Empty string when "
+                "the UC has not been assigned a wave."
+            ),
+        },
+        "prerequisiteUseCases": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": r"^UC-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
+            },
+            "description": (
+                "UC IDs (``UC-X.Y.Z``) that must be implemented before "
+                "this one — data sources, macros, lookups, or upstream "
+                "detections this UC depends on."
+            ),
+        },
         "splunkPillar": {"type": "string"},
         "monitoringType": {"type": "array", "items": {"type": "string"}},
         "app": {"type": ["string", "array"]},

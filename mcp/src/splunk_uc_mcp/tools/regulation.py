@@ -7,14 +7,10 @@ markdown structure leak into the tool output.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any
 
 from splunk_uc_mcp.catalog import Catalog, CatalogNotFoundError
-
-
-LOG = logging.getLogger(__name__)
 
 
 REGULATION_ID_PATTERN = r"^[a-z0-9][a-z0-9\-]*$"

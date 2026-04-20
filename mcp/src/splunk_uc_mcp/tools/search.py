@@ -127,6 +127,28 @@ SEARCH_USE_CASES_OUTPUT_SCHEMA: dict[str, Any] = {
                     "value": {"type": "string"},
                     "criticality": {"type": "string"},
                     "difficulty": {"type": "string"},
+                    "wave": {
+                        "type": "string",
+                        "description": (
+                            "Implementation wave — ``crawl`` (foundation), "
+                            "``walk`` (intermediate), or ``run`` (advanced). "
+                            "Empty string when the UC has not been assigned a "
+                            "wave. Agents planning a rollout should generally "
+                            "propose crawl UCs first."
+                        ),
+                    },
+                    "prerequisiteUseCases": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": r"^UC-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
+                        },
+                        "description": (
+                            "UC IDs (in ``UC-X.Y.Z`` form) that must be "
+                            "implemented first. Agents should follow these "
+                            "edges to produce an ordered implementation plan."
+                        ),
+                    },
                     "splunkPillar": {"type": "string"},
                     "monitoringType": {
                         "type": "array",
@@ -259,12 +281,17 @@ def _slim_uc(uc: dict[str, Any]) -> dict[str, Any]:
     """Project only the fields present in uc-thin so we don't accidentally
     leak fields that haven't been audited for agent consumption."""
 
+    # ``wave`` + ``prerequisiteUseCases`` are projected here so agents
+    # planning a rollout can order UCs by wave and walk the prereq edges
+    # without a follow-up ``get_use_case`` per candidate.
     keys = (
         "id",
         "title",
         "value",
         "criticality",
         "difficulty",
+        "wave",
+        "prerequisiteUseCases",
         "splunkPillar",
         "monitoringType",
         "app",

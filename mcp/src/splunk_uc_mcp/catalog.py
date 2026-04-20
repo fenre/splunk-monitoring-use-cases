@@ -37,11 +37,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+from splunk_uc_mcp import __version__
 
 
 LOG = logging.getLogger(__name__)
@@ -286,7 +287,12 @@ class Catalog:
                 f"{path} exceeds MAX_PAYLOAD_BYTES ({size} > {MAX_PAYLOAD_BYTES})"
             )
         with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
+            try:
+                return json.load(handle)
+            except json.JSONDecodeError as exc:
+                raise CatalogError(
+                    f"Corrupt JSON in {path}: {exc}"
+                ) from exc
 
     def _fetch_remote(self, segments: list[str]) -> Any:
         url = "/".join([self._base_url, "api", "v1", *segments])
@@ -308,7 +314,12 @@ class Catalog:
                         raise CatalogError(
                             f"Remote payload exceeds MAX_PAYLOAD_BYTES: {url}"
                         )
-            return json.loads(bytes(body).decode("utf-8"))
+            try:
+                return json.loads(bytes(body).decode("utf-8"))
+            except json.JSONDecodeError as jexc:
+                raise CatalogError(
+                    f"Corrupt JSON from {url}: {jexc}"
+                ) from jexc
         except httpx.HTTPError as exc:
             raise CatalogError(f"Remote fetch failed for {url}: {exc}") from exc
 
@@ -318,20 +329,10 @@ class Catalog:
                 follow_redirects=False,
                 timeout=HTTP_TIMEOUT_SECONDS,
                 headers={
-                    "User-Agent": "splunk-uc-mcp/0.1.0 (+https://fenre.github.io/splunk-monitoring-use-cases)",
+                    "User-Agent": f"splunk-uc-mcp/{__version__} (+https://fenre.github.io/splunk-monitoring-use-cases)",
                     "Accept": "application/json",
                 },
             )
         return self._http_client
 
 
-@lru_cache(maxsize=1)
-def default_catalog() -> Catalog:
-    """Shared :class:`Catalog` singleton for library consumers.
-
-    Prefer this inside tool handlers so the loader is instantiated once per
-    process instead of once per tool call. Tests that need an isolated
-    catalogue should construct :class:`Catalog` directly.
-    """
-
-    return Catalog()

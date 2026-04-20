@@ -113,7 +113,7 @@ reviewers should be aware of:
   `delete`, no shell-out) and uses stdio-only transport (no network
   listener), eliminating the entire class of remote-network attack
   surfaces.  Tool inputs and outputs are JSON-Schema-validated against
-  the schemas in `mcp/src/splunk_uc_mcp/schemas/`, with a CI guard
+  the schemas defined inline in `mcp/src/splunk_uc_mcp/tools/`, with a CI guard
   (`scripts/audit_mcp_tool_schemas.py`) that fails the build if the
   shipped schemas drift from the runtime ones.
 - Swagger UI assets are self-hosted under `vendor/swagger-ui/` with

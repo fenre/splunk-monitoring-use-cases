@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring Use Cases
 
-A curated collection of **6,425+ IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
+A curated collection of **6,450+ IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
 
 Browse them in the **interactive dashboard** or use the **machine-readable catalog** (`catalog.json`) for automation and integrations.
 
@@ -29,7 +29,7 @@ This reads `use-cases/*.md` and `use-cases/INDEX.md`, then outputs `data.js` and
 ### Validate Markdown Structure
 
 ```bash
-python3 validate_md.py
+python3 scripts/audit_uc_structure.py --full
 ```
 
 Checks UC-ID consistency, category numbering, and code-block balance across all use case files.
@@ -177,7 +177,7 @@ Additional fields are available for security use cases (MITRE ATT&CK, detection 
 - **Search** across all use cases by keyword, UC-ID, or SPL content (Cmd/Ctrl+K shortcut)
 - **Filter by equipment** you have (e.g. "Cisco", "AWS", "VMware") with optional model-level drill-down
 - **Sort** by criticality, difficulty, name, or category
-- **Virtual scrolling** for large lists (6,425+ use cases rendered on demand)
+- **Virtual scrolling** for large lists (6,450+ use cases rendered on demand)
 - **Non-technical view** with plain-language outcomes per category
 - **Quick-win starters** highlighted per category for fast implementation
 - **Print-friendly** layout with dedicated print stylesheet
@@ -275,7 +275,7 @@ A GitHub Actions workflow (`.github/workflows/pages.yml`) is included for automa
 
 ## Requirements
 
-- **Python 3** for `build.py` and `validate_md.py` (standard library only, no extra packages)
+- **Python 3** for `build.py` and `scripts/audit_uc_structure.py` (standard library only, no extra packages)
 - **Any modern browser** to view the dashboard
 
 ---
@@ -285,7 +285,7 @@ A GitHub Actions workflow (`.github/workflows/pages.yml`) is included for automa
 1. Edit or add use cases in `use-cases/cat-NN-*.md` following the format in [docs/use-case-fields.md](docs/use-case-fields.md)
 2. Update `use-cases/INDEX.md` if adding quick-start entries or changing category metadata
 3. Run `python3 build.py` to regenerate `data.js` and `catalog.json`
-4. Run `python3 validate_md.py` to verify structure
+4. Run `python3 scripts/audit_uc_structure.py --full` to verify structure
 5. Open a pull request — the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) walks you through the checklist
 
 See also:

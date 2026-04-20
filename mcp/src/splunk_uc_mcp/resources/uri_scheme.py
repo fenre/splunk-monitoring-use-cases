@@ -8,8 +8,8 @@ Four URI families are supported:
     ``api/v1/recommender/uc-thin.json`` for non-compliance UCs.
 
 ``uc://category/{category_id}``
-    Category markdown reference. The URI returns the catalogue metadata
-    for the category; the markdown itself is referenced via ``sourcePath``.
+    Category JSON reference. The URI returns the catalogue metadata
+    for the category (UC count, subcategories, etc.).
 
 ``reg://{regulation_id}`` or ``reg://{regulation_id}@{version}``
     Regulation detail — maps to
@@ -54,7 +54,12 @@ REGULATION_VERSION_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-\.]*$")
 """Regulation version suffix after ``@`` in URIs like
 ``reg://gdpr@2016-679``. Mirrors the on-disk filename convention for
 ``api/v1/compliance/regulations/{id}@{version}.json`` while rejecting
-any character that could escape the endpoint path."""
+any character that could escape the endpoint path.
+
+Note: display versions with slashes (e.g. ``2016/679``) must be
+dash-escaped in URIs (``2016-679``). The tool layer in
+``tools/regulation.py`` accepts slashes and converts them internally
+via ``_version_to_filename``."""
 
 
 EQUIPMENT_ID_REGEX = re.compile(r"^[a-z0-9][a-z0-9_]*$")
@@ -63,14 +68,6 @@ EQUIPMENT_ID_REGEX = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 
 LEDGER_URI = "ledger://"
 """Single, canonical URI for the signed provenance ledger."""
-
-
-RESOURCE_URI_DOCS = {
-    "uc://": "Use case resource family. Supports uc://usecase/{id} and uc://category/{id}.",
-    "reg://": "Regulation resource family. Supports reg://{id} and reg://{id}@{version}.",
-    "equipment://": "Equipment resource family. Supports equipment://{slug}.",
-    "ledger://": "Signed provenance ledger (data/provenance/mapping-ledger.json).",
-}
 
 
 ResourceKind = Literal[

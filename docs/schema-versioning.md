@@ -42,7 +42,7 @@ Every schema declares its lifecycle in its top-level keywords. Example:
   "title": "Splunk Monitoring Use Case",
   "version": "2.0.0",
   "x-stability": "stable",
-  "x-since": "7.0.0",
+  "x-since": "v7.0",
   "x-deprecated": null,
   "x-replaces": "https://splunk-monitoring.io/schemas/v1/uc.schema.json",
   "x-replacedBy": null,
@@ -77,7 +77,7 @@ ignored by validators that don't understand them and surfaced by tooling that do
 
 A `stable` schema can never silently relax to `preview`. Going `stable → preview`
 requires a major version bump and an RFC under
-[`docs/governance.md`](governance.md). Going `preview → stable` is a free
+[`GOVERNANCE.md`](../GOVERNANCE.md). Going `preview → stable` is a free
 operation: it only happens when the maintainers commit to the additive-only
 constraint.
 
@@ -171,7 +171,7 @@ The audit:
 `tools/audits/schema_meta.py` runs alongside it and asserts every schema in
 `schemas/` declares the full required-metadata set above.
 
-Both audits are blocking gates in `.github/workflows/ci.yml`.
+Both audits are blocking gates in `.github/workflows/validate.yml`.
 
 ## Validation in the build
 
@@ -189,9 +189,8 @@ its declaring schema before the file is written. The validation set:
 | `dist/api/v1/manifest.json` | `schemas/manifest.schema.json` |
 
 Source-of-truth files in `content/cat-NN-slug/UC-X.Y.Z.json` are validated by
-`tools/validate/validate_md.py` (the v7 successor to today's
-`tools/validate/validate_md.py`) before any build runs. Validation failure blocks
-the PR.
+`tools/validate/validate_md.py` (the v7 successor to the root-level
+`validate_md.py`) before any build runs. Validation failure blocks the PR.
 
 ## Distribution
 
@@ -271,5 +270,5 @@ remains stdlib-only).
 ## Versioning this document
 
 When this policy changes, note the diff in `CHANGELOG.md` under "Policy" and link
-the originating RFC under [`docs/governance.md`](governance.md). The current policy
+the originating RFC under [`GOVERNANCE.md`](../GOVERNANCE.md). The current policy
 is effective from **catalogue 7.0.0**.

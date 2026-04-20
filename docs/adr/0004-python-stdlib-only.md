@@ -26,7 +26,8 @@ Specifically:
 
 - [`build.py`](../../build.py) imports only `glob`, `json`, `os`, `re`, `shutil`, `sys`, `datetime`.
 - Every script under [`scripts/`](../../scripts/) imports only stdlib modules. URL fetching uses `urllib.request`, not `requests`.
-- There is no `requirements.txt`, no `pyproject.toml`, no `Pipfile`, no `poetry.lock`.
+- There is no `requirements.txt`, no `Pipfile`, no `poetry.lock` for the core scripts.
+  (Note: `mcp/pyproject.toml` exists for the MCP server package, which has its own dependency set.)
 
 The sole exception is the Node one-liner in the CI workflow that syntax-checks `non-technical-view.js`. Node is a runtime, not a dependency, and is used for nothing else.
 

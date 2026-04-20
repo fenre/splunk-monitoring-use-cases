@@ -111,11 +111,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-10-21'></a>
-- **UC-22.10.21** — Access Control — Role-Based Violations (Coder Accessing Medication Admin)
+- **UC-22.10.21** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.10.21.json`](../../use-cases/cat-22/uc-22.10.21.json)
+  - Source: [``](../../)
 <a id='uc-22-10-22'></a>
 - **UC-22.10.22** —
   - Control family: `—`
@@ -261,23 +261,23 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 <a id='uc-22-6-53'></a>
-- **UC-22.6.53** — ISO/IEC 27001:2022 Clause 7.2 — Competence evidence: role-based training completion
-  - Control family: `training-effectiveness`
-  - Owner: `HR`
+- **UC-22.6.53** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.6.53.json`](../../use-cases/cat-22/uc-22.6.53.json)
+  - Source: [``](../../)
 <a id='uc-22-8-31'></a>
-- **UC-22.8.31** — SOC 2 CC6.6 — Encryption-in-transit validation: cleartext protocols crossing the trust boundary
-  - Control family: `crypto-drift`
-  - Owner: `CISO`
+- **UC-22.8.31** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.8.31.json`](../../use-cases/cat-22/uc-22.8.31.json)
+  - Source: [``](../../)
 <a id='uc-22-8-38'></a>
-- **UC-22.8.38** — SOC 2 C1.1 — Confidentiality: sensitive-data exposure at the egress boundary
-  - Control family: `data-flow-cross-border`
-  - Owner: `DPO`
+- **UC-22.8.38** —
+  - Control family: `—`
+  - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [`use-cases/cat-22/uc-22.8.38.json`](../../use-cases/cat-22/uc-22.8.38.json)
+  - Source: [``](../../)
 
 ## 5. Evidence collection
 
@@ -379,7 +379,7 @@ These are the questions a regulator, certification body, or external auditor is 
 
 The machine-readable companion of this pack lives at [`api/v1/evidence-packs/hipaa-security.json`](../../api/v1/evidence-packs/hipaa-security.json). It contains the same clause-level coverage, retention guidance, role matrix, and gap list in JSON form, and is regenerated in lockstep with this markdown pack so content stays in sync. Consumers integrating the pack into GRC tools, audit-request portals, or evidence pipelines should consume the JSON document; human readers should consume this markdown.
 
-Related API surfaces (all under [`api/v1/`](../../api/v1/README.md)):
+Related API surfaces (all under [`api/v1/`](../../api/README.md)):
 
 - [`api/v1/compliance/regulations/hipaa-security.json`](../../api/v1/compliance/regulations/hipaa-security.json) — regulation metadata and per-version coverage metrics
 - [`api/v1/compliance/ucs/`](../../api/v1/compliance/ucs/index.json) — individual UC sidecars
@@ -403,9 +403,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 6.1
+catalogue_version: 7.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     b7205074339ee8cc66904c2afc597cc637be8f6ac6cefc477625ba8bc782b0a7
+inputs_sha256:     87ca49d6acc66fffd2727baa9b1604042f957a52233be589707aed6e224dd4b3
 ```
 
 To re-generate:

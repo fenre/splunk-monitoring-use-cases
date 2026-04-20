@@ -30,9 +30,8 @@ Please fill in the sections below. Delete anything that doesn't apply.
 <!-- Confirm the things that automated CI cannot. -->
 
 - [ ] Ran `python3 build.py` locally and committed all regenerated artefacts
-      (`data.js`, `catalog.json`, `llms.txt`, `llms-full.txt`, `sitemap.xml`,
-      `api/*.json`).
-- [ ] Ran `python3 validate_md.py` (or `python3 scripts/audit_uc_structure.py --full`).
+      (`data.js`, `catalog.json`, `llms.txt`, `llms-full.txt`, `sitemap.xml`).
+- [ ] Ran `python3 scripts/audit_uc_structure.py --full`.
 - [ ] SPL examples have been eyeballed for syntax errors.
 - [ ] If adding a new **Splunkbase app reference**, the `Splunkbase #NNNN`
       ID is correct (verified on splunkbase.splunk.com).

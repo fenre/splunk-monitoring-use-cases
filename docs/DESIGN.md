@@ -2,7 +2,14 @@
 
 **Status:** Living document. Authoritative reference for implementation, CI, and replication.
 **Owner:** Repository maintainers. See [GOVERNANCE.md](../GOVERNANCE.md).
-**Last reviewed:** 2026-04-16
+**Last reviewed:** 2026-04-20
+
+> **v7 transition note:** This document primarily describes the v6 build pipeline
+> (root `build.py` reading `use-cases/cat-*.md`). The v7 pipeline
+> (`tools/build/build.py` reading `content/`) is documented in
+> [`docs/architecture.md`](architecture.md). Both pipelines coexist during the
+> transition; `validate.yml` gates the v6 pipeline while `pages.yml` runs the v7
+> pipeline with `--legacy` fallback.
 
 This document describes the full product: what it is, how it is organised, how it is built, how it runs, how it is governed, and — critically — how to replicate it on a different platform, for a different vendor, or for a different content domain.
 
@@ -347,7 +354,7 @@ The production site is **GitHub Pages** fronting the `main` branch root; the dep
 | Path | Purpose |
 |---|---|
 | [`tools/data-sizing/`](../tools/data-sizing/) | Data Sizing Assessment — ingest volume estimator, standalone static app, cross-linked to UCs |
-| [`dashboards/`](../dashboards/) | Splunk Dashboard Studio JSON exports with synthetic `makeresults` data; importable into a live Splunk instance |
+| `dashboards/` (gitignored) | Splunk Dashboard Studio JSON exports with synthetic `makeresults` data; importable into a live Splunk instance. Generated locally, not tracked. |
 | [`eventgen_data/`](../eventgen_data/) | Sample events + manifest for driving Cribl Stream Datagen / Splunk HEC against representative UCs |
 | [`tools/`](../tools/) | Generic standalone utilities that don't belong in `scripts/` |
 
@@ -399,7 +406,7 @@ Steps:
 | `traffic.yml` | daily cron | Persist GitHub traffic stats for long-term analysis |
 | `uc-manifest.yml` | push to main | Rebuild the UC summary manifest for internal consumers |
 | `link-check.yml` (v5.1+) | weekly cron | Run `audit_links.py`; open an Issue on new breakage |
-| `appinspect.yml` (v5.2+) | PR | Validate generated `.spl` against Splunk AppInspect |
+| ~~`appinspect.yml`~~ | ~~PR~~ | ~~Validate generated `.spl` against Splunk AppInspect~~ (planned, not yet implemented) |
 | `uc-tests.yml` (v6.0) | PR (static) + nightly (dynamic) | Run `scripts/run_uc_tests.py` |
 | `release.yml` (v5.2+) | tag push | Publish `.spl` artefacts to the GitHub Release |
 
@@ -546,7 +553,7 @@ Non-trivial architectural changes are captured as ADRs under [`docs/adr/`](adr/)
 
 ### 12.1 Accessibility
 
-- WCAG 2.1 AA target (audit planned for v5.2).
+- WCAG 2.1 AA target. The v7 build pipeline integrates axe-core checks (see `docs/architecture.md`).
 - All interactive elements reachable by keyboard.
 - Focus rings visible in both light and dark themes.
 - ARIA roles on sidebar and filter controls.

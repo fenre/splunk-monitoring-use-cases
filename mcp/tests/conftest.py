@@ -98,6 +98,8 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                         "value": "Detect baseline linux anomalies",
                         "criticality": "low",
                         "difficulty": "easy",
+                        "wave": "crawl",
+                        "prerequisiteUseCases": [],
                         "splunkPillar": "security",
                         "monitoringType": ["detection"],
                         "app": ["splunk_ta_linux"],
@@ -112,6 +114,8 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                         "value": "Spot anomalous PII access patterns",
                         "criticality": "high",
                         "difficulty": "medium",
+                        "wave": "walk",
+                        "prerequisiteUseCases": ["UC-1.1.1"],
                         "splunkPillar": "compliance",
                         "monitoringType": ["detection"],
                         "app": ["splunk_ta_nix"],
@@ -159,6 +163,8 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                 "id": "22.1.1",
                 "title": "GDPR PII access detection",
                 "value": "Spot anomalous PII access patterns",
+                "wave": "walk",
+                "prerequisiteUseCases": ["UC-1.1.1"],
                 "equipment": ["linux", "azure"],
                 "mitreAttack": ["T1078"],
                 "compliance": [
@@ -404,14 +410,21 @@ def _isolate_default_catalog_cache() -> Iterator[None]:
     """Clear the ``default_catalog()`` LRU cache between tests.
 
     Ensures that one test's catalogue state doesn't bleed into another
-    (e.g. a synthetic-root test followed by a real-root test).
+    (e.g. a synthetic-root test followed by a real-root test). Older
+    builds of the catalog module exposed the cache as
+    ``default_catalog``; the guard keeps the fixture resilient if the
+    helper is renamed or removed.
     """
 
     from splunk_uc_mcp import catalog as catalog_module
 
-    catalog_module.default_catalog.cache_clear()
+    cache = getattr(catalog_module, "default_catalog", None)
+    if cache is not None and hasattr(cache, "cache_clear"):
+        cache.cache_clear()
     yield
-    catalog_module.default_catalog.cache_clear()
+    cache = getattr(catalog_module, "default_catalog", None)
+    if cache is not None and hasattr(cache, "cache_clear"):
+        cache.cache_clear()
 
 
 @pytest.fixture

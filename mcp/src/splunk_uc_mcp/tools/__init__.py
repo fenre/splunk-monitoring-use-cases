@@ -2,8 +2,8 @@
 
 Each module exports one pure function per tool. All functions take a
 :class:`~splunk_uc_mcp.catalog.Catalog` argument so tests can inject a
-fixture catalogue; :mod:`splunk_uc_mcp.server` wires them to a shared
-singleton.
+fixture catalogue; :mod:`splunk_uc_mcp.server` passes an explicit
+``Catalog`` instance at startup.
 
 Every tool is *read-only*: it inspects pre-built ``api/v1/*.json``
 endpoints and returns a plain dict/list suitable for JSON serialisation.

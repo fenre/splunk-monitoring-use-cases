@@ -133,7 +133,6 @@ After **any** catalog content or parser change:
 
 ```bash
 python3 build.py
-git add data.js catalog.json llms.txt llm.txt llms-full.txt  # include whatever `build.py` touched
 ```
 
-Commit regenerated artifacts in the same PR as the source edits.
+The build regenerates tracked artefacts (`data.js`, `catalog.json`, `llms.txt`, etc.). Commit the changed files in the same PR as the source edits.

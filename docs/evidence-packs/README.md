@@ -14,7 +14,7 @@
 | Regulation | Tier | Jurisdiction | Version | Coverage | Priority-weighted | Pack |
 |---|---|---|---|---|---|---|
 | **GDPR** | Tier 1 | EU, EEA | `2016/679` | 100.0% | 100.0% | [`gdpr.md`](gdpr.md) |
-| **UK GDPR** | Tier 2 | UK | `post-Brexit` | 75.0% | 76.3% | [`uk-gdpr.md`](uk-gdpr.md) |
+| **UK GDPR** | Tier 2 | UK | `post-Brexit` | 0.0% | 0.0% | [`uk-gdpr.md`](uk-gdpr.md) |
 | **PCI DSS** | Tier 1 | GLOBAL | `v4.0` | 100.0% | 100.0% | [`pci-dss.md`](pci-dss.md) |
 | **HIPAA Security** | Tier 1 | US | `2013-final` | 100.0% | 100.0% | [`hipaa-security.md`](hipaa-security.md) |
 | **SOX ITGC** | Tier 1 | US | `PCAOB AS 2201` | 100.0% | 100.0% | [`sox-itgc.md`](sox-itgc.md) |
@@ -58,7 +58,7 @@ python3 scripts/generate_evidence_packs.py
 python3 scripts/generate_evidence_packs.py --check
 ```
 
-Last regenerated against catalogue version `6.1`.
+Last regenerated against catalogue version `7.0`.
 
 ## Related documentation
 
@@ -66,5 +66,5 @@ Last regenerated against catalogue version `6.1`.
 - [`docs/coverage-methodology.md`](../coverage-methodology.md) — how clause coverage, priority-weighted coverage, and assurance-adjusted coverage are computed.
 - [`docs/compliance-coverage.md`](../compliance-coverage.md) — global coverage summary across all regulations.
 - [`docs/compliance-gaps.md`](../compliance-gaps.md) — auto-generated gap report across all tracked regulations.
-- [`api/v1/README.md`](../../api/v1/README.md) — API surface quick start and endpoint catalogue.
+- [`api/README.md`](../../api/README.md) — API surface quick start and endpoint catalogue.
 - [`CHANGELOG.md`](../../CHANGELOG.md) — release history, including the Phase 4.2 evidence-pack roll-out.

@@ -1,7 +1,8 @@
 """tools.audits — CI-blocking quality gates.
 
 Each module is a standalone CLI that exits non-zero on a policy
-violation. The merged ``ci.yml`` workflow runs every module in parallel.
+violation. ``validate.yml`` runs every module in sequence within the
+``validate`` job.
 
 Modules
 -------

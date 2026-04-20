@@ -1514,6 +1514,268 @@ index=network (sourcetype=syslog OR sourcetype=snmptrapd OR sourcetype="snmp:tra
 
 ---
 
+### UC-5.1.65 · MPLS LDP Session and Label Distribution Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** MPLS Label Distribution Protocol (LDP) sessions underpin label-switched paths across service provider and enterprise WAN cores. Session loss silently disrupts traffic forwarding. Monitoring LDP neighbor states and label binding changes ensures MPLS data plane continuity.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, SNMP Modular Input (MPLS-LDP-MIB)
+- **Equipment Models:** Cisco ASR 1000, ASR 9000, ISR 4000, NCS 540/5500; Juniper MX204, MX304, MX480, MX960; Nokia 7750 SR
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=junos:syslog`, SNMP MPLS-LDP-MIB
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:ios" "%LDP-5-NBRCHG") OR (sourcetype="junos:syslog" "LDP_NEIGHBOR")
+| rex "Neighbor (?<ldp_neighbor>\S+).*(?<state>UP|DOWN)"
+| stats count latest(state) as current_state by host, ldp_neighbor
+| where current_state="DOWN"
+| sort - count
+```
+- **Implementation:** Enable MPLS LDP syslog on all P/PE routers. Forward at severity 5+. Optionally poll MPLS-LDP-MIB (mplsLdpSessionState) via SNMP. Alert on any LDP neighbor DOWN transition.
+- **Visualization:** Status grid (LDP neighbor per router), Table (down neighbors), Timeline (state changes).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.66 · RSVP-TE Tunnel State and Path Errors
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** RSVP-TE tunnels provide traffic-engineered paths through MPLS cores. Tunnel state changes (UP/DOWN/reroute) and path errors (RESV failures, admission control rejections) indicate bandwidth contention or link failures that affect traffic-engineered services.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, SNMP Modular Input (MPLS-TE-STD-MIB)
+- **Equipment Models:** Cisco ASR 1000, ASR 9000, NCS 540/5500; Juniper MX204, MX304, MX480, MX960
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=junos:syslog`
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:ios" "%MPLS_TE-5-TUNNEL") OR (sourcetype="junos:syslog" "RSVP_NEIGHBOR" OR "RSVP_PATH_ERR")
+| rex "Tunnel(?<tunnel_id>\d+).*(?<tunnel_state>UP|DOWN|REROUTED)"
+| stats count by host, tunnel_id, tunnel_state
+| where tunnel_state!="UP"
+| sort - count
+```
+- **Implementation:** Enable MPLS TE syslog on all P/PE routers (severity 5+). Forward to Splunk. Alert on tunnel DOWN or repeated reroutes (indicator of flapping or bandwidth contention). Correlate with interface utilization for capacity planning.
+- **Visualization:** Table (tunnel states), Status grid (tunnel health per headend), Timeline (state transitions).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.67 · IS-IS Adjacency and SPF Calculation Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** IS-IS is the dominant IGP in large-scale service provider and data center networks. Adjacency loss triggers full SPF recalculation and route convergence. Monitoring IS-IS adjacency changes and SPF run frequency provides early warning of routing instability.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`
+- **Equipment Models:** Cisco ASR 9000, NCS 540/5500/5700, Catalyst 9500; Juniper MX204, MX304, MX480, MX960, QFX5120, QFX5220
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=junos:syslog`
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:ios" "%ISIS-5-ADJCHANGE") OR (sourcetype="junos:syslog" "RPD_ISIS_ADJCHANGE")
+| rex "(?<isis_adj_state>UP|DOWN|INIT).*(?<neighbor>\S+)"
+| stats count by host, neighbor, isis_adj_state
+| where isis_adj_state="DOWN" OR count > 5
+| sort - count
+```
+- **Implementation:** Enable IS-IS syslog on all IS-IS routers (severity 5+). Forward to Splunk. Alert on adjacency DOWN events. Track SPF run frequency (`%ISIS-6-SPF_TRIG_NOT_BKOFF` on IOS-XR) — elevated SPF rates indicate network instability.
+- **Visualization:** Table (adjacency changes), Timeline (SPF triggers), Status grid (IS-IS adjacency per router).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.68 · BFD Session State for IGP Fast Failure Detection
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Fault
+- **Value:** Bidirectional Forwarding Detection (BFD) provides sub-second failure detection for IGP (OSPF, IS-IS, EIGRP) and BGP peers. BFD session drops are the earliest signal of link or forwarding path failure — faster than routing protocol hello timers. Centralized BFD monitoring catches silent path failures.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`
+- **Equipment Models:** Cisco Catalyst 9300/9500, ASR 1000, ASR 9000, ISR 4000, NCS 540/5500; Juniper MX204, MX304, MX480, EX4300, EX4600, QFX5120
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=junos:syslog`
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:ios" "%BFD-6-BFD_SESS_DOWN") OR (sourcetype="junos:syslog" "BFD_STATE_CHANGE")
+| rex "neighbor (?<bfd_peer>\S+).*(?<bfd_state>UP|DOWN|ADMINDOWN)"
+| stats count by host, bfd_peer, bfd_state
+| where bfd_state="DOWN"
+| sort - count
+```
+- **Implementation:** Enable BFD for all IGP/BGP peers on core and distribution routers. Forward BFD syslog at severity 6+ to Splunk. Alert on BFD session DOWN events — correlate with IGP adjacency changes and interface status. BFD flapping (>3 transitions in 5 minutes) warrants immediate investigation of optics or cabling.
+- **Visualization:** Status grid (BFD session per peer pair), Table (down sessions), Timeline (state changes).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.69 · IPv6 Interface and Neighbor Discovery Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Configuration
+- **Value:** As organizations deploy dual-stack or IPv6-only networks, monitoring IPv6 interface state, Neighbor Discovery Protocol (NDP) events, and Router Advertisement (RA) consistency ensures the v6 data plane functions alongside or instead of IPv4. Rogue RA detection prevents traffic hijacking.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`
+- **Equipment Models:** Cisco Catalyst 9300/9500, ASR 1000, ISR 4000; Juniper EX4300, EX4600, MX204, QFX5120
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=junos:syslog`
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:ios" "%IPV6-4-DUPLICATE" OR "%IPV6_ND-6" OR "%RA_GUARD-6")
+  OR (sourcetype="junos:syslog" "NDP" OR "ROUTER_ADVERTISEMENT")
+| stats count by host, _raw
+| sort - count
+```
+- **Implementation:** Enable IPv6 ND syslog on all dual-stack devices. Enable RA Guard on access ports to detect rogue RAs. Forward to Splunk at severity 4+. Alert on duplicate address detection (DAD) failures and unauthorized RA events.
+- **Visualization:** Table (IPv6 events by device), Timeline (RA events), Status grid (v6 interface state).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.70 · NTP Stratum and Peer Health on Network Devices
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Compliance, Availability
+- **Value:** Accurate time synchronization on network devices is critical for log correlation, certificate validation, and regulatory compliance. NTP stratum drift or peer loss on routers and switches causes log timestamp skew that undermines SIEM correlation and forensic accuracy.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, SNMP Modular Input (NTP-MIB)
+- **Equipment Models:** Cisco Catalyst 9200/9300/9500, ISR 1100/4000, ASR 1000; Juniper EX2300, EX4300, MX204; Arista 7050X3, 7260X3
+- **Data Sources:** `sourcetype=cisco:ios`, SNMP NTP-MIB
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:ios" "%NTP-4-PEER_NO_ASSOC" OR "%NTP-4-CLOCK_UNSYNC")
+  OR (sourcetype="junos:syslog" "NTPD_PEER_NO_RESPONSE")
+| stats count by host
+| where count > 0
+| sort - count
+```
+- **Implementation:** Configure NTP on all network devices pointing to internal NTP servers. Enable NTP syslog messages (severity 4+). Optionally poll NTP-MIB (ntpSysPeerOffset, ntpSysStratum) via SNMP. Alert when stratum exceeds 4 or peer associations drop.
+- **Visualization:** Single value (devices with NTP issues), Table (NTP events by device), Gauge (stratum distribution).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.71 · QoS DSCP Marking and Classification Visibility
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Compliance
+- **Value:** QoS marking ensures voice, video, and critical apps receive priority treatment across WAN and campus networks. Monitoring DSCP/CoS marking at trust boundaries and reclassification points verifies that QoS policy is applied correctly end-to-end — mismarking degrades voice quality and violates SLAs.
+- **App/TA:** `TA-cisco_ios`, SNMP Modular Input (CISCO-CLASS-BASED-QOS-MIB), NetFlow/IPFIX
+- **Equipment Models:** Cisco Catalyst 9300/9500, ISR 4000, ASR 1000; Juniper MX204, MX304, EX4300
+- **Data Sources:** SNMP CISCO-CLASS-BASED-QOS-MIB, `sourcetype=cisco:ios`, NetFlow with ToS field
+- **SPL:**
+```spl
+index=network sourcetype="netflow"
+| eval dscp=floor(tos/4)
+| stats count bytes as total_bytes by dscp src_ip dest_ip
+| lookup dscp_names dscp OUTPUT dscp_name
+| chart sum(total_bytes) over dscp_name by src_ip
+```
+- **Implementation:** Export NetFlow/IPFIX with ToS/DSCP field from WAN edge and campus distribution routers. Optionally poll CISCO-CLASS-BASED-QOS-MIB for per-class-map match/drop counters. Create a DSCP-to-name lookup table. Alert when unexpected DSCP values appear at trust boundaries or when priority queue drop rates exceed threshold.
+- **Visualization:** Pie chart (traffic by DSCP class), Table (DSCP distribution per interface), Line chart (priority queue drops over time).
+- **CIM Models:** Network_Traffic
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.72 · PIM Neighbor and Multicast Group State Monitoring
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Availability, Fault
+- **Value:** PIM (Protocol Independent Multicast) neighbors and (S,G)/(*, G) state underpin multicast video distribution, financial market data feeds, and IPTV. PIM neighbor loss or RP mapping failures silently break multicast flows. Centralized monitoring catches multicast blackholes before users report missing video streams.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`, SNMP Modular Input (IGMP-STD-MIB, PIM-STD-MIB)
+- **Equipment Models:** Cisco Catalyst 9500, ASR 1000, Nexus 9000; Juniper MX204, MX304, MX480, EX4600
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=junos:syslog`
+- **SPL:**
+```spl
+index=network (sourcetype="cisco:ios" "%PIM-5-NBRCHG" OR "%PIM-3-INVALID_RP_JOIN")
+  OR (sourcetype="junos:syslog" "PIM_NEIGHBOR" OR "PIM_RP_MAPPING")
+| rex "neighbor (?<pim_neighbor>\S+).*(?<state>UP|DOWN)"
+| stats count by host, pim_neighbor, state
+| where state="DOWN"
+| sort - count
+```
+- **Implementation:** Enable PIM syslog on multicast-enabled routers (severity 3+). Monitor PIM neighbor changes and RP mapping failures. Alert on PIM neighbor DOWN events and unexpected RP changes. Optionally poll PIM-STD-MIB for (S,G) state counts.
+- **Visualization:** Status grid (PIM neighbor per router), Table (down neighbors), Timeline (multicast events).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.73 · IGMP Snooping and Multicast Group Membership
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** IGMP snooping controls multicast traffic at Layer 2, preventing broadcast storms from uncontrolled multicast flooding. Monitoring IGMP membership reports and leave events provides visibility into which VLANs have active multicast receivers — essential for IPTV, surveillance video, and financial ticker plant networks.
+- **App/TA:** `TA-cisco_ios`, SNMP Modular Input (IGMP-STD-MIB)
+- **Equipment Models:** Cisco Catalyst 9300/9500, Nexus 9000; Juniper EX4300, EX4600, QFX5120
+- **Data Sources:** `sourcetype=cisco:ios`, SNMP IGMP-STD-MIB
+- **SPL:**
+```spl
+index=network sourcetype="cisco:ios" "%IGMP-5-GROUPCHANGE"
+| rex "Group (?<mcast_group>\S+).*VLAN (?<vlan>\d+).*(?<action>JOIN|LEAVE)"
+| stats count by host, vlan, mcast_group, action
+| sort - count
+```
+- **Implementation:** Enable IGMP snooping on all access and distribution switches. Forward IGMP syslog to Splunk. Monitor group membership counts per VLAN. Alert on unexpected group joins (potential multicast amplification) or complete group leave on critical VLANs (service interruption).
+- **Visualization:** Table (active groups per VLAN), Bar chart (join/leave ratio), Timeline (group changes).
+- **CIM Models:** N/A
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.74 · VLAN Configuration Change and VTP Audit
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Configuration, Compliance
+- **Value:** VLAN additions, deletions, or VTP revision number changes propagate across trunk links and can cause network-wide outages if misconfigured. Monitoring VLAN configuration changes provides an audit trail for change compliance and early detection of unauthorized VLAN modifications.
+- **App/TA:** `TA-cisco_ios`, `Splunk_TA_juniper`
+- **Equipment Models:** Cisco Catalyst 9200/9300/9500, Nexus 9000; Juniper EX2300, EX4300, EX4600
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype=junos:syslog`
+- **SPL:**
+```spl
+index=network sourcetype="cisco:ios"
+  "%VLAN_MGR-6-VLAN_CREATE" OR "%VLAN_MGR-6-VLAN_DELETE" OR "%VTP-6-VTP_REV_CHANGE"
+| stats count by host, _raw
+| sort - count
+```
+- **Implementation:** Forward switch syslog to Splunk (severity 6+). Monitor VLAN create/delete events and VTP revision number changes. Alert on any VLAN modification outside approved change windows. For VTP-mode transparent environments, monitor configuration file changes instead.
+- **Visualization:** Table (VLAN changes by device), Timeline (change history), Single value (changes in last 24h).
+- **CIM Models:** Change
+
+- **References:** [Splunk Lantern — use case library](https://lantern.splunk.com/)
+
+---
+
+### UC-5.1.75 · Network Topology Discovery and Source-of-Truth Reconciliation
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Inventory, Configuration
+- **Value:** Network topology discovery tools (NetBox, IP Fabric, Nautobot) provide a source of truth for what should be on the network. Reconciling live Splunk data against the source of truth detects rogue devices, missing monitoring coverage, and inventory drift — ensuring that every device in the network is accounted for and monitored.
+- **App/TA:** NetBox REST API (custom scripted input), IP Fabric REST API, `TA-cisco_ios`
+- **Equipment Models:** All network devices (source-of-truth agnostic)
+- **Data Sources:** NetBox API, `sourcetype=cisco:ios`, SNMP sysObjectID
+- **SPL:**
+```spl
+| inputlookup netbox_devices.csv
+| join type=left hostname [search index=network sourcetype="cisco:ios" earliest=-24h | stats latest(_time) as last_seen by host | rename host as hostname]
+| eval status=if(isnull(last_seen),"NOT_REPORTING","OK")
+| where status="NOT_REPORTING"
+| table hostname, site, role, status
+```
+- **Implementation:** Export device inventory from NetBox/IP Fabric via REST API to a Splunk lookup (CSV or KV Store). Schedule a daily reconciliation search comparing the source-of-truth inventory against devices actively sending syslog/SNMP to Splunk. Alert on devices present in the source of truth but not reporting to Splunk.
+- **Visualization:** Table (missing devices), Single value (coverage percentage), Bar chart (reporting status by site).
+- **CIM Models:** Compute_Inventory
+
+- **References:** [NetBox Documentation](https://docs.netbox.dev/), [IP Fabric Documentation](https://ipfabric.io/docs/)
+
+---
+
 
 ### 5.2 Firewalls
 
@@ -4453,6 +4715,79 @@ index=network sourcetype="aruba:central" OR sourcetype="aruba:central:client"
 
 ---
 
+### UC-5.4.38 · Cisco C9800 WLC AP Join Failures
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability
+- **Value:** Cisco Catalyst 9800 wireless controllers manage campus Wi-Fi infrastructure. AP join failures indicate certificate issues, CAPWAP tunnel problems, or capacity limits — each preventing clients on that AP from connecting. Early detection prevents silent coverage gaps.
+- **App/TA:** `Cisco Networks Add-on for Splunk` (`TA-cisco_ios`, Splunkbase 1352), Cisco C9800 syslog
+- **Equipment Models:** Cisco Catalyst 9800-40, 9800-80, 9800-L, 9800-CL; Cisco Catalyst 9100/9120/9130/9136/9162/9164/9166 APs
+- **Data Sources:** `sourcetype="cisco:ios"`, C9800 syslog (facility %CAPWAP, %DTLS)
+- **SPL:**
+```spl
+index=network sourcetype="cisco:ios" host="c9800*"
+  ("%CAPWAP-3-ERRORLOG" OR "%DTLS-3-HANDSHAKE_FAILURE" OR "%AP_EVENT-3-CRASH")
+| rex "AP (?<ap_name>\S+)"
+| stats count by host, ap_name, _raw
+| sort - count
+```
+- **Implementation:** Forward Cisco C9800 syslog to Splunk (severity 3+). Monitor CAPWAP, DTLS, and AP crash messages. Alert when any AP fails to join or repeatedly crashes. Correlate with certificate expiry calendar.
+- **Visualization:** Table (failed APs), Status grid (AP join state per WLC), Timeline (join failures over time).
+- **CIM Models:** N/A
+
+- **References:** [Cisco C9800 Troubleshooting](https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html)
+
+---
+
+### UC-5.4.39 · Cisco C9800 Client Authentication and Session Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Security
+- **Value:** The C9800 provides detailed client lifecycle events (association, authentication, roaming, deauthentication). Monitoring these events centrally identifies Wi-Fi access issues, AAA misconfigurations, and potential security concerns like deauth attacks before help desk tickets pile up.
+- **App/TA:** `TA-cisco_ios`, Cisco C9800 syslog
+- **Equipment Models:** Cisco Catalyst 9800-40, 9800-80, 9800-L, 9800-CL
+- **Data Sources:** `sourcetype="cisco:ios"`, C9800 syslog (facility %DOT1X, %CLIENT_ORCH)
+- **SPL:**
+```spl
+index=network sourcetype="cisco:ios" host="c9800*"
+  ("%DOT1X-5-FAIL" OR "%CLIENT_ORCH-6-CLIENT_ADDED_TO_RUN_STATE" OR "%DOT1X-5-SUCCESS")
+| rex "Username (?<username>\S+)"
+| rex "MAC (?<client_mac>[0-9a-fA-F.:]+)"
+| stats count by username, client_mac, host
+| sort - count
+```
+- **Implementation:** Enable client event logging on C9800 (severity 5+). Forward syslog to Splunk. Create alerts for elevated DOT1X failure rates. Correlate with ISE/RADIUS logs for full authentication path visibility.
+- **Visualization:** Table (auth failures by user/MAC), Single value (failure rate), Pie chart (success vs. failure ratio).
+- **CIM Models:** Authentication
+
+- **References:** [Cisco C9800 Client Troubleshooting](https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html)
+
+---
+
+### UC-5.4.40 · Cisco C9800 RF Performance and Channel Assignment
+- **Criticality:** 🟡 Medium
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance
+- **Value:** The C9800 RRM (Radio Resource Management) engine continuously adjusts channel and power assignments. Tracking these changes alongside RF metrics (noise, interference, utilization) helps network engineers validate that RRM decisions improve rather than degrade wireless performance.
+- **App/TA:** `TA-cisco_ios`, Cisco C9800 syslog, Cisco Prime/Catalyst Center API (optional)
+- **Equipment Models:** Cisco Catalyst 9800-40, 9800-80, 9800-L, 9800-CL; Catalyst 9100-series APs
+- **Data Sources:** `sourcetype="cisco:ios"`, C9800 syslog (facility %RRM, %DOT11)
+- **SPL:**
+```spl
+index=network sourcetype="cisco:ios" host="c9800*" "%RRM-6-CHANNEL_CHANGE"
+| rex "AP (?<ap_name>\S+).*slot (?<slot>\d+).*channel (?<old_channel>\d+) to (?<new_channel>\d+)"
+| stats count by ap_name, slot, old_channel, new_channel
+| where count > 3
+| sort - count
+```
+- **Implementation:** Enable RRM and DOT11 syslog messages on C9800. Forward to Splunk. Monitor excessive channel changes (indicator of co-channel interference). Cross-reference with AP site surveys and client experience data.
+- **Visualization:** Table (channel changes by AP), Bar chart (changes per hour), Heatmap (AP floor map with channel utilization).
+- **CIM Models:** N/A
+
+- **References:** [Cisco RRM Best Practices](https://www.cisco.com/c/en/us/td/docs/wireless/controller/technotes/8-6/b_RRM_White_Paper.html)
+
+---
+
 
 
 ### 5.5 SD-WAN
@@ -4977,6 +5312,121 @@ index=sdwan sourcetype="cisco:sdwan:bfd" state="up"
 
 ---
 
+### UC-5.5.21 · VMware VeloCloud Orchestrator Tunnel Health
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** VMware SD-WAN (VeloCloud) is widely deployed for branch/WAN connectivity. Monitoring tunnel status, latency, and jitter from the VeloCloud Orchestrator API provides early warning of WAN degradation across non-Cisco SD-WAN estates.
+- **App/TA:** VMware VeloCloud Orchestrator REST API (custom scripted input or HEC push), `Splunk_TA_vmware` (for vCenter; VeloCloud requires custom integration)
+- **Equipment Models:** VMware SD-WAN Edge 510, 520, 540, 610, 620, 640, 680, 3400, 3800
+- **Data Sources:** VeloCloud Orchestrator API (`/monitoring/aggregate/edge/link`)
+- **SPL:**
+```spl
+index=sdwan sourcetype="velocloud:link"
+| stats avg(latencyMsRx) as rx_latency, avg(latencyMsTx) as tx_latency, avg(jitterMsRx) as jitter, avg(lossPctRx) as loss_pct by edgeName, linkName
+| where rx_latency > 100 OR jitter > 30 OR loss_pct > 1
+| sort - rx_latency
+```
+- **Implementation:** Configure scripted input to poll VeloCloud Orchestrator REST API at 5-minute intervals. Store API key in `passwords.conf`. Normalize link status fields (UP/DOWN/STANDBY) for consistent alerting.
+- **Visualization:** Line chart (latency/jitter per edge), Table (top-N degraded links), Status grid by site.
+- **CIM Models:** Network_Traffic
+
+- **References:** [VMware SD-WAN Documentation](https://docs.vmware.com/en/VMware-SD-WAN/index.html)
+
+---
+
+### UC-5.5.22 · Aruba EdgeConnect SD-WAN Tunnel and Application Performance
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** HPE Aruba EdgeConnect (formerly Silver Peak) provides SD-WAN with WAN optimization. Monitoring tunnel health, boost metrics, and application path steering ensures WAN fabric reliability for organizations running Aruba SD-WAN alongside or instead of Cisco.
+- **App/TA:** Aruba EdgeConnect syslog, Aruba Orchestrator REST API (custom scripted input or HEC push)
+- **Equipment Models:** HPE Aruba EdgeConnect EC-S, EC-M, EC-L, EC-XL; Aruba Orchestrator (on-prem or cloud)
+- **Data Sources:** Aruba Orchestrator API, syslog (`sourcetype="aruba:edgeconnect"`)
+- **SPL:**
+```spl
+index=sdwan sourcetype="aruba:edgeconnect"
+| search tunnel_state="DOWN" OR tunnel_state="DEGRADED"
+| stats count by appliance_name, tunnel_name, tunnel_state, peer_name
+| sort - count
+```
+- **Implementation:** Forward EdgeConnect appliance syslog to Splunk (UDP/TCP 514). Optionally poll Aruba Orchestrator API for structured tunnel and application metrics. Alert on tunnel DOWN/DEGRADED states and WAN optimization bypass events.
+- **Visualization:** Status grid (tunnel per appliance), Table (degraded tunnels), Line chart (WAN optimization savings).
+- **CIM Models:** Network_Traffic
+
+- **References:** [HPE Aruba EdgeConnect SD-WAN](https://www.arubanetworks.com/products/sd-wan/)
+
+---
+
+### UC-5.5.23 · Versa Networks SD-WAN Path Quality and Routing Decisions
+- **Criticality:** 🟠 High
+- **Difficulty:** 🟠 Advanced
+- **Monitoring type:** Performance, Availability
+- **Value:** Versa Networks provides integrated SD-WAN, security, and routing. Monitoring path quality scores, SLA violations, and routing decisions across Versa FlexVNF devices enables proactive WAN management for Versa deployments.
+- **App/TA:** Versa Director REST API (custom scripted input or HEC push), Versa FlexVNF syslog
+- **Equipment Models:** Versa FlexVNF (CSG1000/2000/3000 series), Versa Director, Versa Analytics
+- **Data Sources:** Versa Director API, syslog (`sourcetype="versa:sdwan"`)
+- **SPL:**
+```spl
+index=sdwan sourcetype="versa:sdwan"
+| search event_type="sla_violation" OR event_type="path_switch"
+| stats count by branch_name, circuit_name, event_type, sla_policy
+| sort - count
+```
+- **Implementation:** Forward Versa FlexVNF syslog to Splunk. Poll Versa Director API for structured SLA violation and path steering data. Alert when SLA violations exceed threshold per site/circuit.
+- **Visualization:** Table (SLA violations by branch), Timeline (path switch events), Line chart (circuit quality scores).
+- **CIM Models:** Network_Traffic
+
+- **References:** [Versa Networks Documentation](https://docs.versa-networks.com/)
+
+---
+
+### UC-5.5.24 · Fortinet SD-WAN Health-Check and SLA Compliance
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Fortinet SD-WAN is embedded in FortiGate appliances and is one of the most widely deployed SD-WAN solutions. Monitoring SD-WAN health-check probe results and SLA rule violations across FortiGate devices ensures WAN path reliability and application performance.
+- **App/TA:** `TA-fortinet_fortigate` (Splunkbase 2846)
+- **Equipment Models:** FortiGate 40F, 60F, 80F, 100F, 200F, 400E, 600E, 1000D, 3000F; FortiManager
+- **Data Sources:** `sourcetype="fgt_traffic"`, `sourcetype="fgt_event"`
+- **SPL:**
+```spl
+index=network sourcetype="fgt_event" subtype="sdwan"
+| search event_type="health_check" status!="alive"
+| stats count by devname, health_check_name, interface, status
+| sort - count
+```
+- **Implementation:** Enable SD-WAN health-check logging on FortiGate (`config log setting`, `set fwpolicy-implicit-log enable`). Install TA-fortinet_fortigate for field extraction. Alert when health-check probes fail or SLA rule violations trigger path switches.
+- **Visualization:** Status grid (health-check per device), Table (failed probes), Line chart (latency/jitter/packet_loss per link).
+- **CIM Models:** Network_Traffic
+
+- **References:** [Splunkbase app 2846](https://splunkbase.splunk.com/app/2846), [Fortinet SD-WAN docs](https://docs.fortinet.com/document/fortigate/latest/sd-wan)
+
+---
+
+### UC-5.5.25 · Cato Networks SASE Event Monitoring
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Security
+- **Value:** Cato Networks provides a cloud-native SASE platform combining SD-WAN with network security. Monitoring socket (edge device) health, PoP connectivity, and security events from Cato provides unified visibility for organizations using SASE as their primary WAN architecture.
+- **App/TA:** Cato Networks Events App (Splunkbase 8037)
+- **Equipment Models:** Cato Socket X1500, X1600, X1700; Cato vSocket; Cato PoP network
+- **Data Sources:** `sourcetype="cato:events"`, Cato Management Application API
+- **SPL:**
+```spl
+index=sdwan sourcetype="cato:events" event_type="connectivity"
+| search socket_status="disconnected" OR pop_status="degraded"
+| stats count, latest(_time) as last_seen by site_name, socket_name, pop_name, socket_status
+| sort - count
+```
+- **Implementation:** Install Cato Networks Events App from Splunkbase. Configure Cato API integration in the app's setup page. Alert on socket disconnect and PoP degradation events.
+- **Visualization:** Status grid (socket health per site), Table (disconnection events), Line chart (connectivity trend).
+- **CIM Models:** Network_Traffic
+
+- **References:** [Splunkbase app 8037](https://splunkbase.splunk.com/app/8037), [Cato Networks API docs](https://api.catonetworks.com/)
+
+---
+
 
 ### 5.6 DNS & DHCP
 
@@ -5411,6 +5861,55 @@ index=network sourcetype=dns_query
 
 ---
 
+### UC-5.6.18 · BlueCat DNS Edge Query Analytics
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Security
+- **Value:** BlueCat DNS Edge provides DNS resolution at the edge with centralized policy management. Monitoring query volume, NXDOMAIN rates, and policy-blocked queries from BlueCat complements or replaces bind/Infoblox DNS monitoring for organizations using BlueCat as their DDI platform.
+- **App/TA:** BlueCat DNS Edge syslog, BlueCat Address Manager REST API (custom scripted input or HEC)
+- **Equipment Models:** BlueCat DNS Edge service points, BlueCat Address Manager (BAM), BlueCat DNS/DHCP Server (BDDS)
+- **Data Sources:** `sourcetype="bluecat:dns"`, BlueCat syslog
+- **SPL:**
+```spl
+index=dns sourcetype="bluecat:dns"
+| stats count by query_type, response_code
+| eventstats sum(count) as total
+| eval pct_nxdomain=round(count/total*100,2)
+| where response_code="NXDOMAIN"
+| sort - count
+```
+- **Implementation:** Configure BlueCat DNS Edge service points to forward query logs to Splunk via syslog or HEC. Install props.conf/transforms.conf for BlueCat field extraction. Alert on NXDOMAIN spikes (potential DGA/C2 activity) and query volume anomalies.
+- **Visualization:** Line chart (query volume over time), Pie chart (response code distribution), Table (top NXDOMAIN domains).
+- **CIM Models:** Network_Resolution
+
+- **References:** [BlueCat Documentation](https://docs.bluecatnetworks.com/)
+
+---
+
+### UC-5.6.19 · BlueCat DHCP Lease Utilization and Scope Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Capacity, Availability
+- **Value:** BlueCat DHCP servers manage IP address allocation for enterprise networks. Monitoring scope utilization, lease churn, and assignment failures from BlueCat prevents address exhaustion and enables proactive capacity planning for organizations using BlueCat DDI.
+- **App/TA:** BlueCat BDDS syslog, BlueCat Address Manager REST API
+- **Equipment Models:** BlueCat DNS/DHCP Server (BDDS), BlueCat Address Manager (BAM)
+- **Data Sources:** `sourcetype="bluecat:dhcp"`, BlueCat syslog
+- **SPL:**
+```spl
+index=dhcp sourcetype="bluecat:dhcp"
+| stats count(eval(action="DHCPACK")) as acks, count(eval(action="DHCPNAK")) as naks, dc(client_mac) as unique_clients by scope
+| eval failure_rate=round(naks/(acks+naks)*100,2)
+| where failure_rate > 5 OR acks < 10
+| sort - failure_rate
+```
+- **Implementation:** Configure BlueCat BDDS to forward DHCP logs to Splunk via syslog. Poll BlueCat Address Manager API for scope utilization data. Alert when any scope exceeds 85% utilization or failure rates spike above 5%.
+- **Visualization:** Gauge (scope utilization %), Table (scope health by network), Line chart (lease churn over time).
+- **CIM Models:** N/A
+
+- **References:** [BlueCat Documentation](https://docs.bluecatnetworks.com/)
+
+---
+
 
 ### 5.7 Network Flow Data
 
@@ -5720,6 +6219,51 @@ index=network sourcetype="netflow"
 ```
 
 - **References:** [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
+
+---
+
+### UC-5.7.11 · Zeek (Bro) Connection Log Analysis
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Security, Performance
+- **Value:** Zeek (formerly Bro) generates structured connection, DNS, HTTP, SSL, and file logs from network packet captures. Zeek conn.log provides rich metadata (duration, bytes, connection state) for threat hunting, anomaly detection, and network forensics beyond what NetFlow alone provides.
+- **App/TA:** Splunk Add-on for Zeek (`TA-bro`, Splunkbase 3882), `Splunk_TA_zeek`
+- **Equipment Models:** Zeek sensor appliances, Corelight sensors, any server running Zeek on SPAN/TAP
+- **Data Sources:** `sourcetype="bro:conn:json"` or `sourcetype="zeek:json"`
+- **SPL:**
+```spl
+index=zeek sourcetype="bro:conn:json"
+| where duration > 3600 OR orig_bytes > 1073741824
+| stats count, sum(orig_bytes) as total_bytes, avg(duration) as avg_duration by id_orig_h, id_resp_h, id_resp_p
+| sort - total_bytes
+```
+- **Implementation:** Deploy Zeek sensors on SPAN/TAP ports at network boundaries. Forward Zeek JSON logs to Splunk via syslog or file monitor. Install TA-bro for field extraction and CIM mapping. Use conn.log for long-duration and high-volume connection detection; dns.log for DNS analytics; ssl.log for certificate monitoring.
+- **Visualization:** Table (top connections by bytes), Timeline (long-duration connections), Bar chart (connection states).
+- **CIM Models:** Network_Traffic
+
+- **References:** [Splunkbase app 3882](https://splunkbase.splunk.com/app/3882), [Zeek documentation](https://docs.zeek.org/)
+
+---
+
+### UC-5.7.12 · SPAN/TAP Port and Packet Broker Health
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Availability, Performance
+- **Value:** Network visibility infrastructure (SPAN sessions, TAP aggregators, packet brokers like Gigamon, Keysight, Ixia) silently fails when ports go down, filters misconfigure, or buffers overflow. Monitoring the health of the visibility layer ensures that downstream tools (Zeek, Suricata, DLP) receive complete traffic copies.
+- **App/TA:** `TA-cisco_ios` (for SPAN sessions), Gigamon GigaVUE syslog, Keysight Vision Edge syslog
+- **Equipment Models:** Gigamon GigaVUE-HC1, HC2, HC3, TA25, TA100, TA200, TA400; Keysight Vision Edge OS; Cisco Catalyst SPAN/RSPAN/ERSPAN
+- **Data Sources:** `sourcetype=cisco:ios`, `sourcetype="gigamon:syslog"`, SNMP
+- **SPL:**
+```spl
+index=network sourcetype="cisco:ios" "%SPAN-6-SESSION_MOD" OR "%SPAN-5-SESSION_DEL"
+| stats count by host, _raw
+| sort - count
+```
+- **Implementation:** Monitor SPAN session status via syslog on Cisco switches. For Gigamon/Keysight packet brokers, forward appliance syslog to Splunk and monitor port utilization, filter match rates, and buffer overflow counters. Alert on SPAN session removal, packet broker port DOWN, or sustained buffer overflow.
+- **Visualization:** Status grid (SPAN/TAP port status), Table (broker health events), Line chart (buffer utilization).
+- **CIM Models:** N/A
+
+- **References:** [Gigamon documentation](https://docs.gigamon.com/)
 
 ---
 
@@ -6255,6 +6799,54 @@ index=network sourcetype=snmptrap
 - **CIM Models:** N/A
 
 - **References:** [Cisco ThousandEyes App for Splunk](https://splunkbase.splunk.com/app/7719)
+
+---
+
+### UC-5.8.26 · CDN Origin Hit Rate and Cache Efficiency (CloudFront / Akamai / Fastly)
+- **Criticality:** 🟠 High
+- **Difficulty:** 🔵 Intermediate
+- **Monitoring type:** Performance, Capacity
+- **Value:** CDN cache efficiency directly impacts origin server load and end-user latency. Monitoring cache hit ratio, origin pull rates, and edge error rates across CloudFront, Akamai, or Fastly identifies misconfigured cache policies, cache-busting clients, and origin capacity risks before they affect user experience.
+- **App/TA:** Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) for CloudFront; Akamai DataStream syslog; Fastly Real-Time Log Streaming via HEC
+- **Equipment Models:** AWS CloudFront, Akamai CDN, Fastly CDN
+- **Data Sources:** `sourcetype="aws:cloudfront:accesslogs"`, `sourcetype="akamai:datastream"`, `sourcetype="fastly:cdn"`
+- **SPL:**
+```spl
+index=cdn sourcetype="aws:cloudfront:accesslogs"
+| eval cache_result=case(x_edge_result_type="Hit","HIT", x_edge_result_type="Miss","MISS", x_edge_result_type="Error","ERROR", 1=1,"OTHER")
+| stats count as total, count(eval(cache_result="HIT")) as hits, count(eval(cache_result="MISS")) as misses, count(eval(cache_result="ERROR")) as errors by cs_uri_stem
+| eval hit_rate=round(hits/total*100,2)
+| where hit_rate < 80 OR errors > 10
+| sort - total
+```
+- **Implementation:** Enable CloudFront access logging to S3 and ingest via Splunk Add-on for AWS. For Akamai, configure DataStream to forward to Splunk via syslog. For Fastly, configure Real-Time Log Streaming to a Splunk HEC endpoint. Alert on cache hit rate drops below 80% or elevated error rates.
+- **Visualization:** Line chart (cache hit rate over time), Table (low-efficiency URIs), Pie chart (HIT/MISS/ERROR distribution).
+- **CIM Models:** Web
+
+- **References:** [Splunkbase app 1876](https://splunkbase.splunk.com/app/1876), [AWS CloudFront documentation](https://docs.aws.amazon.com/cloudfront/)
+
+---
+
+### UC-5.8.27 · CDN Edge Error Rate and 5xx Response Monitoring
+- **Criticality:** 🔴 Critical
+- **Difficulty:** 🟢 Beginner
+- **Monitoring type:** Availability, Fault
+- **Value:** Elevated 5xx error rates at the CDN edge indicate origin failures, capacity issues, or CDN configuration problems. Monitoring edge-delivered error rates across CDN providers ensures rapid detection of service degradation visible to end users.
+- **App/TA:** `Splunk_TA_aws` (CloudFront), Akamai DataStream, Fastly Real-Time Log Streaming
+- **Equipment Models:** AWS CloudFront, Akamai CDN, Fastly CDN
+- **Data Sources:** `sourcetype="aws:cloudfront:accesslogs"`, `sourcetype="akamai:datastream"`, `sourcetype="fastly:cdn"`
+- **SPL:**
+```spl
+index=cdn (sourcetype="aws:cloudfront:accesslogs" OR sourcetype="akamai:datastream" OR sourcetype="fastly:cdn")
+| eval http_status=coalesce(sc_status, status_code, response_status)
+| where http_status >= 500
+| timechart span=5m count by http_status
+```
+- **Implementation:** Ingest CDN access logs from all providers. Alert when 5xx error rate exceeds 1% of total requests in any 5-minute window. Differentiate origin 5xx from CDN-generated 5xx (e.g., CloudFront 502 vs 503).
+- **Visualization:** Line chart (5xx rate over time), Single value (current error rate), Table (top error URIs).
+- **CIM Models:** Web
+
+- **References:** [AWS CloudFront error troubleshooting](https://docs.aws.amazon.com/cloudfront/latest/APIReference/errors.html)
 
 ---
 
