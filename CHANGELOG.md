@@ -143,6 +143,19 @@ the release notes block in `index.html` by hand.
   `regulatory-primer.html` against the committed `data.js` and
   `api/v1/` tree without requiring a browser or network, so regressions
   in the regulation-to-UC audience surfaces are caught pre-merge.
+- **Deploy allowlist fix for story-layer pages.** `tools/build/build.py`
+  copies a fixed allowlist of top-level HTML files into `dist/`
+  (`legacy_extras` and `LEGACY_TOP_LEVEL`). When the new audience
+  surfaces shipped in 7.1, both lists were missed, so every header link
+  to `clause-navigator.html` and `compliance-story.html` 404&rsquo;d on
+  GitHub Pages even though the files existed at repo root and validated
+  cleanly in headless smoke tests. Both filenames are now in the
+  publish allowlist alongside `regulatory-primer.html` and
+  `scorecard.html`, so the pages.yml deploy mirrors the entire audience
+  set into the published artefact. (Verified locally with
+  `python3 tools/build/build.py --out dist --reproducible` &rarr;
+  `dist/clause-navigator.html` and `dist/compliance-story.html` present;
+  reproducibility check still passes byte-identical.)
 
 ### Non-technical mode: plain-language per UC
 
