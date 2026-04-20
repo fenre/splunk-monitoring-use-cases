@@ -10,7 +10,86 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [Unreleased]
+## [7.0] - 2026-04-19
+
+### Per-UC content architecture
+
+- **Every use case is now its own file pair.**  The 23 monolithic
+  `cat-*.md` files (some exceeding 60,000 lines) have been exploded
+  into 6,449 individual `content/cat-NN-slug/UC-X.Y.Z.md` prose files
+  paired with 6,470 `UC-X.Y.Z.json` structured-metadata sidecars.
+  Each UC is independently reviewable, diffable, and indexable — a PR
+  that touches one use case now changes two small files instead of
+  a 5 MB markdown blob.
+- **`_category.json` per directory** holds subcategory metadata,
+  replacing the implicit structure that was embedded in markdown
+  headings.
+
+### New build pipeline (`tools/build/`)
+
+- **Python stdlib-only SSG.**  `tools/build/build.py` is the single
+  entrypoint that reads `content/` + `data/` + `src/` and produces
+  the complete `dist/` deployment artefact.  No Node.js, no npm, no
+  external services in the content pipeline — only Python 3.12
+  stdlib.
+- **Reproducible builds.**  `--reproducible` sorts iteration, freezes
+  timestamps to `git log -1 --format=%cI HEAD`, and sorts JSON keys.
+  CI builds twice and asserts byte-identical output.
+- **Modular renderers.**  Five independent `render_*` modules
+  (pages, assets, api, exports, meta) consume the same in-memory
+  `Catalog` and write disjoint subtrees of `dist/`.
+- **Search shards.**  Full-text search uses MiniSearch shards
+  (`assets/search-shard-NN.<hash>.json`, ~100 KB each, 16 shards)
+  loaded on first keystroke, replacing the previous 39 MB linear scan
+  over `data.js`.
+- **Integrity & provenance.**  `dist/integrity.json` (SHA-256 of
+  every artefact) and `dist/BUILD-INFO.json` are Sigstore-signed by
+  the GitHub OIDC identity in CI.
+
+### Extracted source assets (`src/`)
+
+- **CSS extracted** from ~950 inline lines in `index.html` into
+  `src/styles/{tokens,base,components,print,helpers}.css`.
+- **JavaScript extracted** from ~2,700 inline lines into
+  `src/scripts/{loader,state,filters,render,panel,app,search}.js`.
+- All assets are fingerprinted at build time and served with
+  immutable cache headers.
+
+### CI quality gates (`tools/audits/`)
+
+- **`asset_drift`** — detects unintended changes in fingerprinted
+  assets.
+- **`budgets`** — enforces per-page gzipped size budgets.
+- **`schema_diff`** — blocks breaking changes on stable schemas.
+- **`schema_meta`** — validates `x-since`, `x-changelog`, versioning
+  metadata on every JSON Schema.
+- **`url_freeze`** — blocks removal of any URL that existed in the
+  previous release's `manifest.json`.
+
+### New schemas and docs
+
+- **`schemas/v2/`** — `catalog-index.schema.json` and
+  `search-index.schema.json` for the new lazy-loading and sharded
+  search surfaces.
+- **`schemas/changelogs/`** — per-schema changelog tracking.
+- **`docs/architecture.md`** — locked v7.0 architecture contract
+  (build pipeline, layered model, performance budgets, stability
+  commitments, scalability targets up to 60 K UCs).
+- **`docs/url-scheme.md`** — permanent URL contract for all public
+  endpoints.
+- **`docs/schema-versioning.md`** — schema stability tiers and
+  lifecycle.
+- **`docs/api-versioning.md`** — updated for v7 versioning strategy.
+
+### Updated CI pipeline
+
+- **`pages.yml` rewritten** for the v7 build contract: reproducible
+  builds, Sigstore attestation, `dist/` as sole deploy target.
+- **`.gitignore` updated** to treat legacy root-level generated files
+  (`catalog.json`, `data.js`, etc.) as gitignored — v7 generates
+  them into `dist/` on every build.
+- **`.cursorignore` added** to exclude large generated artefacts from
+  IDE indexing, improving editor responsiveness.
 
 ### Repository cleanup — archive one-shot scripts, refresh stale UC counts, add missing READMEs
 
