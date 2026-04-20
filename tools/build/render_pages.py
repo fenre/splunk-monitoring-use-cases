@@ -93,7 +93,7 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
                 _emit_uc(uc, cat=cat, sub=sub, cat_slug=slug, out_dir=out_dir, ctx=ctx, reproducible=reproducible)
                 n_uc += 1
 
-    regulation_summaries = _emit_regulations(
+    _emit_regulations(
         catalog,
         cat_slug_for=cat_slug_for,
         cat_name_for=cat_name_for,
@@ -101,13 +101,9 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
         ctx=ctx,
         reproducible=reproducible,
     )
-    _emit_landing(
-        catalog,
-        cat_slug_for=cat_slug_for,
-        regulation_summaries=regulation_summaries,
-        out_dir=out_dir,
-        ctx=ctx,
-    )
+    # The SSG landing page is NOT emitted at /index.html — the legacy
+    # Cisco Meraki-styled SPA owns the root URL. The SPA is mirrored
+    # from the repo's index.html by _stage_public in build.py.
 
 
 # ---------------------------------------------------------------------------

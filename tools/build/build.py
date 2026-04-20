@@ -386,6 +386,13 @@ def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_roo
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(legacy_src, dst)
 
+        # Keep /browse/ working as an alias for the SPA regardless of
+        # whether the SSG landing owns the root.
+        if fname == "index.html" and not preserve_root_index:
+            browse_dst = out / "browse" / "index.html"
+            browse_dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(legacy_src, browse_dst)
+
     for dname in LEGACY_TOP_DIRS:
         src = PROJECT_ROOT / dname
         if not src.exists() or not src.is_dir():
@@ -443,15 +450,6 @@ def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> N
     No-ops if the bundles are not present (e.g. ``--only meta``).
     """
     t0 = time.monotonic()
-    browse_path = opts.out_dir / "browse" / "index.html"
-    root_path = opts.out_dir / "index.html"
-    if browse_path.exists():
-        index_path = browse_path
-    elif root_path.exists():
-        index_path = root_path
-    else:
-        _log("html_rewrite skipped (no SPA index.html)")
-        return
     css_name = catalog.asset_hashes.get("styles_css")
     js_name = catalog.asset_hashes.get("app_js")
     if not css_name and not js_name:
@@ -459,19 +457,36 @@ def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> N
         return
 
     base_path = _site_base_path()
-    html = index_path.read_text(encoding="utf-8")
-    original_size = len(html)
-    use_root_abs = index_path.parent != opts.out_dir
-    if css_name:
-        html = _swap_inline_style(html, css_name, catalog.critical_css, root_abs=use_root_abs, base_path=base_path)
-    if js_name:
-        html = _swap_inline_script(html, js_name, root_abs=use_root_abs, base_path=base_path)
-    html = _drop_legacy_data_script(html)
-    if base_path:
-        html = _inject_base_path_config(html, base_path)
-    if use_root_abs:
-        html = _rewrite_relative_refs_to_root_abs(html, base_path=base_path)
-    index_path.write_text(html, encoding="utf-8")
+
+    # Process every SPA copy: the root and the /browse/ alias.
+    candidates = [
+        opts.out_dir / "index.html",
+        opts.out_dir / "browse" / "index.html",
+    ]
+    total_saved = 0
+    rewrote = 0
+    for index_path in candidates:
+        if not index_path.exists():
+            continue
+        # Skip if this is the SSG landing (not the SPA).
+        if _looks_like_ssg_landing(index_path):
+            continue
+
+        html = index_path.read_text(encoding="utf-8")
+        original_size = len(html)
+        use_root_abs = index_path.parent != opts.out_dir
+        if css_name:
+            html = _swap_inline_style(html, css_name, catalog.critical_css, root_abs=use_root_abs, base_path=base_path)
+        if js_name:
+            html = _swap_inline_script(html, js_name, root_abs=use_root_abs, base_path=base_path)
+        html = _drop_legacy_data_script(html)
+        if base_path:
+            html = _inject_base_path_config(html, base_path)
+        if use_root_abs:
+            html = _rewrite_relative_refs_to_root_abs(html, base_path=base_path)
+        index_path.write_text(html, encoding="utf-8")
+        total_saved += original_size - len(html)
+        rewrote += 1
 
     # The legacy build.py mirror may have put a copy of data.js back into
     # dist/. Now that nothing references it, evict it so we don't ship the
@@ -480,10 +495,9 @@ def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> N
     if legacy_data_js.exists():
         legacy_data_js.unlink()
 
-    saved = original_size - len(html)
     _log(
-        f"html_rewrite: index.html {original_size:,} → {len(html):,} bytes "
-        f"({saved / 1024:.1f} KiB saved)",
+        f"html_rewrite: {rewrote} SPA copies processed "
+        f"({total_saved / 1024:.1f} KiB saved)",
         t0,
     )
 
