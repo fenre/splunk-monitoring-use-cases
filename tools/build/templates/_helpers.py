@@ -34,7 +34,7 @@ from typing import Any, Iterable, Optional
 class RenderContext:
     """Immutable per-build settings passed to every template."""
 
-    site_url: str = "https://splunk-monitoring.io"
+    site_url: str = "https://fenre.github.io/splunk-monitoring-use-cases"
     site_name: str = "Splunk Monitoring Use Cases"
     site_short: str = "Splunk UCs"
     site_tagline: str = (
@@ -577,15 +577,24 @@ def split_steps(md: str) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 
-def asset_url(filename: str) -> str:
+def asset_url(filename: str, site_url: str = "") -> str:
     """Return a root-absolute URL for a fingerprinted asset.
 
     SSG pages live at ``/uc/UC-X.Y.Z/`` and ``/category/<slug>/``, both
     two levels deep. Relative refs would resolve incorrectly, so every
     page links assets via root-absolute paths.
+
+    When ``site_url`` includes a subpath (e.g. GitHub Pages at
+    ``https://user.github.io/repo``), the asset path is prefixed with the
+    subpath so ``/repo/assets/foo.css`` resolves correctly.
     """
     if not filename:
         return ""
     if filename.startswith("/"):
         return filename
+    if site_url:
+        from urllib.parse import urlparse
+        base_path = urlparse(site_url).path.rstrip("/")
+        if base_path:
+            return f"{base_path}/assets/{filename}"
     return f"/assets/{filename}"

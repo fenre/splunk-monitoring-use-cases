@@ -74,7 +74,7 @@ def render_html(
     )
 
     css = _css.page_css()
-    asset_styles = _helpers.asset_url(ctx.asset_styles) if ctx.asset_styles else ""
+    asset_styles = _helpers.asset_url(ctx.asset_styles, ctx.site_url) if ctx.asset_styles else ""
     extra_link = (
         f'<link rel="prefetch" href="{_helpers.attr(asset_styles)}" as="style">'
         if asset_styles else ""

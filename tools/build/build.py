@@ -405,6 +405,17 @@ def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_roo
             shutil.copy2(path, dst)
 
 
+def _site_base_path() -> str:
+    """Extract the URL path prefix from the SITE_URL env var or render_pages default.
+
+    Returns e.g. ``/splunk-monitoring-use-cases`` for a GitHub Pages
+    project site, or ``""`` for a root deployment.
+    """
+    from urllib.parse import urlparse
+    site_url = os.environ.get("SITE_URL", render_pages.SITE_URL_DEFAULT).rstrip("/")
+    return urlparse(site_url).path.rstrip("/")
+
+
 def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
     """Rewrite the SPA HTML to load fingerprinted bundles via root-absolute URLs.
 
@@ -447,16 +458,19 @@ def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> N
         _log("html_rewrite skipped (no bundled assets)")
         return
 
+    base_path = _site_base_path()
     html = index_path.read_text(encoding="utf-8")
     original_size = len(html)
     use_root_abs = index_path.parent != opts.out_dir
     if css_name:
-        html = _swap_inline_style(html, css_name, catalog.critical_css, root_abs=use_root_abs)
+        html = _swap_inline_style(html, css_name, catalog.critical_css, root_abs=use_root_abs, base_path=base_path)
     if js_name:
-        html = _swap_inline_script(html, js_name, root_abs=use_root_abs)
+        html = _swap_inline_script(html, js_name, root_abs=use_root_abs, base_path=base_path)
     html = _drop_legacy_data_script(html)
+    if base_path:
+        html = _inject_base_path_config(html, base_path)
     if use_root_abs:
-        html = _rewrite_relative_refs_to_root_abs(html)
+        html = _rewrite_relative_refs_to_root_abs(html, base_path=base_path)
     index_path.write_text(html, encoding="utf-8")
 
     # The legacy build.py mirror may have put a copy of data.js back into
@@ -474,7 +488,7 @@ def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> N
     )
 
 
-def _swap_inline_style(html: str, css_name: str, critical_css: str, *, root_abs: bool = False) -> str:
+def _swap_inline_style(html: str, css_name: str, critical_css: str, *, root_abs: bool = False, base_path: str = "") -> str:
     """Replace the first ``<style>...</style>`` block with bundle refs."""
     start = html.find("<style>")
     if start == -1:
@@ -483,7 +497,7 @@ def _swap_inline_style(html: str, css_name: str, critical_css: str, *, root_abs:
     if end == -1:
         return html
     end += len("</style>")
-    href_prefix = "/assets/" if root_abs else "assets/"
+    href_prefix = f"{base_path}/assets/" if root_abs else "assets/"
     replacement = (
         f"<style>{critical_css}</style>\n"
         f'<link rel="preload" href="{href_prefix}{css_name}" as="style" '
@@ -493,7 +507,7 @@ def _swap_inline_style(html: str, css_name: str, critical_css: str, *, root_abs:
     return html[:start] + replacement + html[end:]
 
 
-def _swap_inline_script(html: str, js_name: str, *, root_abs: bool = False) -> str:
+def _swap_inline_script(html: str, js_name: str, *, root_abs: bool = False, base_path: str = "") -> str:
     """Replace the bare ``<script>...</script>`` block with one ``defer`` link.
 
     Anchors on ``<script>\\n`` (with newline) to skip the inline
@@ -508,9 +522,35 @@ def _swap_inline_script(html: str, js_name: str, *, root_abs: bool = False) -> s
     if end == -1:
         return html
     end += len("</script>")
-    src_prefix = "/assets/" if root_abs else "assets/"
+    src_prefix = f"{base_path}/assets/" if root_abs else "assets/"
     replacement = f'<script defer src="{src_prefix}{js_name}"></script>'
     return html[:start] + replacement + html[end:]
+
+
+def _inject_base_path_config(html: str, base_path: str) -> str:
+    """Inject a ``<script>`` block that sets the SPA base-path overrides.
+
+    The SPA scripts (00-loader.js, 06-search.js) check for
+    ``window.__CATALOG_API_BASE`` and ``window.__CATALOG_ASSETS_BASE``
+    before falling back to root-absolute ``/api`` and ``/assets/``.
+    For GitHub Pages project sites the base path is non-empty
+    (e.g. ``/splunk-monitoring-use-cases``), so the overrides are needed.
+    """
+    if not base_path:
+        return html
+    config_script = (
+        f'<script>'
+        f'window.__CATALOG_API_BASE="{base_path}/api";'
+        f'window.__CATALOG_ASSETS_BASE="{base_path}/assets";'
+        f'</script>\n'
+    )
+    # Insert just before </head> so the globals are available before any
+    # deferred script runs.
+    marker = "</head>"
+    idx = html.find(marker)
+    if idx == -1:
+        return html
+    return html[:idx] + config_script + html[idx:]
 
 
 # The v6 ``data.js`` global (window.DATA, EQUIPMENT, CAT_META, …) is
@@ -568,25 +608,27 @@ _TOPLEVEL_FILE_REWRITES = (
 )
 
 
-def _rewrite_relative_refs_to_root_abs(html: str) -> str:
+def _rewrite_relative_refs_to_root_abs(html: str, *, base_path: str = "") -> str:
     """Rewrite relative href/src refs in the SPA to root-absolute paths.
 
     The legacy SPA was authored as a single-page document at the site
     root, so its asset and API references are relative ('assets/foo',
     'api/bar.json'). After relocation to /browse/ those refs would
     resolve to /browse/assets/foo, which 404s. We rewrite them to
-    '/assets/foo' and '/api/bar.json' so the SPA works from any depth.
+    '{base_path}/assets/foo' and '{base_path}/api/bar.json' so the SPA
+    works from any depth, including GitHub Pages project subpaths.
 
     Only rewrites refs that look like first-party paths under known
     top-level directories. Absolute URLs, fragments, mailto:, and
     template strings are left alone.
     """
+    prefix = base_path or ""
     for pat in _RELATIVE_REWRITES:
         attr_kind = "src" if pat.pattern.startswith("src=") else "href"
-        html = pat.sub(lambda m, k=attr_kind: f'{k}="/' + m.group(1) + '"', html)
+        html = pat.sub(lambda m, k=attr_kind, p=prefix: f'{k}="{p}/' + m.group(1) + '"', html)
     for pat in _TOPLEVEL_FILE_REWRITES:
         attr_kind = "src" if pat.pattern.startswith("src=") else "href"
-        html = pat.sub(lambda m, k=attr_kind: f'{k}="/' + m.group(1) + '"', html)
+        html = pat.sub(lambda m, k=attr_kind, p=prefix: f'{k}="{p}/' + m.group(1) + '"', html)
     return html
 
 

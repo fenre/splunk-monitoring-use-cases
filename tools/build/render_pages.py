@@ -58,7 +58,7 @@ from .templates import (
 # ---------------------------------------------------------------------------
 
 
-SITE_URL_DEFAULT = "https://splunk-monitoring.io"
+SITE_URL_DEFAULT = "https://fenre.github.io/splunk-monitoring-use-cases"
 
 
 def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> None:

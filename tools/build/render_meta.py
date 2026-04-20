@@ -62,7 +62,7 @@ def _write_robots(out_dir: Path) -> None:
                 "Allow: /",
                 "Disallow: /assets/search-shard-",
                 "",
-                "Sitemap: /sitemap.xml",
+                f"Sitemap: {SITE_URL}/sitemap.xml",
                 "",
             ]
         ),
@@ -74,21 +74,22 @@ def _write_pwa_manifest(out_dir: Path) -> None:
     p = out_dir / "manifest.webmanifest"
     if p.exists():
         return
+    from urllib.parse import urlparse
+    base_path = urlparse(SITE_URL).path.rstrip("/")
     payload: dict[str, Any] = {
         "name": "Splunk Monitoring Use Cases",
         "short_name": "Splunk UCs",
         "description": "Vendor-curated catalog of Splunk monitoring use cases.",
-        "start_url": "/",
+        "start_url": f"{base_path}/",
         "display": "standalone",
         "background_color": "#ffffff",
         "theme_color": "#211d1c",
         "icons": [
-            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
-            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
-            {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"},
+            {"src": f"{base_path}/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": f"{base_path}/icon-512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": f"{base_path}/icon.svg", "sizes": "any", "type": "image/svg+xml"},
         ],
     }
-    import json
     p.write_text(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
