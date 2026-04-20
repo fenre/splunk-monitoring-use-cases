@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splunk-monitoring.io/schemas/v2/search-index.schema.json",
+  "title": "Sharded full-text search index",
+  "description": "Defines the shape of dist/assets/search-vocab.json and dist/assets/search-shard-NN.json, the lazy-loaded inverted index that powers free-text search in the SPA. The index is built from every Use Case in the catalogue at build time and ships as a static asset; the client downloads the vocabulary on first keystroke and pulls only the shards relevant to the typed query. Renaming or removing fields requires bumping the major component of `version` and a full deprecation cycle (see docs/api-versioning.md).",
+  "version": "2.0.0",
+  "x-stability": "preview",
+  "x-stability-note": "v7.0 ships this surface as preview while the search shard pipeline beds in. Promotion to `stable` happens at v7.1.",
+  "x-since": "v7.0",
+  "x-changelog": "/schemas/changelogs/search-index.md",
+  "oneOf": [
+    { "$ref": "#/$defs/vocab" },
+    { "$ref": "#/$defs/shard" }
+  ],
+  "$defs": {
+    "vocab": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "version", "shardCount", "hash", "ucIds", "tokens", "shardFiles"],
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "const": 2,
+          "description": "Format version. Bumping this forces the client to invalidate every cached shard."
+        },
+        "shardCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256,
+          "description": "Number of shard files. Currently locked at 16; raising this is a breaking change because shard filenames listed in shardFiles become orphaned in browser caches."
+        },
+        "hash": {
+          "type": "string",
+          "enum": ["fnv1a32"],
+          "description": "Algorithm used to route a token to a shard: shard_id = fnv1a32(utf8(token)) % shardCount. FNV-1a chosen over BLAKE2b because the JS implementation is ~7 lines vs ~150 with no dependence on Web Crypto. Distribution is uniform to within 5% across our 12k-token vocabulary. Changing this also invalidates every cached shard."
+        },
+        "ucIds": {
+          "type": "array",
+          "description": "Compact docid → UC id mapping. Posting lists in shards reference UCs by their index into this array, not by their string id, to keep posting JSON small.",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]+(\\.[0-9]+){0,2}$"
+          }
+        },
+        "tokens": {
+          "type": "array",
+          "description": "Sorted full vocabulary. Used by the client to expand prefix queries (e.g. 'auth' → 'auth, authorize, authenticate, authentication') and to decide which shards to fetch for a given query.",
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 30,
+            "pattern": "^[a-z0-9_]+$"
+          }
+        },
+        "shardFiles": {
+          "type": "array",
+          "description": "Per-shard fingerprinted filename, indexed by shard id. The vocab keeps a stable filename so the SPA can fetch it cold; shards carry a content hash so the client can cache them forever and still get coherent updates when the catalogue is rebuilt.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^search-shard-[0-9]{2,3}\\.[0-9a-f]{6,32}\\.json$"
+          }
+        }
+      }
+    },
+    "shard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "shard", "postings"],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "const": 2
+        },
+        "shard": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "Shard id; matches the NN in the filename."
+        },
+        "postings": {
+          "type": "object",
+          "description": "Token → posting list. Posting lists are sorted compact docids (indices into vocab.ucIds), comma-joined as a string. Storing as a string saves ~30% over JSON arrays once gzipped because there are no [] bracket overheads per row.",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^([0-9]+)(,[0-9]+)*$"
+          }
+        }
+      }
+    }
+  }
+}

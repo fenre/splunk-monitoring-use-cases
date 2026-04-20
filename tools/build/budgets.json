@@ -1,0 +1,115 @@
+{
+  "$schema": "/schemas/v2/budgets.schema.json",
+  "version": "2.0.0",
+  "_doc": "Per-asset-class size budgets enforced by tools/audits/budgets.py. A failing budget blocks merge to main (see docs/architecture.md). Sizes are uncompressed bytes unless suffixed with .gz.",
+  "_transition_status": {
+    "v7.0-dev": "Three budgets are tracked as 'WARN' until the corresponding todos land: landing-html (waits on ssg-per-uc-category — slim landing page replaces the SPA shell), fingerprinted-css and fingerprinted-js (wait on catalog-index-lazy + search-shards which split the bundles, plus a future minification pass). The transitional bundle is the entire legacy inline CSS/JS extracted verbatim — uncompressed and unsplit by design so the v7.0 cutover preserves byte-for-byte UI behaviour. Violations during transition are expected; CI logs them but does not block."
+  },
+  "budgets": [
+    {
+      "id": "landing-html",
+      "glob": "index.html",
+      "max_bytes": 102400,
+      "max_bytes_gz": 25600,
+      "fail_on_exceed": false,
+      "transition_target": "ssg-per-uc-category",
+      "current_bytes_v7_0_dev": 254640,
+      "rationale": "Landing page must render fast on the first paint without lazy-loaded JS. Currently the SPA shell; replaced with a slim landing page in the ssg-per-uc-category todo."
+    },
+    {
+      "id": "uc-page-html",
+      "glob": "uc/UC-*/index.html",
+      "max_bytes": 81920,
+      "max_bytes_gz": 20480,
+      "fail_on_exceed": true,
+      "rationale": "Per-UC page is a leaf article, mostly text + JSON-LD. Strict cap protects long-tail UCs."
+    },
+    {
+      "id": "category-page-html",
+      "glob": "category/*/index.html",
+      "max_bytes": 2097152,
+      "max_bytes_gz": 262144,
+      "fail_on_exceed": false,
+      "transition_target": "category-pagination",
+      "rationale": "Category pages list per-category UCs as a static index. Largest categories (cat-10 with ~2.4k UCs) currently exceed the original 120 KiB target. Bumped to 2 MiB raw / 256 KiB gz as a transitional cap; a future ssg-category-pagination todo will paginate large categories (e.g. /category/<slug>/page-2/) and tighten the cap back below 200 KiB raw."
+    },
+    {
+      "id": "regulation-page-html",
+      "glob": "regulation/*/index.html",
+      "max_bytes": 122880,
+      "max_bytes_gz": 30720,
+      "fail_on_exceed": true,
+      "rationale": "Regulation rollups can be large; same cap as category."
+    },
+    {
+      "id": "browse-html",
+      "glob": "browse/index.html",
+      "max_bytes": 1048576,
+      "max_bytes_gz": 262144,
+      "fail_on_exceed": true,
+      "rationale": "Interactive SPA shell. Heavy by design but must stay under 1 MiB raw."
+    },
+    {
+      "id": "fingerprinted-css",
+      "glob": "assets/*.css",
+      "max_bytes": 51200,
+      "fail_on_exceed": false,
+      "transition_target": "ssg-per-uc-category",
+      "current_bytes_v7_0_dev": 66185,
+      "rationale": "CSS is critical-path; aggressive cap forces tree-shaking. Current bundle is the entire legacy inline CSS extracted verbatim; splits per-route once render_pages.py SSG lands."
+    },
+    {
+      "id": "fingerprinted-js",
+      "glob": "assets/*.js",
+      "max_bytes": 102400,
+      "fail_on_exceed": false,
+      "transition_target": "catalog-index-lazy + search-shards",
+      "current_bytes_v7_0_dev": 152263,
+      "rationale": "Total JS budget for app + filters + search + panel + theme + sw. Current bundle is the entire legacy inline JS extracted verbatim; lazy-fetched chunks land in catalog-index-lazy and search-shards todos."
+    },
+    {
+      "id": "catalog-index",
+      "glob": "api/catalog-index.json",
+      "max_bytes_gz": 1048576,
+      "fail_on_exceed": true,
+      "rationale": "The browse-bootstrap index — must stay tiny enough to ship in one TCP window."
+    },
+    {
+      "id": "search-shard",
+      "glob": "assets/search-shard-*.json",
+      "max_bytes": 524288,
+      "max_bytes_gz": 131072,
+      "fail_on_exceed": true,
+      "rationale": "Shards are loaded lazily on first keystroke; the gzipped size is the actual network cost since GitHub Pages always negotiates content-encoding. 128 KiB gz covers the largest shard (shard-10 at ~103 KiB gz) with margin and still fits comfortably in the initial congestion window. The raw cap catches an order-of-magnitude regression."
+    },
+    {
+      "id": "search-vocab",
+      "glob": "assets/search-vocab.json",
+      "max_bytes": 262144,
+      "max_bytes_gz": 65536,
+      "fail_on_exceed": true,
+      "rationale": "Vocab is fetched once per session on first keystroke and gates every shard fetch. 64 KiB gz keeps it under one TCP segment after slow-start ramp-up; raw cap leaves headroom for the catalogue to ~12k UCs."
+    },
+    {
+      "id": "per-uc-json",
+      "glob": "uc/UC-*/index.json",
+      "max_bytes": 51200,
+      "fail_on_exceed": false,
+      "rationale": "Soft cap; oversized UC payloads warrant a human review but do not block merge."
+    },
+    {
+      "id": "embed-card",
+      "glob": "embed/uc/UC-*/index.html",
+      "max_bytes": 5120,
+      "fail_on_exceed": true,
+      "rationale": "Iframeable cards must stay tiny so embedders don't pay a tax."
+    },
+    {
+      "id": "embed-helper-js",
+      "glob": "embed/embed.js",
+      "max_bytes": 3072,
+      "fail_on_exceed": true,
+      "rationale": "Auto-resize + postMessage helper. Tighter than the main app bundle."
+    }
+  ]
+}

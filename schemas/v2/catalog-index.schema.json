@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splunk-monitoring.io/schemas/v2/catalog-index.schema.json",
+  "title": "Catalog Index (lightweight bootstrap payload)",
+  "description": "Compact payload served at /api/catalog-index.json. Contains a stub for every Use Case in the catalogue plus the small bootstrap dictionaries the SPA needs before the user opens a category. Per-UC heavy fields (full SPL, implementation prose, references, dashboards) live in /api/cat-N.json and are lazy-fetched when a detail panel opens. Renaming or removing fields requires bumping the major component of `version` and a full deprecation cycle (see docs/api-versioning.md). Adding new optional fields is non-breaking and bumps the minor component.",
+  "version": "2.0.0",
+  "x-stability": "preview",
+  "x-stability-note": "v7.0 ships this surface as preview while the lazy bootstrap is hardened in production. Promotion to `stable` happens at v7.1.",
+  "x-since": "v7.0",
+  "x-changelog": "/schemas/changelogs/catalog-index.md",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "version",
+    "generatedAt",
+    "counts",
+    "categories",
+    "ucs"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver of this payload shape, NOT of the catalogue content.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp; set to git commit time when --reproducible.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["categories", "subcategories", "useCases", "regulations"],
+      "properties": {
+        "categories": {"type": "integer", "minimum": 0},
+        "subcategories": {"type": "integer", "minimum": 0},
+        "useCases": {"type": "integer", "minimum": 0},
+        "regulations": {"type": "integer", "minimum": 0}
+      }
+    },
+    "site": {
+      "type": "object",
+      "description": "Site-wide settings — mirrors window.SITE_CUSTOM in the SPA.",
+      "additionalProperties": true
+    },
+    "catGroups": {
+      "type": "object",
+      "description": "High-level domain grouping (infra/security/cloud/...) → array of category ids.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "integer"}
+      }
+    },
+    "catMeta": {
+      "type": "object",
+      "description": "Per-category icon/desc/quick-start metadata. Keyed by stringified category id.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "equipment": {
+      "type": "array",
+      "description": "Equipment catalogue (TAs, vendors, models). Same structure as the legacy EQUIPMENT global.",
+      "items": {"type": "object"}
+    },
+    "filterFacets": {
+      "type": "object",
+      "description": "Pre-computed facet values for the filter UI (dtype, premium, mitre groups, ...).",
+      "additionalProperties": true
+    },
+    "recentlyAdded": {
+      "type": "array",
+      "description": "UC ids added since the previous catalogue release (drives the New badge).",
+      "items": {"type": "string"}
+    },
+    "categories": {
+      "type": "array",
+      "description": "One entry per top-level category. Subcategory metadata is included here; full UC payloads are NOT inlined in this object — fetch the corresponding `lazyHref` for the full per-category payload.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["i", "n", "subs", "ucs", "lazyHref"],
+        "properties": {
+          "i": {"type": "integer", "minimum": 1},
+          "n": {"type": "string", "minLength": 1},
+          "icon": {"type": "string"},
+          "desc": {"type": "string"},
+          "quick": {"type": "string"},
+          "ucs": {"type": "integer", "minimum": 0},
+          "subs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["i", "n", "ucs"],
+              "properties": {
+                "i": {"type": "string", "pattern": "^\\d+\\.\\d+$"},
+                "n": {"type": "string", "minLength": 1},
+                "ucs": {"type": "integer", "minimum": 0}
+              }
+            }
+          },
+          "lazyHref": {
+            "type": "string",
+            "description": "Path to the per-category JSON the SPA fetches on demand.",
+            "pattern": "^api/cat-\\d+\\.json$"
+          }
+        }
+      }
+    },
+    "ucs": {
+      "type": "array",
+      "description": "Lightweight stubs for every UC. Order is stable: sorted by [cat, sub, uc] numerically. Heavy fields (q, m, md, kfp, refs, screenshots, ...) are NOT included. The SPA's bootstrap loader reconstructs window.DATA from this list; the detail panel lazy-fetches /api/cat-{cat}.json to fill in the heavy fields.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["i", "n", "cat", "sub"],
+        "properties": {
+          "i": {
+            "type": "string",
+            "description": "Use case identifier in CAT.SUB.UC form (no `UC-` prefix).",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "n": {"type": "string", "minLength": 1},
+          "cat": {"type": "integer", "minimum": 1},
+          "sub": {"type": "string", "pattern": "^\\d+\\.\\d+$"},
+          "c": {"type": "string", "description": "Criticality."},
+          "f": {"type": "string", "description": "Difficulty."},
+          "v": {"type": "string", "description": "Value statement."},
+          "d": {"type": "string", "description": "Data sources (short)."},
+          "t": {"type": "string", "description": "TA / equipment string."},
+          "mtype": {"type": "array", "items": {"type": "string"}},
+          "regs": {"type": "array", "items": {"type": "string"}},
+          "mitre": {"type": "array", "items": {"type": "string"}},
+          "a": {"type": "array", "items": {"type": "string"}, "description": "CIM data models."},
+          "e": {"type": "array", "items": {"type": "string"}, "description": "Equipment ids."},
+          "em": {"type": "array", "items": {"type": "string"}, "description": "Equipment model ids."},
+          "pillar": {"type": "string"},
+          "status": {"type": "string"},
+          "ind": {"type": "string"},
+          "dtype": {"type": "string"},
+          "premium": {"type": "string"},
+          "reviewed": {"type": "string"},
+          "escu": {"type": ["boolean", "string"]},
+          "escu_rba": {"type": ["boolean", "string"]},
+          "hw": {"type": "string"},
+          "sapp": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    },
+    "regulations": {
+      "type": "array",
+      "description": "Regulation framework summaries used by /regulation/<slug>/ pages and the regulation filter dropdown. Heavy fields (full clause text, OSCAL, OLIR mappings) live in dist/regulation/<slug>/index.json (emitted by render_pages, not by this index).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "slug"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "slug": {"type": "string", "minLength": 1},
+          "name": {"type": "string", "minLength": 1},
+          "shortName": {"type": "string"},
+          "tier": {"type": "integer"},
+          "jurisdiction": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "ucCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Distinct UCs that map to at least one clause in this framework."
+          },
+          "lazyHref": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
