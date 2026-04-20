@@ -6,53 +6,54 @@
 
 ## Current release
 
-**v6.1 — Verifiable Compliance Coverage** *(shipped 2026-04-16)*
+**v7.0 — Per-UC Content Architecture** *(shipped 2026-04-19)*
 
-Theme: **"every priority-weight clause traceable to a verified UC, every
-malformed clause rejected at the CI gate."**  v6.1 closes the long-standing
-gaps in `docs/compliance-coverage.md` and lifts the Phase 5.5 structured
-equipment tagging + Phase 6 MCP server out of "merged but unreleased" into
-the shipped release.
+Theme: **"every use case is its own file, every build is reproducible,
+every URL is permanent."**  v7.0 replaces the monolithic per-category
+markdown files with individually authored per-UC file pairs and introduces
+a Python stdlib-only build pipeline that generates the entire site from
+source.
 
-- Six-phase regulation-coverage gap closure (Phases A-F) — 670 malformed
-  `compliance[].clause` strings rewritten, 8 tier-2 regulations populated
-  with authoritative `commonClauses[]`, 23 new UCs (`UC-22.50.1` ..
-  `UC-22.50.23`) authored for the remaining uncovered tier-2 clauses, 11
-  meta-multi UCs re-tagged to concrete frameworks, 250 UCs elevated to
-  `status: verified` via dual-SME signoff, and `clause-grammar` removed
-  from `BASELINEABLE_CODES` so malformed clauses are now a hard CI fail
-- Phase 5.5 Compliance structured equipment tagging — `equipment[]` /
-  `equipmentModels[]` first-class on every cat-22 UC, plus
-  `api/v1/equipment/index.json` and `api/v1/equipment/{id}.json` for the
-  equipment→UC→regulation graph
-- Phase 6 Model Context Protocol (MCP) server — `mcp/` package
-  (`splunk-uc-mcp`) exposes the catalogue to AI agents over JSON-RPC stdio
-  with eight read-only tools, four URI resources, schema drift guard, and
-  full documentation at [`docs/mcp-server.md`](docs/mcp-server.md)
-- Regulatory primer reader (`regulatory-primer.html`) — standalone reading
-  experience for `docs/regulatory-primer.md` with sticky TOC, search, and
-  auto-decorated tier / assurance / priority badges
-- Branding accuracy — header subtitle changed from "Cisco Network
-  Intelligence" to "Community Reference" on `index.html` and
-  `tools/data-sizing/index.html` (see [`CHANGELOG.md`](CHANGELOG.md) for
-  the full rationale)
-- Catalogue grew 6,424 → 6,447 UCs across 23 categories
+- 23 monolithic `cat-*.md` files exploded into 6,449 individual
+  `content/cat-NN-slug/UC-X.Y.Z.md` prose files paired with 6,470
+  `UC-X.Y.Z.json` structured-metadata sidecars
+- New build pipeline (`tools/build/build.py`) — single Python 3.12
+  entrypoint, no Node/npm, reproducible builds with Sigstore attestation
+- Extracted source assets (`src/styles/`, `src/scripts/`) with content-hash
+  fingerprinting and immutable cache headers
+- Sharded full-text search (16 MiniSearch shards, ~100 KB each) replacing
+  the 39 MB linear scan over `data.js`
+- CI quality gates (`tools/audits/`) — asset drift, bundle budgets,
+  schema-diff, schema-meta, URL-freeze
+- New schemas (`schemas/v2/`) — `catalog-index` and `search-index`
+- Architecture contract (`docs/architecture.md`), URL scheme
+  (`docs/url-scheme.md`), schema versioning (`docs/schema-versioning.md`)
+- 6,447 UCs across 23 categories
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v6.1 release notes.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v7.0 release notes.
 
 ### Shipped outcomes
 
-- Every priority-weight clause across tier-1 + tier-2 frameworks now maps
-  to at least one UC (100% clause coverage and 100% priority-weighted
-  coverage on both tiers)
-- Auditors can verify the compliance graph end-to-end via the signed
-  provenance ledger and the per-clause gap report
-- Compliance officers, detection engineers, and AI agents share the same
-  read-only API surface (`api/v1/`, MCP tools)
+- PRs that touch one use case now change two small files instead of a
+  5 MB markdown blob — independently reviewable, diffable, and indexable
+- Build is reproducible: CI builds twice and asserts byte-identical output
+- Every public URL is permanent and verified by `url_freeze` audit
+- Performance budgets are enforced in CI
+- Scalable to 60,000 UCs without re-architecting
 
 ---
 
 ## Previous releases
+
+**v6.1 — Verifiable Compliance Coverage** *(shipped 2026-04-16)*
+
+- Six-phase regulation-coverage gap closure; 100% clause coverage on
+  tier-1 + tier-2 frameworks
+- Phase 5.5 structured equipment tagging on every cat-22 UC
+- Phase 6 MCP server (`splunk-uc-mcp`) with eight read-only tools
+- Regulatory primer reader (`regulatory-primer.html`)
+- Branding updated to "Community Reference"
+- Catalogue grew 6,424 → 6,447 UCs
 
 **v6.0 — Verifiable Quality** *(shipped 2026-04-16)*
 
@@ -98,14 +99,15 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 
 ---
 
-## Next up: v6.2 — Expand & Refine *(no fixed date)*
+## Next up: v7.1 — Expand & Refine *(no fixed date)*
 
-With the v6.1 compliance-coverage gap closed, the v6.2 focus shifts back
-to **raising the scorecard grades** — most categories currently sit in
-"Needs work" because KFP, MITRE mappings, reviewed-dates and sample
-fixtures haven't been authored for non-security UCs.
+With the v7.0 architecture in place, the v7.1 focus shifts to
+**raising the scorecard grades** and completing the SSG page generation
+— most categories currently sit in "Needs work" because KFP, MITRE
+mappings, reviewed-dates and sample fixtures haven't been authored for
+non-security UCs.
 
-### Content + tooling work targeted for v6.2
+### Content + tooling work targeted for v7.1
 
 - **Top-200 sample-event coverage** — Expand the `samples/` tree from 15
   fixtures to 200, targeting the most-used UCs identified by dashboard
@@ -127,7 +129,7 @@ fixtures haven't been authored for non-security UCs.
 
 ---
 
-## v6.3 – v6.x backlog *(no fixed date)*
+## v7.2+ backlog *(no fixed date)*
 
 The following ideas are under consideration but not yet scheduled. Pull
 requests or issues advocating for any of them are welcome.

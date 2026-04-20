@@ -87,9 +87,9 @@ fixes. Older versions continue to function but do not receive patches.
 
 | Version | Supported |
 |---------|-----------|
+| 7.0.x   | ✅ |
 | 6.1.x   | ✅ |
-| 6.0.x   | ✅ |
-| < 6.0   | ❌ |
+| < 6.1   | ❌ |
 
 ## Safe defaults
 
