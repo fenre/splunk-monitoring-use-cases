@@ -156,6 +156,29 @@ the release notes block in `index.html` by hand.
   `python3 tools/build/build.py --out dist --reproducible` &rarr;
   `dist/clause-navigator.html` and `dist/compliance-story.html` present;
   reproducibility check still passes byte-identical.)
+- **Clause-navigator detail fetch now double-encodes `%` for GitHub
+  Pages.** `scripts/generate_clause_index.py::clause_filename()` emits
+  URL-encoded characters like `%2F` (for versions containing `/`, e.g.
+  GDPR `2016/679`), `%28`/`%29` (for clauses with parentheses like
+  HIPAA `§164.308(a)(4)`), and `%C2%A7` (for the `§` section-sign
+  glyph) into the on-disk filename. The `endpoint` field in the clauses
+  index then contains a path like
+  `/api/v1/compliance/clauses/gdpr__2016%2F679__Art.5.json`. That path
+  is valid UTF-8 and a valid on-disk filename, but GitHub Pages'
+  request-routing aggressively percent-decodes these sequences in the
+  request URL *before* filesystem lookup, so a fetch for
+  `.../gdpr__2016%2F679__Art.5.json` is rerouted to
+  `.../gdpr__2016/679__Art.5.json` (a non-existent path) and returns
+  404. That broke the expand-clause-row action on every GDPR, DORA,
+  HIPAA, and UK-GDPR row. `clause-navigator.html::fetchDetail()` now
+  replaces every `%` in the index-provided endpoint with `%25` before
+  `fetch()`, so the wire request is `.../gdpr__2016%252F679__Art.5.json`,
+  Pages decodes `%25` &rarr; `%` once, and the lookup matches the
+  literal on-disk filename. The generator's clause-id grammar never
+  emits a bare `%` (clauses are drawn from `data/regulations.json` and
+  encoded once), so the `%` &rarr; `%25` replacement is injective and
+  safe. The index, story, regulation, and evidence-pack payloads are
+  unaffected (their filenames don't contain percent-encoded characters).
 - **`api/v1/` static surface now regenerated in `pages.yml`.** The
   entire `api/*` tree is gitignored (every file except `api/README.md`
   &mdash; see `.gitignore`) because `scripts/generate_api_surface.py` is

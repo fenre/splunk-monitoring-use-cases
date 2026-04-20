@@ -1097,10 +1097,24 @@ html.dark .cn-badge.mode-assists-with { color: #7cb4ff; }
     if (STATE.pendingDetail[clauseId]) return STATE.pendingDetail[clauseId];
     var row = STATE.clauses.find(function (c) { return c.clauseId === clauseId; });
     if (!row) return Promise.reject(new Error("Unknown clauseId: " + clauseId));
-    // The index stores the exact endpoint path (URL-encoded filename).
-    // We strip a leading ``/`` so the path is relative to the site root
-    // and works both at /clause-navigator.html and /subdir/... hosts.
-    var endpoint = (row.endpoint || "").replace(/^\/+/, "");
+    // The index stores the exact endpoint path (URL-encoded filename),
+    // e.g. ``/api/v1/compliance/clauses/gdpr__2016%2F679__Art.5.json``.
+    // Two gotchas conspire here:
+    //   1. We strip a leading ``/`` so the path is relative to the site
+    //      root and works both at /clause-navigator.html and /subdir/...
+    //      hosts.
+    //   2. GitHub Pages aggressively percent-decodes ``%2F``, ``%28``,
+    //      ``%29`` and other "unsafe" sequences in the request URL
+    //      BEFORE filesystem lookup, which turns ``gdpr__2016%2F679__Art.5.json``
+    //      into a request for a non-existent ``gdpr__2016/679__Art.5.json``
+    //      (404 on every GDPR/DORA/HIPAA clause). To bypass that, we
+    //      double-encode: every ``%`` in the already-encoded endpoint is
+    //      replaced with ``%25`` so the wire request carries ``%252F``
+    //      and ``%2528``. Pages decodes ``%25`` → ``%`` once, yielding
+    //      the literal ``%2F`` that matches the on-disk filename.
+    //      (The generator has no ``%`` in clause ids that is NOT part
+    //      of a percent-encoding, so this mapping is injective.)
+    var endpoint = (row.endpoint || "").replace(/^\/+/, "").replace(/%/g, "%25");
     if (!endpoint) return Promise.reject(new Error("Missing endpoint for " + clauseId));
     var p = fetch(endpoint, { credentials: "same-origin", headers: { "Accept": "application/json" } })
       .then(function (res) {
