@@ -22,15 +22,13 @@
   ],
   "dataSources": "`` `notable` `` or `index=grc` HEC JSON (`control_id`, `framework`, `status`, `due_date`, `owner`) from GRC exports",
   "app": "Splunk Enterprise Security (263)",
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=grc sourcetype=\"grc:hipaa_control\" earliest=-90d framework=\"HIPAA_Security_Rule\"\n| eval overdue=if(status!=\"Closed\" AND now()>strptime(due_date,\"%Y-%m-%d\"),1,0)\n| stats count as open_controls sum(overdue) as overdue_controls by owner, control_family\n| sort - overdue_controls",
   "cimModels": [
     "N/A"
   ],
   "description": "Tracks open HIPAA control gaps from assessments and pen tests through remediation so risk is reduced to reasonable and appropriate levels, not just documented once.",
   "value": "Tracks open HIPAA control gaps from assessments and pen tests through remediation so risk is reduced to reasonable and appropriate levels, not just documented once.",
+  "grandmaExplanation": "We track open HIPAA control gaps from assessments and pen tests through remediation so risk is reduced to reasonable and appropriate levels, not just documented once — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Define control_family values mapping to 164.308/310/312 families; (2) ingest weekly GRC CSV/HEC; (3) alert on `overdue_controls>0`; (4) require closure notes referencing implemented safeguard.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security (263).\n• Ensure the following data sources are available: `` `notable` `` or `index=grc` HEC JSON (`control_id`, `framework`, `status`, `due_date`, `owner`) from GRC exports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Define control_family values mapping to 164.308/310/312 families; (2) ingest weekly GRC CSV/HEC; (3) alert on `overdue_controls>0`; (4) require closure notes referencing implemented safeguard.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=grc sourcetype=\"grc:hipaa_control\" earliest=-90d framework=\"HIPAA_Security_Rule\"\n| eval overdue=if(status!=\"Closed\" AND now()>strptime(due_date,\"%Y-%m-%d\"),1,0)\n| stats count as open_controls sum(overdue) as overdue_controls by owner, control_family\n| sort - overdue_controls\n```\n\nUnderstanding this SPL\n\n**HIPAA Risk Management — Control Deficiency Tracking (§164.308(a)(1))** — Tracks open HIPAA control gaps from assessments and pen tests through remediation so risk is reduced to reasonable and appropriate levels, not just documented once.\n\nDocumented **Data sources**: `` `notable` `` or `index=grc` HEC JSON (`control_id`, `framework`, `status`, `due_date`, `owner`) from GRC exports. **App/TA** (typical add-on context): Splunk Enterprise Security (263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: grc; **sourcetype**: grc:hipaa_control. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=grc, sourcetype=\"grc:hipaa_control\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **overdue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by owner, control_family** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (owner, open, overdue), Column chart (by control family), Timeline (median days to close).",
   "visualization": "Table (owner, open, overdue), Column chart (by control family), Timeline (median days to close).",
@@ -40,5 +38,8 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
 }

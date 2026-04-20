@@ -10,19 +10,13 @@
   "splunkPillar": "Observability",
   "dataSources": "`itsi_grouped_alerts`, On-Call incident logs",
   "app": "Splunk ITSI, Splunk On-Call",
-  "premiumApps": [
-    {
-      "name": "Splunk ITSI",
-      "displayName": "Splunk IT Service Intelligence",
-      "note": "ITSI"
-    }
-  ],
   "spl": "index=itsi_grouped_alerts status=1 severity>=4\n| eval routing_key=case(\n    match(service_name, \"(?i)payment|checkout\"), \"payment-team\",\n    match(service_name, \"(?i)database|sql\"), \"dba-team\",\n    1=1, \"general-ops\"\n)\n| stats count by routing_key severity\n| sort -severity",
   "cimModels": [
     "N/A"
   ],
   "description": "Routing ITSI episode alerts to Splunk On-Call ensures the right on-call engineer is paged with full service context, reducing MTTA by eliminating manual triage.",
   "value": "Routing ITSI episode alerts to Splunk On-Call ensures the right on-call engineer is paged with full service context, reducing MTTA by eliminating manual triage.",
+  "grandmaExplanation": "Routing ITSI episode alerts to our monitoring platform On-Call ensures the right on-call engineer is paged with full service context, reducing MTTA by eliminating manual triage — so you always trust the numbers you are looking at.",
   "implementation": "Configure Splunk On-Call integration in ITSI notable event actions. Map episode severity to On-Call urgency levels. Define routing keys per service or service tree branch. Enable auto-acknowledgment when analysts claim episodes in Episode Review. Track MTTA and MTTR per routing key.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, Splunk On-Call.\n• Ensure the following data sources are available: `itsi_grouped_alerts`, On-Call incident logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure Splunk On-Call integration in ITSI notable event actions. Map episode severity to On-Call urgency levels. Define routing keys per service or service tree branch. Enable auto-acknowledgment when analysts claim episodes in Episode Review. Track MTTA and MTTR per routing key.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_grouped_alerts status=1 severity>=4\n| eval routing_key=case(\n    match(service_name, \"(?i)payment|checkout\"), \"payment-team\",\n    match(service_name, \"(?i)database|sql\"), \"dba-team\",\n    1=1, \"general-ops\"\n)\n| stats count by routing_key severity\n| sort -severity\n```\n\nUnderstanding this SPL\n\n**Splunk On-Call (VictorOps) Alert Routing** — Routing ITSI episode alerts to Splunk On-Call ensures the right on-call engineer is paged with full service context, reducing MTTA by eliminating manual triage.\n\nDocumented **Data sources**: `itsi_grouped_alerts`, On-Call incident logs. **App/TA** (typical add-on context): Splunk ITSI, Splunk On-Call. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_grouped_alerts.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_grouped_alerts. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **routing_key** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by routing_key severity** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (routing key, severity, count), Single value (unacknowledged critical episodes).",
   "visualization": "Table (routing key, severity, count), Single value (unacknowledged critical episodes).",
@@ -34,5 +28,12 @@
   ],
   "equipment": [
     "itsi"
+  ],
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
   ]
 }

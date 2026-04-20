@@ -10,6 +10,57 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [7.1] - 2026-04-20
+
+### Non-technical mode: plain-language per UC
+
+- **Every use case now carries a `grandmaExplanation`.** A new authored
+  field on each UC sidecar (`content/cat-<n>-<slug>/UC-<id>.json`, schema
+  v1.5.0) holds a short "explain it to my grandma" sentence that
+  strips Splunk / SPL / CIM / MITRE / regulatory acronyms and uses a
+  plain "we" voice. The field is required in the schema (20&ndash;400
+  chars) and populated for all 6,447 sidecars; markdown-only UCs get a
+  category-scoped runtime fallback from `build.py` so every UC in
+  `catalog.json` and `data.js` has a non-empty `ge`.
+- **Generator + CI guard.**
+  `scripts/generate_grandma_explanations.py` is the single source of
+  truth: it reads each sidecar's `title`, `value` and `description`,
+  rewrites them with a deterministic jargon-stripping / voice-rewriting
+  pass, and writes the result back. `--check` mode regenerates in
+  memory and diffs against disk, wired into `validate.yml` so a
+  forgotten regeneration or a drift between a hand-edited sidecar and
+  the generator rules fails CI.
+- **UC detail panel in Non-technical mode.** The panel now leads with
+  an "In plain language" card rendered from `uc.ge`, and every
+  technical section (MITRE, Regulations, CIM, App / TA, Data sources,
+  Equipment, Required fields, Schema, SPL, tstats, Script examples,
+  Implementation, Detailed implementation, Known false positives,
+  References, Data model acceleration) collapses behind a single "Show
+  technical details" disclosure. Technical mode renders the disclosure
+  transparently, preserving the existing layout.
+- **UC cards, search results, recently-added.** `renderUCCard` now
+  emits a `.uc-card-ge` paragraph that is visible only under
+  `body.non-technical-view`. The non-technical card focuses on title
+  plus the plain-language text; value, equipment, CIM and tag chips
+  are hidden to match the audience.
+- **Sidebar subcategory stays in Non-technical mode.** Clicking a
+  subcategory in the sidebar no longer drops the reader into the
+  technical category grid. A new `renderNonTechnicalSubcategory`
+  renders the matching `nt-area` card (including `whatItIs`,
+  `whoItAffects`, `splunkValue`, primer and evidence-pack links on
+  cat-22) followed by the full subcategory UC list, with each entry
+  showing `uc.ge`.
+- **Clickable plain-language UC rows.** The UC entries inside
+  `non-technical-view.js` area lists are now clickable rows that open
+  the panel, and they prefer the live `uc.ge` over any curated `why`
+  copy so the per-UC text stays consistent with the sidecar.
+- **Docs and rules.** `.cursor/rules/non-technical-sync.mdc` documents
+  the new field, the rendering contract, and the `--check` CI guard.
+  The schema changelog adds a v1.5.0 entry; the existing authoring
+  rules for curated `why` copy remain unchanged.
+
+---
+
 ## [7.0] - 2026-04-19
 
 ### Per-UC content architecture

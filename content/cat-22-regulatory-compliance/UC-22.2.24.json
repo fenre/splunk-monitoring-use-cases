@@ -22,18 +22,13 @@
   ],
   "dataSources": "`index=itsi_summary`, `nis2_bcp_test_register.csv`, `index=itsm` (major incidents)",
   "app": "Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928)",
-  "premiumApps": [
-    {
-      "name": "Splunk ITSI",
-      "displayName": "Splunk IT Service Intelligence (ITSI)"
-    }
-  ],
   "spl": "| inputlookup nis2_bcp_test_register.csv\n| eval test_date_epoch=strptime(last_tabletop_date,\"%Y-%m-%d\")\n| eval months_since=round((now()-test_date_epoch)/2592000,1)\n| where months_since > 12\n| join service_name [\n    search index=itsi_summary earliest=-90d\n    | where severity IN (\"Critical\",\"High\")\n    | stats sum(alert_duration) as downtime_seconds by service_name\n]\n| eval rto_seconds=rto_minutes*60\n| eval rto_breach=if(downtime_seconds > rto_seconds, 1, 0)\n| table service_name, months_since, downtime_seconds, rto_seconds, rto_breach",
   "cimModels": [
     "N/A"
   ],
   "description": "Business continuity, crisis management, and ICT continuity are explicit Article 21 themes. This use case monitors declared RTO/RPO adherence during real incidents and exercises, combining ITSI service degradation windows with BCP test completion records.",
   "value": "Business continuity, crisis management, and ICT continuity are explicit Article 21 themes. This use case monitors declared RTO/RPO adherence during real incidents and exercises, combining ITSI service degradation windows with BCP test completion records.",
+  "grandmaExplanation": "Business continuity, crisis management, and ICT continuity are explicit themes — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Record BCP/ICT continuity test dates per critical service; (2) map services to ITSI entities; (3) alert when annual tabletop is overdue; (4) measure downtime during sev1 incidents against RTO; (5) integrate with UC-22.2.17 for backup evidence.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928).\n• Ensure the following data sources are available: `index=itsi_summary`, `nis2_bcp_test_register.csv`, `index=itsm` (major incidents).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Record BCP/ICT continuity test dates per critical service; (2) map services to ITSI entities; (3) alert when annual tabletop is overdue; (4) measure downtime during sev1 incidents against RTO; (5) integrate with UC-22.2.17 for backup evidence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup nis2_bcp_test_register.csv\n| eval test_date_epoch=strptime(last_tabletop_date,\"%Y-%m-%d\")\n| eval months_since=round((now()-test_date_epoch)/2592000,1)\n| where months_since > 12\n| join service_name [\n    search index=itsi_summary earliest=-90d\n    | where severity IN (\"Critical\",\"High\")\n    | stats sum(alert_duration) as downtime_seconds by service_name\n]\n| eval rto_seconds=rto_minutes*60\n| eval rto_breach=if(downtime_seconds > rto_seconds, 1, 0)\n| table service_name, months_since, downtime_seconds, rto_seconds, rto_breach\n```\n\nUnderstanding this SPL\n\n**NIS2 Business Continuity and ICT Continuity Evidence (Art. 21(2)(c))** — Business continuity, crisis management, and ICT continuity are explicit Article 21 themes. This use case monitors declared RTO/RPO adherence during real incidents and exercises, combining ITSI service degradation windows with BCP test completion records.\n\nDocumented **Data sources**: `index=itsi_summary`, `nis2_bcp_test_register.csv`, `index=itsm` (major incidents). **App/TA** (typical add-on context): Splunk ITSI (Splunkbase 1841), Splunk Add-on for ServiceNow (Splunkbase 1928). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **test_date_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **months_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where months_since > 12` — typically the threshold or rule expression for this monitoring goal.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **rto_seconds** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **rto_breach** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **NIS2 Business Continuity and ICT Continuity Evidence (Art. 21(2)(c))**): table service_name, months_since, downtime_seconds, rto_seconds, rto_breach\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overdue tests and RTO breaches), Timeline (tests and incidents), Single value (services breaching RTO).",
   "visualization": "Table (overdue tests and RTO breaches), Timeline (tests and incidents), Single value (services breaching RTO).",
@@ -51,5 +46,11 @@
   "equipment": [
     "itsi",
     "servicenow"
+  ],
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence (ITSI)"
+    }
   ]
 }

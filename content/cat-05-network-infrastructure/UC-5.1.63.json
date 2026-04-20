@@ -10,19 +10,13 @@
   "splunkPillar": "Observability",
   "dataSources": "Aruba CX syslog (`sourcetype=syslog` or site-specific parser such as `hpe:aruba` if configured)",
   "app": "HPE Aruba CX syslog",
-  "premiumApps": [
-    {
-      "name": "Splunk User Behavior Analytics",
-      "displayName": "Splunk User Behavior Analytics",
-      "note": "UBA"
-    }
-  ],
   "spl": "index=network sourcetype=syslog\n| search \"VSF\" OR \"Virtual Switching Framework\" OR \"stack\" OR \"conductor\" OR \"standby\" OR \"Member\"\n| search \"Aruba\" OR \"6300\" OR \"6400\" OR \"8320\" OR \"8360\" OR host=\"*cx*\"\n| rex field=_raw \"(?i)member\\s*(?<member_slot>\\d+)\"\n| stats count as vsf_events, latest(_raw) as last_event by host, member_slot\n| sort -vsf_events",
   "cimModels": [
     "N/A"
   ],
   "description": "VSF stacks present one logical switch; member loss or conductor changes can isolate access VLANs or reduce east-west capacity without a full box failure. Early detection of member state changes and inter-switch link issues prevents prolonged segments of a floor or IDF running on a single surviving member. Splunk gives stack-level visibility where SNMP polling alone may lag during control-plane events.",
   "value": "VSF stacks present one logical switch; member loss or conductor changes can isolate access VLANs or reduce east-west capacity without a full box failure. Early detection of member state changes and inter-switch link issues prevents prolonged segments of a floor or IDF running on a single surviving member. Splunk gives stack-level visibility where SNMP polling alone may lag during control-plane events.",
+  "grandmaExplanation": "VSF stacks present one logical switch; member loss or conductor changes can isolate access network segments or reduce east-west capacity without a full box failure — so outages, slowdowns, and risky changes get flagged in time to act.",
   "implementation": "Send CX switch syslog to a dedicated VIP or SC4S; tag `host` or `orig_host` so searches can narrow to CX models. Filter false positives from non-CX syslog sharing the index. Alert on member down, split stack indicators, or repeated conductor re-election. Cross-check with `show vsf` if you ingest periodic CLI or API snapshots.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HPE Aruba CX syslog.\n• Ensure the following data sources are available: Aruba CX syslog (`sourcetype=syslog` or site-specific parser such as `hpe:aruba` if configured).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSend CX switch syslog to a dedicated VIP or SC4S; tag `host` or `orig_host` so searches can narrow to CX models. Filter false positives from non-CX syslog sharing the index. Alert on member down, split stack indicators, or repeated conductor re-election. Cross-check with `show vsf` if you ingest periodic CLI or API snapshots.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=syslog\n| search \"VSF\" OR \"Virtual Switching Framework\" OR \"stack\" OR \"conductor\" OR \"standby\" OR \"Member\"\n| search \"Aruba\" OR \"6300\" OR \"6400\" OR \"8320\" OR \"8360\" OR host=\"*cx*\"\n| rex field=_raw \"(?i)member\\s*(?<member_slot>\\d+)\"\n| stats count as vsf_events, latest(_raw) as last_event by host, member_slot\n| sort -vsf_events\n```\n\nUnderstanding this SPL\n\n**Aruba CX VSF Stack Health (HPE Aruba)** — VSF stacks present one logical switch; member loss or conductor changes can isolate access VLANs or reduce east-west capacity without a full box failure. Early detection of member state changes and inter-switch link issues prevents prolonged segments of a floor or IDF running on a single surviving member. Splunk gives stack-level visibility where SNMP polling alone may lag during control-plane events.\n\nDocumented **Data sources**: Aruba CX syslog (`sourcetype=syslog` or site-specific parser such as `hpe:aruba` if configured). **App/TA** (typical add-on context): HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Applies an explicit `search` filter to narrow the current result set.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host, member_slot** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stack topology-style table (member ID, role, last event); timeline of conductor changes; heatmap of stacks with events.",
   "visualization": "Stack topology-style table (member ID, role, last event); timeline of conductor changes; heatmap of stacks with events.",
@@ -35,5 +29,12 @@
   "equipment": [
     "syslog"
   ],
-  "hardware": "HPE Aruba CX 6200, CX 6300, CX 6400, CX 8320, CX 8325, CX 8360"
+  "hardware": "HPE Aruba CX 6200, CX 6300, CX 6400, CX 8320, CX 8325, CX 8360",
+  "premiumApps": [
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ]
 }

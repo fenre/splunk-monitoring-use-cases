@@ -10,19 +10,13 @@
   "splunkPillar": "Observability",
   "dataSources": "`itsi_entities` lookup, CMDB/asset inventory, `index=_internal`",
   "app": "Splunk ITSI, infrastructure TAs",
-  "premiumApps": [
-    {
-      "name": "Splunk ITSI",
-      "displayName": "Splunk IT Service Intelligence",
-      "note": "ITSI"
-    }
-  ],
   "spl": "| inputlookup itsi_entities\n| stats dc(_key) as itsi_entities values(entity_type_ids) as types\n| appendcols [\n  | tstats dc(host) as infra_hosts where (index=main OR index=security OR index=os OR index=windows) by index\n  | stats sum(infra_hosts) as total_infra_hosts\n]\n| eval coverage_pct=round(itsi_entities/total_infra_hosts*100,1)\n| table itsi_entities total_infra_hosts coverage_pct types",
   "cimModels": [
     "N/A"
   ],
   "description": "Undiscovered entities create monitoring blind spots. Auditing entity coverage against infrastructure inventories ensures every critical asset is monitored by ITSI services.",
   "value": "Undiscovered entities create monitoring blind spots. Auditing entity coverage against infrastructure inventories ensures every critical asset is monitored by ITSI services.",
+  "grandmaExplanation": "Undiscovered entities create monitoring blind spots — so you always trust the numbers you are looking at.",
   "implementation": "Compare ITSI entity inventory against CMDB, cloud provider APIs, or Splunk host metadata. Identify unmonitored hosts. Use entity discovery searches or CSV imports to close gaps. Schedule weekly coverage audits. Track entity types to ensure classification is consistent.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, infrastructure TAs.\n• Ensure the following data sources are available: `itsi_entities` lookup, CMDB/asset inventory, `index=_internal`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCompare ITSI entity inventory against CMDB, cloud provider APIs, or Splunk host metadata. Identify unmonitored hosts. Use entity discovery searches or CSV imports to close gaps. Schedule weekly coverage audits. Track entity types to ensure classification is consistent.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup itsi_entities\n| stats dc(_key) as itsi_entities values(entity_type_ids) as types\n| appendcols [\n  | tstats dc(host) as infra_hosts where (index=main OR index=security OR index=os OR index=windows) by index\n  | stats sum(infra_hosts) as total_infra_hosts\n]\n| eval coverage_pct=round(itsi_entities/total_infra_hosts*100,1)\n| table itsi_entities total_infra_hosts coverage_pct types\n```\n\nUnderstanding this SPL\n\n**Entity Discovery Completeness Audit** — Undiscovered entities create monitoring blind spots. Auditing entity coverage against infrastructure inventories ensures every critical asset is monitored by ITSI services.\n\nDocumented **Data sources**: `itsi_entities` lookup, CMDB/asset inventory, `index=_internal`. **App/TA** (typical add-on context): Splunk ITSI, infrastructure TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Adds columns from a subsearch with `appendcols`.\n• `eval` defines or adjusts **coverage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Entity Discovery Completeness Audit**): table itsi_entities total_infra_hosts coverage_pct types\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (coverage %), Table (unmatched hosts), Column chart (entity count by type).",
   "visualization": "Single value (coverage %), Table (unmatched hosts), Column chart (entity count by type).",
@@ -34,5 +28,12 @@
   ],
   "equipment": [
     "itsi"
+  ],
+  "premiumApps": [
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
   ]
 }

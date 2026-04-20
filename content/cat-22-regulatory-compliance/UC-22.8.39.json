@@ -1,10 +1,10 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.8.39",
-  "subcategory": "22.8#1",
   "title": "SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes",
   "criticality": "medium",
   "difficulty": "intermediate",
+  "subcategory": "22.8#1",
   "monitoringType": [
     "Compliance"
   ],
@@ -56,15 +56,13 @@
   },
   "dataSources": "`index=consent` sourcetype=onetrust:consent; privacy-notice version lookup `privacy_notice_versions.csv`.",
   "app": "Splunk Enterprise Security",
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=consent sourcetype=onetrust:consent earliest=-14d\n| stats latest(consent_version) AS consent_version latest(_time) AS consent_time BY subject_id\n| lookup privacy_notice_versions.csv AS latest OUTPUT current_version\n| eval days_stale=round((now()-consent_time)/86400,0)\n| eval needs_refresh=if(consent_version!=current_version,1,0)\n| where needs_refresh=1\n| table subject_id consent_version current_version days_stale needs_refresh",
   "cimModels": [
     "N/A"
   ],
   "description": "When the privacy notice changes version, subjects whose consent was against the old version must be re-prompted. This UC measures the backlog.",
   "value": "Prevents P1.1 findings: 'consent records reference a superseded notice'. Satisfies the '<v-current>' regulator question asked at every annual audit.",
+  "grandmaExplanation": "We help you prevent P1.1 findings: 'consent records reference a superseded notice' — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Push consent changes to index=consent; (2) maintain privacy_notice_versions.csv; (3) schedule UC daily; (4) batch subjects needing refresh by cohort; (5) DPO owns the refresh campaign.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security.\n• Ensure the following data sources are available: `index=consent` sourcetype=onetrust:consent; privacy-notice version lookup `privacy_notice_versions.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Push consent changes to index=consent; (2) maintain privacy_notice_versions.csv; (3) schedule UC daily; (4) batch subjects needing refresh by cohort; (5) DPO owns the refresh campaign.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=consent sourcetype=onetrust:consent earliest=-14d\n| stats latest(consent_version) AS consent_version latest(_time) AS consent_time BY subject_id\n| lookup privacy_notice_versions.csv AS latest OUTPUT current_version\n| eval days_stale=round((now()-consent_time)/86400,0)\n| eval needs_refresh=if(consent_version!=current_version,1,0)\n| where needs_refresh=1\n| table subject_id consent_version current_version days_stale needs_refresh\n```\n\nUnderstanding this SPL\n\n**SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes** — Prevents P1.1 findings: 'consent records reference a superseded notice'. Satisfies the '<v-current>' regulator question asked at every annual audit.\n\nDocumented **Data sources**: `index=consent` sourcetype=onetrust:consent; privacy-notice version lookup `privacy_notice_versions.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: consent; **sourcetype**: onetrust:consent. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=consent, sourcetype=onetrust:consent, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by subject_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **days_stale** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **needs_refresh** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where needs_refresh=1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes**): table subject_id consent_version current_version days_stale needs_refresh\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart of stale consent backlog, table of cohorts, single value 'subjects needing refresh'.",
   "visualization": "Timechart of stale consent backlog, table of cohorts, single value 'subjects needing refresh'.",
@@ -94,5 +92,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
 }

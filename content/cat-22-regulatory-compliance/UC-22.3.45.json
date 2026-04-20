@@ -1,10 +1,10 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.3.45",
-  "subcategory": "22.3#1",
   "title": "DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation",
   "criticality": "high",
   "difficulty": "intermediate",
+  "subcategory": "22.3#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -51,15 +51,13 @@
   },
   "dataSources": "`index=testing` sourcetype=test:plan_execution (BAS/TLPT/DR runs); `index=ticketing` sourcetype=jira:issue (findings tickets); test-plan register `dora_test_plan.csv`.",
   "app": "Splunk Enterprise Security",
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup dora_test_plan.csv\n| eval planned_date_et=strptime(planned_date,\"%Y-%m-%d\")\n| join type=outer test_id\n  [search index=testing sourcetype=test:plan_execution\n   | stats latest(_time) AS actual_run_time latest(pass_fail) AS pass_fail sum(finding_count) AS finding_count BY test_id]\n| eval evidence_complete=if(isnotnull(actual_run_time),1,0)\n| eval on_time=if(actual_run_time<=planned_date_et+86400*14,1,0)\n| table test_id test_type scope_service planned_date actual_run_time pass_fail finding_count evidence_complete on_time",
   "cimModels": [
     "Change"
   ],
   "description": "Pivots the DORA test-plan register against the actual execution telemetry from the BAS/TLPT/DR tooling. Each planned test either has matching execution evidence within a 14-day tolerance or it does not — the latter is a direct Art.24 non-conformance.",
   "value": "Gives the CISO and the ICT risk committee a single-query attestation that the operational-resilience testing programme executed as planned, replacing an email-based reconciliation that typically slips by weeks.",
+  "grandmaExplanation": "Gives the CISO and the ICT risk committee a single-query attestation that the operational-resilience testing programme executed as planned, replacing an email-based reconciliation that typically slips by weeks — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Maintain dora_test_plan.csv as the approved annual programme; (2) normalise execution output from BAS/DR tools to sourcetype=test:plan_execution; (3) schedule UC daily; (4) evidence_complete=0 past planned_date + 14d escalates to CISO; (5) per-quarter report to Board; (6) missing TLPT for significant entities escalates immediately.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security.\n• Ensure the following data sources are available: `index=testing` sourcetype=test:plan_execution (BAS/TLPT/DR runs); `index=ticketing` sourcetype=jira:issue (findings tickets); test-plan register `dora_test_plan.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Maintain dora_test_plan.csv as the approved annual programme; (2) normalise execution output from BAS/DR tools to sourcetype=test:plan_execution; (3) schedule UC daily; (4) evidence_complete=0 past planned_date + 14d escalates to CISO; (5) per-quarter report to Board; (6) missing TLPT for significant entities escalates immediately.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup dora_test_plan.csv\n| eval planned_date_et=strptime(planned_date,\"%Y-%m-%d\")\n| join type=outer test_id\n  [search index=testing sourcetype=test:plan_execution\n   | stats latest(_time) AS actual_run_time latest(pass_fail) AS pass_fail sum(finding_count) AS finding_count BY test_id]\n| eval evidence_complete=if(isnotnull(actual_run_time),1,0)\n| eval on_time=if(actual_run_time<=planned_date_et+86400*14,1,0)\n| table test_id test_type scope_service planned_date actual_run_time pass_fail finding_count evidence_complete on_time\n```\n\nUnderstanding this SPL\n\n**DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation** — Gives the CISO and the ICT risk committee a single-query attestation that the operational-resilience testing programme executed as planned, replacing an email-based reconciliation that typically slips by weeks.\n\nDocumented **Data sources**: `index=testing` sourcetype=test:plan_execution (BAS/TLPT/DR runs); `index=ticketing` sourcetype=jira:issue (findings tickets); test-plan register `dora_test_plan.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `eval` defines or adjusts **planned_date_et** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **evidence_complete** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **on_time** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **DORA Art.24 — Digital operational-resilience testing: test-plan execution attestation**): table test_id test_type scope_service planned_date actual_run_time pass_fail finding_count evidence_complete on_time\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Calendar heatmap of test executions, bar chart of findings per scope service, single value 'tests past due'.",
   "visualization": "Calendar heatmap of test executions, bar chart of findings per scope service, single value 'tests past due'.",
@@ -106,5 +104,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
 }

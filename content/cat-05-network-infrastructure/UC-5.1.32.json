@@ -10,19 +10,13 @@
   "splunkPillar": "Observability",
   "dataSources": "Device inventory + EOL lookup",
   "app": "Lookup table with vendor EOL dates, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
-  "premiumApps": [
-    {
-      "name": "Splunk User Behavior Analytics",
-      "displayName": "Splunk User Behavior Analytics",
-      "note": "UBA"
-    }
-  ],
   "spl": "| inputlookup device_inventory\n| lookup eol_lookup model OUTPUT eol_date eos_date\n| eval days_to_eol=round((strptime(eol_date,\"%Y-%m-%d\")-now())/86400,0)\n| where days_to_eol < 365 OR days_to_eol < 0\n| table host model eol_date days_to_eol\n| sort days_to_eol",
   "cimModels": [
     "N/A"
   ],
   "description": "Devices approaching EOL/EOS dates.",
   "value": "Devices approaching EOL/EOS dates.",
+  "grandmaExplanation": "Devices approaching EOL/EOS dates — so outages, slowdowns, and risky changes get flagged in time to act.",
   "implementation": "Maintain device_inventory lookup (host, model) and eol_lookup (model, eol_date) from Cisco EOL/EOS bulletins. Run scheduled search or dashboard. Alert when days_to_eol < 180. Update lookups annually.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Lookup table with vendor EOL dates, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.\n• Ensure the following data sources are available: Device inventory + EOL lookup.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain device_inventory lookup (host, model) and eol_lookup (model, eol_date) from Cisco EOL/EOS bulletins. Run scheduled search or dashboard. Alert when days_to_eol < 180. Update lookups annually.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup device_inventory\n| lookup eol_lookup model OUTPUT eol_date eos_date\n| eval days_to_eol=round((strptime(eol_date,\"%Y-%m-%d\")-now())/86400,0)\n| where days_to_eol < 365 OR days_to_eol < 0\n| table host model eol_date days_to_eol\n| sort days_to_eol\n```\n\nUnderstanding this SPL\n\n**Network Device End-of-Life Tracking** — Devices approaching EOL/EOS dates.\n\nDocumented **Data sources**: Device inventory + EOL lookup. **App/TA** (typical add-on context): Lookup table with vendor EOL dates, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **days_to_eol** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_to_eol < 365 OR days_to_eol < 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Network Device End-of-Life Tracking**): table host model eol_date days_to_eol\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (device, model, days to EOL), Single value (devices within 6 months), Gauge.",
   "visualization": "Table (device, model, days to EOL), Single value (devices within 6 months), Gauge.",
@@ -39,5 +33,12 @@
   "equipmentModels": [
     "cisco_ios"
   ],
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "premiumApps": [
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ]
 }

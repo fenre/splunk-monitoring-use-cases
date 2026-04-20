@@ -1473,6 +1473,119 @@ def _sidecar_equipment_tags(_cat_id, uc_full_id):
     return list(equipment), list(models)
 
 
+_SIDECAR_GRANDMA_CACHE = None
+CONTENT_DIR = os.path.join(SCRIPT_DIR, "content")
+
+
+def _load_sidecar_grandma_cache():
+    """Lazy-load every canonical UC sidecar's ``grandmaExplanation`` string.
+
+    Walks ``content/cat-*/UC-*.json`` — the v7+ per-UC canonical files —
+    and returns a dict keyed by UC id ("22.1.1") mapping to the
+    ``grandmaExplanation`` value when set. UCs without the field (or with
+    an empty string) do not appear in the cache, which signals the
+    caller to fall back to the curated ``non-technical-view.js`` ``why``
+    lines (or simply hide the explanation paragraph).
+
+    Cached for the life of the build. Safe to call even when the
+    ``content`` tree is missing (early Phase-1 checkouts, stripped CI
+    environments) — the cache just returns empty.
+    """
+    global _SIDECAR_GRANDMA_CACHE
+    if _SIDECAR_GRANDMA_CACHE is not None:
+        return _SIDECAR_GRANDMA_CACHE
+    cache = {}
+    if not os.path.isdir(CONTENT_DIR):
+        _SIDECAR_GRANDMA_CACHE = cache
+        return cache
+    for root, _dirs, files in os.walk(CONTENT_DIR):
+        for fname in files:
+            if not fname.startswith("UC-") or not fname.endswith(".json"):
+                continue
+            path = os.path.join(root, fname)
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    side = json.load(fh)
+            except (IOError, ValueError):
+                continue
+            if not isinstance(side, dict):
+                continue
+            uc_id = side.get("id")
+            if not isinstance(uc_id, str) or not uc_id:
+                continue
+            ge = side.get("grandmaExplanation")
+            if isinstance(ge, str) and ge.strip():
+                cache[uc_id] = ge.strip()
+    _SIDECAR_GRANDMA_CACHE = cache
+    return cache
+
+
+def _sidecar_grandma_for(uc_full_id):
+    """Return the canonical sidecar's ``grandmaExplanation`` string or ``""``.
+
+    Used by the legacy markdown loader to merge the non-technical summary
+    into the built UC dict even when the build is running in the v6
+    ``SPLUNK_UC_LOADER=legacy`` mode. The v7 content loader handles its
+    own mapping via ``_canonical_uc_to_legacy`` in
+    ``tools/build/parse_content.py``.
+    """
+    if not uc_full_id:
+        return ""
+    cache = _load_sidecar_grandma_cache()
+    return cache.get(uc_full_id, "")
+
+
+# Minimal per-category fallback sentences — must stay in sync with
+# ``_CATEGORY_FALLBACK`` in scripts/generate_grandma_explanations.py. This
+# copy is the runtime safety net for UCs that exist only in the markdown
+# (no ``content/cat-*/UC-*.json`` sidecar yet): it guarantees that
+# ``uc["ge"]`` is always non-empty in ``catalog.json`` / ``data.js``, so
+# every non-technical-view renderer can show *something* even for
+# pre-migration UCs. The richer, full-vocabulary rewriter lives in the
+# generator script — when a curator runs it, the sidecar wins and this
+# fallback is never consulted.
+_GE_RUNTIME_FALLBACK = {
+    1: "We keep an eye on your servers — so you find out before users do when something is slowing down or breaking.",
+    2: "We watch your virtual machines and hosts — so you catch performance or capacity problems before they hurt real work.",
+    3: "We watch your containers and clusters — so you know when an app is crashing, stuck, or running somewhere it should not.",
+    4: "We watch your cloud accounts — so risky changes, runaway spending, and suspicious logins do not go unnoticed.",
+    5: "We watch your network gear — so outages, slowdowns, and risky changes get flagged in time to act.",
+    6: "We watch your storage and backups — so you know that your data is safe, backed up, and actually restorable.",
+    7: "We watch your databases and data platforms — so slow queries, failed backups, and odd changes surface early.",
+    8: "We watch your applications — so broken requests, slow pages, and errors get caught before customers complain.",
+    9: "We watch how people sign in and use their accounts — so we can catch stolen logins, risky access, and sign-ins that skip the extra security check.",
+    10: "We watch your security tools and controls — so we know when protection is off, out of date, or bypassed.",
+    11: "We watch your email and collaboration tools — so phishing, data leaks, and account misuse do not slip through.",
+    12: "We watch your build and deploy pipelines — so code changes that fail, leak secrets, or skip checks are caught early.",
+    13: "We watch the health of the monitoring itself — so you always trust the numbers you are looking at.",
+    14: "We watch your IoT and factory-floor devices — so faults, tampering, and safety issues are spotted right away.",
+    15: "We watch your data-centre facility — so power, cooling, and physical access problems are found before they hurt uptime.",
+    16: "We watch your IT service-management tooling — so tickets, changes, and incidents are on track and nothing is silently missed.",
+    17: "We watch your zero-trust and network-security controls — so unsafe traffic and policy bypasses are caught quickly.",
+    18: "We watch your data-centre network fabric — so traffic problems, routing mistakes, and risky changes surface fast.",
+    19: "We watch your hyper-converged and compute infrastructure — so hardware faults and capacity problems do not take services down.",
+    20: "We watch your cost and capacity — so you know where money and resources are being wasted or running out.",
+    21: "We watch the systems that run your industry's daily operations — so the things customers and regulators care about stay running and accountable.",
+    22: "We make it easy to prove, at audit time, that the rules are being followed — so you can show exactly what is being watched and when something went wrong.",
+    23: "We watch the business metrics that matter to the board — so revenue, usage, and customer trends are visible in near-real-time.",
+}
+
+
+def _runtime_ge_fallback(cat_id):
+    """Return a safe non-empty grandma-explanation string for a category.
+
+    Only consulted at the very end of the post-processor when neither the
+    content-tree sidecar nor the legacy markdown parser produced a
+    ``ge`` value. Keeps the public contract ("every UC in catalog.json
+    has a non-empty ge") intact even for UCs that have not yet been
+    migrated to the per-UC sidecar format.
+    """
+    return _GE_RUNTIME_FALLBACK.get(
+        cat_id,
+        "We watch this part of your environment — so problems are spotted early.",
+    )
+
+
 def equipment_ids_for_ta_string(ta_str):
     """Given a use case's App/TA field (t), return (equipment_ids, model_compound_ids).
     model_compound_ids are "eqId_modelId" for equipment that has models and whose model tas matched."""
@@ -2105,6 +2218,7 @@ def parse_category_file(filepath):
                 "reviewed": "", # last reviewed date, YYYY-MM-DD (v5.1+)
                 "sver": "",     # Splunk versions, e.g. "9.2+" or "Cloud" (v5.1+)
                 "rby": "",      # Reviewer handle or "N/A" (v5.1+)
+                "ge": "",       # grandmaExplanation — plain-language non-technical summary (v7.x+)
             }
             if current_sub is not None:
                 current_sub["u"].append(current_uc)
@@ -2301,6 +2415,22 @@ def parse_category_file(filepath):
                 eq_ids, model_ids = equipment_ids_for_ta_string(uc.get("t"))
                 uc["e"] = eq_ids
                 uc["em"] = model_ids
+
+            # Merge the canonical grandmaExplanation from content/ sidecars
+            # when the current UC dict hasn't already carried one in (v7
+            # content loader already passes it through; v6 markdown loader
+            # has an empty default). Keeping this idempotent lets either
+            # path produce the same final shape. If the UC has no sidecar
+            # yet (a handful of network-infra UCs are still in the pure
+            # markdown corpus pending migration), fall back to the
+            # per-category safety-net sentence so every UC the SPA sees
+            # has a non-empty non-technical summary.
+            if not (uc.get("ge") or "").strip():
+                ge_text = _sidecar_grandma_for(uc.get("i"))
+                if ge_text:
+                    uc["ge"] = ge_text
+            if not (uc.get("ge") or "").strip():
+                uc["ge"] = _runtime_ge_fallback(cat_id)
             matched_apps = apps_for_ta_string(uc.get("t"))
             if matched_apps:
                 uc["sapp"] = matched_apps

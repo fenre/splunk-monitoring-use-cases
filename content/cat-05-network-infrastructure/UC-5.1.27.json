@@ -11,19 +11,13 @@
   "splunkPillar": "Observability",
   "dataSources": "IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB",
   "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
-  "premiumApps": [
-    {
-      "name": "Splunk User Behavior Analytics",
-      "displayName": "Splunk User Behavior Analytics",
-      "note": "UBA"
-    }
-  ],
   "spl": "index=network sourcetype=snmp:interface\n| streamstats current=f last(ifInErrors) as prev_in, last(ifOutErrors) as prev_out, last(_time) as prev_time by host, ifDescr\n| eval delta_in=ifInErrors-coalesce(prev_in,0), delta_out=ifOutErrors-coalesce(prev_out,0)\n| eval interval_sec=_time-prev_time | where interval_sec>0 AND interval_sec<900\n| eval in_err_rate=round(delta_in/interval_sec*60,2), out_err_rate=round(delta_out/interval_sec*60,2)\n| where in_err_rate>0 OR out_err_rate>0\n| timechart span=5m avg(in_err_rate) as in_errors_per_min, avg(out_err_rate) as out_errors_per_min by host",
   "cimModels": [
     "N/A"
   ],
   "description": "CRC, runts, giants, input/output errors as rate over time.",
   "value": "CRC, runts, giants, input/output errors as rate over time.",
+  "grandmaExplanation": "CRC, runts, giants, input/output errors as rate over time — so outages, slowdowns, and risky changes get flagged in time to act.",
   "implementation": "Poll IF-MIB (ifInErrors, ifOutErrors) and EtherLike-MIB (dot3StatsFCSErrors) every 300s. Use streamstats for delta calculation. Alert when error rate exceeds threshold (e.g., >1/min on uplinks). Exclude admin-down interfaces.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog.\n• Ensure the following data sources are available: IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll IF-MIB (ifInErrors, ifOutErrors) and EtherLike-MIB (dot3StatsFCSErrors) every 300s. Use streamstats for delta calculation. Alert when error rate exceeds threshold (e.g., >1/min on uplinks). Exclude admin-down interfaces.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=snmp:interface\n| streamstats current=f last(ifInErrors) as prev_in, last(ifOutErrors) as prev_out, last(_time) as prev_time by host, ifDescr\n| eval delta_in=ifInErrors-coalesce(prev_in,0), delta_out=ifOutErrors-coalesce(prev_out,0)\n| eval interval_sec=_time-prev_time | where interval_sec>0 AND interval_sec<900\n| eval in_err_rate=round(delta_in/interval_sec*60,2), out_err_rate=round(delta_out/interval_sec*60,2)\n| where in_err_rate>0 OR out_err_rate>0\n| timechart span=5m avg(in_err_rate) as in_errors_per_min, avg(out_err_rate) as out_errors_per_min by host\n```\n\nUnderstanding this SPL\n\n**Interface Error Rate Trending** — CRC, runts, giants, input/output errors as rate over time.\n\nDocumented **Data sources**: IF-MIB (ifInErrors, ifOutErrors), EtherLike-MIB. **App/TA** (typical add-on context): SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:interface. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=snmp:interface. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `streamstats` rolls up events into metrics; results are split **by host, ifDescr** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **delta_in** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **interval_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where interval_sec>0 AND interval_sec<900` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **in_err_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where in_err_rate>0 OR out_err_rate>0` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (error rate over time), Table (host, interface, rate), Heatmap.",
   "visualization": "Line chart (error rate over time), Table (host, interface, rate), Heatmap.",
@@ -42,5 +36,12 @@
     "cisco_ios",
     "snmp_generic"
   ],
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "premiumApps": [
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ]
 }

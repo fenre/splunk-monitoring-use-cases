@@ -11,13 +11,6 @@
   "splunkPillar": "Security",
   "dataSources": "`cisco:ise:auth`, `radius:auth`",
   "app": "`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA",
-  "premiumApps": [
-    {
-      "name": "Splunk User Behavior Analytics",
-      "displayName": "Splunk User Behavior Analytics",
-      "note": "UBA"
-    }
-  ],
   "spl": "index=nac (sourcetype=\"cisco:ise:auth\" OR sourcetype=\"radius:auth\") earliest=-7d\n| search \"802.1X\" OR auth_method=\"EAP*\" OR eap_method=*\n| where match(lower(message),\"(?i)fail|reject|denied\")\n| stats count by eap_method, failure_reason, nas_ip\n| sort 30 -count",
   "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.dest Authentication.src span=1h\n| where count > 10",
   "cimModels": [
@@ -26,6 +19,7 @@
   ],
   "description": "Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants.",
   "value": "Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants.",
+  "grandmaExplanation": "Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants — so unsafe traffic and policy bypasses are caught quickly.",
   "implementation": "Extract `eap_method`, `failure_reason`, and `nas_ip` per your TA. Alert on spikes in a single failure bucket (e.g., TLS cert errors). Compare before/after cert updates.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA.\n• Ensure the following data sources are available: `cisco:ise:auth`, `radius:auth`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExtract `eap_method`, `failure_reason`, and `nas_ip` per your TA. Alert on spikes in a single failure bucket (e.g., TLS cert errors). Compare before/after cert updates.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nac (sourcetype=\"cisco:ise:auth\" OR sourcetype=\"radius:auth\") earliest=-7d\n| search \"802.1X\" OR auth_method=\"EAP*\" OR eap_method=*\n| where match(lower(message),\"(?i)fail|reject|denied\")\n| stats count by eap_method, failure_reason, nas_ip\n| sort 30 -count\n```\n\nUnderstanding this SPL\n\n**802.1X Authentication Failure Analysis** — Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants.\n\nDocumented **Data sources**: `cisco:ise:auth`, `radius:auth`. **App/TA** (typical add-on context): `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nac; **sourcetype**: cisco:ise:auth, radius:auth. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nac, sourcetype=\"cisco:ise:auth\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Filters the current rows with `where match(lower(message),\"(?i)fail|reject|denied\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by eap_method, failure_reason, nas_ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=failure\n  by Authentication.dest Authentication.src span=1h\n| where count > 10\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**802.1X Authentication Failure Analysis** — Breaks down 802.1X/EAP failures by method, failure reason, and NAS to pinpoint certificate rollout issues vs brute-force vs misconfigured supplicants.\n\nDocumented **Data sources**: `cisco:ise:auth`, `radius:auth`. **App/TA** (typical add-on context): `Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (failures by EAP method), Table (top NAS + reason), Line chart (daily failure rate).",
   "visualization": "Bar chart (failures by EAP method), Table (top NAS + reason), Line chart (daily failure rate).",
@@ -52,5 +46,12 @@
     "cisco_ios",
     "cisco_ise"
   ],
-  "hardware": "Cisco ISE, switches, WLCs"
+  "hardware": "Cisco ISE, switches, WLCs",
+  "premiumApps": [
+    {
+      "name": "Splunk User Behavior Analytics",
+      "displayName": "Splunk User Behavior Analytics",
+      "note": "UBA"
+    }
+  ]
 }

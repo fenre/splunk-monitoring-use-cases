@@ -1,10 +1,10 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.6.52",
-  "subcategory": "22.6#1",
   "title": "ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability",
   "criticality": "high",
   "difficulty": "intermediate",
+  "subcategory": "22.6#1",
   "monitoringType": [
     "Compliance",
     "Security"
@@ -60,10 +60,6 @@
   },
   "dataSources": "`index=notable` (ES notable events); `index=soar` sourcetype=phantom:incident (classification decisions).",
   "app": "Splunk Enterprise Security, Splunk SOAR",
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "search `notable` severity IN (\"high\",\"critical\") earliest=-7d\n| rename event_id AS alert_id\n| join type=outer alert_id\n  [search index=soar sourcetype=phantom:incident earliest=-7d\n   | stats latest(_time) AS classified_at latest(decision) AS decision BY alert_id]\n| eval decision_sla_met=if(classified_at<=_time+3600,1,0)\n| where isnull(decision) OR decision_sla_met=0\n| table alert_id severity _time classified_at decision decision_sla_met",
   "cimModels": [
     "Alerts",
@@ -71,6 +67,7 @@
   ],
   "description": "Measures whether every high/critical SIEM alert received a classification decision (incident / false-positive / suppressed) within the 1h SLA implied by A.5.25.",
   "value": "Gives the Audit Committee a single number: 'classification SLA adherence %'. Analysts know their backlog, auditors see the proof.",
+  "grandmaExplanation": "Gives the Audit Committee a single number: 'classification service promises adherence %' — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Ensure SOAR writes classification decisions with alert_id tag; (2) schedule UC every 10m; (3) SLA miss escalates to shift lead; (4) daily SOC report of adherence %; (5) monthly to Audit Committee.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security, Splunk SOAR.\n• Ensure the following data sources are available: `index=notable` (ES notable events); `index=soar` sourcetype=phantom:incident (classification decisions)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ensure SOAR writes classification decisions with alert_id tag; (2) schedule UC every 10m; (3) SLA miss escalates to shift lead; (4) daily SOC report of adherence %; (5) monthly to Audit Committee.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nsearch `notable` severity IN (\"high\",\"critical\") earliest=-7d\n| rename event_id AS alert_id\n| join type=outer alert_id\n  [search index=soar sourcetype=phantom:incident earliest=-7d\n   | stats latest(_time) AS classified_at latest(decision) AS decision BY alert_id]\n| eval decision_sla_met=if(classified_at<=_time+3600,1,0)\n| where isnull(decision) OR decision_sla_met=0\n| table alert_id severity _time classified_at decision decision_sla_met\n```\n\nUnderstanding this SPL\n\n**ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability** — Gives the Audit Committee a single number: 'classification SLA adherence %'. Analysts know their backlog, auditors see the proof.\n\nDocumented **Data sources**: `index=notable` (ES notable events); `index=soar` sourcetype=phantom:incident (classification decisions). **App/TA** (typical add-on context): Splunk Enterprise Security, Splunk SOAR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Applies an explicit `search` filter to narrow the current result set.\n• Renames fields with `rename` for clarity or joins.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **decision_sla_met** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(decision) OR decision_sla_met=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ISO/IEC 27001:2022 Annex A.5.25 — Event classification decisions: SIEM-to-incident triage traceability**): table alert_id severity _time classified_at decision decision_sla_met\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Funnel from total alerts → classified → on-time, line chart of adherence %, single value 'open unclassified alerts'.",
   "visualization": "Funnel from total alerts → classified → on-time, line chart of adherence %, single value 'open unclassified alerts'.",
@@ -118,5 +115,9 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ]
 }

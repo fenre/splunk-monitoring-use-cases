@@ -316,6 +316,7 @@ _LEGACY_STRING_DEFAULTS = (
     "c", "f", "v", "t", "d", "q", "m", "z",
     "kfp", "refs", "dtype", "sdomain", "reqf", "md", "script",
     "premium", "hw", "dma", "schema", "status", "reviewed", "sver", "rby",
+    "ge",  # grandmaExplanation — plain-language summary for non-technical view
 )
 _LEGACY_LIST_DEFAULTS = ("mitre",)
 
@@ -418,6 +419,7 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
         ("hardware", "hw"),
         ("telcoUseCase", "tuc"),
         ("wave", "wv"),
+        ("grandmaExplanation", "ge"),
     )
     for canonical_key, short_key in str_passthroughs:
         v = canonical.get(canonical_key)

@@ -1,10 +1,10 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.3.42",
-  "subcategory": "22.3#1",
   "title": "DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services",
   "criticality": "high",
   "difficulty": "intermediate",
+  "subcategory": "22.3#1",
   "monitoringType": [
     "Compliance",
     "Availability",
@@ -52,9 +52,6 @@
   },
   "dataSources": "`index=endpoint` sourcetype=WinEventLog:Security / sourcetype=linux:audit; `index=cmdb` sourcetype=cmdb:ci_server; authoritative financial-service CMDB view `financial_services_servers.csv`.",
   "app": "Splunk Enterprise Security, Splunk Add-on for Microsoft Windows, Splunk Add-on for Unix and Linux",
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| tstats summariesonly=t count FROM datamodel=Authentication WHERE Authentication.app IN (\"payments\",\"trading\",\"settlement\") BY Authentication.dest\n| rename Authentication.dest AS hostname\n| lookup financial_services_servers.csv hostname OUTPUT asset_id owner team\n| where isnull(asset_id)\n| eval inventory_gap_reason=\"not in ICT asset inventory\"\n| table hostname inventory_gap_reason count",
   "cimModels": [
     "Authentication",
@@ -62,6 +59,7 @@
   ],
   "description": "Uses the CIM Authentication data model to find hosts that have been seen handling financial-service traffic but are absent from the official ICT asset CMDB. Under DORA Art.7 the financial entity must maintain 'up-to-date inventories' of ICT systems; a shadow endpoint with access to payments/trading/settlement is a direct Art.7 non-conformance.",
   "value": "Turns the quarterly 'asset inventory reconciliation' into a continuous signal, closing the time window during which an unmanaged host can process financial transactions unnoticed.",
+  "grandmaExplanation": "Turns the quarterly 'asset inventory reconciliation' into a continuous signal, closing the time window during which an unmanaged host can process financial transactions unnoticed — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Onboard auth data to CIM Authentication DM; (2) maintain financial_services_servers.csv from the ICT asset register nightly; (3) schedule UC hourly; (4) hit opens a ServiceNow CMDB task to register the host; (5) SLA: resolve within 72h or isolate; (6) exclude build/imaging windows with an effective-from allowlist.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security, Splunk Add-on for Microsoft Windows, Splunk Add-on for Unix and Linux.\n• Ensure the following data sources are available: `index=endpoint` sourcetype=WinEventLog:Security / sourcetype=linux:audit; `index=cmdb` sourcetype=cmdb:ci_server; authoritative financial-service CMDB view `financial_services_servers.csv`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Onboard auth data to CIM Authentication DM; (2) maintain financial_services_servers.csv from the ICT asset register nightly; (3) schedule UC hourly; (4) hit opens a ServiceNow CMDB task to register the host; (5) SLA: resolve within 72h or isolate; (6) exclude build/imaging windows with an effective-from allowlist.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats summariesonly=t count FROM datamodel=Authentication WHERE Authentication.app IN (\"payments\",\"trading\",\"settlement\") BY Authentication.dest\n| rename Authentication.dest AS hostname\n| lookup financial_services_servers.csv hostname OUTPUT asset_id owner team\n| where isnull(asset_id)\n| eval inventory_gap_reason=\"not in ICT asset inventory\"\n| table hostname inventory_gap_reason count\n```\n\nUnderstanding this SPL\n\n**DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services** — Turns the quarterly 'asset inventory reconciliation' into a continuous signal, closing the time window during which an unmanaged host can process financial transactions unnoticed.\n\nDocumented **Data sources**: `index=endpoint` sourcetype=WinEventLog:Security / sourcetype=linux:audit; `index=cmdb` sourcetype=cmdb:ci_server; authoritative financial-service CMDB view `financial_services_servers.csv`. **App/TA** (typical add-on context): Splunk Enterprise Security, Splunk Add-on for Microsoft Windows, Splunk Add-on for Unix and Linux. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication` — enable acceleration for that model.\n• Renames fields with `rename` for clarity or joins.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(asset_id)` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **inventory_gap_reason** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **DORA Art.7 — ICT systems inventory completeness: unmanaged endpoints attached to financial services**): table hostname inventory_gap_reason count\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart of inventory gaps by financial service, table of hosts with count, single value 'hosts in gap'.",
   "visualization": "Bar chart of inventory gaps by financial service, table of hosts with count, single value 'hosts in gap'.",
@@ -107,5 +105,8 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "N/A"
+  "reviewer": "N/A",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ]
 }

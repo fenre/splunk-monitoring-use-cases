@@ -12,15 +12,13 @@
   "splunkPillar": "Security",
   "dataSources": "`index=ot` device syslog `sourcetype=\"ics:device\"`, vendor-specific firmware events",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
-  "premiumApps": [
-    "Splunk OT Security Add-on"
-  ],
   "spl": "index=ot sourcetype=\"ics:device\"\n| where match(event_type, \"(?i)firmware|image|flash|upgrade\")\n| lookup ot_firmware_change_auth device_id user OUTPUT change_ticket\n| where isnull(change_ticket)\n| stats earliest(_time) as first_seen values(old_version) as from_v values(new_version) as to_v by device_id, user, src",
   "cimModels": [
     "N/A"
   ],
   "description": "Surfaces firmware or OS image uploads to controllers and I/O modules (T0839), protecting integrity of safety and control logic.",
   "value": "Surfaces firmware or OS image uploads to controllers and I/O modules (T0839), protecting integrity of safety and control logic.",
+  "grandmaExplanation": "Surfaces firmware or OS image uploads to controllers and I/O modules, protecting integrity of safety and control logic — so we know when protection is off, out of date, or bypassed.",
   "implementation": "Integrate with Splunk ES and OT Security Add-on change systems. Require ticket correlation for production. Escalate unsigned or off-shift uploads as T0839 incidents.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OT Security Add-on for Splunk (Splunkbase 5151).\n• Ensure the following data sources are available: `index=ot` device syslog `sourcetype=\"ics:device\"`, vendor-specific firmware events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIntegrate with Splunk ES and OT Security Add-on change systems. Require ticket correlation for production. Escalate unsigned or off-shift uploads as T0839 incidents.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"ics:device\"\n| where match(event_type, \"(?i)firmware|image|flash|upgrade\")\n| lookup ot_firmware_change_auth device_id user OUTPUT change_ticket\n| where isnull(change_ticket)\n| stats earliest(_time) as first_seen values(old_version) as from_v values(new_version) as to_v by device_id, user, src\n```\n\nUnderstanding this SPL\n\n**Unauthorized Firmware Upload to Field Device** — Surfaces firmware or OS image uploads to controllers and I/O modules (T0839), protecting integrity of safety and control logic.\n\nDocumented **Data sources**: `index=ot` device syslog `sourcetype=\"ics:device\"`, vendor-specific firmware events. **App/TA** (typical add-on context): OT Security Add-on for Splunk (Splunkbase 5151). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: ics:device. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"ics:device\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(event_type, \"(?i)firmware|image|flash|upgrade\")` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(change_ticket)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by device_id, user, src** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline of firmware events, Table of devices with version deltas, Single value (unapproved uploads).",
   "visualization": "Timeline of firmware events, Table of devices with version deltas, Single value (unapproved uploads).",
@@ -30,5 +28,8 @@
       "url": "https://splunkbase.splunk.com/app/5151"
     }
   ],
-  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity."
+  "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
+  "premiumApps": [
+    "Splunk OT Security Add-on"
+  ]
 }

@@ -791,6 +791,13 @@ html.dark .mitre-map-tactic { background: #373C42; }
 .nt-area-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .nt-area-links a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 12px; font-weight: 500; color: var(--cisco-blue); background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-sm); text-decoration: none; }
 .nt-area-links a:hover { background: var(--bg-surface); text-decoration: underline; }
+.nt-area-ucs { list-style: disc; margin-left: 18px; font-size: 13px; color: var(--text-secondary); }
+.nt-area-ucs li.nt-area-uc { cursor: pointer; padding: 4px 8px; margin: 2px -8px; border-radius: var(--radius-sm); transition: background 0.12s; }
+.nt-area-ucs li.nt-area-uc:hover { background: var(--bg-card); color: var(--text-primary); }
+.nt-area-ucs li.nt-area-uc:focus { outline: 2px solid var(--cisco-blue); outline-offset: 2px; }
+.nt-area-ucs li.nt-area-uc strong { color: var(--cisco-blue); font-weight: 600; margin-right: 4px; }
+.nt-area-ucs li.nt-area-uc-disabled { cursor: default; opacity: 0.65; }
+.nt-area-ucs li.nt-area-uc-disabled:hover { background: transparent; color: var(--text-secondary); }
 
 @media (max-width: 1024px) {
   .c-kpi-strip { grid-template-columns: repeat(2, 1fr); }
@@ -822,6 +829,29 @@ body.non-technical-view .hero-domains,
 body.non-technical-view .ov-tab-bar,
 body.non-technical-view .c-active-tags,
 body.non-technical-view .c-kpi-strip { display: none !important; }
+
+/* ─── Non-technical plain-language (grandmaExplanation) ─── */
+.c-panel-ge { display: none; margin: 0 0 14px; padding: 14px 16px; border-left: 3px solid var(--cisco-blue); background: var(--bg-card); border-radius: 6px; }
+.c-panel-ge-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+.c-panel-ge-text { font-size: 15px; line-height: 1.55; color: var(--text-primary); }
+body.non-technical-view .c-panel-ge { display: block; }
+/* In Technical mode the tech wrapper behaves like a plain container: hide the
+   summary so it is not clickable, and always render the body. In Non-technical
+   mode show the disclosure so readers can opt into the technical detail. */
+.c-panel-tech { margin: 12px 0; }
+.c-panel-tech > summary { list-style: none; cursor: pointer; padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--cisco-blue); background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; }
+.c-panel-tech > summary::-webkit-details-marker { display: none; }
+.c-panel-tech > summary::before { content: '▸'; display: inline-block; margin-right: 8px; transition: transform .15s ease; }
+.c-panel-tech[open] > summary::before { transform: rotate(90deg); }
+.c-panel-tech-body { padding-top: 8px; }
+body:not(.non-technical-view) .c-panel-tech > summary { display: none; }
+body:not(.non-technical-view) .c-panel-tech > .c-panel-tech-body { padding-top: 0; }
+body.non-technical-view .c-panel-ge + .c-panel-meta { margin-top: 4px; }
+/* Plain-language per UC card text (hidden in Technical mode). */
+.uc-card-ge { display: none; margin: 6px 0 0; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+body.non-technical-view .uc-card-ge { display: block; }
+body.non-technical-view .uc-card-val,
+body.non-technical-view .uc-card-tags { display: none; }
 
 /* ─── UC Selection checkboxes ─── */
 .uc-select-cb { position: absolute; top: 8px; right: 8px; z-index: 2; cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -1136,6 +1166,20 @@ html.dark .help-section-title { color: var(--cisco-teal); }
     <div class="c-modal-hd" id="rn-title">Release Notes</div>
     <div class="c-modal-bd" id="rn-body">
 <!-- BEGIN RELEASE_NOTES -->
+    <div class="rn-version"><span class="rn-version-tag minor">7.1</span><span class="rn-version-date">April 20, 2026</span></div>
+    <div class="rn-section">
+      <h3 class="rn-section-title">Non-technical mode: plain-language per UC</h3>
+      <ul class="rn-list">
+        <li><strong>Every use case now carries a <code>grandmaExplanation</code>.</strong> A new authored field on each UC sidecar (<code>content/cat-&lt;n&gt;-&lt;slug&gt;/UC-&lt;id&gt;.json</code>, schema v1.5.0) holds a short "explain it to my grandma" sentence that strips Splunk / SPL / CIM / MITRE / regulatory acronyms and uses a plain "we" voice. The field is required in the schema (20&amp;ndash;400 chars) and populated for all 6,447 sidecars; markdown-only UCs get a category-scoped runtime fallback from <code>build.py</code> so every UC in <code>catalog.json</code> and <code>data.js</code> has a non-empty <code>ge</code>.</li>
+        <li><strong>Generator + CI guard.</strong> <code>scripts/generate_grandma_explanations.py</code> is the single source of truth: it reads each sidecar's <code>title</code>, <code>value</code> and <code>description</code>, rewrites them with a deterministic jargon-stripping / voice-rewriting pass, and writes the result back. <code>--check</code> mode regenerates in memory and diffs against disk, wired into <code>validate.yml</code> so a forgotten regeneration or a drift between a hand-edited sidecar and the generator rules fails CI.</li>
+        <li><strong>UC detail panel in Non-technical mode.</strong> The panel now leads with an "In plain language" card rendered from <code>uc.ge</code>, and every technical section (MITRE, Regulations, CIM, App / TA, Data sources, Equipment, Required fields, Schema, SPL, tstats, Script examples, Implementation, Detailed implementation, Known false positives, References, Data model acceleration) collapses behind a single "Show technical details" disclosure. Technical mode renders the disclosure transparently, preserving the existing layout.</li>
+        <li><strong>UC cards, search results, recently-added.</strong> <code>renderUCCard</code> now emits a <code>.uc-card-ge</code> paragraph that is visible only under <code>body.non-technical-view</code>. The non-technical card focuses on title plus the plain-language text; value, equipment, CIM and tag chips are hidden to match the audience.</li>
+        <li><strong>Sidebar subcategory stays in Non-technical mode.</strong> Clicking a subcategory in the sidebar no longer drops the reader into the technical category grid. A new <code>renderNonTechnicalSubcategory</code> renders the matching <code>nt-area</code> card (including <code>whatItIs</code>, <code>whoItAffects</code>, <code>splunkValue</code>, primer and evidence-pack links on cat-22) followed by the full subcategory UC list, with each entry showing <code>uc.ge</code>.</li>
+        <li><strong>Clickable plain-language UC rows.</strong> The UC entries inside <code>non-technical-view.js</code> area lists are now clickable rows that open the panel, and they prefer the live <code>uc.ge</code> over any curated <code>why</code> copy so the per-UC text stays consistent with the sidecar.</li>
+        <li><strong>Docs and rules.</strong> <code>.cursor/rules/non-technical-sync.mdc</code> documents the new field, the rendering contract, and the <code>--check</code> CI guard. The schema changelog adds a v1.5.0 entry; the existing authoring rules for curated <code>why</code> copy remain unchanged.</li>
+      </ul>
+    </div>
+
     <div class="rn-version"><span class="rn-version-tag major">7.0</span><span class="rn-version-date">April 19, 2026</span></div>
     <div class="rn-section">
       <h3 class="rn-section-title">Per-UC content architecture</h3>
@@ -3779,6 +3823,7 @@ function renderUCCard(uc) {
   if (uc.wv) html += waveBadge(uc.wv);
   html += '</div>';
   if (uc.v) html += '<p class="uc-card-val">' + esc(stripMd(uc.v)) + '</p>';
+  if (uc.ge) html += '<p class="uc-card-ge">' + esc(uc.ge) + '</p>';
   var ta = (uc.t || '').replace(/`/g, '');
   var cimModels = Array.isArray(uc.a) ? uc.a : null;
   var mtypes = Array.isArray(uc.mtype) ? uc.mtype : null;
@@ -4299,9 +4344,20 @@ function renderSubcategoryView() {
 function goToSubcat(catId, scId) {
   currentCat = catId;
   currentSubcat = scId;
-  catShowAllUCs = true;
   currentSearch = '';
-  document.getElementById('search-input').value = '';
+  var si = document.getElementById('search-input');
+  if (si) si.value = '';
+  if (nonTechnicalView) {
+    // Stay inside the plain-language view instead of dropping into the
+    // technical category grid.
+    catShowAllUCs = false;
+    buildSidebar();
+    renderNonTechnicalSubcategory(catId, scId);
+    updateHash(false);
+    closeMobileSidebar();
+    return;
+  }
+  catShowAllUCs = true;
   buildSidebar();
   renderCategory();
   updateHash(false);
@@ -4445,7 +4501,16 @@ function ntVizMockups(vizStr) {
 }
 function fillPanelBody(e) {
   var uc = e.uc;
-  var html = '<div class="c-panel-meta">';
+  var html = '';
+  // Plain-language explanation shown prominently in Non-technical mode.
+  // Hidden in Technical mode via CSS (see .c-panel-ge rules).
+  if (uc.ge) {
+    html += '<div class="c-panel-ge" role="note" aria-label="Plain-language summary">';
+    html += '<div class="c-panel-ge-label">In plain language</div>';
+    html += '<div class="c-panel-ge-text">' + esc(uc.ge) + '</div>';
+    html += '</div>';
+  }
+  html += '<div class="c-panel-meta">';
   html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Criticality</div>' + critBadge(uc.c) + '</div>';
   html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Difficulty</div>' + diffBadge(uc.f) + '</div>';
   if (uc.wv) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Wave</div>' + waveBadge(uc.wv) + '</div>';
@@ -4465,28 +4530,6 @@ function fillPanelBody(e) {
   if (uc.dtype) html += '<div class="c-panel-meta-item"><div class="c-panel-meta-label">Detection type</div><div>' + esc(uc.dtype) + '</div></div>';
   html += '</div>';
 
-  if (uc.mitre && uc.mitre.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">MITRE ATT&CK</div><div class="c-panel-section-body">';
-    uc.mitre.forEach(function(tid) {
-      html += '<button type="button" class="linkish" onclick="filterByMitreId(\'' + esc(tid) + '\')">' + esc(tid) + '</button> ';
-    });
-    html += '</div></div>';
-  }
-  if (uc.regs && uc.regs.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Regulations</div><div class="c-panel-section-body">';
-    uc.regs.forEach(function(r) {
-      html += '<button type="button" class="linkish" onclick="filterByRegEnc(\'' + encodeURIComponent(r).replace(/'/g, '%27') + '\')">' + esc(r) + '</button> ';
-    });
-    html += '</div></div>';
-  }
-  if (uc.a && uc.a.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">CIM models</div><div class="c-panel-section-body">';
-    uc.a.forEach(function(m) {
-      var u = cimDocUrl(m);
-      html += '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(m) + '</a> ';
-    });
-    html += '</div></div>';
-  }
   if (uc.v) html += '<div class="c-panel-section"><div class="c-panel-section-title">Value</div><div class="c-panel-section-body">' + esc(stripMd(uc.v)) + '</div></div>';
 
   if (uc.pre && uc.pre.length) {
@@ -4503,20 +4546,49 @@ function fillPanelBody(e) {
     html += '</div></div>';
   }
 
-  html += '<div class="c-panel-section"><div class="c-panel-section-title">App / TA</div><div class="c-panel-section-body">';
+  // Technical sections live inside a single <details> so Non-technical mode
+  // can collapse them behind a single "Show technical details" disclosure
+  // without hiding them entirely. In Technical mode CSS neutralises the
+  // <details>/<summary> styling so it behaves like a transparent wrapper.
+  var tech = '';
+
+  if (uc.mitre && uc.mitre.length) {
+    tech += '<div class="c-panel-section"><div class="c-panel-section-title">MITRE ATT&CK</div><div class="c-panel-section-body">';
+    uc.mitre.forEach(function(tid) {
+      tech += '<button type="button" class="linkish" onclick="filterByMitreId(\'' + esc(tid) + '\')">' + esc(tid) + '</button> ';
+    });
+    tech += '</div></div>';
+  }
+  if (uc.regs && uc.regs.length) {
+    tech += '<div class="c-panel-section"><div class="c-panel-section-title">Regulations</div><div class="c-panel-section-body">';
+    uc.regs.forEach(function(r) {
+      tech += '<button type="button" class="linkish" onclick="filterByRegEnc(\'' + encodeURIComponent(r).replace(/'/g, '%27') + '\')">' + esc(r) + '</button> ';
+    });
+    tech += '</div></div>';
+  }
+  if (uc.a && uc.a.length) {
+    tech += '<div class="c-panel-section"><div class="c-panel-section-title">CIM models</div><div class="c-panel-section-body">';
+    uc.a.forEach(function(m) {
+      var u = cimDocUrl(m);
+      tech += '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(m) + '</a> ';
+    });
+    tech += '</div></div>';
+  }
+
+  tech += '<div class="c-panel-section"><div class="c-panel-section-title">App / TA</div><div class="c-panel-section-body">';
   var taText = uc.t ? stripMd(uc.t) : '';
   if (uc.ta_link && uc.ta_link.url) {
-    html += '<a href="' + esc(uc.ta_link.url) + '" target="_blank" rel="noopener" class="splunk-app-link ta-card">';
-    html += '<span class="splunk-ta-icon">' + si('data') + '</span>';
-    html += '<span class="splunk-ta-info"><span class="splunk-ta-label">Technology Add-on</span>';
-    html += '<strong>' + esc(uc.ta_link.name || taText) + '</strong>';
-    if (taText && uc.ta_link.name) html += '<span class="splunk-app-desc">' + esc(taText) + '</span>';
-    html += '</span><span class="splunk-app-arrow">' + si('external') + '</span></a>';
+    tech += '<a href="' + esc(uc.ta_link.url) + '" target="_blank" rel="noopener" class="splunk-app-link ta-card">';
+    tech += '<span class="splunk-ta-icon">' + si('data') + '</span>';
+    tech += '<span class="splunk-ta-info"><span class="splunk-ta-label">Technology Add-on</span>';
+    tech += '<strong>' + esc(uc.ta_link.name || taText) + '</strong>';
+    if (taText && uc.ta_link.name) tech += '<span class="splunk-app-desc">' + esc(taText) + '</span>';
+    tech += '</span><span class="splunk-app-arrow">' + si('external') + '</span></a>';
   } else if (taText) {
-    html += '<div class="splunk-ta-card">';
-    html += '<span class="splunk-ta-icon">' + si('data') + '</span>';
-    html += '<span class="splunk-ta-info"><span class="splunk-ta-label">Data Input / Add-on</span>';
-    html += '<strong>' + esc(taText) + '</strong></span></div>';
+    tech += '<div class="splunk-ta-card">';
+    tech += '<span class="splunk-ta-icon">' + si('data') + '</span>';
+    tech += '<span class="splunk-ta-info"><span class="splunk-ta-label">Data Input / Add-on</span>';
+    tech += '<strong>' + esc(taText) + '</strong></span></div>';
   }
   if (uc.sapp && uc.sapp.length) {
     uc.sapp.forEach(function(app) {
@@ -4524,54 +4596,62 @@ function fillPanelBody(e) {
       var name = typeof app === 'object' && app && app.name ? app.name : ('Splunkbase #' + id);
       var u = typeof app === 'object' && app && app.url ? app.url : ('https://splunkbase.splunk.com/app/' + id);
       var desc = typeof app === 'object' && app && app.desc ? app.desc : '';
-      html += '<a href="' + esc(u) + '" target="_blank" rel="noopener" class="splunk-app-link app-card">';
-      html += '<span class="splunk-app-icon">' + si('monitorChart') + '</span>';
-      html += '<span class="splunk-app-info"><span class="splunk-app-label">Splunkbase App</span>';
-      html += '<strong>' + esc(name) + '</strong>';
-      if (desc) html += '<span class="splunk-app-desc">' + esc(desc) + '</span>';
-      html += '</span><span class="splunk-app-arrow">' + si('external') + '</span></a>';
+      tech += '<a href="' + esc(u) + '" target="_blank" rel="noopener" class="splunk-app-link app-card">';
+      tech += '<span class="splunk-app-icon">' + si('monitorChart') + '</span>';
+      tech += '<span class="splunk-app-info"><span class="splunk-app-label">Splunkbase App</span>';
+      tech += '<strong>' + esc(name) + '</strong>';
+      if (desc) tech += '<span class="splunk-app-desc">' + esc(desc) + '</span>';
+      tech += '</span><span class="splunk-app-arrow">' + si('external') + '</span></a>';
       if (typeof app === 'object' && Array.isArray(app.predecessor) && app.predecessor.length) {
-        html += '<div class="predecessor-note-box">Replaces ';
+        tech += '<div class="predecessor-note-box">Replaces ';
         app.predecessor.forEach(function(p, pi) {
-          if (pi > 0) html += ', ';
+          if (pi > 0) tech += ', ';
           var pUrl = typeof p === 'object' && p.url ? p.url : '#';
           var pName = typeof p === 'object' && p.name ? p.name : String(p);
-          html += '<a href="' + esc(pUrl) + '" target="_blank" rel="noopener">' + esc(pName) + '</a>';
+          tech += '<a href="' + esc(pUrl) + '" target="_blank" rel="noopener">' + esc(pName) + '</a>';
         });
-        html += ' (archived on Splunkbase). The underlying TA/Add-on still works for data collection.</div>';
+        tech += ' (archived on Splunkbase). The underlying TA/Add-on still works for data collection.</div>';
       }
     });
   }
-  html += '</div></div>';
+  tech += '</div></div>';
 
-  if (uc.d) html += '<div class="c-panel-section"><div class="c-panel-section-title">Data sources</div><div class="c-panel-section-body"><code>' + esc(stripMd(uc.d)) + '</code></div></div>';
+  if (uc.d) tech += '<div class="c-panel-section"><div class="c-panel-section-title">Data sources</div><div class="c-panel-section-body"><code>' + esc(stripMd(uc.d)) + '</code></div></div>';
   if (uc.e && uc.e.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Equipment</div><div class="c-panel-section-body">';
-    uc.e.forEach(function(eid) { var eq = _eqById[eid]; html += esc(eq ? eq.label : eid) + '<br>'; });
-    html += '</div></div>';
+    tech += '<div class="c-panel-section"><div class="c-panel-section-title">Equipment</div><div class="c-panel-section-body">';
+    uc.e.forEach(function(eid) { var eq = _eqById[eid]; tech += esc(eq ? eq.label : eid) + '<br>'; });
+    tech += '</div></div>';
   }
   if (uc.em && uc.em.length) {
-    html += '<div class="c-panel-section"><div class="c-panel-section-title">Equipment models</div><div class="c-panel-section-body">';
-    uc.em.forEach(function(mid) { html += esc(mid) + '<br>'; });
-    html += '</div></div>';
+    tech += '<div class="c-panel-section"><div class="c-panel-section-title">Equipment models</div><div class="c-panel-section-body">';
+    uc.em.forEach(function(mid) { tech += esc(mid) + '<br>'; });
+    tech += '</div></div>';
   }
-  if (uc.premium) html += '<div class="c-panel-section"><div class="c-panel-section-title">Premium Apps</div><div class="c-panel-section-body">' + esc(uc.premium) + '</div></div>';
-  if (uc.reqf) html += '<div class="c-panel-section"><div class="c-panel-section-title">Required fields</div><div class="c-panel-section-body"><code>' + esc(uc.reqf) + '</code></div></div>';
-  if (uc.schema) html += '<div class="c-panel-section"><div class="c-panel-section-title">Schema</div><div class="c-panel-section-body"><code>' + esc(uc.schema) + '</code></div></div>';
+  if (uc.premium) tech += '<div class="c-panel-section"><div class="c-panel-section-title">Premium Apps</div><div class="c-panel-section-body">' + esc(uc.premium) + '</div></div>';
+  if (uc.reqf) tech += '<div class="c-panel-section"><div class="c-panel-section-title">Required fields</div><div class="c-panel-section-body"><code>' + esc(uc.reqf) + '</code></div></div>';
+  if (uc.schema) tech += '<div class="c-panel-section"><div class="c-panel-section-title">Schema</div><div class="c-panel-section-body"><code>' + esc(uc.schema) + '</code></div></div>';
 
   function copyBlock(label, text, id) {
     if (!text) return '';
     return '<div class="c-panel-section"><div class="c-panel-section-title">' + label + '</div><div class="code-wrap"><pre class="c-spl-block" id="' + id + '">' + esc(text) + '</pre><button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button></div></div>';
   }
-  html += copyBlock('SPL query', uc.q, 'copy-q');
-  html += copyBlock('tstats query', uc.qs, 'copy-qs');
-  html += copyBlock('Script example', uc.script, 'copy-script');
+  tech += copyBlock('SPL query', uc.q, 'copy-q');
+  tech += copyBlock('tstats query', uc.qs, 'copy-qs');
+  tech += copyBlock('Script example', uc.script, 'copy-script');
 
-  if (uc.m) html += '<div class="c-panel-section"><div class="c-panel-section-title">Implementation</div><div class="c-panel-section-body">' + esc(stripMd(uc.m)) + '</div></div>';
-  if (uc.md) html += '<details class="c-panel-details"><summary>Detailed implementation</summary><div class="c-panel-section-body">' + renderDetailBody(uc.md) + '</div></details>';
-  if (uc.kfp) html += '<div class="c-panel-section"><div class="c-panel-section-title">Known false positives</div><div class="c-panel-section-body">' + esc(stripMd(uc.kfp)) + '</div></div>';
-  if (uc.refs) html += '<div class="c-panel-section"><div class="c-panel-section-title">References</div><div class="c-panel-section-body">' + esc(stripMd(uc.refs)) + '</div></div>';
-  if (uc.dma) html += '<div class="c-panel-section"><div class="c-panel-section-title">Data model acceleration</div><div class="c-panel-section-body">' + esc(stripMd(uc.dma)) + '</div></div>';
+  if (uc.m) tech += '<div class="c-panel-section"><div class="c-panel-section-title">Implementation</div><div class="c-panel-section-body">' + esc(stripMd(uc.m)) + '</div></div>';
+  if (uc.md) tech += '<details class="c-panel-details"><summary>Detailed implementation</summary><div class="c-panel-section-body">' + renderDetailBody(uc.md) + '</div></details>';
+  if (uc.kfp) tech += '<div class="c-panel-section"><div class="c-panel-section-title">Known false positives</div><div class="c-panel-section-body">' + esc(stripMd(uc.kfp)) + '</div></div>';
+  if (uc.refs) tech += '<div class="c-panel-section"><div class="c-panel-section-title">References</div><div class="c-panel-section-body">' + esc(stripMd(uc.refs)) + '</div></div>';
+  if (uc.dma) tech += '<div class="c-panel-section"><div class="c-panel-section-title">Data model acceleration</div><div class="c-panel-section-body">' + esc(stripMd(uc.dma)) + '</div></div>';
+
+  if (tech) {
+    var techOpen = nonTechnicalView ? '' : ' open';
+    html += '<details class="c-panel-tech"' + techOpen + '>';
+    html += '<summary class="c-panel-tech-summary">Show technical details</summary>';
+    html += '<div class="c-panel-tech-body">' + tech + '</div>';
+    html += '</details>';
+  }
   if (uc.z) {
     html += '<div class="c-panel-section"><div class="c-panel-section-title">Visualization</div><div class="c-panel-section-body">' + esc(stripMd(uc.z)) + '</div>';
     var hasScreenshots = false;
@@ -5285,11 +5365,11 @@ function restoreFromHash() {
     if (cm[2]) {
       currentCat = catId;
       currentSubcat = cm[2];
-      catShowAllUCs = true;
+      catShowAllUCs = !nonTechnicalView;
       currentSearch = '';
       document.getElementById('search-input').value = '';
       reRender();
-      setTimeout(function() { scrollToSubcat(cm[2]); }, 80);
+      if (!nonTechnicalView) setTimeout(function() { scrollToSubcat(cm[2]); }, 80);
     } else {
       selectCat(catId, true);
     }
@@ -5347,6 +5427,13 @@ function setNonTechnicalView(on) {
   if (bT) { bT.classList.toggle('active', !on); bT.setAttribute('aria-pressed', String(!on)); }
   if (bN) { bN.classList.toggle('active', on); bN.setAttribute('aria-pressed', String(on)); }
   document.querySelectorAll('.technical-only').forEach(function(el) { el.style.display = on ? 'none' : ''; });
+  // When the user flips the toggle while a UC panel is open, collapse or
+  // expand the technical-details disclosure so the panel matches the mode
+  // without requiring a re-render.
+  document.querySelectorAll('.c-panel-tech').forEach(function(el) {
+    if (on) el.removeAttribute('open');
+    else el.setAttribute('open', '');
+  });
   reRender();
 }
 
@@ -5397,6 +5484,30 @@ function ntResolveLink(relativePath) {
   }
   return NTV_REPO_BASE + s;
 }
+// Render an individual UC row inside a non-technical "area" list. Prefers
+// the per-UC grandmaExplanation from the live catalog (uc.ge) over any
+// curated "why" copy in non-technical-view.js, and opens the panel on click.
+function ntAreaUcRow(u) {
+  var ucId = String(u.id || '').trim();
+  var entry = ucId ? ucIndex[ucId] : null;
+  var live = entry && entry.uc ? entry.uc : null;
+  var text = '';
+  if (live && live.ge) text = live.ge;
+  else if (u.why) text = u.why;
+  else if (live && live.v) text = stripMd(live.v);
+  var title = live ? live.n : '';
+  var attrs = ' tabindex="0" role="button"';
+  if (live) {
+    attrs += ' onclick="openUCById(\'' + esc(ucId) + '\')"';
+    attrs += ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openUCById(\'' + esc(ucId) + '\')}"';
+    attrs += ' title="' + esc(title || ('UC-' + ucId)) + '"';
+  } else {
+    attrs += ' aria-disabled="true"';
+  }
+  var cls = 'nt-area-uc' + (live ? '' : ' nt-area-uc-disabled');
+  return '<li class="' + cls + '"' + attrs + '><strong>UC-' + esc(ucId) + '</strong> &mdash; ' + esc(text) + '</li>';
+}
+
 function renderNonTechnicalCategory(catId) {
   window.scrollTo(0, 0);
   var cat = getCatById(catId);
@@ -5421,13 +5532,70 @@ function renderNonTechnicalCategory(catId) {
       if (ar.evidencePack)  html += '<a href="' + esc(ntResolveLink(ar.evidencePack)) + '" target="_blank" rel="noopener noreferrer" title="Open the auditor evidence pack in a new tab">Evidence pack &rarr;</a>';
       html += '</div>';
     }
-    html += '<ul>';
-    (ar.ucs || []).forEach(function(u) {
-      html += '<li><strong>' + esc(u.id) + '</strong> — ' + esc(u.why || '') + '</li>';
-    });
+    html += '<ul class="nt-area-ucs">';
+    (ar.ucs || []).forEach(function(u) { html += ntAreaUcRow(u); });
     html += '</ul></div>';
   });
   html += '</div>';
+  main.innerHTML = html;
+  document.getElementById('back-btn').style.display = 'flex';
+}
+
+// Non-technical view for a single subcategory (e.g. "1.1"). Keeps the user
+// inside the plain-language experience when they click a subcategory in the
+// sidebar, instead of dropping them into the technical grid.
+function renderNonTechnicalSubcategory(catId, scId) {
+  window.scrollTo(0, 0);
+  var cat = getCatById(catId);
+  var main = document.getElementById('main');
+  if (!cat) { renderNonTechnicalOverview(); return; }
+  var sc = (cat.s || []).find(function(x) { return String(x.i) === String(scId); });
+  if (!sc) { renderNonTechnicalCategory(catId); return; }
+  var block = (window.NON_TECHNICAL || {})[String(catId)] || {};
+  // Match areas to subcategories by case-insensitive name overlap; fall back
+  // to rendering just the subcategory's UC list when no curated area exists.
+  var areas = Array.isArray(block.areas) ? block.areas : [];
+  var scName = String(sc.n || '').toLowerCase();
+  var matchedArea = areas.find(function(ar) {
+    var an = String(ar.name || '').toLowerCase();
+    return an === scName || scName.indexOf(an) !== -1 || an.indexOf(scName) !== -1;
+  }) || null;
+
+  var html = '<div class="c-section-header"><div class="c-section-title">' + esc(cat.n) + ' &rsaquo; ' + esc(sc.n) + '</div></div>';
+  html += '<div class="nt-areas"><div class="nt-area">';
+  if (matchedArea) {
+    html += '<h4>' + esc(matchedArea.name) + '</h4>';
+    if (matchedArea.description) html += '<p>' + esc(matchedArea.description) + '</p>';
+    var hasMeta = matchedArea.whatItIs || matchedArea.whoItAffects || matchedArea.splunkValue;
+    if (hasMeta) {
+      html += '<dl class="nt-area-meta">';
+      if (matchedArea.whatItIs)     html += '<div><dt>What it is</dt><dd>' + esc(matchedArea.whatItIs) + '</dd></div>';
+      if (matchedArea.whoItAffects) html += '<div><dt>Who it affects</dt><dd>' + esc(matchedArea.whoItAffects) + '</dd></div>';
+      if (matchedArea.splunkValue)  html += '<div><dt>How Splunk helps</dt><dd>' + esc(matchedArea.splunkValue) + '</dd></div>';
+      html += '</dl>';
+    }
+    if (matchedArea.primer || matchedArea.evidencePack) {
+      html += '<div class="nt-area-links">';
+      if (matchedArea.primer)        html += '<a href="' + esc(ntResolveLink(matchedArea.primer)) + '" title="Open this section of the regulatory primer">Regulatory primer &rarr;</a>';
+      if (matchedArea.evidencePack)  html += '<a href="' + esc(ntResolveLink(matchedArea.evidencePack)) + '" target="_blank" rel="noopener noreferrer" title="Open the auditor evidence pack in a new tab">Evidence pack &rarr;</a>';
+      html += '</div>';
+    }
+  } else {
+    html += '<h4>' + esc(sc.n) + '</h4>';
+  }
+  // List every UC in the subcategory, using its grandmaExplanation.
+  var scUCs = allUCs.filter(function(e) { return e.cat.i === cat.i && String(e.sc.i) === String(scId); });
+  if (scUCs.length === 0) {
+    html += '<p style="color:var(--text-tertiary);font-size:13px;">No use cases listed for this area yet.</p>';
+  } else {
+    html += '<p style="color:var(--text-tertiary);font-size:12px;margin:10px 0 4px;">' + scUCs.length + ' use case' + (scUCs.length === 1 ? '' : 's') + ' in this area. Click any to see plain-language and technical detail.</p>';
+    html += '<ul class="nt-area-ucs">';
+    scUCs.forEach(function(entry) {
+      html += ntAreaUcRow({ id: entry.uc.i });
+    });
+    html += '</ul>';
+  }
+  html += '</div></div>';
   main.innerHTML = html;
   document.getElementById('back-btn').style.display = 'flex';
 }
@@ -5436,6 +5604,7 @@ function reRender() {
   buildSidebar();
   if (nonTechnicalView) {
     if (currentCat == null) renderNonTechnicalOverview();
+    else if (currentSubcat != null && !catShowAllUCs) renderNonTechnicalSubcategory(currentCat, currentSubcat);
     else renderNonTechnicalCategory(currentCat);
     return;
   }

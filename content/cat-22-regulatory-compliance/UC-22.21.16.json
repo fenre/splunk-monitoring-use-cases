@@ -22,15 +22,13 @@
   ],
   "dataSources": "`index=qms` CSV via DB Connect or `sourcetype=qms:control:event` — control_id, last_review, owner",
   "app": "Splunk DB Connect (2686), Splunk Enterprise Security (263)",
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=qms sourcetype=\"qms:control:event\" earliest=-400d\n| stats latest(last_review) as lr_epoch by control_id, owner\n| eval days_since=round((now()-lr_epoch)/86400,1)\n| where days_since > 365 OR isnull(lr_epoch)\n| sort - days_since\n| table control_id, owner, days_since",
   "cimModels": [
     "N/A"
   ],
   "description": "Monitors last_review date for each QMS control_id to ensure Art. 17 quality management system remains current.",
   "value": "Monitors last_review date for each QMS control_id to ensure Art. 17 quality management system remains current.",
+  "grandmaExplanation": "We keep an eye on last_review date for each QMS control_id to ensure quality management system remains current — so you can show exactly what is being watched and when something went wrong.",
   "implementation": "(1) Ingest QMS export nightly; (2) map owners to RACI; (3) alert >365d; (4) attach evidence artifact hash field when available.",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk DB Connect (2686), Splunk Enterprise Security (263).\n• Ensure the following data sources are available: `index=qms` CSV via DB Connect or `sourcetype=qms:control:event` — control_id, last_review, owner.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n(1) Ingest QMS export nightly; (2) map owners to RACI; (3) alert >365d; (4) attach evidence artifact hash field when available.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=qms sourcetype=\"qms:control:event\" earliest=-400d\n| stats latest(last_review) as lr_epoch by control_id, owner\n| eval days_since=round((now()-lr_epoch)/86400,1)\n| where days_since > 365 OR isnull(lr_epoch)\n| sort - days_since\n| table control_id, owner, days_since\n```\n\nUnderstanding this SPL\n\n**Quality Management System Control Evidence Freshness (Art. 17) (EU AI Act)** — Monitors last_review date for each QMS control_id to ensure Art. 17 quality management system remains current.\n\nDocumented **Data sources**: `index=qms` CSV via DB Connect or `sourcetype=qms:control:event` — control_id, last_review, owner. **App/TA** (typical add-on context): Splunk DB Connect (2686), Splunk Enterprise Security (263). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: qms; **sourcetype**: qms:control:event. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=qms, sourcetype=\"qms:control:event\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by control_id, owner** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **days_since** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_since > 365 OR isnull(lr_epoch)` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Quality Management System Control Evidence Freshness (Art. 17) (EU AI Act)**): table control_id, owner, days_since\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (stale controls), Bar chart (days_since distribution), Single value (stale count)",
   "visualization": "Table (stale controls), Bar chart (days_since distribution), Single value (stale count)",
@@ -47,5 +45,8 @@
   "knownFalsePositives": "Administrative tasks, scheduled jobs or platform updates can match this pattern — correlate with change management, maintenance windows and user role before raising severity.",
   "equipment": [
     "db_connect"
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ]
 }
