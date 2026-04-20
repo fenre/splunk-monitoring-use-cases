@@ -156,6 +156,33 @@ the release notes block in `index.html` by hand.
   `python3 tools/build/build.py --out dist --reproducible` &rarr;
   `dist/clause-navigator.html` and `dist/compliance-story.html` present;
   reproducibility check still passes byte-identical.)
+- **`api/v1/` static surface now regenerated in `pages.yml`.** The
+  entire `api/*` tree is gitignored (every file except `api/README.md`
+  &mdash; see `.gitignore`) because `scripts/generate_api_surface.py` is
+  the only authoritative writer. `tools/build/build.py` does not
+  regenerate it; it mirrors whatever is on disk through
+  `_mirror_legacy_root_into_dist`. Since `validate.yml` only runs on
+  `pull_request` (not on push to `main`), and `pages.yml` never invoked
+  any `api/v1/` generator, the published `dist/api/v1/` subtree has
+  always been empty on direct pushes. That was invisible for the main
+  catalogue (which reads `api/catalog-index.json` + `api/cat-N.json`
+  emitted by `tools/build/render_api.py`, not `api/v1/*`), but fatal
+  for the story-layer audience pages: `clause-navigator.html`,
+  `compliance-story.html`, and the `regulatory-primer.html` clause
+  autolinker all fetch `api/v1/compliance/clauses/index.json`,
+  `api/v1/compliance/story/{regulationId}.json`, and per-clause detail
+  files, so every one of those requests 404&rsquo;d on GitHub Pages.
+  `pages.yml` now runs `scripts/generate_api_surface.py` followed by
+  `scripts/generate_evidence_packs.py` before `tools/build/build.py`,
+  so the 7,742 JSON files that make up the static API surface
+  (947 clause detail files, 67 per-regulation story payloads,
+  136 augmented regulation files, 13 evidence-pack twins, plus
+  `equipment/`, `mitre/`, `oscal/`, `recommender/`, `openapi.yaml`,
+  `context.jsonld`, and `manifest.json`) are regenerated into the
+  workspace and then mirrored into `dist/api/v1/`. Both generators are
+  fully deterministic (they pull `SOURCE_DATE_EPOCH` from `git log -1
+  --pretty=%ct HEAD`), so the reproducibility check in `pages.yml`
+  still diffs byte-identical across two consecutive builds.
 
 ### Non-technical mode: plain-language per UC
 
