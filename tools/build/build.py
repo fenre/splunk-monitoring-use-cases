@@ -331,6 +331,15 @@ LEGACY_TOP_DIRS = (
     "embed",
 )
 
+# Companion static apps that live under ``tools/`` but must ship as
+# public-facing site content. The parent ``tools/`` directory is
+# otherwise excluded from the dist mirror (it holds build scripts,
+# audits, and other non-public infrastructure), so these subtrees are
+# copied explicitly below. Paths are repo-relative and POSIX-separated.
+LEGACY_COMPANION_TOOLS = (
+    "tools/data-sizing",
+)
+
 
 def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_root_index: bool = False) -> None:
     """Copy the v6 root tree into dist/ for byte-equivalent transition.
@@ -403,6 +412,29 @@ def _mirror_legacy_root_into_dist(out: Path, opts: BuildOptions, *, preserve_roo
                     continue
                 continue
             if any(part in skip_dirs for part in path.parts):
+                continue
+            if path.suffix in skip_extensions:
+                continue
+            rel = path.relative_to(PROJECT_ROOT)
+            dst = out / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, dst)
+
+    # Companion static apps under tools/ (e.g. the Data Sizing
+    # Assessment). The skip_dirs set above excludes 'tools' from the
+    # top-dir scan, so these subtrees are copied explicitly here. We
+    # check skip_dirs only against path components *below* the tool
+    # root so the outer 'tools/' segment doesn't cause every file to
+    # be rejected.
+    for tool_rel in LEGACY_COMPANION_TOOLS:
+        src = PROJECT_ROOT / Path(tool_rel)
+        if not src.exists() or not src.is_dir():
+            continue
+        for path in src.rglob("*"):
+            if path.is_dir():
+                continue
+            rel_to_tool = path.relative_to(src)
+            if any(part in skip_dirs for part in rel_to_tool.parts):
                 continue
             if path.suffix in skip_extensions:
                 continue
@@ -549,11 +581,17 @@ def _inject_base_path_config(html: str, base_path: str) -> str:
     before falling back to root-absolute ``/api`` and ``/assets/``.
     For GitHub Pages project sites the base path is non-empty
     (e.g. ``/splunk-monitoring-use-cases``), so the overrides are needed.
+
+    Also exposes ``window.__SITE_BASE_PATH`` so SPA code that builds
+    links programmatically (e.g. ``window.open`` into the companion
+    Data Sizing Tool under ``/tools/data-sizing/``) can produce a
+    root-absolute URL that survives being served from ``/browse/``.
     """
     if not base_path:
         return html
     config_script = (
         f'<script>'
+        f'window.__SITE_BASE_PATH="{base_path}";'
         f'window.__CATALOG_API_BASE="{base_path}/api";'
         f'window.__CATALOG_ASSETS_BASE="{base_path}/assets";'
         f'</script>\n'
@@ -617,8 +655,13 @@ _TOPLEVEL_FILE_REWRITES = (
     re.compile(r'href="(favicon\.(?:ico|svg))"'),
     re.compile(r'href="(icon(?:-\d+)?\.(?:svg|png))"'),
     re.compile(r'href="(og-image(?:-\d+)?\.png)"'),
-    # Legacy nested scripts shipped under tools/data-sizing/.
+    # Legacy nested scripts and links shipped under tools/data-sizing/.
+    # Covers both the <script src="..."> bootstrap include and the
+    # "Data Sizing Tool" <a href="..."> in the footer / help text, so
+    # the /browse/ copy resolves them to the GitHub Pages base path
+    # instead of /browse/tools/... (which 404s).
     re.compile(r'src="(tools/data-sizing/[^"#?]+)"'),
+    re.compile(r'href="(tools/data-sizing/[^"#?]+)"'),
 )
 
 

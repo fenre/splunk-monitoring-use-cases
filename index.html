@@ -1502,7 +1502,7 @@ html.dark .help-section-title { color: var(--cisco-teal); }
         <li><strong>QA-gates artifact bundle extended</strong> &mdash; The existing <code>qa-gates</code> artifact now also uploads <code>data/provenance/mapping-ledger.json</code> alongside the peer/legal/SME signoff files and the Phase 5.3 watchlist. External reviewers can pull a single artifact and recompute the merkle root against the downloaded ledger without cloning the repo.</li>
         <li><strong>Verification playbook (<code>docs/signed-provenance.md</code>, ~320 lines)</strong> &mdash; Covers what the ledger proves (integrity, completeness, chain of custody, origin for release artefacts), what it deliberately does <strong>not</strong> prove (legal correctness, detection correctness, regulation freshness, staleness of the local clone &mdash; those remain the remit of the four review gates and change-watch), component map, record anatomy with a worked example, canonicalisation + merkle construction recomputable from the command line, the three-level verification protocol (trust-but-verify hash chain → require-but-trust signed envelope → verify-with-Sigstore cryptographic proof), six operator runbooks (adding a mapping, PR-CI drift, audit-script corruption, stale <code>catalogueCommit</code>, downloaded-release verification, local dry-run), determinism contract, semver policy for future schema evolution (v2.0.0 is reserved for hash algorithm or Merkle-tree-shape changes; minor bumps add ledger metadata; patches fix bugs), and cross-references into the other four gates and the API surface.</li>
         <li><strong>LEGAL.md §5e added</strong> &mdash; New subsection "Signed provenance ledger (Phase 5.4)" describes the ledger's role, the release attestation pipeline, the downstream verification protocol, and the explicit scope statement: a failed <code>gh attestation verify</code> is a material provenance-compromise event. §6 "Signing and provenance" is expanded to call out that the clause-level ledger complements the existing release-tag signing and per-artefact SHA-256 digests.</li>
-        <li><strong>Cross-references added</strong> &mdash; <code>docs/peer-review-guide.md</code>, <code>docs/legal-review-guide.md</code>, <code>docs/sme-review-guide.md</code>, <code>docs/regulatory-change-watch.md</code>, and <code>api/v1/README.md</code> each gain a "See also" / "Provenance and attestation" pointer to <code>docs/signed-provenance.md</code>. Reviewers are told how to confirm their signoff PR number is snapshotted into the next ledger regeneration; API consumers are told how to match any API-level compliance claim back to its <code>canonicalHash</code> entry. Scope boundaries (what Phase 5.4 intentionally does <strong>not</strong> do): it does not replace any of the four review gates &mdash; the ledger records reviewer verdicts but does not re-derive them; it does not sign the in-repo copy &mdash; <code>main</code> always carries <code>signature.state=unsigned</code> so PR CI is deterministic and the release workflow is the sole authority that produces <code>attested</code> artefacts; it does not use a binary Merkle tree &mdash; the sorted-leaf rolling hash is simpler to recompute independently (a v2.0.0 schema may upgrade this if per-entry inclusion proofs become useful); it does not snapshot SPL or regulation bodies &mdash; only the <code>(UC, regulation, clause, mode, assurance, derivationSource)</code> tuple enters the hash (narrative bodies live in the sidecars, which git history already versions); it does not gate release directly &mdash; blocking happens via <code>--check</code> in PR CI plus the end-to-end <code>--verify-signature</code> step in <code>release.yml</code>; it does not ship a revocation mechanism for a compromised release &mdash; that is handled through the standard GitHub Release retraction flow plus an advisory note in <code>SECURITY.md</code>. The final release gate remains Phase 5.5.</li>
+        <li><strong>Cross-references added</strong> &mdash; <code>docs/peer-review-guide.md</code>, <code>docs/legal-review-guide.md</code>, <code>docs/sme-review-guide.md</code>, <code>docs/regulatory-change-watch.md</code>, and <code>api/README.md</code> each gain a "See also" / "Provenance and attestation" pointer to <code>docs/signed-provenance.md</code>. Reviewers are told how to confirm their signoff PR number is snapshotted into the next ledger regeneration; API consumers are told how to match any API-level compliance claim back to its <code>canonicalHash</code> entry. Scope boundaries (what Phase 5.4 intentionally does <strong>not</strong> do): it does not replace any of the four review gates &mdash; the ledger records reviewer verdicts but does not re-derive them; it does not sign the in-repo copy &mdash; <code>main</code> always carries <code>signature.state=unsigned</code> so PR CI is deterministic and the release workflow is the sole authority that produces <code>attested</code> artefacts; it does not use a binary Merkle tree &mdash; the sorted-leaf rolling hash is simpler to recompute independently (a v2.0.0 schema may upgrade this if per-entry inclusion proofs become useful); it does not snapshot SPL or regulation bodies &mdash; only the <code>(UC, regulation, clause, mode, assurance, derivationSource)</code> tuple enters the hash (narrative bodies live in the sidecars, which git history already versions); it does not gate release directly &mdash; blocking happens via <code>--check</code> in PR CI plus the end-to-end <code>--verify-signature</code> step in <code>release.yml</code>; it does not ship a revocation mechanism for a compromised release &mdash; that is handled through the standard GitHub Release retraction flow plus an advisory note in <code>SECURITY.md</code>. The final release gate remains Phase 5.5.</li>
       </ul>
     </div>
 
@@ -5073,6 +5073,12 @@ function _downloadBlob(blob, name) {
   URL.revokeObjectURL(url);
 }
 
+function _dataSizingURL(query) {
+  var base = window.__SITE_BASE_PATH || '';
+  var path = base + '/tools/data-sizing/index.html';
+  return query ? path + '?' + query : path;
+}
+
 function launchDSAFromInventory() {
   var dsaSet = new Set();
   var eqMap = window.DSA_EQUIPMENT_MAP || {};
@@ -5084,8 +5090,7 @@ function launchDSAFromInventory() {
   var params = ['sources=' + Array.from(dsaSet).join(',')];
   var eqIds = Array.from(_invTempSelections);
   if (eqIds.length) params.push('equipment=' + eqIds.join(','));
-  var url = 'tools/data-sizing/index.html?' + params.join('&');
-  window.open(url, '_blank');
+  window.open(_dataSizingURL(params.join('&')), '_blank');
 }
 
 function updateHash(replace) {
@@ -5459,7 +5464,7 @@ function _updateSizingTray() {
         countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
           + 'These use cases don\u2019t have data sources mapped yet. Add equipment via '
           + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
-          + ' to include data sources, or open the <a href="tools/data-sizing/index.html" target="_blank" style="color:var(--cisco-blue);text-decoration:underline">Data Sizing Tool</a>'
+          + ' to include data sources, or open the <a href="' + _dataSizingURL('') + '" target="_blank" style="color:var(--cisco-blue);text-decoration:underline">Data Sizing Tool</a>'
           + ' to select industrial data sources directly.</span>';
       } else if (ucsUnmapped > 0 && hasDsaSources) {
         countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
@@ -5519,8 +5524,7 @@ function launchDSAEstimate() {
     alert(msg);
     return;
   }
-  var url = 'tools/data-sizing/index.html?' + params.join('&');
-  window.open(url, '_blank');
+  window.open(_dataSizingURL(params.join('&')), '_blank');
 }
 
 function initApp() {

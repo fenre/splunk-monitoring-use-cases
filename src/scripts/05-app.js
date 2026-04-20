@@ -455,6 +455,12 @@ function _downloadBlob(blob, name) {
   URL.revokeObjectURL(url);
 }
 
+function _dataSizingURL(query) {
+  var base = window.__SITE_BASE_PATH || '';
+  var path = base + '/tools/data-sizing/index.html';
+  return query ? path + '?' + query : path;
+}
+
 function launchDSAFromInventory() {
   var dsaSet = new Set();
   var eqMap = window.DSA_EQUIPMENT_MAP || {};
@@ -466,8 +472,7 @@ function launchDSAFromInventory() {
   var params = ['sources=' + Array.from(dsaSet).join(',')];
   var eqIds = Array.from(_invTempSelections);
   if (eqIds.length) params.push('equipment=' + eqIds.join(','));
-  var url = 'tools/data-sizing/index.html?' + params.join('&');
-  window.open(url, '_blank');
+  window.open(_dataSizingURL(params.join('&')), '_blank');
 }
 
 function updateHash(replace) {
@@ -841,7 +846,7 @@ function _updateSizingTray() {
         countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
           + 'These use cases don\u2019t have data sources mapped yet. Add equipment via '
           + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
-          + ' to include data sources, or open the <a href="tools/data-sizing/index.html" target="_blank" style="color:var(--cisco-blue);text-decoration:underline">Data Sizing Tool</a>'
+          + ' to include data sources, or open the <a href="' + _dataSizingURL('') + '" target="_blank" style="color:var(--cisco-blue);text-decoration:underline">Data Sizing Tool</a>'
           + ' to select industrial data sources directly.</span>';
       } else if (ucsUnmapped > 0 && hasDsaSources) {
         countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
@@ -901,8 +906,7 @@ function launchDSAEstimate() {
     alert(msg);
     return;
   }
-  var url = 'tools/data-sizing/index.html?' + params.join('&');
-  window.open(url, '_blank');
+  window.open(_dataSizingURL(params.join('&')), '_blank');
 }
 
 function initApp() {
