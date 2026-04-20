@@ -55,6 +55,7 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `c` | string | **Criticality:** `critical` \| `high` \| `medium` \| `low`. |
 | `f` | string | **Difficulty:** `beginner` \| `intermediate` \| `advanced` \| `expert`. |
 | `v` | string | **Value:** why the use case matters. |
+| `ge` | string | **Grandma explanation** (optional, v7.1+). Plain-language, jargon-free 1–3 sentence summary (20–400 chars, `we` voice) used as the primary UC text throughout the non-technical view. Authored as `grandmaExplanation` in the UC sidecar and emitted under the short key `ge` in `catalog.json` / `data.js`. Populated by [`scripts/generate_grandma_explanations.py`](../scripts/generate_grandma_explanations.py); CI enforces coverage via `--check`. Markdown-only UCs receive a runtime fallback composed by `build.py` from `title`/`value`/`description`. |
 | `t` | string | **App/TA:** Splunk add-on(s) or app(s). |
 | `d` | string | **Data sources:** log/metric sources. |
 | `q` | string | **SPL:** main search query. |

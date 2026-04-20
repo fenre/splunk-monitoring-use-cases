@@ -6,13 +6,58 @@
 
 ## Current release
 
+**v7.1 — Non-Technical Everywhere** *(shipped 2026-04-20)*
+
+Theme: **"every use case is explainable without jargon, everywhere, in
+one sentence."** v7.1 extends v7.0's per-UC content architecture with a
+first-class plain-language summary on every UC and a wholesale rewrite
+of the non-technical UI so that toggle hides *all* technical chrome
+behind a single disclosure.
+
+- New required-at-runtime `grandmaExplanation` field on every UC
+  sidecar (schema v1.5.0, 20–400 chars, `we` voice, no Splunk/SPL/CIM/
+  MITRE/TA acronyms) — populated deterministically by
+  [`scripts/generate_grandma_explanations.py`](scripts/generate_grandma_explanations.py)
+  from the existing title/description/value copy
+- Non-technical view now renders `grandmaExplanation` as the primary
+  UC text on UC cards, search results, subcategory lists, recently-added,
+  and at the top of the UC detail panel; technical sections (SPL, CIM,
+  MITRE, data sources, etc.) collapse behind a single *Show technical
+  details* disclosure that follows the mode toggle
+- Sidebar subcategory clicks and hash deep-links stay in non-technical
+  mode (new `renderNonTechnicalSubcategory` path + `restoreFromHash`
+  fixes); UC rows in non-technical area lists are now clickable and
+  prefer the per-UC `ge` over curated `why` copy
+- CI guard: `scripts/generate_grandma_explanations.py --check` runs on
+  every PR and blocks merge if any UC sidecar is missing the field
+- Runtime fallback in `build.py` for markdown-only UCs so the UI never
+  shows an empty plain-language card even before a UC sidecar lands
+- Authoring and maintenance guide at [`docs/grandma-explanations.md`](docs/grandma-explanations.md);
+  full narrative in [`docs/v7.1-release-report.md`](docs/v7.1-release-report.md)
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v7.1 release notes.
+
+### Shipped outcomes
+
+- Non-technical users see a coherent jargon-free summary on every UC
+  surface, not just the subset (~10 %) previously covered by curated
+  `why` lines
+- The technical view is unchanged — collapsed sections expand by default,
+  preserving the v7.0 detail panel layout
+- Drift is impossible: adding a UC without regenerating plain-language
+  copy fails CI before merge
+
+---
+
+## Previous releases
+
 **v7.0 — Per-UC Content Architecture** *(shipped 2026-04-19)*
 
 Theme: **"every use case is its own file, every build is reproducible,
-every URL is permanent."**  v7.0 replaces the monolithic per-category
-markdown files with individually authored per-UC file pairs and introduces
-a Python stdlib-only build pipeline that generates the entire site from
-source.
+every URL is permanent."**  v7.0 replaced the monolithic per-category
+markdown files with individually authored per-UC file pairs and
+introduced a Python stdlib-only build pipeline that generates the
+entire site from source.
 
 - 23 monolithic `cat-*.md` files exploded into 6,449 individual
   `content/cat-NN-slug/UC-X.Y.Z.md` prose files paired with 6,470
@@ -29,21 +74,6 @@ source.
 - Architecture contract (`docs/architecture.md`), URL scheme
   (`docs/url-scheme.md`), schema versioning (`docs/schema-versioning.md`)
 - 6,447 UCs across 23 categories
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v7.0 release notes.
-
-### Shipped outcomes
-
-- PRs that touch one use case now change two small files instead of a
-  5 MB markdown blob — independently reviewable, diffable, and indexable
-- Build is reproducible: CI builds twice and asserts byte-identical output
-- Every public URL is permanent and verified by `url_freeze` audit
-- Performance budgets are enforced in CI
-- Scalable to 60,000 UCs without re-architecting
-
----
-
-## Previous releases
 
 **v6.1 — Verifiable Compliance Coverage** *(shipped 2026-04-16)*
 
@@ -99,15 +129,15 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 
 ---
 
-## Next up: v7.1 — Expand & Refine *(no fixed date)*
+## Next up: v7.2 — Expand & Refine *(no fixed date)*
 
-With the v7.0 architecture in place, the v7.1 focus shifts to
-**raising the scorecard grades** and completing the SSG page generation
-— most categories currently sit in "Needs work" because KFP, MITRE
-mappings, reviewed-dates and sample fixtures haven't been authored for
-non-security UCs.
+With the v7.0 per-UC architecture and the v7.1 non-technical rewrite in
+place, the v7.2 focus shifts to **raising the scorecard grades** and
+completing the SSG page generation — most categories currently sit in
+"Needs work" because KFP, MITRE mappings, reviewed-dates and sample
+fixtures haven't been authored for non-security UCs.
 
-### Content + tooling work targeted for v7.1
+### Content + tooling work targeted for v7.2
 
 - **Top-200 sample-event coverage** — Expand the `samples/` tree from 15
   fixtures to 200, targeting the most-used UCs identified by dashboard
@@ -124,12 +154,16 @@ non-security UCs.
 - **Phase E SME-uplift continuation** — Walk the remaining tier-1 +
   tier-2 clause coverage entries from `assurance: contributing` to
   `partial` / `full` via SME judgment.  Phase E v6.1 lifted global
-  assurance-adjusted coverage to 59.89 %; the realistic v6.2 target is
+  assurance-adjusted coverage to 59.89 %; the realistic v7.2 target is
   ≥75 % tier-1 / ≥55 % tier-2 without artificial uplift.
+- **`grandmaExplanation` hand-polish pass** — Deterministic generator
+  text is "good enough to ship"; v7.2 adds a curator review loop to
+  raise quality (voice, warmth, concreteness) on the 500 most-viewed
+  UCs without regenerating the rest.
 
 ---
 
-## v7.2+ backlog *(no fixed date)*
+## v7.3+ backlog *(no fixed date)*
 
 The following ideas are under consideration but not yet scheduled. Pull
 requests or issues advocating for any of them are welcome.

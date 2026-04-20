@@ -9,6 +9,7 @@ Use cases in this repo support the following optional fields. All are optional u
 | Criticality | **Criticality:** | 🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Low |
 | Difficulty | **Difficulty:** | 🟢 Beginner, 🔵 Intermediate, 🟠 Advanced, 🔴 Expert |
 | Value | **Value:** | Why the use case matters. |
+| Grandma explanation | **Grandma explanation:** | Optional, v7.1+. Per-UC plain-language "explain it to my grandma" summary in `we` voice: 20–400 chars, no Splunk / SPL / CIM / MITRE / TA / add-on acronyms, no index / sourcetype / tstats, no regulation clause numbers. Authored in the JSON sidecar as `grandmaExplanation` (the markdown-line form is optional). Rendered as the primary UC text across the non-technical view (UC cards, search results, subcategory lists, recently-added, and the top of the UC detail panel). Populated by `scripts/generate_grandma_explanations.py` from the existing title/description/value copy; CI enforces that every UC has it via `scripts/generate_grandma_explanations.py --check`. See [docs/grandma-explanations.md](grandma-explanations.md) for authoring and tone rules. |
 | App/TA | **App/TA:** | Splunk Add-ons or apps. |
 | Data Sources | **Data Sources:** | Log/metric sources. |
 | SPL | **SPL:** | Splunk search (in a ```spl block). |

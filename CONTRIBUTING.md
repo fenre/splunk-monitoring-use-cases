@@ -98,6 +98,17 @@ When you add a **new category** or **subcategory** (`## X.Y` in markdown), add a
 node -e "const window={}; eval(require('fs').readFileSync('non-technical-view.js','utf8')); console.log(Object.keys(window.NON_TECHNICAL).length+' categories OK');"
 ```
 
+When you add a **new UC** or meaningfully edit an existing UC's `title` / `description` / `value`, regenerate the per-UC plain-language summary used by the non-technical view:
+
+```bash
+python3 scripts/generate_grandma_explanations.py            # fills missing UCs
+python3 scripts/generate_grandma_explanations.py --only 1.1.1  # regenerate one UC
+python3 scripts/generate_grandma_explanations.py --force    # overwrite (rarely needed)
+python3 scripts/generate_grandma_explanations.py --check    # CI drift guard (exit 1 on missing)
+```
+
+CI runs the `--check` step on every PR and blocks merge if any UC sidecar is missing a `grandmaExplanation`. Existing curator-authored values are never overwritten unless `--force` is passed. Full authoring guide: [`docs/grandma-explanations.md`](docs/grandma-explanations.md).
+
 ## Version management
 
 1. Read **`VERSION`** before editing release text.
@@ -120,6 +131,7 @@ python3 scripts/audit_uc_ids.py && python3 scripts/audit_uc_structure.py --full
 | `audit_changelog_uc_refs.py` | `CHANGELOG.md` version headers (shape, dates, ordering, duplicates); `UC-*` references in markdown point to real headers |
 | `audit_repo_consistency.py` | `INDEX.md` vs `cat-NN-*.md`, icons vs `index.html` `SI_PATHS`, Quick Start UCs, `build.py` `CAT_GROUPS` / `SPLUNK_APPS` |
 | `audit_catalog_schema.py` | `catalog.json` schema validation: category/subcategory/UC structure, required fields, enum values, optional `wv` (wave) / `pre` (prerequisite UC) fields, and the top-level `implementationRoadmap` block |
+| `generate_grandma_explanations.py --check` | Every UC sidecar has a non-empty, in-bounds `grandmaExplanation` (20–400 chars); also runs as a dedicated CI step |
 
 Other `scripts/*` files are generators or one-off tools, not part of the default validation loop.
 
